@@ -1,0 +1,116 @@
+# Implement the next task
+
+Use this method for each task returned by `zd next`.
+
+1. Run `zd status <area> --format json`. Require all four gates: the recorded
+   branch is checked out, the effective-base link is fresh, its anchor is valid,
+   and base finalization is complete. If any gate fails, follow the managed
+   rebase recovery below before selecting work.
+2. Read the area brief first, then the task file, repository instructions, and
+   the smallest relevant source and tests. When the brief indexes an area-local
+   `background/` corpus, follow only links identified as relevant to the task,
+   including any focused links in the task file; do not load the entire corpus
+   by default. Treat `brief.md` as the authoritative synthesis when background
+   detail differs from it. Confirm that the brief has a concrete `Testing`
+   section that covers this task. If it is missing, return control and
+   recommend **Discuss the brief** or **Explore an objective**. If repository
+   evidence and the task do not make the intended level clear, ask the user
+   with a recommended level and its cost/confidence trade-off before
+   delegating implementation.
+3. Before delegation, record the checkout baseline in the conversation:
+   `git status --short --untracked-files=all`, `git diff --cached`, and
+   `git diff`. This covers staged, unstaged, and untracked state without
+   changing it. Identify which existing changes are user-owned and which paths
+   this task may change. If an existing change overlaps a task path and
+   ownership is unclear, stop and ask the user; do not stash, reset, restore,
+   clean, or alter the index to manufacture a clean baseline.
+4. Dispatch one implementation sub-agent with the brief, task, repository
+   guidance, relevant source, and task-owned path boundaries from the baseline.
+   It may edit source and tests and run validation. It must not edit `.zd`, run
+   `zd task done`, change task lifecycle state, or commit.
+5. Ask it to satisfy every done condition, stay within the task boundaries, and
+   follow the brief's testing level and run the listed validation. Reuse nearby
+   test style, seams, fixtures, and helpers. Add or change tests only to the
+   extent called for by the agreed level and task; do not invent a new testing
+   approach or broaden coverage for robustness beyond scope. When new tests are
+   called for and the repository uses test-first development, a focused failing
+   behavior test through a stable public seam is appropriate. When the brief
+   says no new tests, do not add them merely to demonstrate diligence.
+6. Compare Git status, staged and unstaged diffs, and untracked paths with the
+   recorded baseline. Attribute every new change to the task before treating it
+   as implementation evidence. Stop on ambiguous overlap or unexplained state;
+   pre-existing changes remain user-owned even when they are adjacent to the
+   task. Ignore an intervening commit only when its complete diff adds one or more new
+   `.zd/<area>/tasks/*.md` files, regenerates `.zd/<area>/TASKS.md`, and changes
+   no other path. Keep the current selection and consider those additions only
+   at the next `zd next` boundary. Stop and review every other intervening
+   change, including changes to an existing task, the selected task, `brief.md`,
+   area metadata, lifecycle state, or source. Then apply the independent
+   verification contract below with a fresh verification sub-agent.
+7. Return every concrete task-owned `REWORK` finding to the same implementer
+   when possible.
+   Otherwise give a replacement implementer the task, current diff, and exact
+   findings. After correction, use a fresh verifier for both passes again.
+8. Repeat implementation and fresh verification without a fixed retry count.
+   Stop only for `PASS`, a real blocker, unsafe scope expansion, or a user-owned
+   decision.
+
+For verification, give the fresh read-only agent the brief, task, actual
+checkout diff, relevant source and tests, and repository verification
+instructions. Require separate Spec and Standards passes, complete checkout
+evidence, a pre/post-validation state comparison, and all task-listed
+validation. Required validation that is unsafe or unavailable is `BLOCKER`;
+only optional checks may be reported as residual limitations. The verifier
+returns `PASS`, `REWORK`, or `BLOCKER` as defined in [verify.md](verify.md). The
+caller checks that the verdict covers the whole task.
+
+## Rebase recovery
+
+Use `zd area rebase <area>` for both ordinary trunk updates and the occasional
+parent-area update. Zdev rebases only the checked-out area branch and never
+merges or recursively updates descendants.
+
+If conflicts stop Git, resolve and stage them, then continue or abort:
+
+```text
+zd area rebase <area> --continue
+zd area rebase <area> --abort
+```
+
+If someone completed the operation with `git rebase --continue`, rerun the
+normal zdev area rebase command to verify the result and finalize the base
+anchor. For a longer chain, update one link at a time from parent to child.
+
+Check `zd status <area> --format json` again before `zd task done`. Completion
+must not cross a wrong branch, stale base, invalid anchor, or pending anchor
+finalization.
+
+After verification passes:
+
+```text
+zd task done <area> <task> --summary <summary> --validation <result>...
+git add <explicit-task-source-path>... .zd/<area>/tasks/<exact-task-file> .zd/<area>/TASKS.md
+git diff --cached
+zd commit -m <message>
+zd next <area> --format json
+```
+
+Stage only explicit task-owned source paths, the exact completed task file, and
+the generated `TASKS.md`; never stage the whole area directory. Before commit,
+inspect `git status --short --untracked-files=all` and the full cached diff
+against the baseline and verified evidence. The index must contain only the
+intended task changes. Stop if pre-existing staged content, unexplained changes,
+or ambiguous ownership would enter the commit. Do not rearrange the user's
+index automatically. `zd commit` adds the stable change ID. Return control with
+the next ready task; continue only when the user's existing zdev execution
+request authorizes the loop.
+
+After interruption, inspect area status and reconstruct the three-part Git
+baseline before assigning ownership: status including untracked files, cached
+diff, and unstaged diff. Continue or abort Git's rebase first, or run the normal
+area rebase command to finalize a rebase completed directly through Git. Then
+rerun `zd next`. Do not assume an existing diff belongs to the selected task.
+Resume or verify an open task only after its changes can be attributed, restart
+an open task without task-owned changes, and inspect a done task plus the cached
+diff before committing or reopening it. Stop and ask when ownership cannot be
+re-established from the task, baseline, and conversation.

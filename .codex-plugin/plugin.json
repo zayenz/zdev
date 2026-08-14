@@ -1,0 +1,36 @@
+{
+  "name": "zdev",
+  "version": "1.0.0",
+  "description": "A small, durable multi-harness implement-and-verify task loop.",
+  "author": {
+    "name": "Mikael Zayenz Lagerkvist",
+    "email": "zdev@zayenz.se",
+    "url": "https://github.com/zayenz"
+  },
+  "homepage": "https://github.com/zayenz/zdev",
+  "repository": "https://github.com/zayenz/zdev",
+  "license": "MIT",
+  "keywords": [
+    "agents",
+    "development-workflow",
+    "multi-harness",
+    "planning",
+    "review"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Zdev",
+    "shortDescription": "Shape and run durable zdev work.",
+    "longDescription": "Shape objectives, draft tasks, and run implementation with independent verification.",
+    "developerName": "Mikael Zayenz Lagerkvist",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use $zdev to shape or run durable work in this repository."
+    ]
+  }
+}

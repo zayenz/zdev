@@ -1,0 +1,50 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -5,0 +6,2 @@
++# This generated baseline is hardened by scripts/sync-release-workflow.sh.
++#
+@@ -18 +20 @@
+-  "contents": "write"
++  "contents": "read"
+@@ -63,3 +65 @@
+-      - name: Install dist
+-        # we specify bash to get pipefail; it guards against the `curl` command
+-        # failing. otherwise `sh` won't catch that `curl` returned non-0
++      - name: Install verified dist
+@@ -67 +67 @@
+-        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh | sh"
++        run: scripts/install-cargo-dist.sh
+@@ -116,3 +115,0 @@
+-      - name: enable windows longpaths
+-        run: |
+-          git config --global core.longpaths true
+@@ -134,2 +131,3 @@
+-      - name: Install dist
+-        run: ${{ matrix.install_dist.run }}
++      - name: Install verified dist
++        shell: bash
++        run: scripts/install-cargo-dist.sh
+@@ -153,3 +151 @@
+-        # We force bash here just because github makes it really hard to get values up
+-        # to "real" actions without writing to env-vars, and writing to env-vars has
+-        # inconsistent syntax between shell and powershell.
++        # Use bash to write the multiline action output consistently.
+@@ -222,0 +219 @@
++      - build-global-artifacts
+@@ -226 +222,0 @@
+-    secrets: inherit
+@@ -230,0 +227,2 @@
++    permissions:
++      "contents": "write"
+@@ -236,2 +234,2 @@
+-    # Only run if we're "publishing", and only if plan, local and global didn't fail (skipped is fine)
+-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' && (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result == 'success') && (needs.custom-release-smoke.result == 'skipped' || needs.custom-release-smoke.result == 'success') && (needs.build-local-artifacts.result == 'skipped' || needs.build-local-artifacts.result == 'success') }}
++    # Publishing fails closed unless every build and smoke gate succeeded.
++    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' && needs.build-global-artifacts.result == 'success' && needs.custom-release-smoke.result == 'success' && needs.build-local-artifacts.result == 'success' }}
+@@ -284,0 +283,5 @@
++      - name: Verify the exact release assets
++        shell: bash
++        env:
++          APP_NAME: ${{ fromJson(needs.plan.outputs.val).releases[0].app_name }}
++        run: scripts/check-release-assets.sh artifacts "$APP_NAME" --with-dist-manifest

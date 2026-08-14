@@ -1,0 +1,155 @@
+name: Rust
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Rust 1.89 on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install the minimum Rust toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal --component clippy,rustfmt
+
+      - name: Select the minimum Rust toolchain
+        run: rustup default 1.89.0
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run strict Clippy
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
+      - name: Run the Rust suite
+        run: cargo test --locked
+
+      - name: Build the release binary
+        run: cargo build --release --locked
+
+      - name: Smoke-test a copied release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          scratch="$(mktemp -d "${RUNNER_TEMP}/zdev-smoke.XXXXXX")"
+          trap 'rm -rf "$scratch"' EXIT
+
+          mkdir -p "$scratch/bin" "$scratch/project"
+          cp target/release/zd "$scratch/bin/zd"
+          chmod +x "$scratch/bin/zd"
+
+          binary="$scratch/bin/zd"
+          "$binary" --version
+          "$binary" --root "$scratch/project" init
+          "$binary" --root "$scratch/project" status
+
+  source-package:
+    name: Cargo source package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install the minimum Rust toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal
+
+      - name: Select the minimum Rust toolchain
+        run: rustup default 1.89.0
+
+      - name: Build the Cargo source package
+        run: cargo package --locked
+
+      - name: Test source installation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          install_root="$RUNNER_TEMP/zdev-source-install"
+          cargo install --path . --locked --root "$install_root"
+
+          package_id=$(cargo pkgid --locked)
+          version=${package_id##*#}
+          version=${version##*@}
+          sh scripts/release-smoke.sh \
+            "$install_root/bin/zd" \
+            "$version"
+
+      - name: Verify the package inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          inventory="$RUNNER_TEMP/zdev-package-inventory.txt"
+          cargo package --list --locked > "$inventory"
+
+          for required in \
+            .codex-plugin/plugin.json \
+            Cargo.lock \
+            Cargo.toml \
+            LICENSE \
+            README.md \
+            src/lib.rs \
+            src/main.rs \
+            skills/zdev/SKILL.md \
+            skills/zdev/agents/openai.yaml \
+            skills/zdev/references/discuss.md \
+            skills/zdev/references/implement.md \
+            skills/zdev/references/improve.md \
+            skills/zdev/references/investigate.md \
+            skills/zdev/references/shape-work.md \
+            skills/zdev/references/task-format.md \
+            skills/zdev/references/to-tasks.md \
+            skills/zdev/references/verify.md \
+            templates/zdev/shared-contract.md \
+            templates/zdev/codex-skill.md \
+            templates/zdev/claude-skill.md \
+            templates/zdev/claude/plugin.json \
+            templates/zdev/claude/agents/zdev-implementer.md \
+            templates/zdev/claude/agents/zdev-verifier.md \
+            templates/zdev/claude/workflows/zdev-task.js \
+            templates/zdev/claude/workflows/zdev-audit.js \
+            templates/zdev/opencode-skill.md \
+            templates/zdev/opencode/agents/zdev-implementer.md \
+            templates/zdev/opencode/agents/zdev-verifier.md \
+            templates/zdev/opencode/command/zdev-task.md \
+            templates/zdev/opencode/command/zdev-audit.md \
+            templates/zdev/pi-skill.md \
+            templates/zdev/pi/prompts/zdev-task.md \
+            templates/zdev/pi/prompts/zdev-audit.md \
+            templates/zdev/pi/extensions/zdev-subagent.ts \
+            templates/zdev/omp-skill.md \
+            templates/zdev/omp/agents/zdev-implementer.md \
+            templates/zdev/omp/agents/zdev-verifier.md \
+            docs/adapted-methods.md \
+            docs/user-guide.md \
+            docs/workflow.md \
+            docs/task-format.md \
+            tests/documentation_contract.rs \
+            tests/lean.rs
+          do
+            grep -Fqx "$required" "$inventory"
+          done
+
+          if grep -Eq '(^|/)(src/zdev|__pycache__|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.venv|target)(/|$)|(^|/)pyproject\.toml$|(^|/)uv\.lock$|\.py[co]?$' "$inventory"
+          then
+            echo 'Cargo package contains a removed Python or cache artifact:' >&2
+            grep -E '(^|/)(src/zdev|__pycache__|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.venv|target)(/|$)|(^|/)pyproject\.toml$|(^|/)uv\.lock$|\.py[co]?$' "$inventory" >&2
+            exit 1
+          fi

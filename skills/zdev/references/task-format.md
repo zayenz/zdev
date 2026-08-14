@@ -100,14 +100,19 @@ never an authored source.
 - one or more `done_when` strings; and
 - optional `validation` strings.
 
-Prefer passing an approved bundle directly with
-`zd tasks import <area> --from -`. A path is also accepted for manual use and
-is left in place after import. When adding tasks to an existing task list, use
-`zd tasks import <area> --from - --commit --format json`. Use ordinary import
-for the initial split or when the user explicitly wants uncommitted additions.
-A committed import contains only the new task files and regenerated `TASKS.md`;
-its JSON result includes task IDs, paths, the commit hash, and the stable change
-ID. Zdev validates the complete dependency graph before creating any task file.
+Run `zd tasks review <area> --from - --format json` to validate a draft bundle
+and render its complete approval document. The result includes an `approval`
+fingerprint. After approval, pass the unchanged JSON to
+`zd tasks import <area> --from - --approval <approval-id>`. Zdev rejects a
+bundle that differs from the reviewed content.
+
+A path is accepted for manual use and remains in place after review or import.
+When adding tasks to an existing task list, add `--commit --format json` to the
+import command. Use ordinary import for the initial split or when the user
+wants uncommitted additions. A committed import contains only the new task
+files and regenerated `TASKS.md`; its JSON result includes task IDs, paths, the
+commit hash, and stable change ID. Zdev validates the complete dependency graph
+before creating any task file.
 
 Keep shared context, including the required area-wide testing level, in
 `brief.md`. For newly drafted implementation tasks, use `context` to select and

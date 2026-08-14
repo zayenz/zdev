@@ -22,7 +22,7 @@ brief** or **Explore an objective** instead of making the choice here.
 Each task should:
 
 - deliver a narrow, complete path through every affected layer;
-- fit in one fresh implementation-agent context;
+- fit in one fresh implementer context;
 - be independently demonstrable or verifiable;
 - state one outcome, useful task context, task-specific boundaries, observable
   done conditions, and useful validation; and
@@ -71,117 +71,60 @@ covering:
 - incorrect boundaries or scope; and
 - false dependencies.
 
-The caller reconciles those suggestions, edits `.zd`, resolves user choices,
-and asks for import approval. If another agent is unavailable, run the same
-review locally. A local review is enough for trivial or fully specified work.
-Say which kind of review ran.
+The coordinating agent reconciles those suggestions, edits `.zd`, resolves
+user choices, and asks for import approval. If another agent is unavailable,
+run the same review locally. A local review is enough for trivial or fully
+specified work. Say which kind of review ran.
+
+Before approval, reconcile proposed tasks with existing task keys and completed
+outcomes. Resolve every concrete design or testing choice that would change the
+bundle before requesting approval.
 
 ## Review the split
 
-Present the reconciled draft in dependency order as one human-readable
-Markdown document inside a fenced block. Use a fence longer than any run of
-backticks in the values. The document must use this exact structure:
+Build the complete Task Bundle JSON defined in
+[task-format.md](task-format.md). Keep every task and dependency in dependency
+order. Send that JSON to:
 
-````markdown
-```markdown
-# Task Bundle
-
-## Area
-scheduling
-
-## Schema version
-1
-
-## Task 1
-
-### Key
-model
-
-### Title
-Add the scheduling model
-
-### Outcome
-The model represents the required scheduling decisions.
-
-### Context
-Add the model beside the existing scheduler types.
-
-### Boundaries
-1. Change the scheduling model and its focused tests.
-2. Preserve the existing solver API and use the vocabulary settled in the brief.
-
-### Blocked by
-None
-
-### Done when / proof
-1. The model represents every decision named in the brief.
-2. Focused tests cover the model.
-
-### Validation / Testing
-1. Run the focused model tests.
-2. Apply the area's focused testing level; no broader tests are required.
+```text
+<task-bundle-json> | zd tasks review <area> --from - --format json
 ```
-````
 
-Put each scalar value on the line after its heading. Render each list value as
-a numbered item and preserve item order. Render an empty optional scalar or
-empty list as the single value `None`. Repeat the complete `## Task N` section
-for every task, preserving task order. Show every value that will be imported;
-do not add presentation-only text inside the fence. In `Validation / Testing`,
-include the task's validation steps and state how the area's agreed `Testing`
-level applies.
+The command validates the bundle shape and returns an `approval` fingerprint
+and a complete `markdown` document. Show the returned Markdown unchanged, then
+ask: `Approve this task bundle for import?`
 
-The fenced Markdown document is the approval source. Render it from the
-structured bundle that will be imported, with every value and dependency in
-the same order. Keep that structured bundle in working context after rendering.
-Ask about concrete unresolved choices before requesting approval.
-
-Reconcile additions with existing task keys and completed outcomes. Show JSON
-only when the user asks to inspect it. Immediately before import, ask:
-`Approve this task bundle for import?` If any task content, order, or dependency
-changes afterward, show the complete revised bundle and ask again.
+Keep the reviewed JSON unchanged. If any task content, order, or dependency
+changes, run `zd tasks review` again, show the new Markdown, and request fresh
+approval. Pass the bundle through standard input or use a path supplied by the
+user; do not create a transport file.
 
 ## Import
 
-Only after that explicit approval, serialize the exact approved Markdown
-rendering internally as Task Bundle JSON using the format in
-[task-format.md](task-format.md). Preserve every approved field value, list
-order, task order, and dependency edge without additions, omissions, or
-rewrites. Then send the serialization directly to `zd` on standard input:
+After explicit approval, send the reviewed JSON and its fingerprint directly to
+zdev:
 
 ```text
-<internally-serialized-task-bundle-json> | zd tasks import <area> --from -
+<reviewed-task-bundle-json> | zd tasks import <area> --from - --approval <approval-id>
 zd check <area> --format json
 zd tasks list <area> --format json
 ```
 
-When adding tasks to an existing task list, use:
-
-```text
-<internally-serialized-task-bundle-json> | zd tasks import <area> --from - --commit --format json
-```
-
-Use ordinary import for the initial task split or when the user explicitly
-wants the additions left uncommitted. The committed import includes only the
-new task files and regenerated `TASKS.md`. Report the returned commit and stable
-change ID. If zdev refuses or cannot commit, follow its recovery message; do
-not stage, unstage, or commit paths manually.
+When adding tasks to an existing task list, add `--commit --format json` to the
+import command. Use ordinary import for the initial task split or when the user
+wants uncommitted additions. Report the returned commit and stable change ID
+for a committed import. Follow zdev's recovery message if it cannot commit.
+Do not stage, unstage, or commit paths manually while recovering the import.
 
 A commit containing only new task files and regenerated `TASKS.md` does not
-interrupt a task already being implemented. Keep the current selection and
-consider the additions at the next `zd next` boundary. Review any concurrent
-commit that changes an existing task, `brief.md`, area metadata, lifecycle
-state, or source.
+interrupt a selected task. Keep the current selection and consider additions at
+the next `zd next` boundary. Review any concurrent commit that changes existing
+tasks, `brief.md`, area metadata, lifecycle state, or source.
 
-Do not create a transport file. If the user instead supplies a bundle path,
-pass it to `--from` unchanged and leave the file in place. Derive and report
-allocated task IDs and the actual ready frontier from the post-import task
-list, not from draft keys or assumptions. Do not edit `TASKS.md`; zdev
-regenerates it. Offer **Implement** and stop unless the user's current message
-explicitly authorized
-implementation after importing this exact approved rendering. In that case,
-continue only after the import and post-import checks succeed without changing
-the approved task content, order, or dependencies. Read `implement.md`
-completely, then apply every **Implement** precondition to the actual next ready
-task. Stop and report the failed gate if no task is ready or any implementation
-precondition fails.
+If the user supplies a bundle path, pass it to both review and import unchanged.
+Report allocated task IDs and the ready frontier from the post-import task list.
+Offer **Implement** and stop unless the user already authorized implementation
+of this approved bundle. When authorized, read `implement.md` completely and
+apply its preconditions to the actual next ready task. Continue only after the
+import and checks succeed, without changing the approved content. Stop and
+report the state when no task is ready or an implementation precondition fails.

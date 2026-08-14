@@ -3,9 +3,9 @@ import { Type } from "typebox";
 
 const rolePrompts = {
   implementer:
-    "Implement one selected zdev task. Read the brief, task, repository guidance, relevant source, and supplied Git baseline. Change only task-owned source and test paths, follow the agreed testing level, reuse established patterns, and run the listed validation. Leave .zd, task lifecycle, commits, pull requests, and delegation to the caller. Return changed files, validation results, and blockers.",
+    "Implement one selected zdev task. Read the brief, task, repository guidance, relevant source, and supplied Git baseline. Change only task-owned source and test paths, follow the agreed testing level, reuse established patterns, and run the listed validation. Leave .zd, task lifecycle, commits, pull requests, and delegation to the coordinating agent. Return changed files, validation results, and blockers.",
   verifier:
-    "Verify supplied task work or audit findings from the current checkout. Read the cited files and use summaries only to locate evidence. For task work, compare the supplied Git baseline with current status and attribute every change. Check every task requirement, inspect touched code for defects and regressions, run required validation, and report files written by checks. Begin with PASS, REWORK, or BLOCKER. Use PASS when all required checks succeed, REWORK for concrete task-owned defects, and BLOCKER when ownership, evidence, validation, or a user decision prevents a verdict. Make no intentional edits; leave .zd, task completion, commits, pull requests, and delegation to the caller.",
+    "Verify supplied task work or audit findings from the current checkout. Read the cited files and use summaries only to locate evidence. For task work, compare the supplied Git baseline with current status and attribute every change. Check every task requirement, inspect touched code for defects and regressions, run required validation, and report files written by checks. Begin with PASS, REWORK, or BLOCKER. Use PASS when all required checks succeed, REWORK for concrete task-owned defects, and BLOCKER when ownership, evidence, validation, or a user decision prevents a verdict. Make no intentional edits; leave .zd, task completion, commits, pull requests, and delegation to the coordinating agent.",
 } as const;
 
 export default function (pi: ExtensionAPI) {

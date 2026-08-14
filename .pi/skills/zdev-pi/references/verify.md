@@ -1,9 +1,13 @@
 # Verify an implementation independently
 
-Use a different sub-agent from the implementer. Give it the area brief, task
+## When
+
+Use a different verifier from the implementer. Give it the area brief, task
 file, recorded pre-implementation Git baseline, relevant source and tests, and
 repository verification instructions. The verifier inspects and tests without
 making intentional edits.
+
+## Do
 
 Require the verifier to:
 
@@ -15,7 +19,7 @@ Require the verifier to:
    background documents; do not load an area's entire `background/` corpus by
    default. Treat the brief as the authoritative synthesis when checking
    background detail. If the testing section is missing or leaves a material
-   testing choice unresolved, return `BLOCKER` for the caller to
+   testing choice unresolved, return `BLOCKER` for the coordinating agent to
    resolve with the user; do not invent a testing level during review.
 3. Capture complete checkout evidence before validation: `git status --short
    --untracked-files=all`, `git diff --cached`, and `git diff`. Inspect relevant
@@ -45,6 +49,8 @@ Require the verifier to:
    `BLOCKER` when ownership or the appropriate action is unclear. Never stash,
    reset, restore, clean, or silently discard validation writes.
 
+## Verdict
+
 The verifier returns one of:
 
 - `PASS`, followed by conclusions about the task requirements and touched code, the required
@@ -55,6 +61,6 @@ The verifier returns one of:
 - `BLOCKER`, for ambiguous Git ownership, unsafe or unavailable required
   evidence, or a user-owned design, scope, or testing decision.
 
-The caller confirms that the verdict addresses the whole task. A different
-agent provides an independent check; zdev stores the result in the task rather
-than keeping the verifier's transcript.
+The coordinating agent confirms that the verdict addresses the whole task.
+Zdev stores the result in the task rather than keeping the verifier's
+transcript.

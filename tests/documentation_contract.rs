@@ -31,13 +31,15 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
     }
 
     let readme = normalized(README);
-    assert!(readme.contains("zd tasks import scheduling --from - --commit --format json"));
+    assert!(readme.contains("zd tasks review scheduling --from - --format json"));
+    assert!(readme.contains("--approval <approval-id> --commit --format json"));
     assert!(readme.contains("does not interrupt the selected task"));
 
     let guide = normalized(USER_GUIDE);
     for public_contract in [
-        "zd tasks import scheduling --from -",
-        "zd tasks import scheduling --from - --commit --format json",
+        "zd tasks review scheduling --from - --format json",
+        "zd tasks import scheduling --from - --approval <approval-id>",
+        "--approval <approval-id> --commit --format json",
         "Use ordinary import for the initial task split",
         "task IDs, paths, the commit hash, and the stable change ID",
         "zd status scheduling --format json",

@@ -67,8 +67,8 @@ grep -Fq 'Use `cargo test --locked` for validation.' \
     fail "Codex skill did not render project guidance"
 [ -f "$project/.codex/skills/zdev/agents/openai.yaml" ] ||
     fail "Codex skill did not install UI metadata"
-[ "$(find "$project/.codex/skills/zdev" -type f | wc -l | tr -d ' ')" -eq 10 ] ||
-    fail "Codex skill did not install its ten-file inventory"
+[ "$(find "$project/.codex/skills/zdev" -type f | wc -l | tr -d ' ')" -eq 12 ] ||
+    fail "Codex skill did not install its complete inventory"
 grep -Fq 'Use `cargo test --locked` for validation.' \
     "$project/.claude/skills/zdev/skills/zdev/SKILL.md" ||
     fail "Claude skill did not render persisted project guidance"

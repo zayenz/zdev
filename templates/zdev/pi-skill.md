@@ -1,6 +1,6 @@
 ---
 name: zdev-pi
-description: Shape, discuss, audit, investigate, task, implement, verify, and commit durable work with zdev. Use only when the user invokes zdev, zd, or $zdev; asks to work through an existing .zd area; or unmistakably refers to zdev's stored areas or tasks.
+description: Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use only when the user invokes zdev, zd, or $zdev; asks to work through an existing .zd area; or unmistakably refers to zdev's stored areas or tasks.
 ---
 
 # Zdev for Pi
@@ -17,7 +17,7 @@ task-owned `REWORK` finding to an implementer and verify the correction with a
 different agent. Continue until `PASS` or `BLOCKER`.
 
 Use `/zdev-task` for one task cycle and `/zdev-audit` for a read-only audit.
-Child Pi processes cannot load extensions or delegate. The main conversation
+Child Pi processes cannot load extensions or delegate. The coordinating agent
 runs `zd task done` and `zd commit`.
 
 {{repository_guidance}}

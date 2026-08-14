@@ -71,10 +71,11 @@ zd commit -m "feat: add scheduling model"
 ```
 
 You can add work while another task is in progress. For an existing task list,
-import and commit the additions together:
+review the bundle, then import and commit that exact bundle:
 
 ```sh
-zd tasks import scheduling --from - --commit --format json
+zd tasks review scheduling --from - --format json
+zd tasks import scheduling --from - --approval <approval-id> --commit --format json
 ```
 
 A commit containing only new task files and the regenerated `TASKS.md` does not

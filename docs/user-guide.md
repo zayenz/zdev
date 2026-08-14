@@ -169,25 +169,31 @@ only to the artifact shown and does not imply another action.
 
 ## 6. Import reviewed tasks
 
-Your harness presents the proposed tasks as readable Markdown, including every
-field and dependency that will be imported. Review and approve that Markdown;
-you do not need to inspect the transport JSON. The harness then serializes the
-approved values internally and sends them to `zd` on standard input:
+Your harness sends the proposed Task Bundle JSON to zdev for deterministic
+rendering:
 
 ```sh
-zd tasks import scheduling --from -
+zd tasks review scheduling --from - --format json
 ```
 
-Ask to see the exact Task Bundle JSON only when you need to inspect or copy the
-transport format. For manual input, paste that JSON into the command above and
-press Ctrl-D. `--from path/to/tasks.json` also works and leaves the source file
-in place. Zdev writes one Markdown file per task and regenerates `TASKS.md`.
-Edit task files, not the generated index.
+The result contains the complete readable Markdown and an approval fingerprint.
+After you approve the Markdown, the harness sends the unchanged JSON and that
+fingerprint to import:
+
+```sh
+zd tasks import scheduling --from - --approval <approval-id>
+```
+
+Zdev rejects content that differs from the reviewed bundle. For manual input,
+paste the same JSON into each command and press Ctrl-D. `--from
+path/to/tasks.json` also works and leaves the source file in place. Zdev writes
+one Markdown file per task and regenerates `TASKS.md`. Edit task files, not the
+generated index.
 
 When adding tasks to an existing task list, commit them directly:
 
 ```sh
-zd tasks import scheduling --from - --commit --format json
+zd tasks import scheduling --from - --approval <approval-id> --commit --format json
 ```
 
 Use ordinary import for the initial task split or when you explicitly want the

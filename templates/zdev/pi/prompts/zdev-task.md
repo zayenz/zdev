@@ -15,5 +15,5 @@ finding to an implementer and verify the correction with a different agent.
 Continue until `PASS` or `BLOCKER`.
 
 Review commits made after the baseline. The task-addition-only exception is
-defined in `implement.md`. Leave `zd task done` and `zd commit` to the main
-conversation.
+defined in `implement.md`. Leave `zd task done` and `zd commit` to the
+coordinating agent.

@@ -43,12 +43,20 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
         include_str!("../skills/zdev/references/shape-work.md"),
     ),
     (
+        "references/setup.md",
+        include_str!("../skills/zdev/references/setup.md"),
+    ),
+    (
         "references/task-format.md",
         include_str!("../skills/zdev/references/task-format.md"),
     ),
     (
         "references/to-tasks.md",
         include_str!("../skills/zdev/references/to-tasks.md"),
+    ),
+    (
+        "references/recovery.md",
+        include_str!("../skills/zdev/references/recovery.md"),
     ),
     (
         "references/verify.md",
@@ -170,7 +178,7 @@ enum Command {
         #[command(subcommand)]
         command: AreaCommand,
     },
-    /// Import, list, and reindex an area's task files
+    /// Review, import, list, and reindex an area's task files
     Tasks {
         #[command(subcommand)]
         command: TasksCommand,
@@ -600,6 +608,17 @@ enum AreaCommand {
 
 #[derive(Debug, Subcommand)]
 enum TasksCommand {
+    /// Render a JSON task bundle for human approval
+    ///
+    /// Validates the bundle's shape, renders its complete Markdown approval
+    /// document, and returns a fingerprint for use with `tasks import --approval`.
+    Review {
+        /// Area tag that will own the reviewed tasks
+        area: String,
+        /// JSON bundle path, or - to read the bundle from standard input
+        #[arg(long = "from", value_name = "PATH_OR_DASH")]
+        source: PathBuf,
+    },
     /// Import a reviewed JSON task bundle into an area
     ///
     /// Creates one Markdown file per task and regenerates TASKS.md. Existing
@@ -613,6 +632,9 @@ enum TasksCommand {
         /// Commit only the imported task files and regenerated summary
         #[arg(long)]
         commit: bool,
+        /// Fingerprint returned by `zd tasks review` for this exact bundle
+        #[arg(long, value_name = "ID")]
+        approval: Option<String>,
     },
     /// List every task in an area with its current state
     List {
@@ -806,7 +828,7 @@ struct Task {
     path: PathBuf,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TaskBundle {
     schema_version: u64,
@@ -814,7 +836,7 @@ struct TaskBundle {
     tasks: Vec<TaskDraft>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TaskDraft {
     key: String,
@@ -883,11 +905,13 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             } => rebase_area(&root, area, *r#continue, *abort),
         },
         Command::Tasks { command } => match command {
+            TasksCommand::Review { area, source } => review_tasks(&root, area, source),
             TasksCommand::Import {
                 area,
                 source,
                 commit,
-            } => import_tasks(&root, area, source, *commit),
+                approval,
+            } => import_tasks(&root, area, source, *commit, approval.as_deref()),
             TasksCommand::List { area } => list_tasks_output(&root, area),
             TasksCommand::Index { area } => write_index_output(&root, area),
         },
@@ -1925,12 +1949,7 @@ fn rebase_area(
     finalize_managed_rebase(root, tag, &base, &new_base_commit)
 }
 
-fn import_tasks(
-    root: &Path,
-    area: &str,
-    source: &Path,
-    commit_changes: bool,
-) -> Result<CommandOutput, ZdevError> {
+fn read_task_bundle(source: &Path) -> Result<TaskBundle, ZdevError> {
     let bytes = if source == Path::new("-") {
         let mut bytes = Vec::new();
         io::stdin()
@@ -1941,8 +1960,11 @@ fn import_tasks(
         fs::read(source)
             .map_err(|error| ZdevError::io(format!("Cannot read {}", source.display()), error))?
     };
-    let bundle: TaskBundle = serde_json::from_slice(&bytes)
-        .map_err(|error| ZdevError::new(format!("Invalid task bundle: {error}")))?;
+    serde_json::from_slice(&bytes)
+        .map_err(|error| ZdevError::new(format!("Invalid task bundle: {error}")))
+}
+
+fn validate_task_bundle(bundle: &TaskBundle, area: &str) -> Result<(), ZdevError> {
     if bundle.schema_version != SCHEMA_VERSION || bundle.area != area {
         return Err(ZdevError::new(
             "Task bundle does not match the selected area",
@@ -1951,21 +1973,6 @@ fn import_tasks(
     if bundle.tasks.is_empty() {
         return Err(ZdevError::new("Task bundle contains no tasks"));
     }
-    let _lock = ZdevStateLock::acquire(root)?;
-    let (metadata, area_dir) = load_area(root, area)?;
-    if commit_changes {
-        require_checked_out_area_branch(root, &metadata)?;
-        require_committable_task_import(root, area)?;
-    }
-    let existing = load_tasks(root, area)?;
-    let existing_ids = existing
-        .iter()
-        .map(|task| task.header.id.as_str())
-        .collect::<BTreeSet<_>>();
-    let existing_keys = existing
-        .iter()
-        .map(|task| task.header.key.as_str())
-        .collect::<BTreeSet<_>>();
     let mut seen_keys = BTreeSet::new();
     for task in &bundle.tasks {
         validate_segment(&task.key, "Task key")?;
@@ -1987,7 +1994,122 @@ fn import_tasks(
                 task.key
             )));
         }
-        if existing_keys.contains(task.key.as_str()) || !seen_keys.insert(task.key.as_str()) {
+        if !seen_keys.insert(task.key.as_str()) {
+            return Err(ZdevError::new(format!("Duplicate task key: {}", task.key)));
+        }
+    }
+    Ok(())
+}
+
+fn task_bundle_approval_id(bundle: &TaskBundle) -> Result<String, ZdevError> {
+    let canonical = serde_json::to_vec(bundle)
+        .map_err(|error| ZdevError::new(format!("Cannot fingerprint task bundle: {error}")))?;
+    let hash = canonical.iter().fold(0xcbf29ce484222325_u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    });
+    Ok(format!("T{hash:016x}"))
+}
+
+fn approval_value(value: Option<&str>) -> &str {
+    value.filter(|value| !value.is_empty()).unwrap_or("None")
+}
+
+fn approval_list(values: &[String]) -> String {
+    if values.is_empty() {
+        "None".to_owned()
+    } else {
+        values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| format!("{}. {value}", index + 1))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+fn longest_backtick_run(value: &str) -> usize {
+    value
+        .split(|character| character != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0)
+}
+
+fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
+    let mut document = format!(
+        "# Task Bundle\n\n## Area\n{}\n\n## Schema version\n{}",
+        bundle.area, bundle.schema_version
+    );
+    for (index, task) in bundle.tasks.iter().enumerate() {
+        document.push_str(&format!(
+            "\n\n## Task {}\n\n### Key\n{}\n\n### Title\n{}\n\n### Outcome\n{}\n\n### Context\n{}\n\n### Boundaries\n{}\n\n### Blocked by\n{}\n\n### Done when / proof\n{}\n\n### Validation / Testing\n{}",
+            index + 1,
+            task.key,
+            task.title,
+            task.outcome,
+            approval_value(task.context.as_deref()),
+            approval_list(&task.boundaries),
+            approval_list(&task.blocked_by),
+            approval_list(&task.done_when),
+            approval_list(&task.validation),
+        ));
+    }
+    let fence = "`".repeat(longest_backtick_run(&document).saturating_add(1).max(3));
+    format!("{fence}markdown\n{document}\n{fence}")
+}
+
+fn review_tasks(root: &Path, area: &str, source: &Path) -> Result<CommandOutput, ZdevError> {
+    load_area(root, area)?;
+    let bundle = read_task_bundle(source)?;
+    validate_task_bundle(&bundle, area)?;
+    let approval = task_bundle_approval_id(&bundle)?;
+    let markdown = render_task_bundle_approval(&bundle);
+    Ok(CommandOutput::new(
+        format!("{markdown}\n\nApproval ID: {approval}"),
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "status": "reviewed",
+            "area": area,
+            "approval": approval,
+            "markdown": markdown,
+        }),
+    ))
+}
+
+fn import_tasks(
+    root: &Path,
+    area: &str,
+    source: &Path,
+    commit_changes: bool,
+    approval: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    let bundle = read_task_bundle(source)?;
+    validate_task_bundle(&bundle, area)?;
+    if let Some(approval) = approval {
+        let actual = task_bundle_approval_id(&bundle)?;
+        if approval != actual {
+            return Err(ZdevError::new(format!(
+                "Task bundle differs from approved review {approval}; review this bundle and use its approval ID"
+            )));
+        }
+    }
+    let _lock = ZdevStateLock::acquire(root)?;
+    let (metadata, area_dir) = load_area(root, area)?;
+    if commit_changes {
+        require_checked_out_area_branch(root, &metadata)?;
+        require_committable_task_import(root, area)?;
+    }
+    let existing = load_tasks(root, area)?;
+    let existing_ids = existing
+        .iter()
+        .map(|task| task.header.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let existing_keys = existing
+        .iter()
+        .map(|task| task.header.key.as_str())
+        .collect::<BTreeSet<_>>();
+    for task in &bundle.tasks {
+        if existing_keys.contains(task.key.as_str()) {
             return Err(ZdevError::new(format!("Duplicate task key: {}", task.key)));
         }
     }

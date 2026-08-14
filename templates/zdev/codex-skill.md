@@ -1,6 +1,6 @@
 ---
 name: zdev
-description: "Shape, discuss, audit, investigate, task, implement, verify, and commit durable work with zdev. Use only when the user invokes zdev, zd, or $zdev; asks to work through an existing .zd area; or unmistakably refers to zdev's stored areas or tasks."
+description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use only when the user invokes zdev, zd, or $zdev; asks to work through an existing .zd area; or unmistakably refers to zdev's stored areas or tasks."
 ---
 
 # Zdev for Codex
@@ -10,7 +10,7 @@ description: "Shape, discuss, audit, investigate, task, implement, verify, and c
 ## Codex orchestration
 
 Use one Codex collaboration agent to implement a task and a different agent to
-verify it. The main conversation owns zdev state, user decisions, task
+verify it. The coordinating agent owns zdev state, user decisions, task
 completion, and commits. Give each agent the rendered repository guidance and
 applicable `AGENTS.md` instructions.
 

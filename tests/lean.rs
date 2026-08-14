@@ -1132,6 +1132,109 @@ fn task_import_reads_a_complete_bundle_from_standard_input() {
 }
 
 #[test]
+fn reviewed_task_bundle_fingerprint_guards_the_import() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "approval",
+            "--title",
+            "Approval",
+            "--objective",
+            "Import exactly the reviewed task bundle.",
+        ],
+    );
+    let bundle = json!({
+        "schema_version": 1,
+        "area": "approval",
+        "tasks": [{
+            "key": "one",
+            "title": "Import one reviewed task",
+            "outcome": "The reviewed task is imported unchanged.",
+            "context": "Use the existing task import path.",
+            "boundaries": ["Keep approval stateless."],
+            "done_when": ["The reviewed bundle imports."],
+            "validation": ["Exercise review and import."],
+            "blocked_by": []
+        }]
+    });
+    let bytes = serde_json::to_vec(&bundle).expect("task bundle");
+
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "review", "approval", "--from", "-"],
+        &bytes,
+    );
+    assert_eq!(reviewed["status"], "reviewed");
+    assert_eq!(reviewed["area"], "approval");
+    let approval = reviewed["approval"].as_str().expect("approval ID");
+    assert_eq!(approval.len(), 17);
+    let markdown = reviewed["markdown"].as_str().expect("approval Markdown");
+    for value in [
+        "approval",
+        "one",
+        "Import one reviewed task",
+        "The reviewed task is imported unchanged.",
+        "Use the existing task import path.",
+        "Keep approval stateless.",
+        "The reviewed bundle imports.",
+        "Exercise review and import.",
+    ] {
+        assert!(markdown.contains(value));
+    }
+    let pretty = serde_json::to_vec_pretty(&bundle).expect("pretty task bundle");
+    let reviewed_pretty = json_output_with_stdin(
+        root,
+        &["tasks", "review", "approval", "--from", "-"],
+        &pretty,
+    );
+    assert_eq!(reviewed_pretty["approval"], reviewed["approval"]);
+
+    let mut changed = bundle.clone();
+    changed["tasks"][0]["title"] = json!("Changed after review");
+    let changed = serde_json::to_vec(&changed).expect("changed task bundle");
+    let rejected = json_output_with_stdin_status(
+        root,
+        &[
+            "tasks",
+            "import",
+            "approval",
+            "--from",
+            "-",
+            "--approval",
+            approval,
+        ],
+        &changed,
+    );
+    assert!(!rejected.status.success());
+    assert_eq!(
+        fs::read_dir(root.join(".zd/approval/tasks"))
+            .expect("tasks directory")
+            .count(),
+        0
+    );
+
+    let imported = json_output_with_stdin(
+        root,
+        &[
+            "tasks",
+            "import",
+            "approval",
+            "--from",
+            "-",
+            "--approval",
+            approval,
+        ],
+        &bytes,
+    );
+    assert_eq!(imported["tasks"], json!(["approval-001"]));
+}
+
+#[test]
 fn state_lock_recovers_a_stale_file_without_stealing_a_live_lock() {
     let repository = repository();
     let root = repository.path();
@@ -1892,7 +1995,7 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
         &["skill", "install", "codex", "--to", destination_text],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 10);
+    assert_eq!(installed["files"], 12);
     let rendered = fs::read_to_string(destination.join("SKILL.md")).expect("installed skill");
     assert_eq!(rendered, packaged_skill);
     assert_eq!(
@@ -2126,10 +2229,8 @@ fn every_help_page_explains_its_command_and_inputs() {
                 "restore its previous branch state",
             ],
         ),
-        (
-            &["tasks", "--help"],
-            &["Import, list, and reindex an area's task files"],
-        ),
+        (&["tasks", "--help"], &["review", "import", "list", "index"]),
+        (&["tasks", "review", "--help"], &["--from", "PATH_OR_DASH"]),
         (
             &["tasks", "import", "--help"],
             &[
@@ -2421,7 +2522,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
         assert_eq!(installed["harness"], harness);
         assert_eq!(installed["scope"], "explicit");
         assert_eq!(installed["status"], "created");
-        assert_eq!(installed["files"], if harness == "codex" { 10 } else { 14 });
+        assert_eq!(installed["files"], if harness == "codex" { 12 } else { 16 });
 
         let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
         assert_eq!(checked["status"], "ok");
@@ -2532,6 +2633,8 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "references/implement.md",
             "references/improve.md",
             "references/investigate.md",
+            "references/recovery.md",
+            "references/setup.md",
             "references/shape-work.md",
             "references/task-format.md",
             "references/to-tasks.md",
@@ -2554,6 +2657,8 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
+            "skills/zdev/references/recovery.md",
+            "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
             "skills/zdev/references/task-format.md",
             "skills/zdev/references/to-tasks.md",
@@ -2646,7 +2751,7 @@ fn codex_skill_check_and_force_install_manage_ui_metadata() {
         root,
         &["skill", "install", "codex", "--to", destination_text],
     );
-    assert_eq!(installed["files"], 10);
+    assert_eq!(installed["files"], 12);
 
     let metadata = destination.join("agents/openai.yaml");
     fs::remove_file(&metadata).expect("remove Codex UI metadata");
@@ -2743,7 +2848,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 13);
+    assert_eq!(installed["files"], 15);
     assert_eq!(
         fs::read_to_string(destination.join("opencode.json")).expect("preserved config"),
         "{\"theme\":\"system\"}\n"
@@ -2862,7 +2967,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 12);
+    assert_eq!(installed["files"], 14);
     assert_eq!(
         file_inventory(&destination),
         [
@@ -2875,6 +2980,8 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev-pi/references/implement.md",
             "skills/zdev-pi/references/improve.md",
             "skills/zdev-pi/references/investigate.md",
+            "skills/zdev-pi/references/recovery.md",
+            "skills/zdev-pi/references/setup.md",
             "skills/zdev-pi/references/shape-work.md",
             "skills/zdev-pi/references/task-format.md",
             "skills/zdev-pi/references/to-tasks.md",
@@ -2997,7 +3104,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     );
     assert_eq!(installed["harness"], "omp");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 11);
+    assert_eq!(installed["files"], 13);
     assert_eq!(
         file_inventory(&destination),
         [
@@ -3009,6 +3116,8 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
+            "skills/zdev/references/recovery.md",
+            "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
             "skills/zdev/references/task-format.md",
             "skills/zdev/references/to-tasks.md",

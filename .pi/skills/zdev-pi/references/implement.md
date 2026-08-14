@@ -1,11 +1,15 @@
 # Implement the next task
 
+## When
+
 Use this method for each task returned by `zd next`.
+
+## Do
 
 1. Run `zd status <area> --format json`. Require all four gates: the recorded
    branch is checked out, the effective-base link is fresh, its anchor is valid,
    and base finalization is complete. If any gate fails, follow the managed
-   rebase recovery below before selecting work.
+   recovery workflow in [recovery.md](recovery.md) before selecting work.
 2. Read the area brief first, then the task file, repository instructions, and
    the smallest relevant source and tests. When the brief indexes an area-local
    `background/` corpus, follow only links identified as relevant to the task,
@@ -24,7 +28,7 @@ Use this method for each task returned by `zd next`.
    this task may change. If an existing change overlaps a task path and
    ownership is unclear, stop and ask the user; do not stash, reset, restore,
    clean, or alter the index to manufacture a clean baseline.
-4. Dispatch one implementation sub-agent with the brief, task, repository
+4. Dispatch one implementer with the brief, task, repository
    guidance, relevant source, and task-owned path boundaries from the baseline.
    It may edit source and tests and run validation. It must not edit `.zd`, run
    `zd task done`, change task lifecycle state, or commit.
@@ -46,7 +50,7 @@ Use this method for each task returned by `zd next`.
    at the next `zd next` boundary. Stop and review every other intervening
    change, including changes to an existing task, the selected task, `brief.md`,
    area metadata, lifecycle state, or source. Then apply the independent
-   verification contract below with a fresh verification sub-agent.
+   verification contract below with a fresh verifier.
 7. Return every concrete task-owned `REWORK` finding to the same implementer
    when possible.
    Otherwise give a replacement implementer the task, current diff, and exact
@@ -59,29 +63,10 @@ For verification, give a different agent the brief, task, actual checkout diff,
 relevant source and tests, and repository verification instructions. It checks
 every task requirement, inspects the touched code, runs task-listed validation,
 and compares Git state before and after validation. The verifier returns
-`PASS`, `REWORK`, or `BLOCKER` as defined in [verify.md](verify.md). The caller
-checks that the verdict covers the whole task.
+`PASS`, `REWORK`, or `BLOCKER` as defined in [verify.md](verify.md). The
+coordinating agent checks that the verdict covers the whole task.
 
-## Rebase recovery
-
-Use `zd area rebase <area>` for both ordinary trunk updates and the occasional
-parent-area update. Zdev rebases only the checked-out area branch and never
-merges or recursively updates descendants.
-
-If conflicts stop Git, resolve and stage them, then continue or abort:
-
-```text
-zd area rebase <area> --continue
-zd area rebase <area> --abort
-```
-
-If someone completed the operation with `git rebase --continue`, rerun the
-normal zdev area rebase command to verify the result and finalize the base
-anchor. For a longer chain, update one link at a time from parent to child.
-
-Check `zd status <area> --format json` again before `zd task done`. Completion
-must not cross a wrong branch, stale base, invalid anchor, or pending anchor
-finalization.
+## Finish
 
 After verification passes:
 
@@ -103,12 +88,5 @@ index automatically. `zd commit` adds the stable change ID. Return control with
 the next ready task; continue only when the user's existing zdev execution
 request authorizes the loop.
 
-After interruption, inspect area status and reconstruct the three-part Git
-baseline before assigning ownership: status including untracked files, cached
-diff, and unstaged diff. Continue or abort Git's rebase first, or run the normal
-area rebase command to finalize a rebase completed directly through Git. Then
-rerun `zd next`. Do not assume an existing diff belongs to the selected task.
-Resume or verify an open task only after its changes can be attributed, restart
-an open task without task-owned changes, and inspect a done task plus the cached
-diff before committing or reopening it. Stop and ask when ownership cannot be
-re-established from the task, baseline, and conversation.
+After interruption, read [recovery.md](recovery.md) before resuming or assigning
+change ownership.

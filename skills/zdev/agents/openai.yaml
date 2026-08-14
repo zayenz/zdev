@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zdev"
+  short_description: "Shape and run durable zdev work"
+  default_prompt: "Use $zdev to shape or run durable work in this repository."

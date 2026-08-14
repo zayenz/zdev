@@ -1,0 +1,8 @@
+{
+  "name": "zdev",
+  "version": "{{version}}",
+  "description": "A small, durable development task loop for Claude Code",
+  "author": {
+    "name": "zdev contributors"
+  }
+}

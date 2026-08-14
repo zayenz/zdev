@@ -1,0 +1,56 @@
+[package]
+name = "zdev"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.89"
+description = "A small task loop for agentic development"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/zayenz/zdev"
+include = [
+  "/.codex-plugin/plugin.json",
+  "/Cargo.lock",
+  "/Cargo.toml",
+  "/LICENSE",
+  "/README.md",
+  "/docs/**",
+  "/skills/zdev/**",
+  "/src/**",
+  "/templates/**",
+  "/tests/documentation_contract.rs",
+  "/tests/lean.rs",
+  "/tests/task_approval_markdown_contract.rs",
+]
+autotests = false
+
+[[bin]]
+name = "zd"
+path = "src/main.rs"
+
+[[test]]
+name = "lean"
+path = "tests/lean.rs"
+
+[[test]]
+name = "documentation-contract"
+path = "tests/documentation_contract.rs"
+
+[[test]]
+name = "task-approval-markdown-contract"
+path = "tests/task_approval_markdown_contract.rs"
+
+[dependencies]
+clap = { version = "4.6.0", features = ["derive"] }
+getrandom = "=0.4.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tempfile = "3.27.0"
+toml = { version = "0.8.23", default-features = false, features = ["display", "parse"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+
+[profile.dist]
+inherits = "release"
+lto = "thin"

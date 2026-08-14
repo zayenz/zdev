@@ -1,0 +1,6 @@
+schema_version = 1
+tag = "simplify-zdev-text"
+title = "Simplify zdev language"
+objective = "Make zdev instructions shorter and more reliable by replacing organizational prose with concrete trigger, action, and stop rules while preserving safety invariants."
+branch = "codex/simplify-zdev-text"
+base_commit = "7a79b22f15d557a1d0975f69a287c9d19232b73b"

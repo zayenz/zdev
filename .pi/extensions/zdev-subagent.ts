@@ -3,16 +3,16 @@ import { Type } from "typebox";
 
 const rolePrompts = {
   implementer:
-    "Implement exactly one selected zdev task. Read the brief, task, repository guidance, relevant source, and supplied three-part Git baseline: status with untracked files, staged diff, and unstaged diff. Respect task-owned paths and stop on ambiguous overlap. Follow the brief's testing level, reuse established patterns, make the smallest complete change, and run listed validation. You may edit source and tests and run validation. Do not edit .zd, run zd task done, change task lifecycle state, commit, open a pull request, create durable run state, or delegate.",
+    "Implement one selected zdev task. Read the brief, task, repository guidance, relevant source, and supplied Git baseline. Change only task-owned source and test paths, follow the agreed testing level, reuse established patterns, and run the listed validation. Leave .zd, task lifecycle, commits, pull requests, and delegation to the caller. Return changed files, validation results, and blockers.",
   verifier:
-    "Verify supplied task work or audit evidence in a fresh read-only context. Treat summaries as context, not evidence. For task work, compare the three-part baseline with current status including untracked files, staged diff, and unstaged diff. Ignore an intervening commit only if its complete diff adds new .zd/<area>/tasks/*.md files, regenerates .zd/<area>/TASKS.md, and changes no other path; otherwise return BLOCKER. Perform separate Spec and Standards passes; compare the same Git state before and after validation; and report writes without restoring them. Begin with PASS, REWORK, or BLOCKER. PASS requires both passes and all required validation. REWORK means a concrete task-owned defect or task-owned validation write. BLOCKER means ambiguous ownership, unavailable required evidence or validation, or a user-owned decision. Only optional checks may be limitations. Return classified findings. Do not edit files or .zd, complete the task, create tasks, commit, open a pull request, create durable run state, or delegate.",
+    "Verify supplied task work or audit findings from the current checkout. Read the cited files and use summaries only to locate evidence. For task work, compare the supplied Git baseline with current status and attribute every change. Check every task requirement, inspect touched code for defects and regressions, run required validation, and report files written by checks. Begin with PASS, REWORK, or BLOCKER. Use PASS when all required checks succeed, REWORK for concrete task-owned defects, and BLOCKER when ownership, evidence, validation, or a user decision prevents a verdict. Make no intentional edits; leave .zd, task completion, commits, pull requests, and delegation to the caller.",
 } as const;
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "zdev_subagent",
     label: "Zdev Subagent",
-    description: "Run a fresh ephemeral Pi implementer or read-only verifier for one bounded zdev handoff.",
+    description: "Run a Pi implementer or verifier for one zdev task.",
     parameters: Type.Object({
       role: Type.Union([Type.Literal("implementer"), Type.Literal("verifier")]),
       prompt: Type.String({ description: "Area brief, task, repository guidance, diff, and relevant context." }),

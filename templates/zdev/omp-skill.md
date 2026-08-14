@@ -9,15 +9,14 @@ description: Shape, discuss, audit, investigate, task, implement, verify, and co
 
 ## Oh My Pi orchestration
 
-For an ordinary task, use the built-in `task` tool to delegate the selected
-brief, task, repository guidance, and relevant source context to
-`zdev-implementer`. Inspect the resulting uncommitted diff, then delegate
-separate Spec and Standards passes to a fresh `zdev-verifier`.
+For an ordinary task, use the built-in `task` tool to give the selected brief,
+task, repository guidance, and relevant source to `zdev-implementer`. Inspect
+the resulting diff, then ask a different `zdev-verifier` to check the task
+requirements, touched code, and validation.
 
 Return concrete failures to the existing implementer with `hub` when possible,
-then verify the corrected diff again with a fresh verifier. Repeat for every
-task-owned `REWORK` until `PASS` or a real `BLOCKER`. Neither task agent can
-delegate or run `zd task done` or `zd commit`.
+then verify the correction with a different agent. Continue until `PASS` or
+`BLOCKER`. The main conversation runs `zd task done` and `zd commit`.
 
 {{repository_guidance}}
 

@@ -10,15 +10,15 @@ compatibility: opencode
 
 ## OpenCode orchestration
 
-Delegate one selected task to `@zdev-implementer`, then give the resulting diff
-to a fresh `@zdev-verifier`. Send every task-owned `REWORK` back through
-implementation and then use another fresh verifier; repeat until `PASS` or a
-real `BLOCKER`. Include the rendered repository guidance and any narrower
-applicable instructions in every prompt.
+Delegate one selected task to `@zdev-implementer`, then ask a different
+`@zdev-verifier` to check the task requirements, touched code, and validation.
+Return each task-owned `REWORK` finding to an implementer and verify the
+correction with a different agent. Continue until `PASS` or `BLOCKER`. Include
+the rendered repository guidance and applicable instructions in every prompt.
 
-Use `/zdev-task` to start a bounded implementation and verification cycle.
-Use `/zdev-audit` for a read-only audit that returns candidate work for human
-selection. Agents and commands do not complete tasks or commit.
+Use `/zdev-task` for one implementation and verification cycle. Use
+`/zdev-audit` for a read-only audit. The main conversation completes tasks and
+commits.
 
 {{repository_guidance}}
 

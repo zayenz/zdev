@@ -53,15 +53,10 @@ and cost.
 ## Stop
 
 Run `zd check <area> --format json`. Summarize the objective, boundaries,
-testing level, settled decisions, and remaining material questions. If the
-user did not already request another interaction, offer the relevant next
-actions and stop:
-
-- **Discuss the brief** to challenge material assumptions.
-- **Create tasks** when the brief is sharp enough for a reviewed task split;
-  discussion is optional.
-- **Investigate** to answer one named uncertainty.
-- Continue **Explore an objective** to examine another path or boundary.
+testing level, settled decisions, and remaining material questions. Recommend
+one next interaction when the result points clearly to it, then stop unless the
+user already requested more work. A sharp brief may proceed directly to
+**Create tasks**; **Discuss the brief** remains optional.
 
 Most areas remain independent branches based on trunk. When a new area builds
 on another in-progress area, create its branch from the parent branch, create

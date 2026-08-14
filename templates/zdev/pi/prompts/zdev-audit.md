@@ -1,11 +1,10 @@
 ---
-description: Audit a bounded codebase and return independently checked candidate work
+description: Review a codebase and return checked findings
 ---
 
-Audit $ARGUMENTS without editing files. Perform one bounded primary review,
-then use one fresh `zdev_subagent` verifier call to inspect the cited evidence
-and reject weak or duplicate findings. Reserve additional focused lens calls
-for a substantial boundary or an explicit swarm request; do not fan out by
-default. Return ranked, evidence-backed candidates for human selection. Do not
-change `.zd`, create or complete tasks, commit, or open a pull request. The
-primary conversation keeps all authority to select and record work.
+Review $ARGUMENTS without changing the repository. Use one `zdev_subagent`
+verifier to open every cited location and remove weak or duplicate findings.
+Use additional focused agents only for a large boundary or an explicit swarm
+request. Rank the remaining findings by impact and return their locations,
+confidence, and recommended next action. The main conversation decides whether
+to record any work.

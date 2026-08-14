@@ -1,7 +1,7 @@
 ## Shared zdev contract
 
-Zdev stores durable planning and task state. The active harness supplies
-orchestration and judgment.
+Zdev stores briefs and tasks under `.zd`. The active harness reads that state,
+asks for decisions, changes code, and verifies the result.
 
 ## Activate zdev, then route intent
 
@@ -22,18 +22,24 @@ explicitly ordered sequence of interactions:
 | **Implement** — continue with the next ready task | [references/implement.md](references/implement.md) |
 | **Verify** — independently review an implementation | [references/verify.md](references/verify.md) |
 
-Read each selected reference completely before starting that interaction.
-Continue with another zdev interaction only when the user already requested
-it. Otherwise, report the result, offer relevant next actions, and stop. For
-example, “approve this exact bundle and then implement” authorizes task import
-followed by **Implement**. Approval applies only to the artifact shown; if that
-artifact changes, show the revision and obtain fresh approval. Investigation
-does not authorize a fix, an audit does not authorize tasks, and an approved
-brief does not authorize a task split or execution. Never invoke a separate
-skill through an implied transition.
-When the user requests both broad candidate discovery and one named
-uncertainty, follow their requested order. If the order is unclear, ask which
-interaction to run first.
+Read every selected reference completely before starting its interaction. Run
+the interactions the user requested, in their requested order. After the last
+one, report the result and wait. If an approved artifact changes, show the
+revision and ask for approval again. Ask which interaction comes first only
+when the requested order is unclear.
+
+## Development model
+
+An area moves from a brief to approved tasks, implementation, independent
+verification, completion, and commit. **Explore** and **Discuss** shape the
+brief, including scope and testing. **Create tasks** turns that brief into an
+exact bundle for approval. **Implement** selects one ready task, records the Git
+baseline, and changes only task-owned paths. A fresh verifier checks the task
+requirements, touched code, and required validation. The caller completes and
+commits the task after `PASS`.
+
+The brief and selected task define the outcome, boundaries, testing level, and
+done conditions throughout this process.
 
 1. Confirm `zd` is available.
 2. Choose the direct interaction before creating state. When the repository has
@@ -79,57 +85,21 @@ interaction to run first.
    tasks**, report a selected area's branch and base diagnostics. Require the
    recorded branch before changing area state, but do not run `zd area rebase`
    without explicit consent. Read-only interactions never rebase.
-9. For **Implement** and **Verify**, and before completion or commit, require
-   all four area gates: the recorded branch is checked out, the effective-base
-   link is fresh, its anchor is valid, and base finalization is complete. Bind
-   missing trunk or area metadata explicitly.
-10. Read the area's `brief.md`, including its required testing level. For
-   execution, run
-   `zd next [<area>] --format json` and read the selected task file.
-11. Record the three-part Git baseline before delegation: status including
-   untracked files, the cached diff, and the unstaged diff. Give the implementer
-   that baseline with the brief, task, relevant source, repository guidance,
-   and task-owned paths. Implementers may edit source and tests and run
-   validation. They must not edit `.zd`, change task lifecycle state, or commit.
-   Preserve user-owned state and stop when overlap is ambiguous; never stash,
-   reset, restore, clean, or rearrange the index automatically.
-12. While a task is active, ignore an intervening commit only when its complete
-   diff adds one or more new `.zd/<area>/tasks/*.md` files, regenerates
-   `.zd/<area>/TASKS.md`, and changes no other path. Keep the current selection
-   and consider those additions at the next `zd next`. Stop and review every
-   other intervening change.
-13. Use a fresh read-only verifier for separate Spec and Standards passes over
-   complete checkout evidence. Compare the three-part Git state before and
-   after validation and do not discard files written by checks. Testing follows
-   the brief's agreed level and repository patterns. If required validation is
-   unsafe or unavailable, return `BLOCKER`; report limitations only for optional
-   checks.
-14. Use `PASS` only when both passes succeed, `REWORK` for concrete task-owned
-   defects or task-owned validation writes, and `BLOCKER` for ambiguous
-   ownership, unavailable required evidence or validation, or user-owned
-   decisions. Send every `REWORK` through implementation and then a fresh
-   verification. Repeat without a fixed retry limit; stop only for `PASS` or a
-   real `BLOCKER`.
-15. Only the caller may run `zd task done` and `zd commit`, after a fresh
-   verification passes.
+9. Before **Implement**, **Verify**, completion, or commit, read
+   [references/implement.md](references/implement.md) and
+   [references/verify.md](references/verify.md) completely. They define the
+   required area gates, Git baseline, ownership checks, rework loop, validation,
+   rebase recovery, staging, and commit sequence.
 
-For a gated execution route, use `zd area rebase <area>` for a stale or
-unfinalized base link. After interruptions, inspect Git, `zd status`, and the
-task file and re-establish change ownership before resuming; do not assume an
-existing diff belongs to the task. Complete work by staging explicit task-owned
-source paths, the exact task file, and generated `TASKS.md`, then inspect the
-full cached diff before committing. Do not create transcripts, run records,
-prompt packets, or copied diffs in `.zd`.
-
-The area brief and task remain authoritative for scope and done conditions.
+Keep existing Git changes in place. Establish ownership before touching an
+overlapping path or changing the index.
 
 ## Keep state lean
 
-Persist only project and area metadata, `brief.md`, task files, generated
-`TASKS.md`, and accepted Git changes. Do not create plan directories, audit
-reports, run records, packet files, evidence ledgers, claim tokens, execution
-bindings, or manual hashes. Pass approved task bundles directly to
-`zd tasks import <area> --from -`.
+Store planning state as project and area metadata, `brief.md`, task files, and
+generated `TASKS.md`. Keep transcripts, review evidence, and prompt packets in
+the conversation. Pass approved task bundles directly to
+`zd tasks import <area> --from -` and commit accepted source changes normally.
 
 Existing project-wide domain documentation and ADRs remain authoritative for
 cross-area knowledge.

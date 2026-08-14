@@ -44,14 +44,6 @@ Stop when no unresolved choice would materially change the objective or task
 split. Low-impact implementation details may remain for individual tasks.
 Summarize the resulting brief and any remaining non-blocking details.
 
-If the user did not already request another interaction, offer the relevant
-next actions and stop:
-
-- **Create tasks** to draft a task split for separate review and approval.
-- **Explore an objective** when discussion exposed a different path or boundary.
-- **Investigate** when one named uncertainty still needs evidence.
-- Continue **Discuss the brief** when the user identifies another material choice.
-
-Do not import tasks or begin implementation unless the user explicitly
-requested that next interaction. Task import still requires approval of the
-exact rendered bundle.
+Recommend one next interaction when the result points clearly to it. Then stop
+unless the user already requested more work. Import tasks only after the user
+approves the exact rendered bundle.

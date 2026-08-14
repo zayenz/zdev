@@ -38,9 +38,6 @@ When the result settles a planning question for an existing area, update only
 the relevant part of its `brief.md`. For a standalone investigation, report
 the result without creating zdev state.
 
-If the user did not already request another interaction, offer the relevant
-next actions and stop: **Explore an objective** to revise the wider synthesis
-or create durable state, **Discuss the brief** to decide a remaining trade-off,
-or **Create tasks** when the user agrees the resulting work is ready for a
-split. Do not draft tasks or fix an issue merely because the investigation
-found it.
+Recommend one next interaction when the conclusion points clearly to it, then
+stop unless the user already requested more work. Leave newly discovered
+production changes for a later requested interaction.

@@ -9,11 +9,10 @@ description: "Shape, discuss, audit, investigate, task, implement, verify, and c
 
 ## Codex orchestration
 
-Use Codex collaboration agents for bounded implementation and fresh
-verification contexts. Keep the main Codex conversation responsible for zdev
-state, user decisions, task completion, and commits. Give every delegated
-agent the rendered repository guidance and any narrower applicable
-`AGENTS.md` instructions.
+Use one Codex collaboration agent to implement a task and a different agent to
+verify it. The main conversation owns zdev state, user decisions, task
+completion, and commits. Give each agent the rendered repository guidance and
+applicable `AGENTS.md` instructions.
 
 For longer work, use a Codex goal only when the user explicitly requests one.
 

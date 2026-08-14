@@ -46,8 +46,8 @@ vocabulary settled in `brief.md` and extend the focused model tests in
 
 ## Boundaries
 
-- Do not change unrelated solver APIs.
-- Follow the area's focused testing level and existing model-test patterns.
+- Change the scheduling model and its focused tests.
+- Preserve the solver API and follow the area's existing model-test patterns.
 
 ## Done when
 

@@ -1,6 +1,6 @@
 export const meta = {
   name: 'zdev-audit',
-  description: 'Audit a bounded codebase and return independently checked proposals',
+  description: 'Review a codebase and return checked findings',
 }
 
 const input = args ?? {}
@@ -13,7 +13,7 @@ const reviewScopes = requestedLenses.length > 0
   : ['broad review']
 const reviews = await pipeline(reviewScopes, scope =>
   agent(
-    `Perform one bounded read-only ${scope} of ${boundary}. Inspect repository evidence and return only material findings with locations, impact, and confidence. Do not edit files or .zd, create tasks, commit, open a pull request, or create durable run state.`,
+    `Review ${boundary} from the ${scope}. Keep the repository unchanged. Return concrete findings with locations, impact, and confidence.`,
     { label: `${scope} audit` },
   ),
 )
@@ -23,6 +23,6 @@ if (reviews.filter(Boolean).length === 0) {
 }
 
 return agent(
-  `Act as a fresh read-only evidence vetter for this audit of ${boundary}. Open every cited location, reject weak, speculative, or duplicate claims, and rank only evidence-backed candidate work for human selection. State the inspected boundary and omissions. Do not edit files or .zd, create zdev tasks, commit, open a pull request, or modify project state.\n\nReviewer output:\n${reviews.filter(Boolean).join('\n\n')}`,
+  `Check these findings for ${boundary}. Keep the repository unchanged. Open every cited location, remove weak, speculative, and duplicate claims, then rank the remaining findings by impact. State what was inspected and omitted. Return locations, impact, confidence, and a recommended next action.\n\nReviewer output:\n${reviews.filter(Boolean).join('\n\n')}`,
   { label: 'audit evidence vetter' },
 )

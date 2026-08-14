@@ -44,10 +44,6 @@ the audit boundary and what you did not inspect.
 ## Stop
 
 Present the vetted findings and recommend a small, high-leverage set with its
-dependency order. Do not change source, tests, `.zd`, or project documentation.
-
-If the user did not already request another interaction, offer the relevant
-next actions and stop: **Explore an objective** to create or refine a coherent
-brief, **Discuss the brief** to challenge an existing synthesis, **Create
-tasks** when an approved brief already captures the selected work, or
-**Implement** when the user names an existing task.
+dependency order. Keep the audit read-only. Recommend one next interaction when
+the findings point clearly to it, then stop unless the user already requested
+more work.

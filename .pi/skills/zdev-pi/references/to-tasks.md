@@ -60,10 +60,10 @@ with `blocked_by`.
 
 ## Challenge the drafts
 
-For non-trivial work, ask a fresh read-only reviewer to challenge the draft.
-Give the reviewer the proposed tasks, the area `brief.md`, relevant decisions,
-repository guidance, source and tests, and any linked background documents.
-Ask it to propose concrete revisions and report:
+For non-trivial work, ask a different agent to review the draft. Give it the
+proposed tasks, area `brief.md`, relevant decisions, repository guidance,
+source and tests, and linked background documents. Ask for concrete revisions
+covering:
 
 - missing task-specific context or repository evidence;
 - hidden decisions that still belong to the user;
@@ -71,12 +71,10 @@ Ask it to propose concrete revisions and report:
 - incorrect boundaries or scope; and
 - false dependencies.
 
-The reviewer must not edit `.zd`, import tasks, approve the split, or decide
-user-owned choices. Reconcile its suggestions against repository evidence and
-return unresolved material choices to the user. If a fresh reviewer is not
-available, perform the same evidence-based challenge locally. For trivial or
-fully specified work, a local review is enough. Never claim an independent
-review that did not run.
+The caller reconciles those suggestions, edits `.zd`, resolves user choices,
+and asks for import approval. If another agent is unavailable, run the same
+review locally. A local review is enough for trivial or fully specified work.
+Say which kind of review ran.
 
 ## Review the split
 
@@ -109,8 +107,8 @@ The model represents the required scheduling decisions.
 Add the model beside the existing scheduler types.
 
 ### Boundaries
-1. Do not change unrelated APIs.
-2. Use the vocabulary settled in the brief.
+1. Change the scheduling model and its focused tests.
+2. Preserve the existing solver API and use the vocabulary settled in the brief.
 
 ### Blocked by
 None
@@ -133,30 +131,15 @@ do not add presentation-only text inside the fence. In `Validation / Testing`,
 include the task's validation steps and state how the area's agreed `Testing`
 level applies.
 
-The fenced Markdown document is the exact approval source. It must carry every
-value losslessly so the approved fields, list order, task order, and dependency
-edges can be serialized internally without interpretation or rewriting. Keep
-the corresponding structured values in working context and serialize those
-retained values after approval; do not reconstruct them by parsing or
-paraphrasing the display. Do not summarize, omit, or rephrase task content in a
-separate approval view.
+The fenced Markdown document is the approval source. Render it from the
+structured bundle that will be imported, with every value and dependency in
+the same order. Keep that structured bundle in working context after rendering.
+Ask about concrete unresolved choices before requesting approval.
 
-Ask whether:
-
-- the tasks are too coarse or too fine;
-- each task delivers a complete result;
-- the blocking edges are genuine; and
-- any task should be merged, split, or removed.
-
-Reconcile additions with existing task keys and outcomes. Do not duplicate
-work already present or completed. Do not present the exact Task Bundle JSON by
-default; show it only when the user explicitly asks to inspect it, and keep the
-fenced Markdown document as the approval source. Ask for explicit approval
-immediately before every import, including additions to or material revisions
-of an existing queue. If the bundle changes after approval—meaning any task
-content, task order, or dependency changes—re-render the complete Markdown list
-and obtain fresh approval. Approval of a brief, earlier split, or objective is
-not approval of the import.
+Reconcile additions with existing task keys and completed outcomes. Show JSON
+only when the user asks to inspect it. Immediately before import, ask:
+`Approve this task bundle for import?` If any task content, order, or dependency
+changes afterward, show the complete revised bundle and ask again.
 
 ## Import
 

@@ -55,14 +55,12 @@ Use this method for each task returned by `zd next`.
    Stop only for `PASS`, a real blocker, unsafe scope expansion, or a user-owned
    decision.
 
-For verification, give the fresh read-only agent the brief, task, actual
-checkout diff, relevant source and tests, and repository verification
-instructions. Require separate Spec and Standards passes, complete checkout
-evidence, a pre/post-validation state comparison, and all task-listed
-validation. Required validation that is unsafe or unavailable is `BLOCKER`;
-only optional checks may be reported as residual limitations. The verifier
-returns `PASS`, `REWORK`, or `BLOCKER` as defined in [verify.md](verify.md). The
-caller checks that the verdict covers the whole task.
+For verification, give a different agent the brief, task, actual checkout diff,
+relevant source and tests, and repository verification instructions. It checks
+every task requirement, inspects the touched code, runs task-listed validation,
+and compares Git state before and after validation. The verifier returns
+`PASS`, `REWORK`, or `BLOCKER` as defined in [verify.md](verify.md). The caller
+checks that the verdict covers the whole task.
 
 ## Rebase recovery
 

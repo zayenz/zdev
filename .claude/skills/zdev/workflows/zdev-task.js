@@ -6,7 +6,7 @@ export const meta = {
 const input = args ?? {}
 const target = input.area ? `area ${input.area}` : 'the selected area'
 const preflight = await agent(
-  `Read-only preflight for ${target}. Run zd status and zd next as JSON. Require the four area gates: recorded branch checked out, effective-base link fresh, anchor valid, and base finalization complete. Read the brief, selected task, and rendered repository guidance. Record the three-part Git baseline: status including untracked files, the staged diff, and the unstaged diff. Identify task-owned paths and return BLOCKER for ambiguous overlap. Begin with READY and the exact task context plus baseline, or BLOCKER and the concrete reason. Do not edit files or zdev state.`,
+  `Prepare ${target} for implementation without changing files. Run zd status and zd next as JSON. Confirm the recorded branch, effective base, anchor, and base finalization. Read the brief, selected task, and repository guidance. Record status with untracked files, the staged diff, and the unstaged diff. Identify task-owned paths. Return READY with the task context and baseline, or BLOCKER with the concrete reason.`,
   { label: 'zdev preflight' },
 )
 
@@ -18,13 +18,13 @@ if (!preflightResult || !/^READY\b/.test(preflightResult)) {
 }
 
 let implementation = await agent(
-  `Act as zdev-implementer for this context:\n${preflight}\nImplement in the current checkout. Respect the recorded baseline and task-owned paths; stop on ambiguous overlap. Follow the brief's testing level and established repository patterns. You may edit source and tests and run validation. Do not edit .zd, run zd task done, change task lifecycle state, commit, open a pull request, create run state, or delegate.`,
+  `Implement the selected task in the current checkout. Use this context:\n${preflight}\nChange only task-owned source and test paths. Follow the brief's testing level, reuse repository patterns, and run the listed validation. Leave .zd, task lifecycle, commits, pull requests, and delegation to the caller. Return changed files, validation results, and blockers.`,
   { label: 'zdev implementation' },
 )
 
 const review = async implementationContext => {
   const result = await agent(
-    `Act as a fresh read-only zdev-verifier. Treat the implementer summary as context only, never as evidence. Compare the recorded three-part baseline with the actual checkout: git status including untracked files, the staged diff, the unstaged diff, and relevant files. Ignore an intervening commit only if its complete diff adds new .zd/<area>/tasks/*.md files, regenerates .zd/<area>/TASKS.md, and changes no other path; otherwise return BLOCKER. Record the same complete state before and after validation; report writes without restoring or discarding them. Perform separate Spec and Standards passes and honor the brief's testing level.\n\nReturn a first line beginning with exactly PASS, REWORK, or BLOCKER. PASS requires both passes and all required validation. Use REWORK only for concrete task-owned defects or task-owned validation writes. Use BLOCKER for ambiguous ownership, unavailable required evidence or validation, or user-owned design, scope, or testing decisions. Only optional checks may be residual limitations. Include classified findings and locations. Do not edit files or zdev state, complete the task, commit, or open a pull request.\n\nTask context:\n${preflight}\n\nImplementer summary (context only):\n${implementationContext}`,
+    `Verify the selected task from the current checkout. Use the implementer summary only to locate evidence. Compare the recorded baseline with status, staged and unstaged diffs, untracked files, and relevant source. Attribute every change. Check every task requirement, inspect touched code for defects and regressions, run required validation, and compare Git state before and after validation. Report files written by checks.\n\nBegin with PASS, REWORK, or BLOCKER. Use PASS when all required checks succeed, REWORK for concrete task-owned defects, and BLOCKER when ownership, evidence, validation, or a user decision prevents a verdict. Return findings with locations. Make no intentional edits; leave zdev state, task completion, commits, and pull requests to the caller.\n\nTask context:\n${preflight}\n\nImplementer summary:\n${implementationContext}`,
     { label: 'zdev evidence verification' },
   )
   const verdict = result?.trim()
@@ -36,7 +36,7 @@ const review = async implementationContext => {
 let verdict = await review(implementation)
 while (/^REWORK\b/.test(verdict)) {
   const rework = await agent(
-    `Act as zdev-implementer and correct every concrete task-owned finding below. Inspect the current checkout, preserve the recorded baseline and task-owned path boundary, and keep the brief's testing level as a scope boundary. Stop for ambiguous ownership or a user-owned decision. You may edit source and tests and run validation. Never edit .zd, run zd task done, change task lifecycle state, commit, or open a pull request.\n\nTask, brief, and rendered-guidance context:\n${preflight}\n\nFindings:\n${verdict}`,
+    `Correct every task-owned finding below. Inspect the current checkout, change only task-owned source and test paths, follow the brief's testing level, and run the relevant validation. Leave .zd, task lifecycle, commits, and pull requests to the caller.\n\nTask context:\n${preflight}\n\nFindings:\n${verdict}`,
     { label: 'zdev rework' },
   )
   if (!rework) {

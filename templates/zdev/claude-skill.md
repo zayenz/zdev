@@ -9,18 +9,17 @@ description: "Shape, discuss, audit, investigate, task, implement, verify, and c
 
 ## Claude Code orchestration
 
-For an ordinary task, delegate source changes to
-`zdev:zdev-implementer`, then use a fresh `zdev:zdev-verifier` for separate
-Spec and Standards passes. Send every task-owned `REWORK` back through
-implementation and then use another fresh verifier; repeat until `PASS` or a
-real `BLOCKER`. Include the rendered repository guidance in every prompt. If
+For an ordinary task, delegate source changes to `zdev:zdev-implementer`, then
+ask a different `zdev:zdev-verifier` to check the task requirements, touched
+code, and validation. Return each task-owned `REWORK` finding to an implementer
+and verify the correction with a different agent. Continue until `PASS` or
+`BLOCKER`. Include the rendered repository guidance in every prompt. If the
 named agents are unavailable, use ordinary Claude Code subagents with the same
 boundaries.
 
-On Claude Code v2.1.154 or later, `/zdev:zdev-task` can structure a bounded
-task cycle and `/zdev:zdev-audit` can structure a bounded read-only audit.
-Dynamic workflows are optional; the ordinary subagent loop remains the
-compatibility path. These agents do not run `zd task done` or `zd commit`.
+On Claude Code v2.1.154 or later, `/zdev:zdev-task` runs this task cycle and
+`/zdev:zdev-audit` runs a read-only audit. The ordinary subagent loop also
+works. The main conversation runs `zd task done` and `zd commit`.
 
 {{repository_guidance}}
 

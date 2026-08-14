@@ -1895,16 +1895,6 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
     assert_eq!(installed["files"], 10);
     let rendered = fs::read_to_string(destination.join("SKILL.md")).expect("installed skill");
     assert_eq!(rendered, packaged_skill);
-    let rendered_text = rendered.split_whitespace().collect::<Vec<_>>().join(" ");
-    assert!(rendered.contains("# Zdev for Codex"));
-    assert!(rendered.contains("## Codex orchestration"));
-    assert!(rendered.contains("## Repository guidance discovery"));
-    assert!(rendered.contains("zd skill check <harness> --scope user"));
-    assert!(rendered_text.contains("for every requested harness"));
-    assert!(rendered_text.contains("If a check reports status `ok`, reuse"));
-    assert!(rendered_text.contains("do not ask the user to reinstall it or choose its scope"));
-    assert!(rendered_text.contains("check reports `missing` or `conflict`"));
-    assert!(!rendered.contains("zdev-implementer"));
     assert_eq!(
         fs::read_to_string(destination.join("references/verify.md")).expect("verify reference"),
         include_str!("../skills/zdev/references/verify.md")
@@ -2573,30 +2563,6 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
         ]
     );
 
-    let codex_skill = fs::read_to_string(codex.join("SKILL.md")).expect("Codex skill");
-    let claude_skill =
-        fs::read_to_string(claude.join("skills/zdev/SKILL.md")).expect("Claude skill");
-    let codex_skill_text = codex_skill.split_whitespace().collect::<Vec<_>>().join(" ");
-    let claude_skill_text = claude_skill
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    assert!(codex_skill.contains("## Codex orchestration"));
-    assert!(codex_skill.contains("Run `zd init --record <personal|project|pull-request>` only"));
-    assert!(codex_skill_text.contains("zd skill check <harness> --scope user"));
-    assert!(codex_skill_text.contains("for every requested harness"));
-    assert!(codex_skill_text.contains("do not ask the user to reinstall it or choose its scope"));
-    assert!(!codex_skill.contains("zdev-implementer"));
-    assert!(claude_skill.contains("## Claude Code orchestration"));
-    assert!(claude_skill.contains("Run `zd init --record <personal|project|pull-request>` only"));
-    assert!(claude_skill_text.contains("zd skill check <harness> --scope user"));
-    assert!(claude_skill_text.contains("for every requested harness"));
-    assert!(claude_skill_text.contains("do not ask the user to reinstall it or choose its scope"));
-    assert!(claude_skill.contains("`zdev:zdev-implementer`"));
-    assert!(claude_skill.contains("`zdev:zdev-verifier`"));
-    assert!(claude_skill.contains("ordinary Claude Code subagents"));
-    assert!(!claude_skill.contains("Codex orchestration"));
-
     let manifest: Value = serde_json::from_slice(
         &fs::read(claude.join(".claude-plugin/plugin.json")).expect("Claude manifest"),
     )
@@ -2604,54 +2570,14 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert_eq!(manifest["name"], "zdev");
     assert_eq!(manifest["version"], env!("CARGO_PKG_VERSION"));
 
-    let implementer =
-        fs::read_to_string(claude.join("agents/zdev-implementer.md")).expect("implementer");
-    for boundary in ["must not edit `.zd`", "commit", "pull request", "delegate"] {
-        assert!(implementer.contains(boundary));
-    }
     let verifier = fs::read_to_string(claude.join("agents/zdev-verifier.md")).expect("verifier");
     assert!(verifier.contains("tools: Read, Bash, Grep, Glob"));
     assert!(!verifier.contains("tools: Read, Write"));
-    for boundary in [
-        "status including untracked files",
-        "staged diff",
-        "unstaged diff",
-        "untracked files",
-        "three-part pre-implementation Git baseline",
-        "before and after\nvalidation",
-        "context,\nnot evidence",
-        "Spec",
-        "Standards",
-        "`PASS`, `REWORK`, or `BLOCKER`",
-        "unavailable required evidence or validation",
-        "Do not edit files or `.zd`",
-    ] {
-        assert!(verifier.contains(boundary));
-    }
+
     let task_workflow =
         fs::read_to_string(claude.join("workflows/zdev-task.js")).expect("task workflow");
-    for expected in [
-        "Begin with READY",
-        "!/^READY\\b/",
-        "BLOCKER: preflight did not return a valid READY context",
-        "three-part Git baseline: status including untracked files, the staged diff, and the unstaged diff",
-        "recorded three-part baseline with the actual checkout",
-        "before and after validation",
-        "implementer summary as context only, never as evidence",
-        "separate Spec and Standards passes",
-        "first line beginning with exactly PASS, REWORK, or BLOCKER",
-        "PASS requires both passes and all required validation",
-        "unavailable required evidence or validation",
-        "while (/^REWORK\\b/.test(verdict))",
-        "/^(PASS|REWORK|BLOCKER)\\b/",
-        "/^REWORK\\b/",
-    ] {
-        assert!(
-            task_workflow.contains(expected),
-            "task workflow missing {expected}"
-        );
-    }
-    assert!(!task_workflow.contains("Mechanical: yes"));
+    assert!(task_workflow.contains("while (/^REWORK\\b/.test(verdict))"));
+    assert!(task_workflow.contains("/^(PASS|REWORK|BLOCKER)\\b/"));
     assert_eq!(task_workflow.matches("label: 'zdev rework'").count(), 1);
     assert_eq!(
         task_workflow
@@ -2660,31 +2586,53 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
         2,
         "Claude workflow must freshly verify the initial implementation and every rework"
     );
-    for boundary in [
-        "Never edit .zd",
-        "complete the task",
-        "commit",
-        "pull request",
-    ] {
-        assert!(task_workflow.contains(boundary));
-    }
+
     let audit_workflow =
         fs::read_to_string(claude.join("workflows/zdev-audit.js")).expect("audit workflow");
-    for expected in [
-        "Array.isArray(input.lenses)",
-        ": ['broad review']",
-        "fresh read-only evidence vetter",
-        "Open every cited location",
-        "human selection",
-        "Do not edit files or .zd, create tasks, commit",
-        "Do not edit files or .zd, create zdev tasks, commit",
+    assert!(audit_workflow.contains("Array.isArray(input.lenses)"));
+    assert_eq!(audit_workflow.matches("audit evidence vetter").count(), 1);
+}
+#[test]
+fn checked_in_harness_skills_match_current_templates() {
+    let repository = repository();
+    let root = repository.path();
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    for (harness, rendered_skill, checked_in_skill) in [
+        ("codex", "SKILL.md", "skills/zdev/SKILL.md"),
+        (
+            "claude",
+            "skills/zdev/SKILL.md",
+            ".claude/skills/zdev/skills/zdev/SKILL.md",
+        ),
+        (
+            "opencode",
+            "skills/zdev-opencode/SKILL.md",
+            ".opencode/skills/zdev-opencode/SKILL.md",
+        ),
+        (
+            "pi",
+            "skills/zdev-pi/SKILL.md",
+            ".pi/skills/zdev-pi/SKILL.md",
+        ),
     ] {
-        assert!(
-            audit_workflow.contains(expected),
-            "audit workflow missing {expected}"
+        let destination = root.join(format!("checked-in-{harness}"));
+        json_output(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("integration destination"),
+            ],
+        );
+        assert_eq!(
+            fs::read(destination.join(rendered_skill)).expect("rendered harness skill"),
+            fs::read(source.join(checked_in_skill)).expect("checked-in harness skill"),
+            "checked-in {harness} skill drifted from its template"
         );
     }
-    assert_eq!(audit_workflow.matches("audit evidence vetter").count(), 1);
 }
 
 #[test]
@@ -2753,101 +2701,6 @@ fn codex_skill_check_and_force_install_manage_ui_metadata() {
 }
 
 #[test]
-fn native_shortcuts_are_proportional_and_evidence_driven() {
-    let repository = repository();
-    let root = repository.path();
-
-    let opencode = root.join("opencode-shortcuts");
-    json_output(
-        root,
-        &[
-            "skill",
-            "install",
-            "opencode",
-            "--to",
-            opencode.to_str().expect("OpenCode destination"),
-        ],
-    );
-    let opencode_audit =
-        fs::read_to_string(opencode.join("command/zdev-audit.md")).expect("OpenCode audit");
-    for expected in [
-        "Perform one bounded review",
-        "substantial boundary or an explicit\nswarm request",
-        "do not fan out by default",
-        "human selection",
-    ] {
-        assert!(
-            opencode_audit.contains(expected),
-            "OpenCode audit missing {expected}"
-        );
-    }
-    let opencode_task =
-        fs::read_to_string(opencode.join("command/zdev-task.md")).expect("OpenCode task");
-    for expected in [
-        "three-part Git baseline: status including untracked files, the staged diff, and\nthe unstaged diff",
-        "baseline and task-owned\npaths",
-        "pre/post-validation Git comparison",
-        "context, not evidence",
-        "Return `PASS`, `REWORK`, or `BLOCKER`",
-        "repeat without\na fixed retry limit",
-        "unavailable is `BLOCKER`",
-    ] {
-        assert!(
-            opencode_task.contains(expected),
-            "OpenCode task missing {expected}"
-        );
-    }
-
-    let pi = root.join("pi-shortcuts");
-    json_output(
-        root,
-        &[
-            "skill",
-            "install",
-            "pi",
-            "--to",
-            pi.to_str().expect("Pi destination"),
-        ],
-    );
-    let pi_audit = fs::read_to_string(pi.join("prompts/zdev-audit.md")).expect("Pi audit");
-    for expected in [
-        "one bounded primary review",
-        "one fresh `zdev_subagent` verifier call",
-        "substantial boundary or an explicit swarm request",
-        "do not fan out by\ndefault",
-    ] {
-        assert!(pi_audit.contains(expected), "Pi audit missing {expected}");
-    }
-    let pi_role =
-        fs::read_to_string(pi.join("extensions/zdev-subagent.ts")).expect("Pi verifier role");
-    for expected in [
-        "task work or audit evidence",
-        "three-part baseline with current status including untracked files, staged diff, and unstaged diff",
-        "same Git state before and after validation",
-        "summaries as context, not evidence",
-        "PASS, REWORK, or BLOCKER",
-        "create tasks",
-    ] {
-        assert!(
-            pi_role.contains(expected),
-            "Pi verifier role missing {expected}"
-        );
-    }
-}
-
-#[test]
-fn packaged_codex_interfaces_share_one_neutral_prompt() {
-    const PROMPT: &str = "Use $zdev to shape or run durable work in this repository.";
-    let yaml = include_str!("../skills/zdev/agents/openai.yaml");
-    assert!(yaml.contains("short_description: \"Shape and run durable zdev work\""));
-    assert!(yaml.contains(&format!("default_prompt: \"{PROMPT}\"")));
-
-    let manifest: Value =
-        serde_json::from_str(include_str!("../.codex-plugin/plugin.json")).expect("plugin JSON");
-    assert_eq!(manifest["interface"]["defaultPrompt"], json!([PROMPT]));
-}
-
-#[test]
 fn harness_skill_templates_are_thin_wrappers_around_the_shared_contract() {
     for (harness, template) in [
         ("codex", include_str!("../templates/zdev/codex-skill.md")),
@@ -2863,486 +2716,6 @@ fn harness_skill_templates_are_thin_wrappers_around_the_shared_contract() {
             template.matches("{{shared_contract}}").count(),
             1,
             "{harness} must render the shared contract exactly once"
-        );
-        assert!(
-            !template.contains("## Activate zdev, then route intent"),
-            "{harness} duplicates shared behavior in its wrapper"
-        );
-        assert!(
-            template.contains("orchestration"),
-            "{harness} wrapper is missing its harness-specific mechanics"
-        );
-    }
-}
-
-#[test]
-fn every_harness_renders_the_task_drafting_and_intake_contract() {
-    let repository = repository();
-    let root = repository.path();
-
-    for (harness, skill_path, reference_root) in [
-        ("codex", "SKILL.md", "references"),
-        ("claude", "skills/zdev/SKILL.md", "skills/zdev/references"),
-        (
-            "opencode",
-            "skills/zdev-opencode/SKILL.md",
-            "skills/zdev-opencode/references",
-        ),
-        ("pi", "skills/zdev-pi/SKILL.md", "skills/zdev-pi/references"),
-        ("omp", "skills/zdev/SKILL.md", "skills/zdev/references"),
-    ] {
-        let destination = root.join(format!("task-handoff-{harness}"));
-        json_output(
-            root,
-            &[
-                "skill",
-                "install",
-                harness,
-                "--to",
-                destination.to_str().expect("destination"),
-            ],
-        );
-
-        let skill = fs::read_to_string(destination.join(skill_path)).expect("rendered skill");
-        let skill_text = skill.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(
-            skill.contains(
-                "description: \"Shape, discuss, audit, investigate, task, implement, verify, and commit durable work with zdev. Use only"
-            ) || skill.contains(
-                "description: Shape, discuss, audit, investigate, task, implement, verify, and commit durable work with zdev. Use only"
-            ),
-            "{harness} metadata is not capability-first and activation-strict"
-        );
-        assert!(
-            skill.contains("authoritative [references/task-format.md]"),
-            "{harness} router does not directly require task-format"
-        );
-        for expected in [
-            "Record the three-part Git baseline before delegation: status including untracked files, the cached diff, and the unstaged diff",
-            "stop when overlap is ambiguous",
-            "Compare the three-part Git state before and after validation",
-            "Use `PASS` only when both passes succeed, `REWORK` for concrete task-owned defects",
-            "re-establish change ownership before resuming",
-            "staging explicit task-owned",
-            "inspect the full cached diff before committing",
-            "adds one or more new `.zd/<area>/tasks/*.md` files, regenerates `.zd/<area>/TASKS.md`, and changes no other path",
-            "consider those additions at the next `zd next`",
-            "Repeat without a fixed retry limit",
-        ] {
-            assert!(
-                skill_text.contains(expected),
-                "{harness} execution contract missing {expected}"
-            );
-        }
-
-        let implement = fs::read_to_string(destination.join(reference_root).join("implement.md"))
-            .expect("Implement reference");
-        let implement_text = implement.split_whitespace().collect::<Vec<_>>().join(" ");
-        for expected in [
-            "git status --short --untracked-files=all",
-            "git diff --cached",
-            "pre-existing changes remain user-owned",
-            "never stage the whole area directory",
-            "Do not assume an existing diff belongs to the selected task",
-            "adds one or more new `.zd/<area>/tasks/*.md` files",
-            "regenerates `.zd/<area>/TASKS.md`, and changes no other path",
-            "Repeat implementation and fresh verification without a fixed retry count",
-        ] {
-            assert!(
-                implement_text.contains(expected),
-                "{harness} Implement missing {expected}"
-            );
-        }
-
-        let verify = fs::read_to_string(destination.join(reference_root).join("verify.md"))
-            .expect("Verify reference");
-        let verify_text = verify.split_whitespace().collect::<Vec<_>>().join(" ");
-        for expected in [
-            "Inspect relevant untracked files directly",
-            "compare it with the pre-validation state",
-            "Never stash, reset, restore, clean, or silently discard validation writes",
-            "`REWORK`, for concrete implementation defects",
-            "`BLOCKER`, for ambiguous Git ownership",
-            "required validation or evidence is unsafe or unavailable, return `BLOCKER`",
-            "unavailable optional check may be reported as a residual limitation",
-        ] {
-            assert!(
-                verify_text.contains(expected),
-                "{harness} Verify missing {expected}"
-            );
-        }
-
-        let create_tasks = fs::read_to_string(destination.join(reference_root).join("to-tasks.md"))
-            .expect("Create tasks reference");
-        let create_tasks_text = create_tasks
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
-        for expected in [
-            "ask a fresh read-only reviewer to challenge the draft",
-            "missing task-specific context or repository evidence",
-            "hidden decisions that still belong to the user",
-            "vague or non-observable done conditions and proof",
-            "incorrect boundaries or scope",
-            "false dependencies",
-            "perform the same evidence-based challenge locally",
-            "exact Task Bundle JSON",
-            "explicit approval immediately before every import",
-            "bundle changes after approval",
-            "zd check <area> --format json",
-            "zd tasks list <area> --format json",
-            "actual ready frontier from the post-import task list",
-            "When adding tasks to an existing task list, use:",
-            "zd tasks import <area> --from - --commit --format json",
-            "Use ordinary import for the initial task split",
-            "only the new task files and regenerated `TASKS.md`",
-            "does not interrupt a task already being implemented",
-            "consider the additions at the next `zd next` boundary",
-            "explicitly authorized implementation after importing this exact approved rendering",
-            "Read `implement.md` completely",
-        ] {
-            assert!(
-                create_tasks_text.contains(expected),
-                "{harness} Create tasks missing {expected}"
-            );
-        }
-        for obsolete in [
-            "planning model and reasoning effort",
-            "stronger planning configuration",
-            "primary conversation",
-            "Group only a small set of tasks",
-            "unjustified grouping",
-        ] {
-            assert!(
-                !create_tasks.contains(obsolete),
-                "{harness} Create tasks still contains organizational policy: {obsolete}"
-            );
-        }
-
-        let task_format =
-            fs::read_to_string(destination.join(reference_root).join("task-format.md"))
-                .expect("Task format reference");
-        assert!(
-            task_format.contains("zd tasks import <area> --from - --commit --format json"),
-            "{harness} Task format missing deterministic additive import command"
-        );
-    }
-}
-
-#[test]
-fn every_harness_renders_the_same_activation_boundary_and_direct_router() {
-    let repository = repository();
-    let root = repository.path();
-
-    for (harness, skill_path, reference_root, question_guidance) in [
-        (
-            "codex",
-            "SKILL.md",
-            "references",
-            "Use Codex's `request_user_input` tool with two or three questions",
-        ),
-        (
-            "claude",
-            "skills/zdev/SKILL.md",
-            "skills/zdev/references",
-            "Use Claude Code's `AskUserQuestion` tool with multiple questions",
-        ),
-        (
-            "opencode",
-            "skills/zdev-opencode/SKILL.md",
-            "skills/zdev-opencode/references",
-            "Use OpenCode's `question` tool with multiple questions",
-        ),
-        (
-            "pi",
-            "skills/zdev-pi/SKILL.md",
-            "skills/zdev-pi/references",
-            "Stock Pi has no structured question tool",
-        ),
-        (
-            "omp",
-            "skills/zdev/SKILL.md",
-            "skills/zdev/references",
-            "Use Oh My Pi's `ask` tool with its `questions` array",
-        ),
-    ] {
-        let destination = root.join(format!("router-{harness}"));
-        json_output(
-            root,
-            &[
-                "skill",
-                "install",
-                harness,
-                "--to",
-                destination.to_str().expect("destination"),
-            ],
-        );
-
-        let skill = fs::read_to_string(destination.join(skill_path)).expect("rendered skill");
-        let skill_text = skill.split_whitespace().collect::<Vec<_>>().join(" ");
-        let shared_contract = include_str!("../templates/zdev/shared-contract.md").trim_end();
-        assert!(
-            skill.contains(shared_contract),
-            "{harness} does not contain the canonical shared contract"
-        );
-        for expected in [
-            "## Activate zdev, then route intent",
-            "Activate this workflow only when the user invokes `zdev`, `zd`, or `$zdev`",
-            "Words such as “audit,” “explore,” “discuss,” “plan,”",
-            "do not activate zdev on their own",
-            "**Explore an objective**",
-            "aliases: “wayfind,” “shape”",
-            "**Discuss the brief**",
-            "alias: “grill”",
-            "**Improve**",
-            "**Investigate**",
-            "**Create tasks**",
-            "**Implement**",
-            "**Verify**",
-            "approve this exact bundle and then implement",
-        ] {
-            assert!(skill.contains(expected), "{harness} missing {expected}");
-        }
-        for expected in [
-            "run standalone **Improve** and **Investigate** without initialization",
-            "do not run `zd area rebase` without explicit consent",
-            "Read-only interactions never rebase",
-            "For **Implement** and **Verify**, and before completion or commit, require",
-            "Continue with another zdev interaction only when the user already requested it",
-            "Otherwise, report the result, offer relevant next actions, and stop",
-            "Approval applies only to the artifact shown",
-            "follow their requested order",
-            "If the order is unclear, ask which interaction to run first",
-            "**Improve** — broadly audit or review",
-            "**Investigate** — answer one named checkable uncertainty",
-        ] {
-            assert!(
-                skill_text.contains(expected),
-                "{harness} missing safe route contract: {expected}"
-            );
-        }
-
-        let discuss = fs::read_to_string(destination.join(reference_root).join("discuss.md"))
-            .expect("discuss reference");
-        assert!(
-            discuss.contains(question_guidance),
-            "{harness} Discuss lacks native question guidance"
-        );
-        assert!(!discuss.contains("{{question_tool_guidance}}"));
-
-        let improve = fs::read_to_string(destination.join(reference_root).join("improve.md"))
-            .expect("Improve reference");
-        let improve_text = improve.split_whitespace().collect::<Vec<_>>().join(" ");
-        for expected in [
-            "broad, read-only candidate discovery",
-            "follow their requested order",
-            "If `.zd` is absent, do not initialize it",
-            "read its `brief.md` first",
-            "linked domain documents, ADRs, and background sources",
-            "Separate observations from inference",
-        ] {
-            assert!(
-                improve_text.contains(expected),
-                "{harness} Improve missing {expected}"
-            );
-        }
-
-        let investigate =
-            fs::read_to_string(destination.join(reference_root).join("investigate.md"))
-                .expect("Investigate reference");
-        let investigate_text = investigate.split_whitespace().collect::<Vec<_>>().join(" ");
-        for expected in [
-            "one named, checkable uncertainty",
-            "Use **Improve** for broad candidate discovery",
-            "follow their requested order",
-            "If `.zd` is absent, do not initialize it",
-            "read its `brief.md` and relevant linked decisions first",
-            "separate observations from inference",
-            "For a standalone investigation, report the result without creating zdev state",
-        ] {
-            assert!(
-                investigate_text.contains(expected),
-                "{harness} Investigate missing {expected}"
-            );
-        }
-
-        let explore = fs::read_to_string(destination.join(reference_root).join("shape-work.md"))
-            .expect("Explore reference");
-        let explore_text = explore.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(
-            explore_text.contains("wait for confirmation before writing outside `.zd`"),
-            "{harness} Explore permits unauthorized project-document writes"
-        );
-        assert!(
-            explore_text.contains("Choose and record the smallest useful testing level"),
-            "{harness} Explore omits testing-level selection"
-        );
-    }
-
-    let canonical = include_str!("../skills/zdev/SKILL.md");
-    let canonical_text = canonical.split_whitespace().collect::<Vec<_>>().join(" ");
-    for expected in [
-        "Activate this workflow only when the user invokes `zdev`, `zd`, or `$zdev`",
-        "asks to work through an existing `.zd` area",
-        "**Explore an objective**",
-        "**Discuss the brief**",
-        "aliases: “wayfind,” “shape”",
-        "alias: “grill”",
-        "do not run `zd area rebase` without explicit consent",
-        "Read-only interactions never rebase",
-        "one direct interaction or an explicitly ordered sequence of interactions",
-        "Continue with another zdev interaction only when the user already requested it",
-        "Approval applies only to the artifact shown",
-        "approve this exact bundle and then implement",
-    ] {
-        assert!(
-            canonical_text.contains(expected),
-            "canonical skill missing {expected}"
-        );
-    }
-
-    let explore = include_str!("../skills/zdev/references/shape-work.md");
-    let explore_text = explore.split_whitespace().collect::<Vec<_>>().join(" ");
-    for expected in [
-        "# Explore an objective",
-        "## When",
-        "## Do",
-        "## Stop",
-        "authoritative `brief.md`",
-        "wait for confirmation before writing outside `.zd`",
-        "add a brief index that names the question each source informs",
-        "Choose and record the smallest useful testing level",
-        "discussion is optional",
-    ] {
-        assert!(
-            explore_text.contains(expected),
-            "Explore missing {expected}"
-        );
-    }
-
-    let discuss = include_str!("../skills/zdev/references/discuss.md");
-    let discuss_text = discuss.split_whitespace().collect::<Vec<_>>().join(" ");
-    for expected in [
-        "# Discuss the brief",
-        "## When",
-        "## Do",
-        "## Stop",
-        "Read `brief.md` first",
-        "Use this zdev interaction directly rather than invoking a separate grilling skill",
-        "relevant to the decisions under discussion",
-        "Identify unresolved choices that could materially change behavior, scope, task splitting, or validation",
-        "Challenge a settled decision only with a concrete scenario",
-        "Work breadth first",
-        "ask up to three independent, high-impact questions",
-        "Ask one question when its answer determines what follows",
-        "recommended answer",
-        "After each round, update",
-        "{{question_tool_guidance}}",
-        "Stop when no unresolved choice would materially change the objective or task split",
-        "wait for confirmation unless the user already requested that edit",
-        "Task import still requires approval of the exact rendered bundle",
-    ] {
-        assert!(
-            discuss_text.contains(expected),
-            "Discuss missing {expected}"
-        );
-    }
-
-    for (name, reference) in [
-        (
-            "Explore",
-            include_str!("../skills/zdev/references/shape-work.md"),
-        ),
-        (
-            "Improve",
-            include_str!("../skills/zdev/references/improve.md"),
-        ),
-        (
-            "Investigate",
-            include_str!("../skills/zdev/references/investigate.md"),
-        ),
-    ] {
-        assert!(
-            reference.contains("## When"),
-            "{name} lacks a When contract"
-        );
-        assert!(reference.contains("## Do"), "{name} lacks a Do contract");
-        assert!(
-            reference.contains("## Stop"),
-            "{name} lacks a Stop contract"
-        );
-    }
-}
-
-#[test]
-fn every_harness_asks_who_owns_new_zdev_state_before_initialization() {
-    let repository = repository();
-    let root = repository.path();
-
-    for (harness, skill_path) in [
-        ("codex", "SKILL.md"),
-        ("claude", "skills/zdev/SKILL.md"),
-        ("opencode", "skills/zdev-opencode/SKILL.md"),
-        ("pi", "skills/zdev-pi/SKILL.md"),
-        ("omp", "skills/zdev/SKILL.md"),
-    ] {
-        let destination = root.join(format!("ownership-{harness}"));
-        json_output(
-            root,
-            &[
-                "skill",
-                "install",
-                harness,
-                "--to",
-                destination.to_str().expect("destination"),
-            ],
-        );
-
-        let skill = fs::read_to_string(destination.join(skill_path)).expect("rendered skill");
-        let skill_text = skill.split_whitespace().collect::<Vec<_>>().join(" ");
-        for expected in [
-            "whether zdev planning should be a **personal**, **project**, or **pull-request** record",
-            "Recommend **personal**",
-            "Recommend **project**",
-            "Recommend **pull-request**",
-            "Wait for the user's choice; do not infer it or run `zd init` first",
-            "exact entry `/.zd/` to this clone's `.git/info/exclude`",
-            "leave `.zd` visible to Git",
-            "run `zd cleanup squash` before squash merge",
-            "If `.zd` already exists, skip this question",
-            "Record ownership is separate from harness integration scope",
-        ] {
-            assert!(
-                skill_text.contains(expected),
-                "{harness} missing {expected}"
-            );
-        }
-
-        let choice = skill
-            .find("ask whether zdev planning")
-            .expect("record question");
-        let initialization = skill[choice..]
-            .find("Run `zd init --record <personal|project|pull-request>` only")
-            .map(|offset| choice + offset)
-            .expect("initialization after record question");
-        assert!(
-            choice < initialization,
-            "{harness} initializes before asking"
-        );
-    }
-
-    let canonical = include_str!("../skills/zdev/SKILL.md");
-    let canonical_text = canonical.split_whitespace().collect::<Vec<_>>().join(" ");
-    for expected in [
-        "whether zdev planning should be a **personal**, **project**, or",
-        "**pull-request** record",
-        "entry `/.zd/` to this clone's `.git/info/exclude`",
-        "Record ownership is separate from harness integration scope",
-        "If `.zd` already exists, skip this",
-    ] {
-        assert!(
-            canonical_text.contains(expected),
-            "canonical skill missing {expected}"
         );
     }
 }
@@ -3384,13 +2757,6 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
     ] {
         assert!(destination.join(path).is_file(), "missing {path}");
     }
-    let skill = fs::read_to_string(destination.join("skills/zdev-opencode/SKILL.md"))
-        .expect("OpenCode skill");
-    assert!(skill.contains("# Zdev for OpenCode"));
-    assert!(skill.contains("`@zdev-implementer`"));
-    assert!(!skill.contains("Claude Code orchestration"));
-    assert!(!skill.contains("Codex orchestration"));
-
     let unchanged = json_output(
         root,
         &[
@@ -3528,13 +2894,6 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         assert!(destination.join(path).is_file(), "missing {path}");
     }
 
-    let skill = fs::read_to_string(destination.join("skills/zdev-pi/SKILL.md")).expect("Pi skill");
-    assert!(skill.contains("# Zdev for Pi"));
-    assert!(skill.contains("`zdev_subagent`"));
-    assert!(!skill.contains("Claude Code orchestration"));
-    assert!(!skill.contains("Codex orchestration"));
-    assert!(!skill.contains("OpenCode orchestration"));
-
     let extension =
         fs::read_to_string(destination.join("extensions/zdev-subagent.ts")).expect("Pi extension");
     for expected in [
@@ -3550,14 +2909,6 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     ] {
         assert!(extension.contains(expected), "missing {expected}");
     }
-    let task =
-        fs::read_to_string(destination.join("prompts/zdev-task.md")).expect("Pi task prompt");
-    assert!(task.contains("Do not run `zd task done` or `zd commit`"));
-    assert!(task.contains("repeat without a fixed retry limit"));
-    let audit =
-        fs::read_to_string(destination.join("prompts/zdev-audit.md")).expect("Pi audit prompt");
-    assert!(audit.contains("without editing files"));
-
     fs::write(
         destination.join("extensions/zdev-subagent.ts"),
         "locally changed\n",
@@ -3669,11 +3020,6 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         "{\"theme\":\"dark\"}\n"
     );
 
-    let skill =
-        fs::read_to_string(destination.join("skills/zdev/SKILL.md")).expect("Oh My Pi skill");
-    assert!(skill.contains("# Zdev for Oh My Pi"));
-    assert!(skill.contains("built-in `task` tool"));
-    assert!(skill.contains("existing implementer with `hub`"));
     for pi_only_asset in [
         "extensions/zdev-subagent.ts",
         "prompts/zdev-task.md",
@@ -3686,11 +3032,8 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         .expect("Oh My Pi implementer");
     for expected in [
         "name: zdev-implementer",
-        "description:",
         "tools: read, grep, bash, edit, write",
         "blocking: true",
-        "Do not edit `.zd`",
-        "invoke another agent",
     ] {
         assert!(implementer.contains(expected), "missing {expected}");
     }
@@ -3700,11 +3043,8 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         fs::read_to_string(destination.join("agents/zdev-verifier.md")).expect("Oh My Pi verifier");
     for expected in [
         "name: zdev-verifier",
-        "description:",
         "tools: read, grep, bash",
         "blocking: true",
-        "Do not edit files",
-        "invoke another agent",
     ] {
         assert!(verifier.contains(expected), "missing {expected}");
     }

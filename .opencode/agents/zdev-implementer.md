@@ -12,7 +12,6 @@ untracked files, staged diff, and unstaged diff. Respect task-owned paths and
 stop on ambiguous overlap. Follow the brief's testing level, reuse established
 patterns, make the smallest complete change, and run the listed validation.
 
-You may edit source and tests and run validation. Do not edit `.zd`, run
-`zd task done`, change task lifecycle state, commit, open a pull request, create
-durable run state, or invoke another agent. Return changed files, validation
-results, and blockers.
+Edit source and tests only within the task-owned paths. Leave `.zd`, task
+lifecycle, commits, pull requests, and delegation to the caller. Return the
+changed files, validation results, and any blocker.

@@ -1,11 +1,9 @@
 ---
-description: Audit a bounded codebase and return independently checked proposals
+description: Review a codebase and return checked findings
 agent: plan
 ---
 
-Audit $ARGUMENTS without editing files. Perform one bounded review and inspect
-the cited repository evidence. For a substantial boundary or an explicit
-swarm request, use focused read-only lens subagents; do not fan out by default.
-Reject weak or duplicate findings and return ranked evidence-backed candidates
-for human selection. Do not change `.zd`, create tasks, commit, or open a pull
-request.
+Review $ARGUMENTS without changing the repository. Open every cited location,
+remove weak and duplicate findings, and rank the remaining findings by impact.
+Use focused review agents only for a large boundary or an explicit swarm
+request. Return locations, impact, confidence, and a recommended next action.

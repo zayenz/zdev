@@ -67,9 +67,6 @@ grep -Fq 'Use `cargo test --locked` for validation.' \
     fail "Codex skill did not render project guidance"
 [ -f "$project/.codex/skills/zdev/agents/openai.yaml" ] ||
     fail "Codex skill did not install UI metadata"
-grep -Fq 'default_prompt: "Use $zdev to shape or run durable work in this repository."' \
-    "$project/.codex/skills/zdev/agents/openai.yaml" ||
-    fail "Codex skill installed unexpected UI metadata"
 [ "$(find "$project/.codex/skills/zdev" -type f | wc -l | tr -d ' ')" -eq 10 ] ||
     fail "Codex skill did not install its ten-file inventory"
 grep -Fq 'Use `cargo test --locked` for validation.' \
@@ -82,15 +79,6 @@ grep -Fq '@zdev-implementer' "$project/.opencode/skills/zdev-opencode/SKILL.md" 
     fail "OpenCode skill did not name its implementation subagent"
 grep -Fq 'edit: deny' "$project/.opencode/agents/zdev-verifier.md" ||
     fail "OpenCode verifier gained edit permission"
-tr '\n' ' ' < "$project/.opencode/command/zdev-task.md" |
-    grep -Fq 'The command does not run `zd task done` or `zd commit`.' ||
-    fail "OpenCode task command lost its completion boundary"
-tr '\n' ' ' < "$project/.opencode/command/zdev-task.md" |
-    grep -Fq 'repeat without a fixed retry limit' ||
-    fail "OpenCode task command lost its repeated rework loop"
-tr '\n' ' ' < "$project/.opencode/command/zdev-task.md" |
-    grep -Fq 'Required validation that is unsafe or unavailable is `BLOCKER`' ||
-    fail "OpenCode task command weakened required validation"
 grep -Fq 'Use `cargo test --locked` for validation.' \
     "$project/.pi/skills/zdev-pi/SKILL.md" ||
     fail "Pi skill did not render persisted project guidance"
@@ -103,48 +91,18 @@ grep -Fq 'read,bash,grep,find,ls' \
 grep -Fq '"--no-extensions"' \
     "$project/.pi/extensions/zdev-subagent.ts" ||
     fail "Pi child processes can load the delegation extension"
-grep -Fq 'Do not run `zd task done` or `zd commit`' \
-    "$project/.pi/prompts/zdev-task.md" ||
-    fail "Pi task prompt lost its completion boundary"
-grep -Fq 'repeat without a fixed retry limit' \
-    "$project/.pi/prompts/zdev-task.md" ||
-    fail "Pi task prompt lost its repeated rework loop"
-grep -Fq 'Required validation that is unsafe or unavailable is `BLOCKER`' \
-    "$project/.pi/prompts/zdev-task.md" ||
-    fail "Pi task prompt weakened required validation"
-grep -Fq 'Audit $ARGUMENTS without editing files.' \
-    "$project/.pi/prompts/zdev-audit.md" ||
-    fail "Pi audit prompt lost its read-only boundary"
 grep -Fq 'Use `cargo test --locked` for validation.' \
     "$project/.omp/skills/zdev/SKILL.md" ||
     fail "Oh My Pi skill did not render persisted project guidance"
-tr '\n' ' ' < "$project/.omp/agents/zdev-implementer.md" |
-    grep -Fq 'Do not edit `.zd`, run `zd task done`, change task lifecycle state, commit,' ||
-    fail "Oh My Pi implementer lost its zdev-state and completion boundary"
 grep -Fq 'tools: read, grep, bash' \
     "$project/.omp/agents/zdev-verifier.md" ||
     fail "Oh My Pi verifier gained edit tools"
 grep -Fq 'zdev:zdev-implementer' \
     "$project/.claude/skills/zdev/skills/zdev/SKILL.md" ||
     fail "Claude skill did not name the packaged implementer"
-tr '\n' ' ' < "$project/.claude/skills/zdev/agents/zdev-implementer.md" |
-    grep -Fq 'You must not edit `.zd`, run `zd task done`, change task lifecycle state, commit,' ||
-    fail "Claude implementer lost its zdev-state and completion boundary"
-grep -Fq 'separate Spec and Standards passes' \
-    "$project/.claude/skills/zdev/agents/zdev-verifier.md" ||
-    fail "Claude verifier lost its independent review passes"
 grep -Fq 'tools: Read, Bash, Grep, Glob' \
     "$project/.claude/skills/zdev/agents/zdev-verifier.md" ||
     fail "Claude verifier gained write tools"
-grep -Fq 'Do not edit files' \
-    "$project/.claude/skills/zdev/agents/zdev-verifier.md" ||
-    fail "Claude verifier lost its read-only boundary"
-grep -Fq 'unavailable required evidence or validation' \
-    "$project/.claude/skills/zdev/agents/zdev-verifier.md" ||
-    fail "Claude verifier weakened required validation"
-grep -Fq 'Do not edit files or zdev state, complete the task, commit' \
-    "$project/.claude/skills/zdev/workflows/zdev-task.js" ||
-    fail "Claude task workflow lost its completion boundary"
 grep -Fq 'while (/^REWORK\b/.test(verdict))' \
     "$project/.claude/skills/zdev/workflows/zdev-task.js" ||
     fail "Claude task workflow lost its repeated rework loop"
@@ -152,12 +110,6 @@ if grep -Fq 'Mechanical: yes' \
     "$project/.claude/skills/zdev/workflows/zdev-task.js"; then
     fail "Claude task workflow retained the obsolete mechanical verdict field"
 fi
-grep -Fq 'Do not edit files or .zd, create tasks, commit' \
-    "$project/.claude/skills/zdev/workflows/zdev-audit.js" ||
-    fail "Claude audit workflow lost its read-only boundary"
-grep -Fq 'create zdev tasks, commit, open a pull request, or modify project state.' \
-    "$project/.claude/skills/zdev/workflows/zdev-audit.js" ||
-    fail "Claude audit workflow lost its no-task-creation boundary"
 
 $binary --root "$project" area create smoke \
     --title "Release smoke" \

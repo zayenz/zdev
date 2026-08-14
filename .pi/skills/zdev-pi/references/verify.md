@@ -1,9 +1,9 @@
 # Verify an implementation independently
 
-Use a fresh sub-agent that did not implement the task. Give it the area brief,
-task file, recorded pre-implementation Git baseline, relevant source and tests,
-and repository verification instructions. The verifier inspects and tests; it
-does not intentionally edit.
+Use a different sub-agent from the implementer. Give it the area brief, task
+file, recorded pre-implementation Git baseline, relevant source and tests, and
+repository verification instructions. The verifier inspects and tests without
+making intentional edits.
 
 Require the verifier to:
 
@@ -23,13 +23,13 @@ Require the verifier to:
    this evidence with the pre-implementation baseline and identify every
    task-owned change; return `BLOCKER` when ownership or overlap with existing
    user changes is ambiguous.
-4. Perform a **Spec pass**: evaluate every `Done when` condition, task boundary,
-   area decision, and the brief's `Testing` section against the implementation.
+4. **Check the task requirements:** evaluate every `Done when` condition, task
+   boundary, area decision, and the brief's `Testing` section against the implementation.
    Check that any tests called for exercise the requested behavior rather than
    merely passing. Do not fail an implementation for omitting tests beyond the
    agreed level, or reward a larger test suite when it adds cost without
    relevant confidence.
-5. Perform a separate **Standards pass**: inspect the complete evidence for unrelated
+5. **Inspect the touched code:** check the complete evidence for unrelated
    changes, repository-convention violations, maintainability problems, and
    regressions or unsafe behavior at touched interfaces. Treat an invented test
    harness, unfamiliar testing style, or unnecessary test expansion as a scope
@@ -47,7 +47,7 @@ Require the verifier to:
 
 The verifier returns one of:
 
-- `PASS`, followed by separate Spec and Standards conclusions, the required
+- `PASS`, followed by conclusions about the task requirements and touched code, the required
   checks run, and any residual limitation from optional checks; or
 - `REWORK`, for concrete implementation defects or task-owned validation
   writes, followed by classified findings with locations, impact, and the
@@ -55,6 +55,6 @@ The verifier returns one of:
 - `BLOCKER`, for ambiguous Git ownership, unsafe or unavailable required
   evidence, or a user-owned design, scope, or testing decision.
 
-The caller confirms that the verdict addresses the whole task. A fresh context
-and read-only role provide independence; zdev does not store the verifier's
-identity, transcript, or evidence packet.
+The caller confirms that the verdict addresses the whole task. A different
+agent provides an independent check; zdev stores the result in the task rather
+than keeping the verifier's transcript.

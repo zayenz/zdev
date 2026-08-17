@@ -2,7 +2,7 @@
 
 This file records notable changes to zdev.
 
-## [1.0.0] - 2026-08-14
+## [1.0.0] - 2026-08-17
 
 ### Added
 

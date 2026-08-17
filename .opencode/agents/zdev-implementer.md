@@ -12,6 +12,6 @@ untracked files, staged diff, and unstaged diff. Respect task-owned paths and
 stop on ambiguous overlap. Follow the brief's testing level, reuse established
 patterns, make the smallest complete change, and run the listed validation.
 
-Edit source and tests only within the task-owned paths. Leave `.zd`, task
+Edit source and tests only within the task-owned paths. Leave `.zdev`, task
 lifecycle, commits, pull requests, and delegation to the coordinating agent. Return the
 changed files, validation results, and any blocker.

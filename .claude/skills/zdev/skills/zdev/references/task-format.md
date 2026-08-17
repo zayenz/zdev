@@ -2,8 +2,8 @@
 
 ## Project and area metadata
 
-`.zd/config.toml` records project `trunk` when HEAD names a branch. Each
-`.zd/<area>/area.toml` requires the area's owning `branch`; `parent` and
+`.zdev/config.toml` records project `trunk` when HEAD names a branch. Each
+`.zdev/<area>/area.toml` requires the area's owning `branch`; `parent` and
 `base_commit` are optional until their branches and boundary are available. The
 parent area replaces trunk as the effective base. `base_commit` is the exact
 base commit last incorporated into the area branch; zdev uses it as the
@@ -11,7 +11,7 @@ boundary before area-owned commits during a managed rebase.
 
 Area metadata without `branch` is invalid. Configure an unbound trunk and
 establish the area's base anchor before selecting, completing, or rebasing
-work. Use `zd area bind` to correct an existing branch binding or establish its
+work. Use `zdev area bind` to correct an existing branch binding or establish its
 anchor. Add a parent only after both local branches exist and the child has a
 trustworthy base boundary.
 
@@ -20,7 +20,7 @@ and `blocked_by` for task sequencing within one area.
 
 ## Task files
 
-Each task is one Markdown file under `.zd/<area>/tasks/`.
+Each task is one Markdown file under `.zdev/<area>/tasks/`.
 
 ```markdown
 +++
@@ -70,7 +70,7 @@ The frontmatter contains only routing state:
 An open task is ready when every blocker is done. Otherwise it is blocked.
 Zdev chooses the ready task with the lowest numeric ID.
 
-`zd task done` checks the done-condition boxes, changes the status, and appends
+`zdev task done` checks the done-condition boxes, changes the status, and appends
 one result section:
 
 ```markdown
@@ -88,7 +88,7 @@ never an authored source.
 
 ## Task bundle
 
-`zd tasks import` accepts a JSON object with `schema_version`, `area`, and a
+`zdev tasks import` accepts a JSON object with `schema_version`, `area`, and a
 `tasks` array. Each task contains:
 
 - `key`;
@@ -100,10 +100,10 @@ never an authored source.
 - one or more `done_when` strings; and
 - optional `validation` strings.
 
-Run `zd tasks review <area> --from - --format json` to validate a draft bundle
+Run `zdev tasks review <area> --from - --format json` to validate a draft bundle
 and render its complete approval document. The result includes an `approval`
 fingerprint. After approval, pass the unchanged JSON to
-`zd tasks import <area> --from - --approval <approval-id>`. Zdev rejects a
+`zdev tasks import <area> --from - --approval <approval-id>`. Zdev rejects a
 bundle that differs from the reviewed content.
 
 A path is accepted for manual use and remains in place after review or import.
@@ -124,6 +124,6 @@ boundaries only for limits the implementation and verification agents need for
 that slice. Test-related done conditions and validation must apply the agreed
 level, not silently expand it.
 
-`zd check` requires non-empty `Outcome`, `Done when`, and `Validation` sections.
+`zdev check` requires non-empty `Outcome`, `Done when`, and `Validation` sections.
 Done conditions must be checklist items; a completed task must have every item
 checked and include a non-empty `Result` section.

@@ -65,7 +65,7 @@ cargo test --locked
 cargo package --locked
 cargo install --path . --locked --root "$scratch/install"
 sh scripts/release-smoke.sh \
-    "$scratch/install/bin/zd" \
+    "$scratch/install/bin/zdev" \
     "$expected_version"
 
 DIST_BIN="$dist_path" scripts/sync-release-workflow.sh --check

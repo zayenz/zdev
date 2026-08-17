@@ -2,11 +2,11 @@
 
 ## When
 
-Use this method for each task returned by `zd next`.
+Use this method for each task returned by `zdev next`.
 
 ## Do
 
-1. Run `zd status <area> --format json`. Require all four gates: the recorded
+1. Run `zdev status <area> --format json`. Require all four gates: the recorded
    branch is checked out, the effective-base link is fresh, its anchor is valid,
    and base finalization is complete. If any gate fails, follow the managed
    recovery workflow in [recovery.md](recovery.md) before selecting work.
@@ -30,8 +30,8 @@ Use this method for each task returned by `zd next`.
    clean, or alter the index to manufacture a clean baseline.
 4. Dispatch one implementer with the brief, task, repository
    guidance, relevant source, and task-owned path boundaries from the baseline.
-   It may edit source and tests and run validation. It must not edit `.zd`, run
-   `zd task done`, change task lifecycle state, or commit.
+   It may edit source and tests and run validation. It must not edit `.zdev`, run
+   `zdev task done`, change task lifecycle state, or commit.
 5. Ask it to satisfy every done condition, stay within the task boundaries, and
    follow the brief's testing level and run the listed validation. Reuse nearby
    test style, seams, fixtures, and helpers. Add or change tests only to the
@@ -45,9 +45,9 @@ Use this method for each task returned by `zd next`.
    as implementation evidence. Stop on ambiguous overlap or unexplained state;
    pre-existing changes remain user-owned even when they are adjacent to the
    task. Ignore an intervening commit only when its complete diff adds one or more new
-   `.zd/<area>/tasks/*.md` files, regenerates `.zd/<area>/TASKS.md`, and changes
+   `.zdev/<area>/tasks/*.md` files, regenerates `.zdev/<area>/TASKS.md`, and changes
    no other path. Keep the current selection and consider those additions only
-   at the next `zd next` boundary. Stop and review every other intervening
+   at the next `zdev next` boundary. Stop and review every other intervening
    change, including changes to an existing task, the selected task, `brief.md`,
    area metadata, lifecycle state, or source. Then apply the independent
    verification contract below with a fresh verifier.
@@ -71,11 +71,11 @@ coordinating agent checks that the verdict covers the whole task.
 After verification passes:
 
 ```text
-zd task done <area> <task> --summary <summary> --validation <result>...
-git add <explicit-task-source-path>... .zd/<area>/tasks/<exact-task-file> .zd/<area>/TASKS.md
+zdev task done <area> <task> --summary <summary> --validation <result>...
+git add <explicit-task-source-path>... .zdev/<area>/tasks/<exact-task-file> .zdev/<area>/TASKS.md
 git diff --cached
-zd commit -m <message>
-zd next <area> --format json
+zdev commit -m <message>
+zdev next <area> --format json
 ```
 
 Stage only explicit task-owned source paths, the exact completed task file, and
@@ -84,7 +84,7 @@ inspect `git status --short --untracked-files=all` and the full cached diff
 against the baseline and verified evidence. The index must contain only the
 intended task changes. Stop if pre-existing staged content, unexplained changes,
 or ambiguous ownership would enter the commit. Do not rearrange the user's
-index automatically. `zd commit` adds the stable change ID. Return control with
+index automatically. `zdev commit` adds the stable change ID. Return control with
 the next ready task; continue only when the user's existing zdev execution
 request authorizes the loop.
 

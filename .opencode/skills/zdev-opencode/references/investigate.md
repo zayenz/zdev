@@ -8,7 +8,7 @@ candidate discovery. When the user requests both, follow their requested
 order; if the order is unclear, ask which to run first.
 
 Investigation does not authorize production changes or tasks and does not
-require zdev state. If `.zd` is absent, do not initialize it. When an existing
+require zdev state. If `.zdev` is absent, do not initialize it. When an existing
 area supplies the question, read its `brief.md` and relevant linked decisions
 first.
 

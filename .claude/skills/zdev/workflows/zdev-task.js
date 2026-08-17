@@ -6,7 +6,7 @@ export const meta = {
 const input = args ?? {}
 const target = input.area ? `area ${input.area}` : 'the selected area'
 const preflight = await agent(
-  `Prepare ${target} for implementation without changing files. Run zd status and zd next as JSON. Confirm the recorded branch, effective base, anchor, and base finalization. Read the brief, selected task, and repository guidance. Record status with untracked files, the staged diff, and the unstaged diff. Identify task-owned paths. Return READY with the task context and baseline, or BLOCKER with the concrete reason.`,
+  `Prepare ${target} for implementation without changing files. Run zdev status and zdev next as JSON. Confirm the recorded branch, effective base, anchor, and base finalization. Read the brief, selected task, and repository guidance. Record status with untracked files, the staged diff, and the unstaged diff. Identify task-owned paths. Return READY with the task context and baseline, or BLOCKER with the concrete reason.`,
   { label: 'zdev preflight' },
 )
 
@@ -18,7 +18,7 @@ if (!preflightResult || !/^READY\b/.test(preflightResult)) {
 }
 
 let implementation = await agent(
-  `Implement the selected task in the current checkout. Use this context:\n${preflight}\nChange only task-owned source and test paths. Follow the brief's testing level, reuse repository patterns, and run the listed validation. Leave .zd, task lifecycle, commits, pull requests, and delegation to the coordinating agent. Return changed files, validation results, and blockers.`,
+  `Implement the selected task in the current checkout. Use this context:\n${preflight}\nChange only task-owned source and test paths. Follow the brief's testing level, reuse repository patterns, and run the listed validation. Leave .zdev, task lifecycle, commits, pull requests, and delegation to the coordinating agent. Return changed files, validation results, and blockers.`,
   { label: 'zdev implementation' },
 )
 
@@ -36,7 +36,7 @@ const review = async implementationContext => {
 let verdict = await review(implementation)
 while (/^REWORK\b/.test(verdict)) {
   const rework = await agent(
-    `Correct every task-owned finding below. Inspect the current checkout, change only task-owned source and test paths, follow the brief's testing level, and run the relevant validation. Leave .zd, task lifecycle, commits, and pull requests to the coordinating agent.\n\nTask context:\n${preflight}\n\nFindings:\n${verdict}`,
+    `Correct every task-owned finding below. Inspect the current checkout, change only task-owned source and test paths, follow the brief's testing level, and run the relevant validation. Leave .zdev, task lifecycle, commits, and pull requests to the coordinating agent.\n\nTask context:\n${preflight}\n\nFindings:\n${verdict}`,
     { label: 'zdev rework' },
   )
   if (!rework) {

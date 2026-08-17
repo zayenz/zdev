@@ -1,103 +1,172 @@
 # zdev
 
-Zdev gives coding agents a small, durable development loop. It stores plans as
-plain Markdown tasks, selects the next unblocked task, and gives each accepted
-change a stable Git identifier. Your coding harness still decides how to
-implement and verify the work.
+Zdev is a tool and skill for organizing work in agentic engineering.
 
-Zdev is a personal tool maintained in public. It has no broad support promise
-or large compatibility matrix. Releases target macOS and Linux on x86-64 and
-Arm64. Zdev integrates with Codex, Claude Code, OpenCode, Pi, and Oh My Pi.
+Coding harnesses can explore a repository, compare designs, implement code,
+and review the result. The awkward part is what has to survive between those
+activities: the decisions, the task order, the work that has been verified, and
+the connection between a task and its Git history.
+
+Zdev keeps that part in the repository. The `zdev` binary manages an
+issue-tracker-like task record in `.zdev`. The zdev skill gives a coding harness
+a workflow for working through that record. The two parts are intended to be
+used together: the skill manages the live work, while the binary keeps its
+durable state.
+
+Zdev is maintained as a personal tool in public. Releases target macOS and
+Linux on x86-64 and Arm64.
 
 ## Install
 
-Versioned binaries and `zdev-installer.sh` are available from the
-[latest GitHub release](https://github.com/zayenz/zdev/releases/latest). Follow
-the release notes for the binary installation steps.
-
-For installation from source with a Rust toolchain, use Cargo:
+Versioned binaries are available from the
+[latest GitHub release](https://github.com/zayenz/zdev/releases/latest). For
+installation from source with a Rust toolchain, use Cargo:
 
 ```sh
 cargo install --git https://github.com/zayenz/zdev --locked
 ```
 
-A Rust toolchain is required for source installation. From a local checkout, use
-`cargo install --path . --locked`.
+From a local checkout, use `cargo install --path . --locked`.
 
-Install the integration for your coding harness:
+## The binary: a task record
+
+The binary is the repository-backed task system. It keeps areas, briefs,
+individual task files, dependencies, status, branch metadata, and stable
+identifiers for accepted Git changes. An area groups one objective and the
+tasks that implement it.
+
+### Initialize a repository
+
+On the project's trunk branch, choose how the `.zdev` record should be kept:
+
+- `personal` keeps it in this clone. Add `/.zdev/` to `.git/info/exclude`.
+- `project` keeps it as durable, collaborative repository state.
+- `pull-request` keeps it on the feature branch during review and removes it
+  before squash merge.
+
+Initialize zdev, then create an area on a feature branch:
 
 ```sh
-zd skill install codex
-# or: claude, opencode, pi, omp
-```
-
-## Smallest useful workflow
-
-On the project's trunk branch, first choose the planning-record policy. Use
-`personal` for work that stays in this clone and add `/.zd/` to
-`.git/info/exclude`. Use `project` for durable collaborative state. Use
-`pull-request` when `.zd` should be committed for branch review but omitted
-from the squash-merged tree. Then initialize zdev and create an area on a
-feature branch:
-
-```sh
-zd init --record personal # or: project, pull-request
+zdev init --record personal # or: project, pull-request
 git switch -c scheduling
-zd area create scheduling \
+zdev area create scheduling \
   --title "Scheduling support" \
   --objective "Add a tested scheduling API."
 ```
 
-Ask your coding harness to plan the objective with zdev. Review its proposed
-task split before it imports the tasks. The normal loop is then:
+Zdev creates `area.toml`, `brief.md`, `TASKS.md`, and a `tasks/` directory under
+`.zdev/scheduling/`. The individual task files are authoritative; `TASKS.md` is
+generated from them.
 
-```text
-select next task
-  → implementation agent
-  → fresh verification agent
-  → mark done
-  → commit with a stable change ID
-```
+### Add and select tasks
 
-After verification passes, mark the task done and commit it:
+The skill normally produces a task bundle for the binary to import. Other tools
+can produce the same JSON format:
 
 ```sh
-zd next scheduling --format json
-zd task done scheduling scheduling-001 \
+zdev tasks import scheduling --from path/to/tasks.json
+```
+
+If a harness wants to show a rendered bundle before importing it, use:
+
+```sh
+zdev tasks review scheduling --from - --format json
+```
+
+The `--approval <approval-id>` option binds an import to the exact bundle that
+was reviewed. It is an optional check around a review handoff, not another kind
+of task state. For example, a reviewed bundle can be imported and committed
+with:
+
+```sh
+zdev tasks import scheduling --from - --approval <approval-id> --commit --format json
+```
+
+Check the area and select its next ready task:
+
+```sh
+zdev status scheduling --format json
+zdev next scheduling --format json
+```
+
+### Complete and commit work
+
+After the harness has implemented and reviewed the task, record the result and
+commit the staged changes:
+
+```sh
+zdev task done scheduling scheduling-001 \
   --summary "Implemented and independently verified the scheduling model." \
   --validation "Focused model tests passed."
-git add <changed-files> .zd/scheduling
-zd commit -m "feat: add scheduling model"
+git add <changed-files> .zdev/scheduling
+zdev commit -m "feat: add scheduling model"
 ```
 
-You can add work while another task is in progress. For an existing task list,
-review the bundle, then import and commit that exact bundle:
-
-```sh
-zd tasks review scheduling --from - --format json
-zd tasks import scheduling --from - --approval <approval-id> --commit --format json
-```
+`zdev task done` records the supplied result and validation summary. It does
+not implement or review the code. `zdev commit` commits the existing Git index
+and adds a stable `Zdev-Change-Id` trailer.
 
 A commit containing only new task files and the regenerated `TASKS.md` does not
-interrupt the selected task. Zdev considers the additions the next time you run
-`zd next`.
+interrupt the selected task. Zdev considers the additions the next time you
+run `zdev next`.
 
-For a `pull-request` record, commit `.zd` normally during review. Immediately
-before squash merge, require a clean feature branch and run:
+For a `pull-request` record, commit `.zdev` normally during review. Immediately
+before squash merge, use a clean feature branch and run:
 
 ```sh
-zd cleanup squash
+zdev cleanup squash
 ```
 
-This creates one plain Git commit deleting only tracked `.zd` files. The commit
-has no `Zdev-Change-Id`; checked-in harness integrations outside `.zd` remain.
-It prepares the final tree only: a normal merge or rebase that retains feature
-commits still keeps `.zd` in reachable history, and this command does not
-implement history-preserving cleanup.
+This creates one plain Git commit deleting only tracked `.zdev` files. It has
+no `Zdev-Change-Id`; checked-in harness integrations outside `.zdev` remain.
+The command prepares the final tree only. A normal merge or rebase that retains
+feature commits still keeps `.zdev` in reachable history.
 
-Zdev keeps the area brief, individual task files, a generated task index, and
-branch metadata under `.zd/`. It does not keep model transcripts or a second
-execution database.
+## The skill: a harness workflow
+
+The skill is the normal way to use zdev from a coding harness. It is installed
+by the same binary and uses the same `.zdev` task record.
+
+Check or install a user-scoped skill for the harness you use:
+
+```sh
+zdev skill check codex --scope user
+zdev skill install codex
+# or: claude, opencode, pi, omp
+```
+
+User-scoped skills work across repositories. To install one in the current
+repository, initialize zdev first and use project scope:
+
+```sh
+zdev skill install codex --scope project --guidance auto
+```
+
+Project installations put harness-native files under `.codex`, `.claude`,
+`.opencode`, `.pi`, or `.omp`. The supported harnesses are Codex, Claude Code,
+OpenCode, Pi, and Oh My Pi.
+
+Once installed, ask the harness to use zdev explicitly. The usual workflow is:
+
+1. **Explore an objective** to build or revise the area's brief.
+2. **Discuss the brief** to test choices that could change scope, behavior,
+   task boundaries, or validation.
+3. **Create tasks** to turn the agreed brief into task files for the binary to
+   import.
+4. **Implement** the next ready task within the brief and task boundaries.
+5. **Verify** the task and diff in a fresh context, checking both the task
+   requirements and repository standards.
+6. Complete the task and commit the accepted changes through the binary.
+
+**Improve** surveys the codebase and proposes candidate work without creating
+tasks or changing production code. **Investigate** answers one named
+uncertainty through research, diagnosis, or a disposable prototype. Both can
+remain read-only until their result becomes part of an agreed objective.
+
+The skill does not replace the task record or make design decisions on behalf
+of the developer. It gives the harness a common route through the brief, task
+selection, implementation, verification, and completion steps that the binary
+records.
 
 ## Learn more
 
@@ -105,10 +174,11 @@ execution database.
 - [Workflow reference](docs/workflow.md): branch, verification, rebase, and
   recovery semantics
 - [Task format](docs/task-format.md): the task-file contract
+- [Changelog](CHANGELOG.md): notable changes in each release
 - [Contributing](CONTRIBUTING.md): local checks and generated-file guidance
 - [MIT license](LICENSE)
 
-Run `zd --help` or `zd <command> --help` for command details.
+Run `zdev --help` or `zdev <command> --help` for command details.
 
 ## Development
 

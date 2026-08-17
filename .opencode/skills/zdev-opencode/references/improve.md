@@ -10,7 +10,7 @@ user requests both, follow their requested order; if the order is unclear, ask
 which to run first.
 
 An audit advises; it does not implement findings or create tasks. It does not
-require zdev state. If `.zd` is absent, do not initialize it.
+require zdev state. If `.zdev` is absent, do not initialize it.
 
 ## Do
 

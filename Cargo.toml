@@ -11,6 +11,7 @@ include = [
   "/.codex-plugin/plugin.json",
   "/Cargo.lock",
   "/Cargo.toml",
+  "/CHANGELOG.md",
   "/LICENSE",
   "/README.md",
   "/docs/**",
@@ -23,7 +24,7 @@ include = [
 autotests = false
 
 [[bin]]
-name = "zd"
+name = "zdev"
 path = "src/main.rs"
 
 [[test]]

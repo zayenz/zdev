@@ -31,24 +31,24 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
     }
 
     let readme = normalized(README);
-    assert!(readme.contains("zd tasks review scheduling --from - --format json"));
+    assert!(readme.contains("zdev tasks review scheduling --from - --format json"));
     assert!(readme.contains("--approval <approval-id> --commit --format json"));
     assert!(readme.contains("does not interrupt the selected task"));
 
     let guide = normalized(USER_GUIDE);
     for public_contract in [
-        "zd tasks review scheduling --from - --format json",
-        "zd tasks import scheduling --from - --approval <approval-id>",
+        "zdev tasks review scheduling --from - --format json",
+        "zdev tasks import scheduling --from - --approval <approval-id>",
         "--approval <approval-id> --commit --format json",
         "Use ordinary import for the initial task split",
         "task IDs, paths, the commit hash, and the stable change ID",
-        "zd status scheduling --format json",
-        "zd next scheduling --format json",
-        "zd task done scheduling scheduling-001",
-        "zd area rebase scheduling --continue",
-        "zd area rebase scheduling --abort",
-        "zd change inspect HEAD",
-        "zd change lookup Z0123456789abcdef...",
+        "zdev status scheduling --format json",
+        "zdev next scheduling --format json",
+        "zdev task done scheduling scheduling-001",
+        "zdev area rebase scheduling --continue",
+        "zdev area rebase scheduling --abort",
+        "zdev change inspect HEAD",
+        "zdev change lookup Z0123456789abcdef...",
         "matching, fresh, anchor-valid, and finalized",
         "Codex",
         "Claude Code",
@@ -69,8 +69,8 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
     for public_contract in [
         "branch_matches",
         "anchor_valid",
-        "zd area rebase <area> --continue",
-        "zd area rebase <area> --abort",
+        "zdev area rebase <area> --continue",
+        "zdev area rebase <area> --abort",
         "Zdev-Change-Id",
         "New task-only commits are expected and do not interrupt the selected task",
         "fresh, read-only context",

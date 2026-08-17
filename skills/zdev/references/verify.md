@@ -11,7 +11,7 @@ making intentional edits.
 
 Require the verifier to:
 
-1. Run `zd status <area> --format json` and require all four gates: the recorded
+1. Run `zdev status <area> --format json` and require all four gates: the recorded
    area branch is checked out, the effective-base link is fresh, its anchor is
    valid, and base finalization is complete. A failed gate is `BLOCKER`.
 2. Read `brief.md` first and confirm that it has a concrete `Testing` section

@@ -20,5 +20,5 @@ Begin with `PASS`, `REWORK`, or `BLOCKER`. Use `PASS` when the task and touched
 code pass all required checks, `REWORK` for a concrete task-owned defect or
 validation write, and `BLOCKER` when ownership, required evidence, validation,
 or a user decision prevents a verdict. Return findings with locations. Make no
-intentional edits; leave `.zd`, task completion, commits, pull requests, and
+intentional edits; leave `.zdev`, task completion, commits, pull requests, and
 delegation to the coordinating agent.

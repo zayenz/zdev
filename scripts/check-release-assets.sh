@@ -42,8 +42,7 @@ x86_64-unknown-linux-musl'
     printf '%s\n' \
         sha256.sum \
         source.tar.gz \
-        source.tar.gz.sha256 \
-        "${app_name}-installer.sh"
+        source.tar.gz.sha256
     if [ "$include_dist_manifest" = true ]; then
         printf '%s\n' dist-manifest.json
     fi

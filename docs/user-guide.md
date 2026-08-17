@@ -6,7 +6,7 @@ completed zdev task.
 
 ## 1. Install zdev
 
-Versioned binaries and `zdev-installer.sh` are available from the
+Versioned binaries are available from the
 [latest GitHub release](https://github.com/zayenz/zdev/releases/latest). Follow
 the release notes for the binary installation steps.
 
@@ -25,81 +25,76 @@ cargo install --path . --locked
 Check the installation:
 
 ```sh
-zd --version
+zdev --version
 ```
 
-## 2. Install one harness integration
+## 2. Check or install a user integration
 
-Choose the harness you use:
+Check the user-scoped integration for your harness:
 
 ```sh
-zd skill install codex
-# or: zd skill install claude
-# or: zd skill install opencode
-# or: zd skill install pi
-# or: zd skill install omp
+zdev skill check codex --scope user
 ```
 
-This user-scoped installation works across repositories. Check it later with
-the matching harness name:
+Replace `codex` with `claude`, `opencode`, `pi`, or `omp`. Status `ok` means the
+integration is current. For `missing` or `conflict`, install or refresh it:
 
 ```sh
-zd skill check codex --scope user
+zdev skill install codex
 ```
 
-Status `ok` means the integration is current. `missing` or `conflict` means you
-must install or refresh it.
-
-If you prefer a checked-in integration, run the install from the project:
-
-```sh
-zd skill install codex --scope project --guidance auto
-```
-
-Replace `codex` with `claude`, `opencode`, `pi`, or `omp`. Project installation
-puts harness-native files under `.codex`, `.claude`, `.opencode`, `.pi`, or
-`.omp`. Commit them when you want the repository to share the integration.
-
-The `--guidance auto` option uses a root `AGENTS.md` or creates
-`.zd/guidance.md`. You can instead pass `agents`, `zdev`, or a
-repository-relative Markdown path. Edit the source guidance, then refresh the
-generated integration:
-
-```sh
-zd skill install codex --scope project --force
-zd skill check codex --scope project
-```
+User-scoped integrations work across repositories and do not require zdev to be
+initialized in the current project.
 
 ## 3. Initialize a repository
 
 On the trunk branch, choose one zdev planning-record policy:
 
 - Choose **personal** for a parallel record used only in this clone. Add the
-  exact entry `/.zd/` to `.git/info/exclude`; it stays local and will not
+  exact entry `/.zdev/` to `.git/info/exclude`; it stays local and will not
   travel to another clone or collaborator.
-- Choose **project** when `.zd` should be portable, reviewed, and shared. Leave
+- Choose **project** when `.zdev` should be portable, reviewed, and shared. Leave
   it visible to Git and commit it with the repository.
-- Choose **pull-request** when `.zd` should be tracked and reviewed on the
+- Choose **pull-request** when `.zdev` should be tracked and reviewed on the
   feature branch but omitted from the final squash-merged tree. Leave it
   visible to Git, commit it during review, and clean it before squash merge.
 
-This is separate from whether the harness integration in step 2 is installed
-for one user or checked into the project. After making the record choice, run:
+Integration scope is separate from record policy. After making the record
+choice, run:
 
 ```sh
-zd init --record personal # or: project, pull-request
+zdev init --record personal # or: project, pull-request
 ```
 
 Zdev records the current branch as trunk. If you need to correct it, run
-`zd config trunk <branch>`.
+`zdev config trunk <branch>`.
 
-For a pull-request record, run `zd cleanup squash` on the clean feature branch
-immediately before squash merge. It deletes only tracked `.zd` files and makes
+If you prefer a checked-in integration, install it now that the repository is
+initialized:
+
+```sh
+zdev skill install codex --scope project --guidance auto
+```
+
+Replace `codex` with `claude`, `opencode`, `pi`, or `omp`. Project installation
+puts harness-native files under `.codex`, `.claude`, `.opencode`, `.pi`, or
+`.omp`. The `--guidance auto` option uses a root `AGENTS.md` or creates
+`.zdev/guidance.md`; you can instead pass `agents`, `zdev`, or a
+repository-relative Markdown path. Edit that source, then refresh and check the
+integration:
+
+```sh
+zdev skill install codex --scope project --force
+zdev skill check codex --scope project
+```
+
+For a pull-request record, run `zdev cleanup squash` on the clean feature branch
+immediately before squash merge. It deletes only tracked `.zdev` files and makes
 one plain Git commit without a `Zdev-Change-Id`. It refuses missing or different
 record policies, configured trunk, detached HEAD, in-progress Git operations,
-local changes, and branches with no tracked `.zd` files.
+local changes, and branches with no tracked `.zdev` files.
 This prepares only the final tree. A normal merge or rebase that retains the
-feature commits also retains `.zd` in reachable history; `cleanup squash` does
+feature commits also retains `.zdev` in reachable history; `cleanup squash` does
 not implement history-preserving cleanup.
 
 ## 4. Create an area
@@ -108,7 +103,7 @@ An area groups one objective and its tasks. Create its feature branch first:
 
 ```sh
 git switch -c scheduling
-zd area create scheduling \
+zdev area create scheduling \
   --title "Scheduling support" \
   --objective "Add a tested scheduling API."
 ```
@@ -116,7 +111,7 @@ zd area create scheduling \
 Zdev creates this structure:
 
 ```text
-.zd/scheduling/
+.zdev/scheduling/
   area.toml
   brief.md
   TASKS.md
@@ -130,8 +125,8 @@ boundaries, and done conditions.
 
 ## 5. Explore and discuss the objective
 
-Zdev is the top-level trigger for its harness workflow. Mention `zdev`, `zd`,
-or the existing `.zd` area when asking for help. Generic requests such as
+Zdev is the top-level trigger for its harness workflow. Mention `zdev`,
+`$zdev`, or the existing `.zdev` area when asking for help. Generic requests such as
 “explore this idea” or “review this repository” do not recruit zdev by
 themselves.
 
@@ -173,7 +168,7 @@ Your harness sends the proposed Task Bundle JSON to zdev for deterministic
 rendering:
 
 ```sh
-zd tasks review scheduling --from - --format json
+zdev tasks review scheduling --from - --format json
 ```
 
 The result contains the complete readable Markdown and an approval fingerprint.
@@ -181,7 +176,7 @@ After you approve the Markdown, the harness sends the unchanged JSON and that
 fingerprint to import:
 
 ```sh
-zd tasks import scheduling --from - --approval <approval-id>
+zdev tasks import scheduling --from - --approval <approval-id>
 ```
 
 Zdev rejects content that differs from the reviewed bundle. For manual input,
@@ -193,7 +188,7 @@ generated index.
 When adding tasks to an existing task list, commit them directly:
 
 ```sh
-zd tasks import scheduling --from - --approval <approval-id> --commit --format json
+zdev tasks import scheduling --from - --approval <approval-id> --commit --format json
 ```
 
 Use ordinary import for the initial task split or when you explicitly want the
@@ -207,8 +202,8 @@ stable change ID.
 Check the branch relationship and select the next ready task:
 
 ```sh
-zd status scheduling --format json
-zd next scheduling --format json
+zdev status scheduling --format json
+zdev next scheduling --format json
 ```
 
 Ask the harness to work on the returned task with zdev. It should:
@@ -223,42 +218,42 @@ Ask the harness to work on the returned task with zdev. It should:
 After both checks pass, mark the task done and commit:
 
 ```sh
-zd task done scheduling scheduling-001 \
+zdev task done scheduling scheduling-001 \
   --summary "Implemented and independently verified the scheduling model." \
   --validation "Focused model tests passed."
 
-git add <changed-files> .zd/scheduling
-zd commit -m "feat: add scheduling model"
+git add <changed-files> .zdev/scheduling
+zdev commit -m "feat: add scheduling model"
 ```
 
-`zd commit` adds a stable `Zdev-Change-Id` trailer. Repeat `zd next` until the
+`zdev commit` adds a stable `Zdev-Change-Id` trailer. Repeat `zdev next` until the
 area is complete. Inspect or find a logical change after a rebase with:
 
 ```sh
-zd change inspect HEAD
-zd change lookup Z0123456789abcdef...
+zdev change inspect HEAD
+zdev change lookup Z0123456789abcdef...
 ```
 
 You can add tasks while this loop is running with the committed-import command
 from step 6. New task-only commits do not interrupt the selected task. Finish
-that task, then consider the additions at the next `zd next`.
+that task, then consider the additions at the next `zdev next`.
 
 ## 8. Keep the area current
 
-Before selecting or completing work, `zd status` should report a matching,
+Before selecting or completing work, `zdev status` should report a matching,
 fresh, anchor-valid, and finalized branch relationship. If trunk advanced,
 run this from the area branch:
 
 ```sh
-zd area rebase scheduling
+zdev area rebase scheduling
 ```
 
 If Git stops on a conflict, resolve and stage the files, then continue or
 abort:
 
 ```sh
-zd area rebase scheduling --continue
-zd area rebase scheduling --abort
+zdev area rebase scheduling --continue
+zdev area rebase scheduling --abort
 ```
 
 See the [workflow reference](workflow.md) for dependent areas, base anchors,
@@ -305,5 +300,5 @@ upstream discovery is fixed.
 
 ## Get help
 
-Run `zd --help` or `zd <command> --help`. The [task format](task-format.md)
+Run `zdev --help` or `zdev <command> --help`. The [task format](task-format.md)
 documents every task field.

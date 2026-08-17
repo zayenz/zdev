@@ -33,11 +33,11 @@ Keep `brief.md` as the only area-level synthesis. When a settled term or model
 applies across objectives, propose an update to existing domain documentation.
 When a hard-to-reverse or surprising trade-off deserves an ADR, follow the
 repository's convention. Unless the user already requested those changes,
-show their scope and wait for confirmation before writing outside `.zd`. Link
+show their scope and wait for confirmation before writing outside `.zdev`. Link
 approved project records from the brief instead of copying them.
 
 For a large source corpus, keep readable source files under
-`.zd/<area>/background/` and add a brief index that names the question each
+`.zdev/<area>/background/` and add a brief index that names the question each
 source informs. Link to canonical repository sources instead of copying them.
 Read the sources relevant to the current decision; background material does
 not override the brief.
@@ -52,7 +52,7 @@ and cost.
 
 ## Stop
 
-Run `zd check <area> --format json`. Summarize the objective, boundaries,
+Run `zdev check <area> --format json`. Summarize the objective, boundaries,
 testing level, settled decisions, and remaining material questions. Recommend
 one next interaction when the result points clearly to it, then stop unless the
 user already requested more work. A sharp brief may proceed directly to
@@ -60,4 +60,4 @@ user already requested more work. A sharp brief may proceed directly to
 
 Most areas remain independent branches based on trunk. When a new area builds
 on another in-progress area, create its branch from the parent branch, create
-the area, then run `zd area parent <child> <parent>`.
+the area, then run `zdev area parent <child> <parent>`.

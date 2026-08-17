@@ -27,7 +27,7 @@ files, dependency selection, branch relationships, and stable Git change IDs.
 
 Harness integrations render the same task contract and repository guidance in
 their native formats. During implementation, source and tests may change while
-`.zd` remains unchanged. Verification runs in a fresh, read-only context. After
+`.zdev` remains unchanged. Verification runs in a fresh, read-only context. After
 both specification and repository-standards checks pass, update the task and
 commit the accepted files.
 
@@ -43,21 +43,21 @@ requires an owning branch and records an initial base anchor when its effective
 base is available. Area metadata without its required `branch` field is
 invalid. Correct an existing binding or establish its base anchor explicitly:
 
-Before the first initialization, the harness asks whether `.zd` is a personal,
+Before the first initialization, the harness asks whether `.zdev` is a personal,
 project, or pull-request record. Personal state uses the exact clone-local
-`.git/info/exclude` entry `/.zd/`. Project state remains visible to Git as
+`.git/info/exclude` entry `/.zdev/`. Project state remains visible to Git as
 lasting shared state. Pull-request state is committed for branch review but is
-removed with `zd cleanup squash` before squash merge. This record-policy
+removed with `zdev cleanup squash` before squash merge. This record-policy
 decision is separate from the user or project scope of a harness integration.
-Repositories that already have `.zd` keep their existing treatment without
+Repositories that already have `.zdev` keep their existing treatment without
 another question.
 
 ```text
-zd config trunk <trunk-branch>
-zd area bind <area> <area-branch>
+zdev config trunk <trunk-branch>
+zdev area bind <area> <area-branch>
 ```
 
-Read `branch_status` from `zd status <area> --format json` during orientation:
+Read `branch_status` from `zdev status <area> --format json` during orientation:
 
 - `branch_matches` says whether the area's branch is checked out.
 - `fresh` says whether the current effective-base tip is in the area branch.
@@ -73,10 +73,10 @@ Create the child branch from the parent, then record the link:
 
 ```text
 git switch -c <parent-branch>
-zd area create <parent> --title <title> --objective <objective>
+zdev area create <parent> --title <title> --objective <objective>
 git switch -c <child-branch>
-zd area create <child> --title <title> --objective <objective>
-zd area parent <child> <parent>
+zdev area create <child> --title <title> --objective <objective>
+zdev area parent <child> <parent>
 ```
 
 Area dependencies model branch ancestry. `blocked_by` models task order inside
@@ -88,7 +88,7 @@ Rebasing is the supported way to incorporate effective-base changes. Run this
 on the area's branch with a clean worktree:
 
 ```text
-zd area rebase <area>
+zdev area rebase <area>
 ```
 
 Zdev uses the stored anchor as the old boundary and the current effective-base
@@ -99,12 +99,12 @@ A fresh and finalized link is a successful no-op.
 If Git stops for conflicts, resolve and stage them, then continue or abort:
 
 ```text
-zd area rebase <area> --continue
-zd area rebase <area> --abort
+zdev area rebase <area> --continue
+zdev area rebase <area> --abort
 ```
 
 Zdev advances the anchor only after a successful rebase. If you finish with
-`git rebase --continue`, run `zd area rebase <area>` afterward so zdev can
+`git rebase --continue`, run `zdev area rebase <area>` afterward so zdev can
 verify the result and finalize the anchor.
 
 For a longer chain, update one link at a time from parent to child. Parent
@@ -117,7 +117,7 @@ An area represents one coherent objective. `brief.md` is the concise source of
 truth for shared conclusions. Task-specific details belong in the task file.
 
 Keep a large source corpus as individual files under
-`.zd/<area>/background/`. Link them from the brief, and link only relevant
+`.zdev/<area>/background/`. Link them from the brief, and link only relevant
 sources from each task. Background documents provide detail and provenance;
 they do not override the brief or a task's outcome, boundaries, and done
 conditions.
@@ -130,9 +130,9 @@ Planning, audits, research, diagnosis, and prototypes are harness methods, not
 zdev state types. They refine the brief or propose tasks. Only reviewed,
 agent-ready implementation work enters the task queue.
 
-Zdev must be active before intent routing. A `zdev`, `zd`, or `$zdev` cue, a
-request to work through an existing `.zd` area, or an unmistakable reference to
-stored zdev work activates it; the mere presence of `.zd` does not. Generic
+Zdev must be active before intent routing. A `zdev` or `$zdev` cue, a
+request to work through an existing `.zdev` area, or an unmistakable reference to
+stored zdev work activates it; the mere presence of `.zdev` does not. Generic
 words such as “audit,” “explore,” or “discuss” also do not activate zdev. Once
 active, the harness selects one direct interaction:
 
@@ -153,9 +153,9 @@ still requires approval of the exact displayed bundle.
 
 ## Implementation
 
-Run `zd status <area> --format json` before dispatch. Stop on a branch mismatch,
+Run `zdev status <area> --format json` before dispatch. Stop on a branch mismatch,
 stale link, invalid anchor, or pending anchor finalization. Use the managed
-rebase flow, then rerun `zd next <area> --format json`.
+rebase flow, then rerun `zdev next <area> --format json`.
 
 The implementation agent receives the brief, one task, and relevant repository
 context. It reads the brief first, then selectively loads task-relevant sources.
@@ -166,7 +166,7 @@ task.
 
 New task-only commits are expected and do not interrupt the selected task. The
 processor considers those tasks after it finishes the selected task and runs
-`zd next` again. Review any intervening commit that changes an existing task,
+`zdev next` again. Review any intervening commit that changes an existing task,
 the brief, area metadata, lifecycle state, or source.
 
 ## Verification
@@ -189,11 +189,11 @@ retry count.
 
 ## Completion and commit
 
-Check area status again before completion. `zd task done` refuses the wrong
+Check area status again before completion. `zdev task done` refuses the wrong
 branch and stale or unfinalized base relationships.
 
-After a pass, run `zd task done`; it updates the task file and regenerates
-`TASKS.md`. Stage the intended source and area files, then run `zd commit`. The
+After a pass, run `zdev task done`; it updates the task file and regenerates
+`TASKS.md`. Stage the intended source and area files, then run `zdev commit`. The
 commit command adds a stable `Zdev-Change-Id` trailer.
 
 Task completion records a short result and validation summary. It does not
@@ -206,12 +206,12 @@ The repository contains enough recovery state:
 - the task says whether work is open or done;
 - the working tree contains unfinished edits;
 - Git contains committed work;
-- `zd status` reports branch, effective-base, anchor, and finalization state;
+- `zdev status` reports branch, effective-base, anchor, and finalization state;
   and
 - the stable change ID finds a logical change after a rebase.
 
-If Git has a rebase in progress, use `zd area rebase <area> --continue` or
-`--abort`. Otherwise rerun `zd area rebase <area>` to finalize a manually
+If Git has a rebase in progress, use `zdev area rebase <area> --continue` or
+`--abort`. Otherwise rerun `zdev area rebase <area>` to finalize a manually
 completed rebase or refresh a stale link. Inspect those facts, then restart or
 resume the task. Zdev has no execution claim, abandonment, or transaction
 recovery protocol.

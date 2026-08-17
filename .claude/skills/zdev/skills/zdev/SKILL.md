@@ -1,13 +1,13 @@
 ---
 name: zdev
-description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use only when the user invokes zdev, zd, or $zdev; asks to work through an existing .zd area; or unmistakably refers to zdev's stored areas or tasks."
+description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use only when the user invokes zdev or $zdev; asks to work through an existing .zdev area; or unmistakably refers to zdev's stored areas or tasks."
 ---
 
 # Zdev for Claude Code
 
 ## Activate zdev, then route intent
 
-Activate this workflow only for `zdev`, `zd`, `$zdev`, an existing `.zd` area,
+Activate this workflow only for `zdev`, `$zdev`, an existing `.zdev` area,
 or an unmistakable reference to zdev's stored areas or tasks. Ordinary intent
 words such as “audit,” “explore,” and “implement” route work after activation;
 they do not activate zdev alone.
@@ -41,19 +41,19 @@ completes and commits the task after `PASS`.
 The brief and selected task define the outcome, boundaries, testing level, and
 done conditions throughout this process.
 
-1. Confirm `zd` is available.
+1. Confirm `zdev` is available.
 2. Choose the direct interaction before creating state. When the repository has
-   no `.zd` directory, run standalone **Improve** and **Investigate** without
+   no `.zdev` directory, run standalone **Improve** and **Investigate** without
    initialization, ownership questions, or integration setup. If the user later
    wants to preserve findings as zdev work, offer **Explore an objective**.
-3. When `.zd` is absent and the user wants new durable work, read
+3. When `.zdev` is absent and the user wants new durable work, read
    [references/setup.md](references/setup.md) completely before initialization.
-4. Run `zd status [<area>] --format json` for status or orientation.
+4. Run `zdev status [<area>] --format json` for status or orientation.
    If several areas have open work and none is selected, present their tags and
    ask the user to choose. Do not infer an area from unrelated chat history.
 5. For **Explore**, **Discuss**, **Improve**, **Investigate**, or **Create
    tasks**, report a selected area's branch and base diagnostics. Require the
-   recorded branch before changing area state, but do not run `zd area rebase`
+   recorded branch before changing area state, but do not run `zdev area rebase`
    without explicit consent. Read-only interactions never rebase.
 6. Before **Implement**, **Verify**, completion, or commit, read
    [references/implement.md](references/implement.md) and
@@ -69,7 +69,7 @@ overlapping path or changing the index.
 ## State and reporting
 
 Store only metadata, `brief.md`, task files, and generated `TASKS.md` under
-`.zd`. Keep transcripts and review evidence in the conversation. Existing
+`.zdev`. Keep transcripts and review evidence in the conversation. Existing
 domain documentation and ADRs remain authoritative across areas. Report what
 changed, what verification passed, and what remains; mention commands only
 when they help the user continue or recover.
@@ -86,12 +86,12 @@ boundaries.
 
 When the packaged workflows are available, `/zdev:zdev-task` runs this task
 cycle and `/zdev:zdev-audit` runs a read-only audit. The ordinary subagent loop
-also works. The coordinating agent runs `zd task done` and `zd commit`.
+also works. The coordinating agent runs `zdev task done` and `zdev commit`.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery
 
-Before planning or changing code, read applicable repository and directory-specific `AGENTS.md` files, `.zd/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
+Before planning or changing code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->
 
 The [task format](references/task-format.md) defines imported task bundles.

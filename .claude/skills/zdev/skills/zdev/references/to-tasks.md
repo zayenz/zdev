@@ -38,7 +38,7 @@ not use word counts or prose length as a quality check.
 Keep task files focused on task-specific outcomes. When an area has a
 `background/` corpus, link only the documents relevant to that task instead of
 copying their content or attaching the entire corpus. Links in a task file are
-relative to `.zd/<area>/tasks/`, so a retained source can be referenced as
+relative to `.zdev/<area>/tasks/`, so a retained source can be referenced as
 `[Capacity rules](../background/capacity-rules.md)`. The brief's source index
 remains the canonical entry point for shared area context.
 
@@ -71,7 +71,7 @@ covering:
 - incorrect boundaries or scope; and
 - false dependencies.
 
-The coordinating agent reconciles those suggestions, edits `.zd`, resolves
+The coordinating agent reconciles those suggestions, edits `.zdev`, resolves
 user choices, and asks for import approval. If another agent is unavailable,
 run the same review locally. A local review is enough for trivial or fully
 specified work. Say which kind of review ran.
@@ -87,7 +87,7 @@ Build the complete Task Bundle JSON defined in
 order. Send that JSON to:
 
 ```text
-<task-bundle-json> | zd tasks review <area> --from - --format json
+<task-bundle-json> | zdev tasks review <area> --from - --format json
 ```
 
 The command validates the bundle shape and returns an `approval` fingerprint
@@ -95,7 +95,7 @@ and a complete `markdown` document. Show the returned Markdown unchanged, then
 ask: `Approve this task bundle for import?`
 
 Keep the reviewed JSON unchanged. If any task content, order, or dependency
-changes, run `zd tasks review` again, show the new Markdown, and request fresh
+changes, run `zdev tasks review` again, show the new Markdown, and request fresh
 approval. Pass the bundle through standard input or use a path supplied by the
 user; do not create a transport file.
 
@@ -105,9 +105,9 @@ After explicit approval, send the reviewed JSON and its fingerprint directly to
 zdev:
 
 ```text
-<reviewed-task-bundle-json> | zd tasks import <area> --from - --approval <approval-id>
-zd check <area> --format json
-zd tasks list <area> --format json
+<reviewed-task-bundle-json> | zdev tasks import <area> --from - --approval <approval-id>
+zdev check <area> --format json
+zdev tasks list <area> --format json
 ```
 
 When adding tasks to an existing task list, add `--commit --format json` to the
@@ -118,7 +118,7 @@ Do not stage, unstage, or commit paths manually while recovering the import.
 
 A commit containing only new task files and regenerated `TASKS.md` does not
 interrupt a selected task. Keep the current selection and consider additions at
-the next `zd next` boundary. Review any concurrent commit that changes existing
+the next `zdev next` boundary. Review any concurrent commit that changes existing
 tasks, `brief.md`, area metadata, lifecycle state, or source.
 
 If the user supplies a bundle path, pass it to both review and import unchanged.

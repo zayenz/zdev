@@ -6,22 +6,22 @@ use std::process::{Command, Output, Stdio};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-fn zd(root: &Path, arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_zd"))
+fn run_zdev(root: &Path, arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_zdev"))
         .arg("--root")
         .arg(root)
         .args(arguments)
         .output()
-        .expect("run zd")
+        .expect("run zdev")
 }
 
 fn json_output(root: &Path, arguments: &[&str]) -> Value {
     let mut arguments = arguments.to_vec();
     arguments.extend(["--format", "json"]);
-    let output = zd(root, &arguments);
+    let output = run_zdev(root, &arguments);
     assert!(
         output.status.success(),
-        "zd failed: {}",
+        "zdev failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).expect("JSON output")
@@ -31,14 +31,14 @@ fn json_output_with_stdin(root: &Path, arguments: &[&str], input: &[u8]) -> Valu
     let output = json_output_with_stdin_status(root, arguments, input);
     assert!(
         output.status.success(),
-        "zd failed: {}",
+        "zdev failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).expect("JSON output")
 }
 
 fn json_output_with_stdin_status(root: &Path, arguments: &[&str], input: &[u8]) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_zd"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_zdev"))
         .arg("--root")
         .arg(root)
         .args(arguments)
@@ -47,41 +47,41 @@ fn json_output_with_stdin_status(root: &Path, arguments: &[&str], input: &[u8]) 
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("run zd");
+        .expect("run zdev");
     child
         .stdin
         .take()
-        .expect("zd stdin")
+        .expect("zdev stdin")
         .write_all(input)
-        .expect("write zd stdin");
-    child.wait_with_output().expect("wait for zd")
+        .expect("write zdev stdin");
+    child.wait_with_output().expect("wait for zdev")
 }
 
 fn json_output_with_env(root: &Path, arguments: &[&str], environment: &[(&str, &Path)]) -> Value {
     let mut arguments = arguments.to_vec();
     arguments.extend(["--format", "json"]);
-    let output = zd_with_env(root, &arguments, environment);
+    let output = run_zdev_with_env(root, &arguments, environment);
     assert!(
         output.status.success(),
-        "zd failed: {}",
+        "zdev failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).expect("JSON output")
 }
 
-fn zd_with_env(root: &Path, arguments: &[&str], environment: &[(&str, &Path)]) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_zd"));
+fn run_zdev_with_env(root: &Path, arguments: &[&str], environment: &[(&str, &Path)]) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_zdev"));
     command.arg("--root").arg(root).args(arguments);
     for (name, value) in environment {
         command.env(name, value);
     }
-    command.output().expect("run zd")
+    command.output().expect("run zdev")
 }
 
 fn json_output_with_exit_code(root: &Path, arguments: &[&str], expected: i32) -> Value {
     let mut arguments = arguments.to_vec();
     arguments.extend(["--format", "json"]);
-    let output = zd(root, &arguments);
+    let output = run_zdev(root, &arguments);
     assert_eq!(
         output.status.code(),
         Some(expected),
@@ -206,7 +206,7 @@ fn managed_rebase_updates_an_independent_area_and_unlocks_task_work() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "shared.txt", "base\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     create_area(root, "feature", "feature");
     import_one_task(root, "feature");
     commit_all(root, "configure feature area");
@@ -215,14 +215,14 @@ fn managed_rebase_updates_an_independent_area_and_unlocks_task_work() {
     git(root, &["switch", "-q", "main"]);
     commit_file(root, "trunk.txt", "trunk\n", "advance trunk");
 
-    let wrong_branch = zd(root, &["next", "feature"]);
+    let wrong_branch = run_zdev(root, &["next", "feature"]);
     assert!(!wrong_branch.status.success());
     assert!(String::from_utf8_lossy(&wrong_branch.stderr).contains("Switch to feature and retry"));
     git(root, &["switch", "-q", "feature"]);
-    let stale_next = zd(root, &["next", "feature"]);
+    let stale_next = run_zdev(root, &["next", "feature"]);
     assert!(!stale_next.status.success());
-    assert!(String::from_utf8_lossy(&stale_next.stderr).contains("zd area rebase feature"));
-    let stale_done = zd(
+    assert!(String::from_utf8_lossy(&stale_next.stderr).contains("zdev area rebase feature"));
+    let stale_done = run_zdev(
         root,
         &[
             "task",
@@ -260,7 +260,7 @@ fn managed_rebase_uses_a_parent_area_as_the_effective_base() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     create_area(root, "root-area", "root-area");
     create_area(root, "child-area", "child-area");
     commit_all(root, "configure dependent areas");
@@ -295,7 +295,7 @@ fn child_rebase_excludes_parent_commits_rewritten_during_parent_rebase() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "shared.txt", "base\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     create_area(root, "parent-area", "parent-area");
     create_area(root, "child-area", "child-area");
     commit_all(root, "configure stacked areas");
@@ -316,7 +316,7 @@ fn child_rebase_excludes_parent_commits_rewritten_during_parent_rebase() {
     git(root, &["switch", "-q", "main"]);
     commit_file(root, "shared.txt", "main\n", "advance trunk incompatibly");
     git(root, &["switch", "-q", "parent-area"]);
-    let stopped = zd(root, &["area", "rebase", "parent-area"]);
+    let stopped = run_zdev(root, &["area", "rebase", "parent-area"]);
     assert!(!stopped.status.success());
     fs::write(root.join("shared.txt"), "resolved parent\n").expect("resolve parent");
     git(root, &["add", "shared.txt"]);
@@ -372,7 +372,7 @@ fn conflicting_managed_rebase_preserves_git_recovery_state_and_guidance() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "conflict.txt", "base\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     create_area(root, "feature", "feature");
     commit_all(root, "configure feature area");
     git(root, &["switch", "-q", "-c", "feature"]);
@@ -380,10 +380,10 @@ fn conflicting_managed_rebase_preserves_git_recovery_state_and_guidance() {
     git(root, &["switch", "-q", "main"]);
     commit_file(root, "conflict.txt", "main\n", "trunk change");
     git(root, &["switch", "-q", "feature"]);
-    let metadata_path = root.join(".zd/feature/area.toml");
+    let metadata_path = root.join(".zdev/feature/area.toml");
     let old_metadata = fs::read_to_string(&metadata_path).expect("old metadata");
 
-    let conflicted = zd(root, &["area", "rebase", "feature"]);
+    let conflicted = run_zdev(root, &["area", "rebase", "feature"]);
     assert!(!conflicted.status.success());
     let guidance = String::from_utf8_lossy(&conflicted.stderr);
     assert!(guidance.contains("git rebase --continue"));
@@ -395,7 +395,7 @@ fn conflicting_managed_rebase_preserves_git_recovery_state_and_guidance() {
         old_metadata
     );
 
-    let existing = zd(root, &["area", "rebase", "feature"]);
+    let existing = run_zdev(root, &["area", "rebase", "feature"]);
     assert!(!existing.status.success());
     assert!(String::from_utf8_lossy(&existing.stderr).contains("Finish or abort it, then retry"));
     assert!(!root.join(".git/zdev-rebase.toml").exists());
@@ -424,20 +424,20 @@ fn managed_rebase_rejects_dirty_missing_and_merge_based_histories() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     create_area(root, "feature", "feature");
     commit_all(root, "configure feature area");
     git(root, &["switch", "-q", "-c", "feature"]);
 
     fs::write(root.join("dirty.txt"), "dirty\n").expect("dirty file");
-    let dirty = zd(root, &["area", "rebase", "feature"]);
+    let dirty = run_zdev(root, &["area", "rebase", "feature"]);
     assert!(!dirty.status.success());
     assert!(String::from_utf8_lossy(&dirty.stderr).contains("Commit or stash them, then retry"));
     fs::remove_file(root.join("dirty.txt")).expect("clean worktree");
 
     json_output(root, &["config", "trunk", "missing-base"]);
     commit_all(root, "record missing base");
-    let missing = zd(root, &["area", "rebase", "feature"]);
+    let missing = run_zdev(root, &["area", "rebase", "feature"]);
     assert!(!missing.status.success());
     assert!(
         String::from_utf8_lossy(&missing.stderr)
@@ -453,7 +453,7 @@ fn managed_rebase_rejects_dirty_missing_and_merge_based_histories() {
         root,
         &["merge", "-q", "--no-ff", "side", "-m", "merge side"],
     );
-    let merged = zd(root, &["area", "rebase", "feature"]);
+    let merged = run_zdev(root, &["area", "rebase", "feature"]);
     assert!(!merged.status.success());
     assert!(String::from_utf8_lossy(&merged.stderr).contains("rebase-only history"));
     let status = json_output(root, &["status", "feature"]);
@@ -472,7 +472,7 @@ fn initialization_and_area_creation_record_the_checked_out_branches() {
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
 
-    let initialized = json_output(root, &["init"]);
+    let initialized = json_output(root, &["init", "--record", "project"]);
     assert_eq!(initialized["status"], "created");
     assert_eq!(
         initialized["setup"]["status"],
@@ -495,7 +495,7 @@ fn initialization_and_area_creation_record_the_checked_out_branches() {
         initialized["setup"]["project_guidance_options"],
         json!(["auto", "agents", "zdev", "PATH"])
     );
-    let config = fs::read_to_string(root.join(".zd/config.toml")).expect("config");
+    let config = fs::read_to_string(root.join(".zdev/config.toml")).expect("config");
     assert!(config.contains("trunk = \"main\""));
 
     git(root, &["switch", "-q", "-c", "feature"]);
@@ -526,14 +526,14 @@ fn initialization_and_area_creation_record_the_checked_out_branches() {
 #[test]
 fn initialization_text_explains_what_changed_and_what_to_do_next() {
     let repository = repository();
-    let output = zd(repository.path(), &["init"]);
+    let output = run_zdev(repository.path(), &["init", "--record", "project"]);
     assert!(output.status.success());
     let text = String::from_utf8_lossy(&output.stdout);
-    assert!(text.contains("Created .zd/config.toml. Recorded"));
+    assert!(text.contains("Created .zdev/config.toml. Recorded"));
     assert!(text.contains("as the project trunk"));
-    assert!(text.contains("zd skill check <codex|claude|opencode|pi|omp> --scope user"));
-    assert!(text.contains("zd area create <tag> --title <title> --objective <objective>"));
-    assert!(!text.contains("zd skill install <codex|claude|opencode|pi|omp>"));
+    assert!(text.contains("zdev skill check <codex|claude|opencode|pi|omp> --scope user"));
+    assert!(text.contains("zdev area create <tag> --title <title> --objective <objective>"));
+    assert!(!text.contains("zdev skill install <codex|claude|opencode|pi|omp>"));
     assert!(!text.contains("Harness setup:"));
 }
 
@@ -544,7 +544,7 @@ fn initialization_records_each_record_policy_and_explains_pull_request_cleanup()
         let root = repo.path();
         let initialized = json_output(root, &["init", "--record", policy]);
         assert_eq!(initialized["record"]["policy"], policy);
-        let config = fs::read_to_string(root.join(".zd/config.toml")).expect("config");
+        let config = fs::read_to_string(root.join(".zdev/config.toml")).expect("config");
         assert!(config.contains(&format!("record = \"{policy}\"")));
         if policy == "pull-request" {
             assert_eq!(
@@ -563,25 +563,30 @@ fn initialization_records_each_record_policy_and_explains_pull_request_cleanup()
             );
 
             let text_repository = repository();
-            let text = zd(
+            let text = run_zdev(
                 text_repository.path(),
                 &["init", "--record", "pull-request"],
             );
             assert!(text.status.success());
             let text = String::from_utf8_lossy(&text.stdout);
-            assert!(text.contains(".zd is tracked for pull-request review"));
-            assert!(text.contains("must be cleaned with `zd cleanup squash` before squash merge"));
+            assert!(text.contains(".zdev is tracked for pull-request review"));
+            assert!(
+                text.contains("must be cleaned with `zdev cleanup squash` before squash merge")
+            );
         }
     }
 }
 
 #[test]
-fn old_config_without_record_policy_remains_valid() {
+fn initialization_requires_a_record_policy() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
-    let status = json_output(root, &["status"]);
-    assert_eq!(status["schema_version"], 1);
+    let output = run_zdev(root, &["init"]);
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("--record <POLICY>"));
+    assert!(error.contains("required"));
+    assert!(!root.join(".zdev").exists());
 }
 
 #[test]
@@ -609,8 +614,8 @@ fn cleanup_squash_deletes_only_tracked_zdev_files_in_one_plain_commit() {
     assert_eq!(cleaned["cleanup"], "squash");
     assert_eq!(cleaned["branch"], "feature");
     assert_eq!(cleaned["message"], "chore: remove zdev development record");
-    assert!(!root.join(".zd").exists());
-    assert_eq!(git(root, &["ls-tree", "-r", "HEAD", "--", ".zd"]), "");
+    assert!(!root.join(".zdev").exists());
+    assert_eq!(git(root, &["ls-tree", "-r", "HEAD", "--", ".zdev"]), "");
     assert!(root.join(".codex/skills/example/SKILL.md").is_file());
     assert_eq!(git(root, &["status", "--porcelain=v1"]), "");
     assert_eq!(
@@ -629,36 +634,22 @@ fn cleanup_squash_deletes_only_tracked_zdev_files_in_one_plain_commit() {
         &["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
     );
     assert!(!changed.is_empty());
-    assert!(changed.lines().all(|path| path.starts_with(".zd/")));
+    assert!(changed.lines().all(|path| path.starts_with(".zdev/")));
 }
 
 #[test]
 fn cleanup_squash_requires_pull_request_policy_clean_branch_and_tracked_files() {
-    for policy in [None, Some("project")] {
-        let repository = repository();
-        let root = repository.path();
-        git(root, &["branch", "-m", "main"]);
-        commit_file(root, "seed.txt", "seed\n", "seed");
-        match policy {
-            Some(policy) => {
-                json_output(root, &["init", "--record", policy]);
-            }
-            None => {
-                json_output(root, &["init"]);
-            }
-        }
-        git(root, &["switch", "-q", "-c", "feature"]);
-        commit_all(root, "add zdev record");
-        let output = zd(root, &["cleanup", "squash"]);
-        assert!(!output.status.success());
-        let error = String::from_utf8_lossy(&output.stderr);
-        if policy.is_some() {
-            assert!(error.contains("not pull-request"));
-        } else {
-            assert!(error.contains("has no record policy"));
-        }
-        assert!(root.join(".zd/config.toml").is_file());
-    }
+    let wrong_policy = repository();
+    let root = wrong_policy.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    git(root, &["switch", "-q", "-c", "feature"]);
+    commit_all(root, "add zdev record");
+    let output = run_zdev(root, &["cleanup", "squash"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("not pull-request"));
+    assert!(root.join(".zdev/config.toml").is_file());
 
     let dirty = repository();
     let root = dirty.path();
@@ -668,22 +659,22 @@ fn cleanup_squash_requires_pull_request_policy_clean_branch_and_tracked_files() 
     git(root, &["switch", "-q", "-c", "feature"]);
     commit_all(root, "add zdev record");
     fs::write(root.join("seed.txt"), "dirty\n").expect("dirty worktree");
-    let output = zd(root, &["cleanup", "squash"]);
+    let output = run_zdev(root, &["cleanup", "squash"]);
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("with local changes"));
-    assert!(root.join(".zd/config.toml").is_file());
+    assert!(root.join(".zdev/config.toml").is_file());
 
     let untracked = repository();
     let root = untracked.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
-    fs::write(root.join(".git/info/exclude"), "/.zd/\n").expect("exclude zdev");
+    fs::write(root.join(".git/info/exclude"), "/.zdev/\n").expect("exclude zdev");
     json_output(root, &["init", "--record", "pull-request"]);
     git(root, &["switch", "-q", "-c", "feature"]);
-    let output = zd(root, &["cleanup", "squash"]);
+    let output = run_zdev(root, &["cleanup", "squash"]);
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("no tracked .zd files"));
-    assert!(root.join(".zd/config.toml").is_file());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("no tracked .zdev files"));
+    assert!(root.join(".zdev/config.toml").is_file());
 }
 
 #[test]
@@ -695,10 +686,10 @@ fn cleanup_squash_refuses_configured_trunk() {
     json_output(root, &["init", "--record", "pull-request"]);
     commit_all(root, "add zdev record");
 
-    let output = zd(root, &["cleanup", "squash"]);
+    let output = run_zdev(root, &["cleanup", "squash"]);
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("configured trunk main"));
-    assert!(root.join(".zd/config.toml").is_file());
+    assert!(root.join(".zdev/config.toml").is_file());
 }
 
 #[test]
@@ -708,11 +699,11 @@ fn initialization_on_detached_head_explains_how_to_bind_trunk() {
     commit_file(root, "seed.txt", "seed\n", "seed");
     git(root, &["checkout", "--detach", "-q", "HEAD"]);
 
-    let output = zd(root, &["init"]);
+    let output = run_zdev(root, &["init", "--record", "project"]);
     assert!(output.status.success());
     let text = String::from_utf8_lossy(&output.stdout);
     assert!(text.contains("HEAD is detached, so no project trunk was recorded"));
-    assert!(text.contains("zd config trunk <branch>"));
+    assert!(text.contains("zdev config trunk <branch>"));
 
     let initialized = json_output(root, &["status"]);
     assert_eq!(initialized["trunk"], Value::Null);
@@ -724,7 +715,7 @@ fn explicit_branch_shorthand_is_canonicalized_before_storage_and_ownership_check
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     git(root, &["switch", "-q", "-c", "feature"]);
     git(root, &["switch", "-q", "main"]);
 
@@ -744,12 +735,12 @@ fn explicit_branch_shorthand_is_canonicalized_before_storage_and_ownership_check
     );
     assert_eq!(created["branch"], "feature");
     assert!(
-        fs::read_to_string(root.join(".zd/feature/area.toml"))
+        fs::read_to_string(root.join(".zdev/feature/area.toml"))
             .expect("area metadata")
             .contains("branch = \"feature\"")
     );
 
-    let duplicate = zd(
+    let duplicate = run_zdev(
         root,
         &[
             "area",
@@ -765,7 +756,7 @@ fn explicit_branch_shorthand_is_canonicalized_before_storage_and_ownership_check
     );
     assert!(!duplicate.status.success());
     assert!(String::from_utf8_lossy(&duplicate.stderr).contains("already owned"));
-    assert!(!root.join(".zd/duplicate").exists());
+    assert!(!root.join(".zdev/duplicate").exists());
 }
 
 #[test]
@@ -774,7 +765,7 @@ fn status_reports_wrong_branch_and_a_stale_effective_base_without_failing() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     git(root, &["switch", "-q", "-c", "feature"]);
     json_output(
         root,
@@ -807,7 +798,7 @@ fn area_binding_and_parent_configuration_validate_the_area_graph() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
 
     git(root, &["switch", "-q", "-c", "root-area"]);
     json_output(
@@ -869,13 +860,13 @@ fn area_binding_and_parent_configuration_validate_the_area_graph() {
     assert_eq!(status["branch_status"]["fresh"], true);
     assert_eq!(status["area"]["base_commit"], established_anchor);
 
-    let duplicate = zd(root, &["area", "bind", "child-area", "root-area"]);
+    let duplicate = run_zdev(root, &["area", "bind", "child-area", "root-area"]);
     assert!(!duplicate.status.success());
     assert!(String::from_utf8_lossy(&duplicate.stderr).contains("already owned"));
-    let self_parent = zd(root, &["area", "parent", "root-area", "root-area"]);
+    let self_parent = run_zdev(root, &["area", "parent", "root-area", "root-area"]);
     assert!(!self_parent.status.success());
     assert!(String::from_utf8_lossy(&self_parent.stderr).contains("own parent"));
-    let cycle = zd(root, &["area", "parent", "root-area", "child-area"]);
+    let cycle = run_zdev(root, &["area", "parent", "root-area", "child-area"]);
     assert!(!cycle.status.success());
     assert!(String::from_utf8_lossy(&cycle.stderr).contains("cycle"));
 
@@ -892,17 +883,17 @@ fn parent_link_rejects_predeclared_branches_that_do_not_exist_yet() {
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
     commit_file(root, "seed.txt", "seed\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     create_area(root, "parent-area", "parent-area");
     create_area(root, "child-area", "child-area");
 
-    let rejected = zd(root, &["area", "parent", "child-area", "parent-area"]);
+    let rejected = run_zdev(root, &["area", "parent", "child-area", "parent-area"]);
     assert!(!rejected.status.success());
     assert!(
         String::from_utf8_lossy(&rejected.stderr)
             .contains("missing locally. Restore or create it, then retry")
     );
-    let metadata_path = root.join(".zd/child-area/area.toml");
+    let metadata_path = root.join(".zdev/child-area/area.toml");
     let metadata = fs::read_to_string(&metadata_path).expect("child metadata");
     assert!(!metadata.contains("parent ="));
 
@@ -926,8 +917,11 @@ fn task_files_drive_selection_completion_and_generated_summary() {
     let repository = repository();
     let root = repository.path();
 
-    assert_eq!(json_output(root, &["init"])["status"], "created");
-    assert!(!root.join(".zd/.gitignore").exists());
+    assert_eq!(
+        json_output(root, &["init", "--record", "project"])["status"],
+        "created"
+    );
+    assert!(!root.join(".zdev/.gitignore").exists());
     assert_eq!(
         json_output(
             root,
@@ -988,7 +982,7 @@ fn task_files_drive_selection_completion_and_generated_summary() {
     assert_eq!(imported["tasks"].as_array().expect("tasks").len(), 2);
     assert!(bundle.exists(), "path-based imports preserve their source");
     let first_task =
-        fs::read_to_string(root.join(".zd/lean-core/tasks/001-build-the-first-slice.md"))
+        fs::read_to_string(root.join(".zdev/lean-core/tasks/001-build-the-first-slice.md"))
             .expect("first task");
     assert!(first_task.contains(
         "## Context\n\nThe current command stops at the storage boundary. Extend `src/lib.rs` at \
@@ -996,7 +990,7 @@ fn task_files_drive_selection_completion_and_generated_summary() {
     ));
     assert!(first_task.contains("## Boundaries\n\n- Do not change the dependent slice."));
     let second_task =
-        fs::read_to_string(root.join(".zd/lean-core/tasks/002-build-the-dependent-slice.md"))
+        fs::read_to_string(root.join(".zdev/lean-core/tasks/002-build-the-dependent-slice.md"))
             .expect("second task");
     assert!(!second_task.contains("## Context"));
 
@@ -1026,7 +1020,7 @@ fn task_files_drive_selection_completion_and_generated_summary() {
 
     let next = json_output(root, &["next", "lean-core"]);
     assert_eq!(next["task"]["id"], "lean-core-002");
-    let summary = fs::read_to_string(root.join(".zd/lean-core/TASKS.md")).expect("summary");
+    let summary = fs::read_to_string(root.join(".zdev/lean-core/TASKS.md")).expect("summary");
     assert!(summary.contains("- Done: 1"));
     assert!(summary.contains("lean-core-002"));
     assert_eq!(json_output(root, &["check", "lean-core"])["status"], "ok");
@@ -1036,7 +1030,7 @@ fn task_files_drive_selection_completion_and_generated_summary() {
 fn task_order_uses_numeric_suffix_with_full_id_as_tie_breaker() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1050,7 +1044,7 @@ fn task_order_uses_numeric_suffix_with_full_id_as_tie_breaker() {
         ],
     );
 
-    let tasks = root.join(".zd/numeric-order/tasks");
+    let tasks = root.join(".zdev/numeric-order/tasks");
     for (filename, id, key, title) in [
         ("010-ten.md", "numeric-order-10", "ten", "Ten"),
         ("002-two.md", "numeric-order-2", "two", "Two"),
@@ -1086,7 +1080,7 @@ fn task_order_uses_numeric_suffix_with_full_id_as_tie_breaker() {
     );
 
     json_output(root, &["tasks", "index", "numeric-order"]);
-    let summary = fs::read_to_string(root.join(".zd/numeric-order/TASKS.md")).expect("summary");
+    let summary = fs::read_to_string(root.join(".zdev/numeric-order/TASKS.md")).expect("summary");
     let padded_two = summary.find("numeric-order-002").expect("padded two");
     let two = summary.find("numeric-order-2").expect("two");
     let ten = summary.find("numeric-order-10").expect("ten");
@@ -1097,7 +1091,7 @@ fn task_order_uses_numeric_suffix_with_full_id_as_tie_breaker() {
 fn task_import_reads_a_complete_bundle_from_standard_input() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1128,14 +1122,17 @@ fn task_import_reads_a_complete_bundle_from_standard_input() {
         json_output_with_stdin(root, &["tasks", "import", "stdin", "--from", "-"], &bundle);
 
     assert_eq!(imported["tasks"][0], "stdin-001");
-    assert!(root.join(".zd/stdin/tasks/001-import-one-task.md").exists());
+    assert!(
+        root.join(".zdev/stdin/tasks/001-import-one-task.md")
+            .exists()
+    );
 }
 
 #[test]
 fn reviewed_task_bundle_fingerprint_guards_the_import() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1212,7 +1209,7 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
     );
     assert!(!rejected.status.success());
     assert_eq!(
-        fs::read_dir(root.join(".zd/approval/tasks"))
+        fs::read_dir(root.join(".zdev/approval/tasks"))
             .expect("tasks directory")
             .count(),
         0
@@ -1238,7 +1235,7 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
 fn state_lock_recovers_a_stale_file_without_stealing_a_live_lock() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1275,7 +1272,7 @@ fn state_lock_recovers_a_stale_file_without_stealing_a_live_lock() {
         &bundle("stale", "Recover stale lock"),
     );
     assert!(
-        root.join(".zd/locking/tasks/002-recover-stale-lock.md")
+        root.join(".zdev/locking/tasks/002-recover-stale-lock.md")
             .exists()
     );
 
@@ -1285,7 +1282,7 @@ fn state_lock_recovers_a_stale_file_without_stealing_a_live_lock() {
         .open(&lock_path)
         .expect("live lock file");
     live_lock.lock().expect("hold live state lock");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_zd"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_zdev"))
         .arg("--root")
         .arg(root)
         .args(["tasks", "import", "locking", "--from", "-"])
@@ -1305,14 +1302,14 @@ fn state_lock_recovers_a_stale_file_without_stealing_a_live_lock() {
     assert!(child.try_wait().expect("inspect waiting import").is_none());
     assert!(
         !root
-            .join(".zd/locking/tasks/003-wait-for-live-lock.md")
+            .join(".zdev/locking/tasks/003-wait-for-live-lock.md")
             .exists()
     );
     drop(live_lock);
     let output = child.wait_with_output().expect("finish waiting import");
     assert!(
         output.status.success(),
-        "zd failed: {}",
+        "zdev failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }
@@ -1321,7 +1318,7 @@ fn state_lock_recovers_a_stale_file_without_stealing_a_live_lock() {
 fn non_git_task_import_remains_available_without_locking() {
     let directory = tempfile::tempdir().expect("non-Git directory");
     let root = directory.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1376,7 +1373,7 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
         "before unstaged\n",
         "seed unstaged file",
     );
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1391,7 +1388,7 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
     );
     import_one_task(root, "concurrent");
     commit_all(root, "configure concurrent area");
-    fs::write(root.join(".git/info/exclude"), "/.zd/concurrent/tasks/\n")
+    fs::write(root.join(".git/info/exclude"), "/.zdev/concurrent/tasks/\n")
         .expect("ignore new task files");
     fs::write(root.join("staged.txt"), "staged implementation\n").expect("staged change");
     git(root, &["add", "staged.txt"]);
@@ -1434,8 +1431,8 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
             .lines()
             .collect::<Vec<_>>(),
         [
-            ".zd/concurrent/TASKS.md",
-            ".zd/concurrent/tasks/002-add-concurrent-task.md",
+            ".zdev/concurrent/TASKS.md",
+            ".zdev/concurrent/tasks/002-add-concurrent-task.md",
         ]
     );
     assert_eq!(
@@ -1454,7 +1451,7 @@ fn committed_task_import_recovery_text_names_the_problem_and_action() {
     let repository = repository();
     let root = repository.path();
     commit_file(root, "seed.txt", "seed\n", "seed");
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1469,7 +1466,7 @@ fn committed_task_import_recovery_text_names_the_problem_and_action() {
     );
     commit_all(root, "configure intake area");
     fs::write(
-        root.join(".zd/intake-action/brief.md"),
+        root.join(".zdev/intake-action/brief.md"),
         "# Locally changed\n",
     )
     .expect("change area brief");
@@ -1519,7 +1516,7 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
         "before\n",
         "seed implementation",
     );
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1535,7 +1532,7 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
     import_one_task(root, "commit-failure");
     commit_all(root, "configure failure area");
     let summary_before =
-        fs::read_to_string(root.join(".zd/commit-failure/TASKS.md")).expect("summary");
+        fs::read_to_string(root.join(".zdev/commit-failure/TASKS.md")).expect("summary");
     fs::write(root.join("implementation.txt"), "staged implementation\n")
         .expect("implementation change");
     git(root, &["add", "implementation.txt"]);
@@ -1574,11 +1571,11 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
     assert!(String::from_utf8_lossy(&output.stderr).contains("rolled back"));
     assert!(
         !root
-            .join(".zd/commit-failure/tasks/002-must-roll-back.md")
+            .join(".zdev/commit-failure/tasks/002-must-roll-back.md")
             .exists()
     );
     assert_eq!(
-        fs::read_to_string(root.join(".zd/commit-failure/TASKS.md")).expect("summary"),
+        fs::read_to_string(root.join(".zdev/commit-failure/TASKS.md")).expect("summary"),
         summary_before
     );
     assert_eq!(
@@ -1595,7 +1592,7 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
 fn check_rejects_a_task_without_the_authored_contract() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1609,11 +1606,11 @@ fn check_rejects_a_task_without_the_authored_contract() {
         ],
     );
     fs::write(
-        root.join(".zd/contract/tasks/001-malformed.md"),
+        root.join(".zdev/contract/tasks/001-malformed.md"),
         "+++\nschema_version = 1\nid = \"contract-001\"\nkey = \"malformed\"\narea = \"contract\"\nstatus = \"open\"\nblocked_by = []\n+++\n# Malformed\n\n## Validation\n\n- Nothing.\n",
     )
     .expect("malformed task");
-    let output = zd(root, &["check", "contract"]);
+    let output = run_zdev(root, &["check", "contract"]);
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("## Outcome"));
 }
@@ -1622,7 +1619,7 @@ fn check_rejects_a_task_without_the_authored_contract() {
 fn check_validates_the_authored_brief_contract() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1635,7 +1632,7 @@ fn check_validates_the_authored_brief_contract() {
             "Reject malformed authored briefs.",
         ],
     );
-    let brief = root.join(".zd/brief-contract/brief.md");
+    let brief = root.join(".zdev/brief-contract/brief.md");
 
     assert_eq!(
         json_output(root, &["check", "brief-contract"])["status"],
@@ -1678,7 +1675,7 @@ fn check_validates_the_authored_brief_contract() {
         ),
     ] {
         fs::write(&brief, content).expect("malformed brief");
-        let output = zd(root, &["check", "brief-contract"]);
+        let output = run_zdev(root, &["check", "brief-contract"]);
         assert!(
             !output.status.success(),
             "brief unexpectedly passed: {content}"
@@ -1705,7 +1702,7 @@ fn check_validates_the_authored_brief_contract() {
 fn failed_summary_preflight_does_not_complete_the_task() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1746,11 +1743,11 @@ fn failed_summary_preflight_does_not_complete_the_task() {
             bundle.to_str().expect("bundle path"),
         ],
     );
-    let summary = root.join(".zd/atomic/TASKS.md");
+    let summary = root.join(".zdev/atomic/TASKS.md");
     fs::remove_file(&summary).expect("remove summary");
     fs::create_dir(&summary).expect("replace summary with directory");
 
-    let output = zd(
+    let output = run_zdev(
         root,
         &[
             "task",
@@ -1764,8 +1761,8 @@ fn failed_summary_preflight_does_not_complete_the_task() {
         ],
     );
     assert!(!output.status.success());
-    let task =
-        fs::read_to_string(root.join(".zd/atomic/tasks/001-complete-atomically.md")).expect("task");
+    let task = fs::read_to_string(root.join(".zdev/atomic/tasks/001-complete-atomically.md"))
+        .expect("task");
     assert!(task.contains("status = \"open\""));
     assert!(task.contains("- [ ] Both files change together."));
 }
@@ -1774,9 +1771,9 @@ fn failed_summary_preflight_does_not_complete_the_task() {
 fn commit_adds_a_stable_change_id_that_lookup_can_find() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     fs::write(root.join("file.txt"), "one\n").expect("source file");
-    git(root, &["add", "file.txt", ".zd"]);
+    git(root, &["add", "file.txt", ".zdev"]);
 
     let committed = json_output(root, &["commit", "-m", "feat: add one"]);
     let change_id = committed["change_id"].as_str().expect("change ID");
@@ -1805,11 +1802,11 @@ fn commit_adds_a_stable_change_id_that_lookup_can_find() {
 fn commit_human_output_reports_the_commit_change_id_and_subject() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     fs::write(root.join("file.txt"), "one\n").expect("source file");
-    git(root, &["add", "file.txt", ".zd"]);
+    git(root, &["add", "file.txt", ".zdev"]);
 
-    let output = zd(root, &["commit", "-m", "feat: report the commit"]);
+    let output = run_zdev(root, &["commit", "-m", "feat: report the commit"]);
 
     assert!(output.status.success());
     let text = String::from_utf8_lossy(&output.stdout);
@@ -1822,13 +1819,13 @@ fn commit_human_output_reports_the_commit_change_id_and_subject() {
 fn commit_rejects_a_user_supplied_stable_change_id_before_committing() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     commit_all(root, "initialize zdev");
     fs::write(root.join("file.txt"), "staged\n").expect("source file");
     git(root, &["add", "file.txt"]);
     let head = git(root, &["rev-parse", "HEAD"]);
 
-    let output = zd(
+    let output = run_zdev(
         root,
         &[
             "commit",
@@ -1858,7 +1855,7 @@ fn commit_rejects_a_user_supplied_stable_change_id_before_committing() {
 fn malformed_dependencies_fail_before_any_task_file_is_created() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1888,7 +1885,7 @@ fn malformed_dependencies_fail_before_any_task_file_is_created() {
         .expect("JSON"),
     )
     .expect("bundle");
-    let output = zd(
+    let output = run_zdev(
         root,
         &[
             "tasks",
@@ -1901,7 +1898,7 @@ fn malformed_dependencies_fail_before_any_task_file_is_created() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("unknown blocker"));
     assert_eq!(
-        fs::read_dir(root.join(".zd/invalid/tasks"))
+        fs::read_dir(root.join(".zdev/invalid/tasks"))
             .expect("tasks")
             .count(),
         0
@@ -1913,7 +1910,7 @@ fn malformed_dependencies_fail_before_any_task_file_is_created() {
 fn failed_task_write_removes_earlier_and_current_partial_files() {
     let repository = repository();
     let root = repository.path();
-    json_output(root, &["init"]);
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[
@@ -1957,7 +1954,7 @@ fn failed_task_write_removes_earlier_and_current_partial_files() {
         .arg("-c")
         .arg("trap '' XFSZ 2>/dev/null || true; ulimit -f 1; exec \"$@\"")
         .arg("sh")
-        .arg(env!("CARGO_BIN_EXE_zd"))
+        .arg(env!("CARGO_BIN_EXE_zdev"))
         .arg("--root")
         .arg(root)
         .args([
@@ -1968,14 +1965,14 @@ fn failed_task_write_removes_earlier_and_current_partial_files() {
             bundle.to_str().expect("bundle path"),
         ])
         .output()
-        .expect("run size-limited zd");
+        .expect("run size-limited zdev");
 
     assert!(!output.status.success());
     let error = String::from_utf8_lossy(&output.stderr);
     assert!(error.contains("Cannot write"));
     assert!(error.contains("002-two.md"));
     assert_eq!(
-        fs::read_dir(root.join(".zd/rollback/tasks"))
+        fs::read_dir(root.join(".zdev/rollback/tasks"))
             .expect("tasks")
             .count(),
         0
@@ -2022,7 +2019,7 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
     assert_eq!(unchanged["status"], "unchanged");
 
     fs::write(destination.join("SKILL.md"), "locally changed\n").expect("change skill");
-    let refused = zd(
+    let refused = run_zdev(
         root,
         &["skill", "install", "codex", "--to", destination_text],
     );
@@ -2062,7 +2059,7 @@ fn skill_human_output_names_zdev_integrations_and_their_harnesses() {
         let destination = root.join(format!("human-output/{harness}"));
         let destination_text = destination.to_str().expect("destination path");
 
-        let installed = zd(
+        let installed = run_zdev(
             root,
             &["skill", "install", harness, "--to", destination_text],
         );
@@ -2075,7 +2072,7 @@ fn skill_human_output_names_zdev_integrations_and_their_harnesses() {
             )
         );
 
-        let unchanged = zd(
+        let unchanged = run_zdev(
             root,
             &["skill", "install", harness, "--to", destination_text],
         );
@@ -2088,7 +2085,7 @@ fn skill_human_output_names_zdev_integrations_and_their_harnesses() {
             )
         );
 
-        let checked = zd(root, &["skill", "check", harness, "--to", destination_text]);
+        let checked = run_zdev(root, &["skill", "check", harness, "--to", destination_text]);
         assert!(checked.status.success());
         assert_eq!(
             String::from_utf8_lossy(&checked.stdout).trim(),
@@ -2100,18 +2097,18 @@ fn skill_human_output_names_zdev_integrations_and_their_harnesses() {
 
         fs::write(destination.join(skill_path), "locally changed\n")
             .expect("change installed skill");
-        let conflict = zd(root, &["skill", "check", harness, "--to", destination_text]);
+        let conflict = run_zdev(root, &["skill", "check", harness, "--to", destination_text]);
         assert_eq!(conflict.status.code(), Some(1));
         assert_eq!(
             String::from_utf8_lossy(&conflict.stdout).trim(),
             format!(
-                "{display_name} zdev integration differs from this version at {}. Replace it with `zd skill install {harness} --to {} --force`",
+                "{display_name} zdev integration differs from this version at {}. Replace it with `zdev skill install {harness} --to {} --force`",
                 destination.display(),
                 destination.display(),
             )
         );
 
-        let refused = zd(
+        let refused = run_zdev(
             root,
             &["skill", "install", harness, "--to", destination_text],
         );
@@ -2128,13 +2125,13 @@ fn skill_help_describes_integrations_for_harnesses() {
     let repository = repository();
     let root = repository.path();
 
-    let skill_help = zd(root, &["skill", "--help"]);
+    let skill_help = run_zdev(root, &["skill", "--help"]);
     assert!(skill_help.status.success());
     let skill_help = String::from_utf8_lossy(&skill_help.stdout);
     assert!(skill_help.contains("coding-harness integration"));
     assert!(!skill_help.contains("harness bundle"));
 
-    let install_help = zd(root, &["skill", "install", "--help"]);
+    let install_help = run_zdev(root, &["skill", "install", "--help"]);
     assert!(install_help.status.success());
     let install_help = String::from_utf8_lossy(&install_help.stdout);
     assert!(install_help.contains("coding-harness integration"));
@@ -2151,13 +2148,13 @@ fn every_help_page_explains_its_command_and_inputs() {
         (
             &["--help"],
             &[
-                "development plans and tasks in plain files under .zd",
+                "development plans and tasks in plain files under .zdev",
                 "Use PATH as the repository root",
                 "instructions",
                 "Print concise instructions for a coding harness",
                 "Start a repository:",
                 "Choose personal, project, or pull-request record storage",
-                "zd init --record <POLICY>",
+                "zdev init --record <POLICY>",
             ],
         ),
         (
@@ -2171,10 +2168,10 @@ fn every_help_page_explains_its_command_and_inputs() {
                 "records the checked-out branch as trunk when",
                 "On detached HEAD, trunk remains unbound",
                 "does not install a coding-harness integration",
-                "Use --record personal to keep .zd clone-local",
+                "Use --record personal to keep .zdev clone-local",
                 "pull-request to track it for review",
-                "`zd cleanup squash` before squash merge",
-                "How the .zd planning record is stored and shared",
+                "`zdev cleanup squash` before squash merge",
+                "How the .zdev planning record is stored and shared",
             ],
         ),
         (
@@ -2183,7 +2180,7 @@ fn every_help_page_explains_its_command_and_inputs() {
         ),
         (
             &["cleanup", "squash", "--help"],
-            &["Delete tracked .zd files in one plain commit before a squash merge"],
+            &["Delete tracked .zdev files in one plain commit before a squash merge"],
         ),
         (
             &["config", "--help"],
@@ -2334,27 +2331,27 @@ fn every_help_page_explains_its_command_and_inputs() {
     ];
 
     for (arguments, expected) in cases {
-        let output = zd(root, arguments);
+        let output = run_zdev(root, arguments);
         assert!(
             output.status.success(),
-            "help command failed: zd {}",
+            "help command failed: zdev {}",
             arguments.join(" ")
         );
         let text = String::from_utf8_lossy(&output.stdout);
         assert!(
             text.contains("Usage:"),
-            "missing usage: zd {}",
+            "missing usage: zdev {}",
             arguments.join(" ")
         );
         assert!(
             text.contains("Choose human-readable text or machine-readable JSON output"),
-            "missing format explanation: zd {}",
+            "missing format explanation: zdev {}",
             arguments.join(" ")
         );
         for phrase in *expected {
             assert!(
                 text.contains(phrase),
-                "help for `zd {}` lacks {phrase:?}:\n{text}",
+                "help for `zdev {}` lacks {phrase:?}:\n{text}",
                 arguments.join(" ")
             );
         }
@@ -2365,11 +2362,11 @@ fn every_help_page_explains_its_command_and_inputs() {
 fn instructions_work_without_a_zdev_or_git_repository() {
     let directory = tempfile::tempdir().expect("temporary directory");
     let run = |arguments: &[&str]| {
-        Command::new(env!("CARGO_BIN_EXE_zd"))
+        Command::new(env!("CARGO_BIN_EXE_zdev"))
             .args(arguments)
             .current_dir(directory.path())
             .output()
-            .expect("run zd")
+            .expect("run zdev")
     };
 
     let text = run(&["instructions"]);
@@ -2378,12 +2375,12 @@ fn instructions_work_without_a_zdev_or_git_repository() {
     let paragraph = String::from_utf8(text.stdout).expect("UTF-8 text output");
     assert_eq!(paragraph.lines().count(), 1);
     for required in [
-        "durable plans and tasks in `.zd`",
+        "durable plans and tasks in `.zdev`",
         "shapes, implements, and independently verifies the work",
         "integration for work tracked there",
-        "`zd status` and `zd next` orient and select work",
-        "`zd check` validates state",
-        "`zd commit` records verified staged changes",
+        "`zdev status` and `zdev next` orient and select work",
+        "`zdev check` validates state",
+        "`zdev commit` records verified staged changes",
         "Do not edit generated task indexes",
         "ask the user how to configure it",
     ] {
@@ -2411,8 +2408,10 @@ fn global_options_work_after_commands_and_nested_commands() {
     let repository = repository();
     let root = repository.path().to_str().expect("UTF-8 path");
 
-    let initialized = Command::new(env!("CARGO_BIN_EXE_zd"))
-        .args(["init", "--root", root, "--format", "json"])
+    let initialized = Command::new(env!("CARGO_BIN_EXE_zdev"))
+        .args([
+            "init", "--record", "project", "--root", root, "--format", "json",
+        ])
         .output()
         .expect("initialize with trailing global options");
     assert!(initialized.status.success());
@@ -2421,7 +2420,7 @@ fn global_options_work_after_commands_and_nested_commands() {
 
     let branch = git(repository.path(), &["branch", "--show-current"]);
 
-    let configured = Command::new(env!("CARGO_BIN_EXE_zd"))
+    let configured = Command::new(env!("CARGO_BIN_EXE_zdev"))
         .args([
             "config",
             "trunk",
@@ -2439,40 +2438,28 @@ fn global_options_work_after_commands_and_nested_commands() {
 }
 
 #[test]
-fn one_oh_cli_has_no_pre_release_compatibility_commands() {
+fn current_schema_rejects_unknown_and_missing_fields() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
 
-    let help = zd(root, &["--help"]);
-    assert!(help.status.success());
-    let help = String::from_utf8_lossy(&help.stdout);
-    assert!(!help.contains("  upgrade"));
-    assert!(!help.contains("  harness"));
-
-    for removed in [["upgrade"].as_slice(), ["harness"].as_slice()] {
-        let output = zd(root, removed);
-        assert!(!output.status.success());
-        assert!(
-            String::from_utf8_lossy(&output.stderr).contains("unrecognized subcommand"),
-            "removed command was not rejected: zd {}",
-            removed.join(" ")
-        );
-    }
-}
-
-#[test]
-fn one_oh_metadata_rejects_fields_outside_the_current_schema() {
-    let repository = repository();
-    let root = repository.path();
-    json_output(root, &["init"]);
-
-    let config_path = root.join(".zd/config.toml");
+    let config_path = root.join(".zdev/config.toml");
     let config = fs::read_to_string(&config_path).expect("config");
-    fs::write(&config_path, format!("{config}removed_field = true\n"))
+    fs::write(&config_path, format!("{config}unknown_field = true\n"))
         .expect("write unsupported config field");
-    let rejected_config = zd(root, &["status"]);
+    let rejected_config = run_zdev(root, &["status"]);
     assert!(!rejected_config.status.success());
     assert!(String::from_utf8_lossy(&rejected_config.stderr).contains("unknown field"));
+
+    let missing_record = config
+        .lines()
+        .filter(|line| !line.starts_with("record = "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&config_path, format!("{missing_record}\n")).expect("remove required record policy");
+    let rejected_missing_record = run_zdev(root, &["status"]);
+    assert!(!rejected_missing_record.status.success());
+    assert!(String::from_utf8_lossy(&rejected_missing_record.stderr).contains("missing field"));
 
     fs::write(&config_path, config).expect("restore current config");
     json_output(
@@ -2484,14 +2471,14 @@ fn one_oh_metadata_rejects_fields_outside_the_current_schema() {
             "--title",
             "Strict schema",
             "--objective",
-            "Reject fields outside the 1.0 format.",
+            "Reject fields outside the current format.",
         ],
     );
-    let area_path = root.join(".zd/strict-schema/area.toml");
+    let area_path = root.join(".zdev/strict-schema/area.toml");
     let area = fs::read_to_string(&area_path).expect("area metadata");
-    fs::write(&area_path, format!("{area}removed_field = true\n"))
+    fs::write(&area_path, format!("{area}unknown_field = true\n"))
         .expect("write unsupported area field");
-    let rejected_area = zd(root, &["status", "strict-schema"]);
+    let rejected_area = run_zdev(root, &["status", "strict-schema"]);
     assert!(!rejected_area.status.success());
     assert!(String::from_utf8_lossy(&rejected_area.stderr).contains("unknown field"));
 
@@ -2501,7 +2488,7 @@ fn one_oh_metadata_rejects_fields_outside_the_current_schema() {
         .collect::<Vec<_>>()
         .join("\n");
     fs::write(&area_path, format!("{missing_branch}\n")).expect("remove required branch");
-    let rejected_missing_branch = zd(root, &["status", "strict-schema"]);
+    let rejected_missing_branch = run_zdev(root, &["status", "strict-schema"]);
     assert!(!rejected_missing_branch.status.success());
     assert!(String::from_utf8_lossy(&rejected_missing_branch.stderr).contains("missing field"));
 }
@@ -2542,7 +2529,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
             1,
         );
         assert_eq!(extra_directory["status"], "conflict");
-        let refused = zd(
+        let refused = run_zdev(
             root,
             &["skill", "install", harness, "--to", destination_text],
         );
@@ -2575,7 +2562,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
         );
         assert_eq!(conflict["status"], "conflict");
 
-        let refused = zd(
+        let refused = run_zdev(
             root,
             &["skill", "install", harness, "--to", destination_text],
         );
@@ -2878,7 +2865,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         "locally changed\n",
     )
     .expect("changed managed file");
-    let refused = zd(
+    let refused = run_zdev(
         root,
         &[
             "skill",
@@ -2923,6 +2910,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
 fn opencode_project_install_inlines_guidance_at_native_destination() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     fs::write(root.join("AGENTS.md"), "Run `just opencode-ci`.\n").expect("guidance");
 
     let installed = json_output(
@@ -3021,7 +3009,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         "locally changed\n",
     )
     .expect("changed managed file");
-    let refused = zd(
+    let refused = run_zdev(
         root,
         &[
             "skill",
@@ -3066,6 +3054,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
 fn pi_project_install_inlines_guidance_at_native_destination() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     fs::write(root.join("AGENTS.md"), "Run `just pi-ci`.\n").expect("guidance");
 
     let installed = json_output(root, &["skill", "install", "pi", "--scope", "project"]);
@@ -3190,7 +3179,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         1,
     );
     assert_eq!(conflict["status"], "conflict");
-    let refused = zd(
+    let refused = run_zdev(
         root,
         &[
             "skill",
@@ -3237,6 +3226,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
 fn omp_project_install_inlines_guidance_at_native_destination() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     fs::write(root.join("AGENTS.md"), "Run `just omp-ci`.\n").expect("guidance");
 
     let installed = json_output(root, &["skill", "install", "omp", "--scope", "project"]);
@@ -3275,7 +3265,7 @@ fn omp_relocated_user_install_and_check_warn_without_failing() {
     assert_eq!(checked["warnings"], installed["warnings"]);
 
     for arguments in [["skill", "install", "omp"], ["skill", "check", "omp"]] {
-        let output = zd_with_env(root, &arguments, &environment);
+        let output = run_zdev_with_env(root, &arguments, &environment);
         assert!(output.status.success());
         let text = String::from_utf8_lossy(&output.stdout);
         assert!(text.contains("Warning: Oh My Pi 17.2.15"));
@@ -3288,6 +3278,7 @@ fn omp_relocated_user_install_and_check_warn_without_failing() {
 fn omp_destination_warning_exempts_default_project_and_explicit_destinations() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     let fallback_home = root.join("fallback-home");
     let relocated = root.join("relocated-omp-agent");
     let explicit = root.join("explicit-omp-agent");
@@ -3371,7 +3362,7 @@ fn omp_destination_warning_exempts_default_project_and_explicit_destinations() {
             relocated_environment.as_slice(),
         ),
     ] {
-        let output = zd_with_env(root, &arguments, environment);
+        let output = run_zdev_with_env(root, &arguments, environment);
         assert!(output.status.success());
         assert!(!String::from_utf8_lossy(&output.stdout).contains("Warning:"));
     }
@@ -3381,6 +3372,7 @@ fn omp_destination_warning_exempts_default_project_and_explicit_destinations() {
 fn harness_destinations_respect_scope_and_config_home_variables() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     let codex_home = root.join("codex-home");
     let claude_home = root.join("claude-home");
     let xdg_home = root.join("xdg-home");
@@ -3480,6 +3472,7 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
 fn project_integrations_share_and_preserve_existing_agents_guidance() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     let guidance = b"# Repository instructions\n\nRun `cargo test`.\n";
     fs::write(root.join("AGENTS.md"), guidance).expect("repository guidance");
 
@@ -3508,9 +3501,24 @@ fn project_integrations_share_and_preserve_existing_agents_guidance() {
 }
 
 #[test]
+fn project_integration_install_requires_an_initialized_record() {
+    let repository = repository();
+    let root = repository.path();
+
+    let output = run_zdev(root, &["skill", "install", "codex", "--scope", "project"]);
+
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("zdev init --record <personal|project|pull-request>"));
+    assert!(!root.join(".codex/skills/zdev").exists());
+    assert!(!root.join(".zdev").exists());
+}
+
+#[test]
 fn project_skill_install_always_inlines_guidance_while_user_install_does_not() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     let guidance = "# Repository instructions\n\nRun `just ci-project-only`.\n";
     fs::write(root.join("AGENTS.md"), guidance).expect("repository guidance");
 
@@ -3557,18 +3565,19 @@ fn project_skill_install_always_inlines_guidance_while_user_install_does_not() {
 fn auto_guidance_scaffolds_one_shared_fallback_and_preserves_authored_bytes() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     let expected = "# Repository guidance for zdev\n\n## Understand and navigate\n\n## Build and compile\n\n## Run locally\n\n## Test and validate\n\n## Format and lint\n\n## Generated files and migrations\n\n## Safety, secrets, and unavailable services\n";
 
     let codex = json_output(root, &["skill", "install", "codex", "--scope", "project"]);
     assert_eq!(codex["guidance"]["status"], "created");
-    assert_eq!(codex["guidance"]["source"], ".zd/guidance.md");
+    assert_eq!(codex["guidance"]["source"], ".zdev/guidance.md");
     assert_eq!(
-        fs::read_to_string(root.join(".zd/guidance.md")).expect("fallback guidance"),
+        fs::read_to_string(root.join(".zdev/guidance.md")).expect("fallback guidance"),
         expected
     );
 
     let authored = format!("{expected}\nUse `cargo test --locked`.\n");
-    fs::write(root.join(".zd/guidance.md"), &authored).expect("author guidance");
+    fs::write(root.join(".zdev/guidance.md"), &authored).expect("author guidance");
     let stale =
         json_output_with_exit_code(root, &["skill", "check", "codex", "--scope", "project"], 1);
     assert_eq!(stale["bundle"]["status"], "conflict");
@@ -3579,17 +3588,17 @@ fn auto_guidance_scaffolds_one_shared_fallback_and_preserves_authored_bytes() {
     );
     let rendered =
         fs::read_to_string(root.join(".codex/skills/zdev/SKILL.md")).expect("rendered skill");
-    assert!(rendered.contains("Source: `.zd/guidance.md`"));
+    assert!(rendered.contains("Source: `.zdev/guidance.md`"));
     assert!(rendered.contains("Use `cargo test --locked`."));
     let claude = json_output(root, &["skill", "install", "claude", "--scope", "project"]);
     assert_eq!(claude["guidance"]["status"], "ok");
     assert_eq!(
-        fs::read_to_string(root.join(".zd/guidance.md")).expect("preserved guidance"),
+        fs::read_to_string(root.join(".zdev/guidance.md")).expect("preserved guidance"),
         authored
     );
     let claude_rendered = fs::read_to_string(root.join(".claude/skills/zdev/skills/zdev/SKILL.md"))
         .expect("rendered Claude skill");
-    assert!(claude_rendered.contains("Source: `.zd/guidance.md`"));
+    assert!(claude_rendered.contains("Source: `.zdev/guidance.md`"));
     assert!(claude_rendered.contains("Use `cargo test --locked`."));
 }
 
@@ -3597,6 +3606,7 @@ fn auto_guidance_scaffolds_one_shared_fallback_and_preserves_authored_bytes() {
 fn explicit_guidance_modes_report_markers_missing_files_and_safe_custom_paths() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     fs::write(
         root.join("AGENTS.md"),
         "# Agents\n\n<!-- zdev:guidance:start -->\nRun cargo test.\n<!-- zdev:guidance:end -->\n",
@@ -3628,7 +3638,7 @@ fn explicit_guidance_modes_report_markers_missing_files_and_safe_custom_paths() 
             "zdev",
         ],
     );
-    assert_eq!(zdev["guidance"]["source"], ".zd/guidance.md");
+    assert_eq!(zdev["guidance"]["source"], ".zdev/guidance.md");
     assert_eq!(zdev["guidance"]["status"], "created");
 
     fs::create_dir(root.join("docs")).expect("docs directory");
@@ -3685,11 +3695,11 @@ fn explicit_guidance_modes_report_markers_missing_files_and_safe_custom_paths() 
         assert_eq!(checked["guidance"]["source"], "docs/build.md");
         assert_eq!(checked["guidance"]["status"], "ok");
     }
-    let config = fs::read_to_string(root.join(".zd/config.toml")).expect("project config");
+    let config = fs::read_to_string(root.join(".zdev/config.toml")).expect("project config");
     assert!(config.contains("guidance = \"docs/build.md\""));
 
     for unsafe_path in ["../outside.md", "/tmp/outside.md", "docs/build.txt"] {
-        let output = zd(
+        let output = run_zdev(
             root,
             &[
                 "skill",
@@ -3710,9 +3720,10 @@ fn explicit_guidance_modes_report_markers_missing_files_and_safe_custom_paths() 
 fn agents_guidance_without_markers_fails_before_bundle_publication() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     fs::write(root.join("AGENTS.md"), "# Unmarked instructions\n").expect("agents guidance");
 
-    let output = zd(
+    let output = run_zdev(
         root,
         &[
             "skill",
@@ -3727,13 +3738,14 @@ fn agents_guidance_without_markers_fails_before_bundle_publication() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("marker block"));
     assert!(!root.join(".claude/skills/zdev").exists());
-    assert!(!root.join(".zd/config.toml").exists());
+    assert!(root.join(".zdev/config.toml").is_file());
 }
 
 #[test]
 fn recorded_agents_guidance_rechecks_markers_on_default_check() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     fs::write(
         root.join("AGENTS.md"),
         "<!-- zdev:guidance:start -->\nRun cargo test.\n<!-- zdev:guidance:end -->\n",
@@ -3751,7 +3763,7 @@ fn recorded_agents_guidance_rechecks_markers_on_default_check() {
             "agents",
         ],
     );
-    let config = fs::read_to_string(root.join(".zd/config.toml")).expect("project config");
+    let config = fs::read_to_string(root.join(".zdev/config.toml")).expect("project config");
     assert!(config.contains("guidance = \"agents\""));
 
     fs::write(root.join("AGENTS.md"), "# Markers removed\n").expect("change agents guidance");
@@ -3768,6 +3780,7 @@ fn recorded_agents_guidance_rechecks_markers_on_default_check() {
 fn project_check_reports_missing_or_unmarked_guidance_separately() {
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     json_output(root, &["skill", "install", "codex", "--scope", "project"]);
 
     let missing = json_output_with_exit_code(
@@ -3821,7 +3834,7 @@ fn project_check_says_current_bundle_is_not_ready_when_guidance_is_missing() {
         ],
     );
 
-    let checked = zd(
+    let checked = run_zdev(
         root,
         &[
             "skill",
@@ -3840,7 +3853,7 @@ fn project_check_says_current_bundle_is_not_ready_when_guidance_is_missing() {
     assert!(text.contains("selected guidance is not ready"));
     assert!(!text.contains("integration is ready"));
     assert!(text.contains("guidance: AGENTS.md (missing)"));
-    assert!(text.contains("zd skill install codex --scope project --guidance agents --force"));
+    assert!(text.contains("zdev skill install codex --scope project --guidance agents --force"));
 }
 
 #[cfg(unix)]
@@ -3850,9 +3863,10 @@ fn custom_guidance_rejects_symlinks() {
 
     let repository = repository();
     let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
     fs::write(root.join("real.md"), "# Real\n").expect("real guidance");
     symlink(root.join("real.md"), root.join("linked.md")).expect("guidance symlink");
-    let output = zd(
+    let output = run_zdev(
         root,
         &[
             "skill",

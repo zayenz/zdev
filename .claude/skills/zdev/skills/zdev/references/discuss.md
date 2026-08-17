@@ -33,9 +33,9 @@ Use Claude Code's `AskUserQuestion` tool with multiple questions in one call. Gi
 After each round, update the relevant decisions, boundaries, terms, open
 questions, testing, or validation in `brief.md`. Record conclusions, not the
 conversation. Preserve useful text and remove settled questions. Run
-`zd check <area> --format json` after meaningful updates.
+`zdev check <area> --format json` after meaningful updates.
 
-If discussion suggests a project-document change outside `.zd`, show its scope
+If discussion suggests a project-document change outside `.zdev`, show its scope
 and wait for confirmation unless the user already requested that edit.
 
 ## Stop

@@ -16,8 +16,8 @@ expected_version=$2
 [ -x "$binary" ] || fail "binary is not executable: $binary"
 
 actual_version=$($binary --version)
-[ "$actual_version" = "zd $expected_version" ] ||
-    fail "expected zd $expected_version, found $actual_version"
+[ "$actual_version" = "zdev $expected_version" ] ||
+    fail "expected zdev $expected_version, found $actual_version"
 
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/zdev-release-smoke.XXXXXX")
 cleanup() {
@@ -35,9 +35,9 @@ git -C "$project" config user.name "Zdev Release Smoke"
 git -C "$project" config user.email "zdev@example.invalid"
 [ -z "$(git -C "$project" remote)" ] || fail "fixture unexpectedly has a Git remote"
 
-init_output=$($binary --root "$project" init)
+init_output=$($binary --root "$project" init --record project)
 printf '%s\n' "$init_output" |
-    grep -Fq 'zd skill check <codex|claude|opencode|pi|omp> --scope user' ||
+    grep -Fq 'zdev skill check <codex|claude|opencode|pi|omp> --scope user' ||
     fail "init output did not point to the integration check"
 trunk=$(git -C "$project" branch --show-current)
 $binary --root "$project" config trunk "$trunk"
@@ -46,7 +46,7 @@ printf '%s\n' \
     '' \
     'Use `cargo test --locked` for validation.' \
     'Do not use a remote repository or open a pull request.' \
-    >> "$project/.zd/guidance.md"
+    >> "$project/.zdev/guidance.md"
 $binary --root "$project" skill install codex --scope project --force
 $binary --root "$project" skill install claude --scope project
 $binary --root "$project" skill install opencode --scope project
@@ -60,7 +60,7 @@ $binary --root "$project" skill check opencode --scope project
 $binary --root "$project" skill check pi --scope project
 $binary --root "$project" skill check omp --scope project
 
-grep -Fq 'guidance = ".zd/guidance.md"' "$project/.zd/config.toml" ||
+grep -Fq 'guidance = ".zdev/guidance.md"' "$project/.zdev/config.toml" ||
     fail "project guidance selection was not persisted"
 grep -Fq 'Use `cargo test --locked` for validation.' \
     "$project/.codex/skills/zdev/SKILL.md" ||
@@ -106,10 +106,6 @@ grep -Fq 'tools: Read, Bash, Grep, Glob' \
 grep -Fq 'while (/^REWORK\b/.test(verdict))' \
     "$project/.claude/skills/zdev/workflows/zdev-task.js" ||
     fail "Claude task workflow lost its repeated rework loop"
-if grep -Fq 'Mechanical: yes' \
-    "$project/.claude/skills/zdev/workflows/zdev-task.js"; then
-    fail "Claude task workflow retained the obsolete mechanical verdict field"
-fi
 
 $binary --root "$project" area create smoke \
     --title "Release smoke" \
@@ -126,7 +122,7 @@ printf '%s\n' \
     '      "title": "Verify the standalone release",' \
     '      "blocked_by": [],' \
     '      "outcome": "The copied binary runs the lean task loop.",' \
-    '      "boundaries": ["Do not create obsolete run state."],' \
+    '      "boundaries": ["Keep release smoke state limited to this task."],' \
     '      "done_when": ["The task can be selected and completed."],' \
     '      "validation": ["Run the release smoke test."]' \
     '    }' \
@@ -142,19 +138,19 @@ $binary --root "$project" task done smoke smoke-001 \
     --summary "The standalone binary completed the lean task loop." \
     --validation "Release smoke test passed."
 
-git -C "$project" add .zd .codex .claude .opencode .pi .omp
+git -C "$project" add .zdev .codex .claude .opencode .pi .omp
 commit_output=$($binary --root "$project" commit -m "test: complete release smoke")
 printf '%s\n' "$commit_output" | grep -Eq '^Committed [0-9a-f]+ \(Z[0-9a-f]{64}\): test: complete release smoke$' ||
     fail "commit output did not report its commit and stable change ID"
 $binary --root "$project" change inspect HEAD
 $binary --root "$project" check smoke
 
-[ -f "$project/.zd/smoke/tasks/001-verify-the-standalone-release.md" ] ||
+[ -f "$project/.zdev/smoke/tasks/001-verify-the-standalone-release.md" ] ||
     fail "task file was not created"
 grep -Fq '## Boundaries' \
-    "$project/.zd/smoke/tasks/001-verify-the-standalone-release.md" ||
+    "$project/.zdev/smoke/tasks/001-verify-the-standalone-release.md" ||
     fail "task boundaries were not rendered"
-[ -f "$project/.zd/smoke/TASKS.md" ] || fail "task summary was not created"
+[ -f "$project/.zdev/smoke/TASKS.md" ] || fail "task summary was not created"
 [ -z "$(git -C "$project" remote)" ] || fail "zdev introduced a Git remote"
 
 printf 'release smoke passed: %s\n' "$actual_version"

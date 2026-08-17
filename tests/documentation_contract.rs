@@ -1,7 +1,7 @@
 const README: &str = include_str!("../README.md");
 const USER_GUIDE: &str = include_str!("../docs/user-guide.md");
 const WORKFLOW: &str = include_str!("../docs/workflow.md");
-const PROVENANCE: &str = include_str!("../docs/adapted-methods.md");
+const ADAPTED_METHODS: &str = include_str!("../docs/adapted-methods.md");
 
 fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -9,7 +9,7 @@ fn normalized(text: &str) -> String {
 
 #[test]
 fn user_docs_describe_observable_actions_without_chat_roles() {
-    let docs = [README, USER_GUIDE, WORKFLOW, PROVENANCE].join("\n");
+    let docs = [README, USER_GUIDE, WORKFLOW, ADAPTED_METHODS].join("\n");
     let lowercase = docs.to_lowercase();
 
     for internal_term in [
@@ -82,9 +82,9 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
         );
     }
 
-    let provenance = normalized(PROVENANCE);
-    assert!(provenance.contains("challenge independent branches breadth first"));
-    assert!(provenance.contains(
+    let adapted_methods = normalized(ADAPTED_METHODS);
+    assert!(adapted_methods.contains("challenge independent branches breadth first"));
+    assert!(adapted_methods.contains(
         "stops when no unresolved choice could materially change behavior, scope, task splitting, or validation"
     ));
 }

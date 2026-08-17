@@ -118,7 +118,7 @@ truth for shared conclusions. Task-specific details belong in the task file.
 
 Keep a large source corpus as individual files under
 `.zdev/<area>/background/`. Link them from the brief, and link only relevant
-sources from each task. Background documents provide detail and provenance;
+sources from each task. Background documents provide detail and source context;
 they do not override the brief or a task's outcome, boundaries, and done
 conditions.
 

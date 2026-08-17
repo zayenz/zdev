@@ -1,4 +1,4 @@
-# Method provenance
+# Adapted methods
 
 Zdev maps methods from external agent skills onto one storage model: an area
 brief, individual task files, a generated summary, and Git history. The method
@@ -35,10 +35,22 @@ The method mapping uses these pinned source revisions:
 - shadcn's Improve skill at
   [`03369ee6d7cafbfcecc4346539b05b3dc0a603bb`](https://github.com/shadcn/improve/tree/03369ee6d7cafbfcecc4346539b05b3dc0a603bb).
 
-These sources provide provenance, not runtime dependencies. Zdev does not load
-an installed upstream skill while following its own workflow. Changes to the
-mapping require explicit review against a pinned upstream revision.
+These links document the source material; they are not runtime dependencies.
+Zdev does not load an installed upstream skill while following its own workflow.
+Changes to the mapping require explicit review against a pinned upstream
+revision.
 
 Each adaptation is a self-contained zdev reference. It reports relevant next
 actions but does not call an upstream skill or silently invoke another zdev
 method.
+
+## Licensing and attribution
+
+The adapted source materials are MIT-licensed. The [Matt Pocock source
+license](https://github.com/mattpocock/skills/blob/d574778f94cf620fcc8ce741584093bc650a61d3/LICENSE)
+credits Matt Pocock. The [Improve license
+statement](https://github.com/shadcn/improve/blob/03369ee6d7cafbfcecc4346539b05b3dc0a603bb/README.md#license)
+identifies shadcn's skill as MIT © shadcn.
+
+Zdev does not load these upstream skills as runtime dependencies. Zdev's own
+code and documentation are covered by the [MIT license](../LICENSE).

@@ -16,6 +16,11 @@ durable state.
 Zdev is maintained as a personal tool in public. Releases target macOS and
 Linux on x86-64 and Arm64.
 
+> [!WARNING]
+> The whole zdev project is vibe-coded, in the sense that I have not spent much
+> time looking at the code. I have been using it a lot, and for my use cases it
+> has been useful.
+
 ## Install
 
 Versioned binaries are available from the
@@ -167,6 +172,25 @@ The skill does not replace the task record or make design decisions on behalf
 of the developer. It gives the harness a common route through the brief, task
 selection, implementation, verification, and completion steps that the binary
 records.
+
+## Adapted skills
+
+The zdev skill adapts methods from two upstream skill projects:
+
+- [Matt Pocock's skills](https://github.com/mattpocock/skills/tree/d574778f94cf620fcc8ce741584093bc650a61d3)
+  cover discussion, exploration, task decomposition, implementation, research,
+  diagnosis, review, and codebase design. The source is released under the
+  [MIT license](https://github.com/mattpocock/skills/blob/d574778f94cf620fcc8ce741584093bc650a61d3/LICENSE),
+  © Matt Pocock.
+- [shadcn's Improve skill](https://github.com/shadcn/improve/tree/03369ee6d7cafbfcecc4346539b05b3dc0a603bb)
+  informs the read-only codebase survey, audit, vetting, and prioritization
+  steps. Its [license statement](https://github.com/shadcn/improve/blob/03369ee6d7cafbfcecc4346539b05b3dc0a603bb/README.md#license)
+  identifies it as MIT © shadcn.
+
+The adaptations are self-contained references under `skills/zdev/`; zdev does
+not load the upstream skills at runtime. See the [adapted methods](docs/adapted-methods.md)
+for the source mapping and pinned revisions. Zdev's own code and documentation
+are covered by the [MIT license](LICENSE).
 
 ## Learn more
 

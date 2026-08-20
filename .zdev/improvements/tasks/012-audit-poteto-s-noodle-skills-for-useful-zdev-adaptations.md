@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-012"
 key = "poteto-skills-audit"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Audit Poteto's Noodle skills for useful zdev adaptations
@@ -24,12 +24,21 @@ Inspect the actual `.agents/skills` tree in `poteto/noodle` at one pinned commit
 
 ## Done when
 
-- [ ] The document pins the audited upstream commit and records its license.
-- [ ] Every skill present at that revision is classified adopt, adapt, or skip with concise rationale and relevant runtime assumptions.
-- [ ] The audit identifies overlap with existing zdev methods and avoids duplicate concepts under new names.
-- [ ] Any recommended follow-up names a concrete user benefit and narrow integration boundary; weak candidates remain skipped.
+- [x] The document pins the audited upstream commit and records its license.
+- [x] Every skill present at that revision is classified adopt, adapt, or skip with concise rationale and relevant runtime assumptions.
+- [x] The audit identifies overlap with existing zdev methods and avoids duplicate concepts under new names.
+- [x] Any recommended follow-up names a concrete user benefit and narrow integration boundary; weak candidates remain skipped.
 
 ## Validation
 
 - Verify the inventory and cited skill contents against the pinned GitHub revision.
 - Run `git diff --check`.
+
+## Result
+
+Audited all 29 skills in the pinned Noodle revision; retained the existing unslop adaptation and skipped 28 overlapping, domain-specific, or runtime-bound skills.
+
+Validation:
+
+- Independent verification matched all 29 upstream skills exactly once, confirmed rationales and zdev overlap, and verified MIT and nested Apache-2.0 licensing notes.
+- git diff --check

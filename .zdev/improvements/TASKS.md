@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 15
-- Ready: 3
+- Ready: 2
 - Blocked: 1
-- Done: 11
+- Done: 12
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -20,7 +20,7 @@
 | [improvements-009](tasks/009-realize-canonical-skill-templates-with-minijinja-during-inst.md) | Realize canonical skill templates with MiniJinja during installation | done | — |
 | [improvements-010](tasks/010-integrate-poteto-s-unslop-rules-into-shared-zdev-guidance.md) | Integrate Poteto's unslop rules into shared zdev guidance | done | improvements-009 |
 | [improvements-011](tasks/011-define-editable-worker-profile-recommendations.md) | Define editable worker-profile recommendations | done | — |
-| [improvements-012](tasks/012-audit-poteto-s-noodle-skills-for-useful-zdev-adaptations.md) | Audit Poteto's Noodle skills for useful zdev adaptations | ready | — |
+| [improvements-012](tasks/012-audit-poteto-s-noodle-skills-for-useful-zdev-adaptations.md) | Audit Poteto's Noodle skills for useful zdev adaptations | done | — |
 | [improvements-013](tasks/013-define-deterministic-goals-across-supported-harnesses.md) | Define deterministic goals across supported harnesses | ready | — |
 | [improvements-014](tasks/014-define-common-orchestration-across-supported-harnesses.md) | Define common orchestration across supported harnesses | blocked | improvements-011, improvements-013 |
 | [improvements-015](tasks/015-design-a-coherent-layered-config-command.md) | Design a coherent layered config command | ready | improvements-011 |

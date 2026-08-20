@@ -45,10 +45,12 @@ and supplies evidence appropriate to the risk of the change.
   maintain an evaluation framework.
 - Use one common zdev vocabulary for goals and orchestration, rendered into
   each harness's native mechanisms. Keep canonical skill and workflow sources
-  as unexpanded templates and realize them during installation.
-- Integrate focused external skills only when they improve zdev without
-  importing another tool's runtime assumptions. Poteto's `unslop` skill is the
-  first intended core addition; other Noodle skills require individual review.
+  as unexpanded Jinja templates and realize them with MiniJinja during
+  installation.
+- Integrate focused external guidance only when it improves zdev without
+  importing another tool's runtime assumptions. Adapt the contents of Poteto's
+  `unslop` skill into zdev's shared guidance rather than installing it as a
+  separate skill; other Noodle skills require individual review.
 
 ## Testing
 

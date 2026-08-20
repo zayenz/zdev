@@ -42,3 +42,16 @@ Then run `zdev skill install` only for integrations that need it.
 
 Confirm the selected record policy and installed integrations. Continue with
 the interaction that required durable state.
+
+When the user wants a standing home for one-off work, offer the conventional
+tag `general`. It uses the normal area command on an ordinary persistent branch:
+
+```sh
+zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks."
+```
+
+The user creates or switches to that branch before the command, just as for any
+other area. Zdev does not create or switch branches automatically. Keep the
+area's brief minimal and standing: record shared boundaries, the testing level,
+and validation that should apply across its work. Do not create `general`
+unless the user asks for durable one-off work.

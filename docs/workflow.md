@@ -155,6 +155,31 @@ Planning, audits, research, diagnosis, and prototypes are harness methods, not
 zdev state types. They refine the brief or propose tasks. Only reviewed,
 agent-ready implementation work enters the task queue.
 
+### General one-off work
+
+Use `general` as a conventional standing area when small, unrelated
+improvements do not justify a new area each time. It has no special metadata or
+lifecycle. Create or switch to its ordinary persistent branch, then use the
+existing command:
+
+```sh
+zdev area create general \
+  --title "General work" \
+  --objective "Keep concrete one-off improvements as reviewed tasks."
+```
+
+Keep its brief short and reusable: shared engineering boundaries, the agreed
+testing level, and repository validation. Put each one-off outcome, context,
+boundaries, done proof, and validation in its task. Unsliced tasks are the
+default; optional slices help only when several tasks share one narrower
+objective.
+
+Discussion may proceed directly to exact task-bundle review when the request
+settles the product and testing choices. This route skips unnecessary research
+or a new full brief. It still requires explicit bundle approval, safe branch
+state, proportionate testing, independent verification, recorded completion,
+and a commit. Zdev never creates or switches the `general` branch.
+
 Zdev must be active before intent routing. A `zdev` or `$zdev` cue, a
 request to work through an existing `.zdev` area, or an unmistakable reference to
 stored zdev work activates it; the mere presence of `.zdev` does not. Generic

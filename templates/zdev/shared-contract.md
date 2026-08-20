@@ -39,6 +39,18 @@ authoritative for shared decisions and testing.
 The brief and selected task define the outcome, boundaries, testing level, and
 done conditions throughout this process.
 
+Use `general` as the conventional tag for recurring one-off work when the user
+wants one standing area instead of a new area for each small improvement. It is
+an ordinary area on an ordinary persistent branch, with a minimal brief that
+keeps shared boundaries, testing, and validation. Unsliced tasks are normal;
+use slice briefs only when several tasks share one narrower objective.
+
+When discussion leaves no unresolved product or testing choice, an explicit
+request may proceed directly to **Create tasks** and exact task-bundle review.
+This shorter planning path still requires concrete outcomes, boundaries, done
+proof, approval, branch safety, proportionate testing, independent
+verification, and committed accepted work.
+
 1. Confirm `zdev` is available.
 2. Choose the direct interaction before creating state. When the repository has
    no `.zdev` directory, run standalone **Improve** and **Investigate** without

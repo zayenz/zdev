@@ -141,6 +141,54 @@ its ready, blocked, and done counts from those tasks, including zeros for an
 empty slice. Unsliced tasks remain valid and count only in area totals. Task
 selection reports the slice brief to read after the authoritative area brief.
 
+### Keep one-off work in a general area
+
+If you often have small, unrelated improvements, keep them in an ordinary area
+with the conventional tag `general`. Create its persistent branch yourself,
+then create the area with the existing command:
+
+```sh
+git switch -c general
+zdev area create general \
+  --title "General work" \
+  --objective "Keep concrete one-off improvements as reviewed tasks."
+```
+
+Maintain a short standing `brief.md` with the shared engineering boundaries,
+testing level, and validation commands. Each one-off task still needs its own
+useful outcome, context, boundaries, done proof, and validation. Most remain
+unsliced; add a slice only when several related tasks need one shared objective.
+
+For example:
+
+```markdown
+# General work
+
+## Objective
+
+Keep concrete one-off improvements as reviewed tasks.
+
+## Boundaries
+
+- Give every task a useful outcome, clear scope, and observable done proof.
+- Preserve compatibility unless an approved task says otherwise.
+
+## Testing
+
+Focused coverage. Match test work to the behavior or risk in each task.
+
+## Validation
+
+- Run the repository's standard validation before completion.
+```
+
+You can ask the harness to discuss a concrete one-off request and draft its task
+bundle in the same interaction. When no product or testing choice remains, it
+may proceed directly to the exact bundle review without a separate research or
+full-brief pass. You still approve that exact bundle, work on the recorded
+branch, run proportionate tests, verify independently, complete the task, and
+commit the accepted changes. Zdev does not create or switch the branch for you.
+
 ## 5. Explore and discuss the objective
 
 Zdev is the top-level trigger for its harness workflow. Mention `zdev`,

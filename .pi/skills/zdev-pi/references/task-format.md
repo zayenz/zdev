@@ -18,6 +18,21 @@ trustworthy base boundary.
 Task dependencies never cross areas. Use an area parent for branch ancestry
 and `blocked_by` for task sequencing within one area.
 
+## General area convention
+
+`general` is the conventional tag for recurring one-off work. It is an ordinary
+area, not an area kind: create or switch to its persistent branch, then run:
+
+```sh
+zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks."
+```
+
+Keep `brief.md` minimal and reusable. It records shared engineering boundaries,
+the testing level, and validation; each task records its own concrete outcome,
+context, boundaries, done proof, and validation. Unsliced tasks are normal.
+Slices remain optional for groups of related tasks. All ordinary task review,
+approval, branch, verification, completion, and commit rules still apply.
+
 ## Slice briefs
 
 Larger areas may keep lightweight slice briefs under

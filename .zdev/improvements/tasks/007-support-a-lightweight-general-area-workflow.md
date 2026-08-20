@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-007"
 key = "general-area-workflow"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Support a lightweight general-area workflow
@@ -24,12 +24,26 @@ The general area should preserve the existing area and branch model. Treat the t
 
 ## Done when
 
-- [ ] Canonical zdev instructions recognize `general` as the conventional home for discussed one-off work and explain how to create its ordinary area and standing brief.
-- [ ] The workflow can proceed from discussion to exact task-bundle review without requiring a separate research interaction when no unresolved product choice remains.
-- [ ] User documentation distinguishes the lighter planning path from reduced engineering or verification standards.
-- [ ] Checked-in harness integrations match their canonical generated sources.
+- [x] Canonical zdev instructions recognize `general` as the conventional home for discussed one-off work and explain how to create its ordinary area and standing brief.
+- [x] The workflow can proceed from discussion to exact task-bundle review without requiring a separate research interaction when no unresolved product choice remains.
+- [x] User documentation distinguishes the lighter planning path from reduced engineering or verification standards.
+- [x] Checked-in harness integrations match their canonical generated sources.
 
 ## Validation
 
 - Run `cargo test --locked --test lean checked_in_harness_skills_match_current_templates`.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Documented general as a lightweight ordinary-area convention for one-off tasks and optional slices without reducing engineering standards.
+
+Validation:
+
+- Independent verification confirmed the planning shortcut preserves approval, testing, branch safety, verification, and commit requirements.
+- cargo test --locked --test lean checked_in_harness_skills_match_current_templates (1 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (73 passed)
+- cargo build --locked
+- git diff --check

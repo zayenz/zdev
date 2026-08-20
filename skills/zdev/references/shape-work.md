@@ -39,6 +39,12 @@ repository's convention. Unless the user already requested those changes,
 show their scope and wait for confirmation before writing outside `.zdev`. Link
 approved project records from the brief instead of copying them.
 
+For the conventional `general` area, preserve a standing brief instead of
+turning each one-off request into a new area objective. Put shared engineering
+boundaries, testing, and validation in that brief. Keep one-off outcomes and
+proof in their tasks; use an optional slice only when several tasks share a
+narrower objective.
+
 For a large source corpus, keep readable source files under
 `.zdev/<area>/background/` and add a brief index that names the question each
 source informs. Link to canonical repository sources instead of copying them.
@@ -60,6 +66,10 @@ testing level, settled decisions, and remaining material questions. Recommend
 one next interaction when the result points clearly to it, then stop unless the
 user already requested more work. A sharp brief may proceed directly to
 **Create tasks**; **Discuss the brief** remains optional.
+
+General one-off work does not require a separate Explore or Investigate pass
+when the standing brief applies and discussion or the request already settles
+the task's product and testing choices.
 
 Most areas remain independent branches based on trunk. When a new area builds
 on another in-progress area, create its branch from the parent branch, create

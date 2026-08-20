@@ -35,6 +35,12 @@ questions, testing, or validation in `brief.md`. Record conclusions, not the
 conversation. Preserve useful text and remove settled questions. Run
 `zdev check <area> --format json` after meaningful updates.
 
+For the conventional `general` area, keep its standing brief focused on shared
+rules. Carry one-off conclusions into the proposed task's context, outcome,
+boundaries, done proof, and validation. Update the area brief only when a
+standing rule changes. An optional slice brief may hold narrower shared context
+for several related tasks.
+
 If discussion suggests a project-document change outside `.zdev`, show its scope
 and wait for confirmation unless the user already requested that edit.
 
@@ -42,7 +48,10 @@ and wait for confirmation unless the user already requested that edit.
 
 Stop when no unresolved choice would materially change the objective or task
 split. Low-impact implementation details may remain for individual tasks.
-Summarize the resulting brief and any remaining non-blocking details.
+Summarize the resulting brief and any remaining non-blocking details. When the
+user explicitly requested task creation and no material product or testing
+choice remains, continue directly with **Create tasks** and show the exact
+rendered task bundle for approval; no separate research interaction is needed.
 
 Recommend one next interaction when the result points clearly to it. Then stop
 unless the user already requested more work. Import tasks only after the user

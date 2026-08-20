@@ -17,6 +17,13 @@ The user may skip it when the brief is already sharp. Require the brief's
 design or testing choice remains unresolved, stop and recommend **Discuss the
 brief** or **Explore an objective** instead of making the choice here.
 
+The conventional `general` area may use a standing minimal brief for unrelated
+one-off work. When that brief supplies shared engineering rules and the current
+request or discussion settles the one-off product and testing choices, draft
+the exact task bundle directly; do not require a separate research or Explore
+interaction. Keep an unsliced one-off task unsliced. Create or use a slice only
+when several tasks benefit from one narrower objective and shared boundaries.
+
 ## Draft tracer-bullet tasks
 
 Each task should:
@@ -27,6 +34,12 @@ Each task should:
 - state one outcome, useful task context, task-specific boundaries, observable
   done conditions, and useful validation; and
 - depend only on tasks that genuinely prevent it from starting.
+
+The general-area fast path changes planning depth, not task quality. Every task
+still needs a useful outcome, explicit boundaries, observable done proof,
+proportionate testing and validation, exact bundle review and approval, safe
+branch state, independent implementation verification, completion evidence,
+and a commit.
 
 For each newly drafted implementation task, write concise `Context` that tells
 a fresh implementer why the slice exists, how it connects to current repository

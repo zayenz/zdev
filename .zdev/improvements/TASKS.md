@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 14
-- Ready: 6
+- Ready: 5
 - Blocked: 2
-- Done: 6
+- Done: 7
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -15,7 +15,7 @@
 | [improvements-004](tasks/004-make-base-staleness-advisory-during-ordinary-task-work.md) | Make base staleness advisory during ordinary task work | done | — |
 | [improvements-005](tasks/005-add-lightweight-slice-briefs-to-areas.md) | Add lightweight slice briefs to areas | done | — |
 | [improvements-006](tasks/006-associate-tasks-with-slices-and-derive-slice-progress.md) | Associate tasks with slices and derive slice progress | done | improvements-005 |
-| [improvements-007](tasks/007-support-a-lightweight-general-area-workflow.md) | Support a lightweight general-area workflow | ready | — |
+| [improvements-007](tasks/007-support-a-lightweight-general-area-workflow.md) | Support a lightweight general-area workflow | done | — |
 | [improvements-008](tasks/008-select-any-ready-task-across-areas-explicitly.md) | Select any ready task across areas explicitly | ready | improvements-004 |
 | [improvements-009](tasks/009-realize-canonical-skill-templates-with-minijinja-during-inst.md) | Realize canonical skill templates with MiniJinja during installation | ready | — |
 | [improvements-010](tasks/010-integrate-poteto-s-unslop-rules-into-shared-zdev-guidance.md) | Integrate Poteto's unslop rules into shared zdev guidance | blocked | improvements-009 |

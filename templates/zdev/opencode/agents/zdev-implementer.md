@@ -4,6 +4,9 @@ mode: subagent
 permission:
   edit: allow
   task: deny
+{% if implementer_has_model %}model: {{ implementer_model }}
+{% endif %}{% if implementer_has_effort %}reasoningEffort: {{ implementer_effort }}
+{% endif -%}
 ---
 
 Implement exactly one selected zdev task. Read the brief, task, repository

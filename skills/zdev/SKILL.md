@@ -127,6 +127,11 @@ verify it. The coordinating agent owns zdev state, user decisions, task
 completion, and commits. Give each agent the rendered repository guidance and
 applicable `AGENTS.md` instructions.
 
+For the implementer, pass `model="gpt-5.6-sol"` and
+`reasoning_effort="high"` to the spawned agent.
+For the verifier, pass `model="gpt-5.6-sol"` and
+`reasoning_effort="high"` to the spawned agent.
+
 For longer work, use a Codex goal only when the user explicitly requests one.
 
 <!-- zdev:generated-repository-guidance:start -->

@@ -142,10 +142,12 @@ substitution.
 ## Editable override contract
 
 An optional repository file, `.zdev/workers.toml`, overrides the dated
-suggestions for project-scoped integration installation. User-scoped
-installations have no repository context and therefore use the built-in
-suggestions. The file is deliberately separate from `.zdev/config.toml`, whose
-schema describes project and branch state rather than harness preferences.
+suggestions for project-scoped integration installation. A global
+`zdev/workers.toml` under the absolute configuration home supplies user
+preferences and the fallback for projects without a local row. The worker file
+is deliberately separate from `.zdev/config.toml`, whose schema describes
+project and branch state rather than harness preferences. The exact global path
+rules are in [Layered zdev configuration](config-command.md).
 
 ```toml
 schema_version = 1
@@ -172,8 +174,9 @@ sets the model but omits an effort control.
 Resolution is per harness and role:
 
 1. A table in `.zdev/workers.toml` wins.
-2. Otherwise zdev uses the dated built-in suggestion above.
-3. If the selected row says `inherit`, or zdev cannot express a built-in field
+2. Otherwise a table in the global worker file wins.
+3. Otherwise zdev uses the dated built-in suggestion above.
+4. If the selected row says `inherit`, or zdev cannot express a built-in field
    in that harness, the generated integration omits that field and lets the
    harness inherit its native value.
 
@@ -201,8 +204,9 @@ table above records a gap.
 
 Keep the implementation inside integration generation:
 
-1. Add one strict data type and parser for the optional worker file. Resolve
-   two complete role profiles for the requested harness before rendering.
+1. Add one strict data type and parser for the optional local and global worker
+   files. Resolve two complete role profiles for the requested harness before
+   rendering.
 2. Pass those resolved values into the existing canonical integration
    templates. Claude Code, OpenCode, and Oh My Pi write native agent metadata;
    Pi adds model and thinking arguments in its existing subagent extension;
@@ -221,7 +225,8 @@ An implementation task is complete when:
   OpenCode verifier's omitted effort;
 - every harness realizes the requested model and effort through its documented
   native control, and `inherit` omits both controls;
-- repository overrides win over defaults for project-scoped install and check;
+- repository overrides win over global profiles and defaults for project-scoped
+  install and check, while user scope uses global profiles before defaults;
 - invalid or explicitly unsupported configuration fails before any destination
   changes, with a useful location and value;
 - install and check render identical deterministic bytes from the same inputs;

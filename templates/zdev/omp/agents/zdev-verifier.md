@@ -3,6 +3,9 @@ name: zdev-verifier
 description: Independently verify one zdev task against its requirements, uncommitted diff, and repository standards
 tools: read, grep, bash
 blocking: true
+{% if verifier_has_model %}model: {{ verifier_model }}
+{% endif %}{% if verifier_has_effort %}thinking-level: {{ verifier_effort }}
+{% endif -%}
 ---
 
 Verify one task from the current checkout. Read the brief, task, repository

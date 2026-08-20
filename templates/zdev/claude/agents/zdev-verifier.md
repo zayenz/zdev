@@ -2,7 +2,9 @@
 name: zdev-verifier
 description: Independently verify one zdev task against its requirements, uncommitted diff, and repository standards.
 tools: Read, Bash, Grep, Glob
-model: inherit
+{% if verifier_has_model %}model: {{ verifier_model }}
+{% endif %}{% if verifier_has_effort %}effort: {{ verifier_effort }}
+{% endif -%}
 ---
 
 Verify one task from the current checkout. Read the brief, task, repository

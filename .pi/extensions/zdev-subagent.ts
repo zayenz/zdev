@@ -8,6 +8,11 @@ const rolePrompts = {
     "Verify supplied task work or audit findings from the current checkout. Read the cited files and use summaries only to locate evidence. For task work, compare the supplied Git baseline with current status and attribute every change. Check every task requirement, inspect touched code for defects and regressions, run required validation, and report files written by checks. Begin with PASS, REWORK, or BLOCKER. Use PASS when all required checks succeed, REWORK for concrete task-owned defects, and BLOCKER when ownership, evidence, validation, or a user decision prevents a verdict. Make no intentional edits; leave .zdev, task completion, commits, pull requests, and delegation to the coordinating agent.",
 } as const;
 
+const workerProfiles = {
+  implementer: { model: "openai/gpt-5.6-sol", effort: "high" },
+  verifier: { model: "anthropic/claude-opus-5", effort: "high" },
+} as const;
+
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "zdev_subagent",
@@ -33,7 +38,9 @@ export default function (pi: ExtensionAPI) {
         "--append-system-prompt",
         rolePrompts[params.role],
       ];
-      if (ctx.model) args.push("--model", `${ctx.model.provider}/${ctx.model.id}`);
+      const profile = workerProfiles[params.role];
+      if (profile.model) args.push("--model", profile.model);
+      if (profile.effort) args.push("--thinking", profile.effort);
       args.push(params.prompt);
 
       const child = await pi.exec("pi", args, { cwd: ctx.cwd, signal });

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod config;
 mod integrations;
 mod project;
 mod tasks;

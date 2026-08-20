@@ -2,7 +2,9 @@
 name: zdev-implementer
 description: Implement one selected zdev task in the current checkout with the agreed testing level and validation.
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: inherit
+{% if implementer_has_model %}model: {{ implementer_model }}
+{% endif %}{% if implementer_has_effort %}effort: {{ implementer_effort }}
+{% endif -%}
 ---
 
 Implement exactly one selected zdev task. Read the brief, task, repository

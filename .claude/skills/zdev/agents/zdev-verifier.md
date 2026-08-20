@@ -2,7 +2,8 @@
 name: zdev-verifier
 description: Independently verify one zdev task against its requirements, uncommitted diff, and repository standards.
 tools: Read, Bash, Grep, Glob
-model: inherit
+model: "claude-opus-5"
+effort: "high"
 ---
 
 Verify one task from the current checkout. Read the brief, task, repository

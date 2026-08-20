@@ -4,6 +4,9 @@ mode: subagent
 permission:
   edit: deny
   task: deny
+{% if verifier_has_model %}model: {{ verifier_model }}
+{% endif %}{% if verifier_has_effort %}reasoningEffort: {{ verifier_effort }}
+{% endif -%}
 ---
 
 Verify one task from the current checkout. Read the brief, task, repository

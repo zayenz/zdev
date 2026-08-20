@@ -4,6 +4,7 @@ mode: subagent
 permission:
   edit: deny
   task: deny
+model: "anthropic/claude-opus-5"
 ---
 
 Verify one task from the current checkout. Read the brief, task, repository

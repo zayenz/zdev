@@ -2861,6 +2861,8 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
         );
         (path, bytes)
     });
+    let config_home = root.join("empty-worker-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
 
     for (harness, checked_in_root) in [
         ("codex", Some("skills/zdev")),
@@ -2870,7 +2872,7 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
         ("omp", None),
     ] {
         let destination = root.join(format!("checked-in-{harness}"));
-        json_output(
+        json_output_with_env(
             root,
             &[
                 "skill",
@@ -2879,9 +2881,10 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                 "--to",
                 destination.to_str().expect("integration destination"),
             ],
+            &environment,
         );
         let second = root.join(format!("deterministic-{harness}"));
-        json_output(
+        json_output_with_env(
             root,
             &[
                 "skill",
@@ -2890,6 +2893,7 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                 "--to",
                 second.to_str().expect("second integration destination"),
             ],
+            &environment,
         );
         let inventory = file_inventory(&destination);
         assert_eq!(inventory, file_inventory(&second));
@@ -2936,6 +2940,52 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
             prose_guidance_occurrences, 1,
             "{harness} must contain the shared prose guidance exactly once"
         );
+        match harness {
+            "codex" => {
+                let skill = fs::read_to_string(destination.join("SKILL.md")).expect("Codex skill");
+                assert!(skill.contains("`model=\"gpt-5.6-sol\"`"));
+                assert!(skill.contains("`reasoning_effort=\"high\"`"));
+            }
+            "claude" => {
+                let implementer =
+                    fs::read_to_string(destination.join("agents/zdev-implementer.md"))
+                        .expect("Claude implementer");
+                assert!(implementer.contains("model: \"claude-opus-5\""));
+                assert!(implementer.contains("effort: \"high\""));
+            }
+            "opencode" => {
+                let implementer =
+                    fs::read_to_string(destination.join("agents/zdev-implementer.md"))
+                        .expect("OpenCode implementer");
+                assert!(implementer.contains("model: \"openai/gpt-5.6-sol\""));
+                assert!(implementer.contains("reasoningEffort: \"high\""));
+                let verifier = fs::read_to_string(destination.join("agents/zdev-verifier.md"))
+                    .expect("OpenCode verifier");
+                assert!(verifier.contains("model: \"anthropic/claude-opus-5\""));
+                assert!(!verifier.contains("reasoningEffort:"));
+            }
+            "pi" => {
+                let extension = fs::read_to_string(destination.join("extensions/zdev-subagent.ts"))
+                    .expect("Pi extension");
+                assert!(
+                    extension.contains(
+                        "implementer: { model: \"openai/gpt-5.6-sol\", effort: \"high\" }"
+                    )
+                );
+                assert!(extension.contains(
+                    "verifier: { model: \"anthropic/claude-opus-5\", effort: \"high\" }"
+                ));
+                assert!(extension.contains("args.push(\"--model\", profile.model)"));
+                assert!(extension.contains("args.push(\"--thinking\", profile.effort)"));
+            }
+            "omp" => {
+                let verifier = fs::read_to_string(destination.join("agents/zdev-verifier.md"))
+                    .expect("Oh My Pi verifier");
+                assert!(verifier.contains("model: \"anthropic/claude-opus-5\""));
+                assert!(verifier.contains("thinking-level: \"high\""));
+            }
+            _ => unreachable!(),
+        }
     }
 
     for (path, bytes) in canonical {
@@ -2944,6 +2994,213 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
             bytes,
             "realization changed canonical source {path}"
         );
+    }
+}
+
+#[test]
+fn worker_profiles_use_whole_profile_layering_and_native_inheritance() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    let config_home = root.join("worker-config");
+    let global_path = config_home.join("zdev/workers.toml");
+    fs::create_dir_all(global_path.parent().expect("global worker parent"))
+        .expect("global worker directory");
+    fs::write(
+        &global_path,
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-global\"\neffort = \"medium\"\n\n[claude.verifier]\ninherit = true\n",
+    )
+    .expect("global workers");
+    fs::write(
+        root.join(".zdev/workers.toml"),
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-local\"\neffort = \"xhigh\"\n",
+    )
+    .expect("local workers");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    let codex_destination = root.join("layered-codex");
+    let installed = json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "codex",
+            "--scope",
+            "project",
+            "--to",
+            codex_destination.to_str().expect("Codex destination"),
+        ],
+        &environment,
+    );
+    assert_eq!(
+        installed["workers"]["implementer"]["origin"]["scope"],
+        "local"
+    );
+    assert_eq!(
+        installed["workers"]["verifier"]["origin"]["scope"],
+        "default"
+    );
+    let skill = fs::read_to_string(codex_destination.join("SKILL.md")).expect("Codex skill");
+    assert!(skill.contains("`model=\"gpt-local\"`"));
+    assert!(skill.contains("`reasoning_effort=\"xhigh\"`"));
+    assert!(!skill.contains("gpt-global"));
+    assert_eq!(
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "check",
+                "codex",
+                "--scope",
+                "project",
+                "--to",
+                codex_destination.to_str().expect("Codex destination"),
+            ],
+            &environment,
+        )["status"],
+        "ok"
+    );
+
+    let claude_destination = root.join("inherited-claude");
+    let claude = json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "claude",
+            "--to",
+            claude_destination.to_str().expect("Claude destination"),
+        ],
+        &environment,
+    );
+    assert_eq!(
+        claude["workers"]["verifier"]["origin"]["path"],
+        global_path.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        claude["workers"]["verifier"]["value"],
+        json!({"inherit": true})
+    );
+    let implementer = fs::read_to_string(claude_destination.join("agents/zdev-implementer.md"))
+        .expect("Claude implementer");
+    assert!(implementer.contains("model: \"claude-opus-5\""));
+    let verifier = fs::read_to_string(claude_destination.join("agents/zdev-verifier.md"))
+        .expect("Claude verifier");
+    let frontmatter = verifier.split("---").nth(1).expect("verifier frontmatter");
+    assert!(!frontmatter.contains("model:"));
+    assert!(!frontmatter.contains("effort:"));
+}
+
+#[test]
+fn worker_profile_files_reject_strict_schema_errors_with_the_source_path() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    let config_home = root.join("empty-worker-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    let path = root.join(".zdev/workers.toml");
+
+    for (source, expected) in [
+        ("schema_version = 2\n", "schema_version 2"),
+        (
+            "schema_version = 1\n[other.implementer]\ninherit = true\n",
+            "unknown field `other`",
+        ),
+        (
+            "schema_version = 1\n[codex.reviewer]\ninherit = true\n",
+            "unknown field `reviewer`",
+        ),
+        (
+            "schema_version = 1\n[codex.implementer]\nmodel = \"gpt\"\neffort = \"high\"\ntemperature = 1\n",
+            "unknown field `temperature`",
+        ),
+        (
+            "schema_version = 1\n[codex.implementer]\nmodel = \"gpt\"\neffort = \"ultra\"\n",
+            "unknown variant `ultra`",
+        ),
+        (
+            "schema_version = 1\n[codex.implementer]\nmodel = \" \"\neffort = \"high\"\n",
+            "model must not be empty",
+        ),
+        (
+            "schema_version = 1\n[codex.implementer]\ninherit = true\nmodel = \"gpt\"\n",
+            "inherit must be true and cannot be combined",
+        ),
+    ] {
+        fs::write(&path, source).expect("invalid worker file");
+        let output = run_zdev_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                "codex",
+                "--scope",
+                "project",
+                "--to",
+                root.join("strict-worker-destination")
+                    .to_str()
+                    .expect("destination"),
+            ],
+            &environment,
+        );
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains(".zdev/workers.toml"),
+            "missing path: {error}"
+        );
+        assert!(error.contains(expected), "missing {expected:?}: {error}");
+    }
+}
+
+#[test]
+fn unsupported_worker_adapter_config_preserves_an_installed_destination() {
+    let repository = repository();
+    let root = repository.path();
+    let config_home = root.join("worker-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    let destination = root.join("preserved-opencode");
+    json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "opencode",
+            "--to",
+            destination.to_str().expect("destination"),
+        ],
+        &environment,
+    );
+    let managed = destination.join("agents/zdev-implementer.md");
+    let before = fs::read(&managed).expect("installed implementer");
+    let global_path = config_home.join("zdev/workers.toml");
+    fs::create_dir_all(global_path.parent().expect("worker config parent"))
+        .expect("worker config directory");
+    fs::write(
+        &global_path,
+        "schema_version = 1\n\n[opencode.implementer]\nmodel = \"anthropic/custom\"\neffort = \"high\"\n",
+    )
+    .expect("unsupported worker config");
+
+    for command in ["install", "check"] {
+        let mut arguments = vec![
+            "skill",
+            command,
+            "opencode",
+            "--to",
+            destination.to_str().expect("destination"),
+        ];
+        if command == "install" {
+            arguments.push("--force");
+        }
+        let output = run_zdev_with_env(root, &arguments, &environment);
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(error.contains(global_path.to_string_lossy().as_ref()));
+        assert!(error.contains("[opencode.implementer]"));
+        assert!(error.contains("\"high\""));
+        assert!(error.contains("\"anthropic/custom\""));
+        assert_eq!(fs::read(&managed).expect("preserved implementer"), before);
     }
 }
 
@@ -3251,7 +3508,9 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         "--no-session",
         "--no-extensions",
         "--append-system-prompt",
-        "ctx.model.provider",
+        "const workerProfiles",
+        "args.push(\"--model\", profile.model)",
+        "args.push(\"--thinking\", profile.effort)",
         "pi.exec(\"pi\"",
     ] {
         assert!(extension.contains(expected), "missing {expected}");
@@ -3764,6 +4023,63 @@ fn project_integration_install_requires_an_initialized_record() {
     assert!(error.contains("zdev init --record <personal|project|pull-request>"));
     assert!(!root.join(".codex/skills/zdev").exists());
     assert!(!root.join(".zdev").exists());
+}
+
+#[test]
+fn project_integration_check_requires_an_initialized_record() {
+    let repository = repository();
+    let root = repository.path();
+
+    let output = run_zdev(
+        root,
+        &[
+            "skill",
+            "check",
+            "codex",
+            "--scope",
+            "project",
+            "--guidance",
+            "auto",
+            "--format",
+            "json",
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(2));
+    let error: Value = serde_json::from_slice(&output.stderr).expect("JSON error");
+    assert_eq!(error["command"], "skill");
+    assert_eq!(error["ok"], false);
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("error message")
+            .contains("zdev init --record <personal|project|pull-request>")
+    );
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("error message")
+            .contains(".zdev/config.toml")
+    );
+    assert!(!root.join(".zdev").exists());
+    assert!(!root.join(".codex").exists());
+
+    json_output(root, &["init", "--record", "project"]);
+    let missing = json_output_with_exit_code(
+        root,
+        &[
+            "skill",
+            "check",
+            "codex",
+            "--scope",
+            "project",
+            "--guidance",
+            "auto",
+        ],
+        1,
+    );
+    assert_eq!(missing["status"], "missing");
+    assert_eq!(missing["bundle"]["status"], "missing");
 }
 
 #[test]
@@ -4303,6 +4619,7 @@ fn project_check_says_current_bundle_is_not_ready_when_guidance_is_missing() {
     let repository = repository();
     let root = repository.path();
     let destination = root.join(".codex/skills/zdev");
+    json_output(root, &["init", "--record", "project"]);
     json_output(
         root,
         &[

@@ -4,6 +4,8 @@ mode: subagent
 permission:
   edit: allow
   task: deny
+model: "openai/gpt-5.6-sol"
+reasoningEffort: "high"
 ---
 
 Implement exactly one selected zdev task. Read the brief, task, repository

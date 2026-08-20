@@ -8,6 +8,9 @@ use clap::{Subcommand, ValueEnum};
 use minijinja::{AutoEscape, Environment, UndefinedBehavior, context};
 use serde_json::{Value, json};
 
+#[cfg(test)]
+use super::config::built_in_worker_profiles;
+use super::config::{ResolvedWorkers, WorkerHarness, resolve_worker_profiles};
 use super::project::{read_config, write_config};
 use super::{CommandOutput, SCHEMA_VERSION, ZdevError, relative, resolve_root, write_atomic};
 
@@ -93,6 +96,16 @@ pub(super) enum Harness {
     Omp,
 }
 impl Harness {
+    fn worker_harness(self) -> WorkerHarness {
+        match self {
+            Self::Codex => WorkerHarness::Codex,
+            Self::Claude => WorkerHarness::Claude,
+            Self::Opencode => WorkerHarness::Opencode,
+            Self::Pi => WorkerHarness::Pi,
+            Self::Omp => WorkerHarness::Omp,
+        }
+    }
+
     fn as_str(self) -> &'static str {
         match self {
             Self::Codex => "codex",
@@ -133,7 +146,11 @@ impl Harness {
         }
     }
 
-    fn integration(self, guidance: Option<(&str, &str)>) -> Result<SkillIntegration, ZdevError> {
+    fn integration(
+        self,
+        guidance: Option<(&str, &str)>,
+        workers: ResolvedWorkers,
+    ) -> Result<SkillIntegration, ZdevError> {
         let mut files = Vec::new();
         match self {
             Self::Codex => {
@@ -265,7 +282,7 @@ impl Harness {
                 ]);
             }
         }
-        realize_templates(self, guidance, &mut files)?;
+        realize_templates(self, guidance, &workers, &mut files)?;
         Ok(SkillIntegration {
             harness: self,
             version: env!("CARGO_PKG_VERSION"),
@@ -275,6 +292,7 @@ impl Harness {
                 IntegrationLayout::ExactTree
             },
             files,
+            workers,
         })
     }
 }
@@ -297,14 +315,15 @@ fn template_environment() -> Environment<'static> {
 }
 
 fn render_template(
-    environment: &Environment<'_>,
     name: &str,
     source: &str,
     shared_contract: &str,
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
+    workers: &ResolvedWorkers,
 ) -> Result<String, ZdevError> {
+    let environment = template_environment();
     let template = environment
         .template_from_named_str(name, source)
         .map_err(|error| {
@@ -318,6 +337,14 @@ fn render_template(
             repository_guidance,
             question_tool_guidance,
             version,
+            implementer_has_model => workers.implementer.has_model(),
+            implementer_has_effort => workers.implementer.has_effort(),
+            implementer_model => workers.implementer.model_literal(),
+            implementer_effort => workers.implementer.effort_literal(),
+            verifier_has_model => workers.verifier.has_model(),
+            verifier_has_effort => workers.verifier.has_effort(),
+            verifier_model => workers.verifier.model_literal(),
+            verifier_effort => workers.verifier.effort_literal(),
         })
         .map_err(|error| {
             ZdevError::new(format!(
@@ -345,19 +372,19 @@ fn prepare_template_value(path: &str, value: &str) -> Result<String, ZdevError> 
 fn realize_templates(
     harness: Harness,
     guidance: Option<(&str, &str)>,
+    workers: &ResolvedWorkers,
     files: &mut [IntegrationFile],
 ) -> Result<(), ZdevError> {
-    let environment = template_environment();
     let repository_guidance = repository_guidance(guidance);
     let version = env!("CARGO_PKG_VERSION");
     let shared_contract = render_template(
-        &environment,
         "shared-contract.md",
         SHARED_CONTRACT_TEMPLATE,
         "",
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
+        workers,
     )?;
 
     for file in files {
@@ -368,13 +395,13 @@ fn realize_templates(
             prepare_template_value(&file.path, harness.question_tool_guidance())?;
         let version = prepare_template_value(&file.path, version)?;
         file.content = render_template(
-            &environment,
             &file.path,
             &file.content,
             &shared_contract,
             &repository_guidance,
             &question_tool_guidance,
             &version,
+            workers,
         )?;
         if is_json {
             serde_json::from_str::<Value>(&file.content).map_err(|error| {
@@ -453,6 +480,7 @@ struct SkillIntegration {
     version: &'static str,
     layout: IntegrationLayout,
     files: Vec<IntegrationFile>,
+    workers: ResolvedWorkers,
 }
 
 #[derive(Clone, Copy)]
@@ -532,6 +560,14 @@ pub(super) fn run_skill_command(
     } else {
         None
     };
+    if let Some(root) = project_root.as_deref() {
+        read_config(root).map_err(|error| {
+            ZdevError::new(format!(
+                "Initialize zdev with `zdev init --record <personal|project|pull-request>` before using a project integration: {error}"
+            ))
+        })?;
+    }
+    let workers = resolve_worker_profiles(project_root.as_deref(), harness.worker_harness())?;
     let destination =
         resolve_integration_destination(harness, scope, requested, project_root.as_deref())?;
     let warnings = integration_warnings(harness, scope, requested);
@@ -545,13 +581,6 @@ pub(super) fn run_skill_command(
     };
     match command {
         SkillCommand::Install { force, .. } => {
-            if let Some(root) = project_root.as_deref() {
-                read_config(root).map_err(|error| {
-                    ZdevError::new(format!(
-                        "Initialize zdev with `zdev init --record <personal|project|pull-request>` before installing a project integration: {error}"
-                    ))
-                })?;
-            }
             let guidance = project_root
                 .as_deref()
                 .map(|root| inspect_guidance(root, &guidance_selection, true, true))
@@ -562,7 +591,7 @@ pub(super) fn run_skill_command(
                     .as_deref()
                     .map(|content| (guidance.source.as_str(), content))
             });
-            let integration = harness.integration(guidance_view)?;
+            let integration = harness.integration(guidance_view, workers)?;
             let result = publish_integration(&integration, &destination.path, *force)?;
             if let (Some(root), Some(guidance)) = (project_root.as_deref(), guidance.as_ref()) {
                 let recorded = if guidance_selection == "agents" {
@@ -592,7 +621,7 @@ pub(super) fn run_skill_command(
                     .map(|content| (guidance.source.as_str(), content))
             });
             check_integration(
-                harness.integration(guidance_view)?,
+                harness.integration(guidance_view, workers)?,
                 destination,
                 guidance,
                 project_root.as_ref().map(|_| guidance_selection.as_str()),
@@ -1034,6 +1063,7 @@ fn install_integration_output(
                 "version": integration.version,
             },
             "guidance": guidance.as_ref().map(GuidanceStatus::value),
+            "workers": integration.workers.value(),
             "warnings": warnings,
         }),
     )
@@ -1131,6 +1161,7 @@ fn check_integration(
                 "version": integration.version,
             },
             "guidance": guidance.as_ref().map(GuidanceStatus::value),
+            "workers": integration.workers.value(),
             "warnings": warnings,
         }),
     );
@@ -1284,12 +1315,12 @@ mod tests {
 
     #[test]
     fn template_failures_name_the_source_and_fail_realization() {
-        let environment = template_environment();
+        let workers = built_in_worker_profiles(WorkerHarness::Claude);
         for (name, source, expected) in [
             ("unknown.md", "{{unknown}}", "Cannot render"),
             ("invalid.md", "{{", "Cannot parse"),
         ] {
-            let error = render_template(&environment, name, source, "", "", "", "")
+            let error = render_template(name, source, "", "", "", "", &workers)
                 .expect_err("invalid template must fail");
             assert!(error.to_string().contains(expected));
             assert!(error.to_string().contains(name));
@@ -1303,8 +1334,14 @@ mod tests {
             content: "{\"guidance\": {{repository_guidance}}}\n".to_owned(),
         }];
         let guidance = "quoted \"text\" and {{trusted_fragment}}";
-        realize_templates(Harness::Claude, Some(("AGENTS.md", guidance)), &mut files)
-            .expect("render JSON artifact");
+        let workers = built_in_worker_profiles(WorkerHarness::Claude);
+        realize_templates(
+            Harness::Claude,
+            Some(("AGENTS.md", guidance)),
+            &workers,
+            &mut files,
+        )
+        .expect("render JSON artifact");
 
         let manifest: Value = serde_json::from_str(&files[0].content).expect("rendered JSON");
         let rendered = manifest["guidance"].as_str().expect("guidance string");
@@ -1312,7 +1349,7 @@ mod tests {
         assert!(rendered.contains("{{trusted_fragment}}"));
 
         files[0].content = "{\"version\": {{version}}\n".to_owned();
-        let error = realize_templates(Harness::Claude, None, &mut files)
+        let error = realize_templates(Harness::Claude, None, &workers, &mut files)
             .expect_err("invalid destination syntax must fail");
         assert!(error.to_string().contains("invalid JSON"));
         assert!(error.to_string().contains("manifest.json"));

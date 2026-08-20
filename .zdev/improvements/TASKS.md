@@ -2,8 +2,8 @@
 
 # Tasks: improvements
 
-- Total: 21
-- Ready: 0
+- Total: 23
+- Ready: 2
 - Blocked: 0
 - Done: 21
 
@@ -30,3 +30,5 @@
 | [improvements-019](tasks/019-add-atomic-layered-config-set-and-unset.md) | Add atomic layered config set and unset | done | improvements-018 |
 | [improvements-020](tasks/020-install-the-common-zdev-audit-workflow.md) | Install the common zdev audit workflow | done | improvements-016 |
 | [improvements-021](tasks/021-install-common-implement-and-verify-workflows.md) | Install common implement and verify workflows | done | improvements-017, improvements-020 |
+| [improvements-022](tasks/022-define-explicit-area-closure-independently-of-queue-exhausti.md) | Define explicit area closure independently of queue exhaustion | ready | — |
+| [improvements-023](tasks/023-include-an-approved-area-brief-in-committed-task-imports.md) | Include an approved area brief in committed task imports | ready | — |

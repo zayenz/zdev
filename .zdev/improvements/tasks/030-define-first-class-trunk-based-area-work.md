@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-030"
 key = "design-trunk-based-area-work"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Define first-class trunk-based area work
@@ -29,18 +29,18 @@ AreaMetadata.branch is mandatory. Area create defaults it to the checked-out bra
 
 ## Done when
 
-- [ ] A design record documents current behavior, including the same-branch shortcut and the differing gates for ordinary import, committed import, selection, completion, rebase, and commit.
-- [ ] It defines the exact durable representation, default, strict schema, human and JSON projection, and compatibility behavior for legacy records, including legacy areas stored on the current or former trunk.
-- [ ] It defines exact, unambiguous area create and area bind grammar for isolated versus trunk mode, conflicts and defaults, transition rules, and failures for detached HEAD or unconfigured or missing trunk.
-- [ ] It settles whether multiple explicit trunk areas may coexist, how ownership validation distinguishes them from isolated areas, and deterministic next --any behavior when several trunk areas are ready on checked-out trunk.
-- [ ] It defines what an explicit trunk area follows when project trunk is renamed or reconfigured, including open and closed areas, selected work, missing branches, atomicity, and recovery, without silently moving legacy isolated areas.
-- [ ] It defines every branch_status and task_work field for trunk mode, including checked-out branch, effective base, diagnostics, freshness, finalization, anchor validity, linear history, stale advisory, and active Git-operation behavior.
-- [ ] It settles base_commit behavior in trunk mode and defines create and bind migration accordingly.
-- [ ] It defines the legal parent matrix for trunk areas and exact no-op or rejection behavior for managed rebase.
-- [ ] It defines ordinary and committed task import, brief inclusion, task completion, reopen, and final commit behavior with unrelated staged, unstaged, and untracked trunk changes, including overlap and attribution rules.
-- [ ] It reconciles personal, project, and pull-request record policy and cleanup squash; unsupported combinations fail explicitly.
-- [ ] It maps required changes to project, task, config, status, selection, documentation, canonical guidance, executable workflow, and generated artifact seams without implementing them.
-- [ ] It traces isolated, explicit-trunk, mixed, and failure cases and produces thin follow-up implementation tasks with no remaining product decisions.
+- [x] A design record documents current behavior, including the same-branch shortcut and the differing gates for ordinary import, committed import, selection, completion, rebase, and commit.
+- [x] It defines the exact durable representation, default, strict schema, human and JSON projection, and compatibility behavior for legacy records, including legacy areas stored on the current or former trunk.
+- [x] It defines exact, unambiguous area create and area bind grammar for isolated versus trunk mode, conflicts and defaults, transition rules, and failures for detached HEAD or unconfigured or missing trunk.
+- [x] It settles whether multiple explicit trunk areas may coexist, how ownership validation distinguishes them from isolated areas, and deterministic next --any behavior when several trunk areas are ready on checked-out trunk.
+- [x] It defines what an explicit trunk area follows when project trunk is renamed or reconfigured, including open and closed areas, selected work, missing branches, atomicity, and recovery, without silently moving legacy isolated areas.
+- [x] It defines every branch_status and task_work field for trunk mode, including checked-out branch, effective base, diagnostics, freshness, finalization, anchor validity, linear history, stale advisory, and active Git-operation behavior.
+- [x] It settles base_commit behavior in trunk mode and defines create and bind migration accordingly.
+- [x] It defines the legal parent matrix for trunk areas and exact no-op or rejection behavior for managed rebase.
+- [x] It defines ordinary and committed task import, brief inclusion, task completion, reopen, and final commit behavior with unrelated staged, unstaged, and untracked trunk changes, including overlap and attribution rules.
+- [x] It reconciles personal, project, and pull-request record policy and cleanup squash; unsupported combinations fail explicitly.
+- [x] It maps required changes to project, task, config, status, selection, documentation, canonical guidance, executable workflow, and generated artifact seams without implementing them.
+- [x] It traces isolated, explicit-trunk, mixed, and failure cases and produces thin follow-up implementation tasks with no remaining product decisions.
 
 ## Validation
 
@@ -48,3 +48,13 @@ AreaMetadata.branch is mandatory. Area create defaults it to the checked-out bra
 - Build a scenario matrix covering one and multiple trunk areas, mixed modes, legacy current or former trunk records, trunk reconfiguration, missing or wrong branches, detached HEAD, active Git operations, unrelated and overlapping changes, imports, parents, rebasing, record policies, cleanup, and deterministic selection.
 - For each case record expected metadata, human and JSON status, allowed command or failure, and mutation boundary.
 - Run documentation validation only; do not implement runtime behavior.
+
+## Result
+
+Defined an explicit trunk-area mode that preserves isolated defaults and legacy records while settling schema, transitions, shared-trunk ownership, status, Git safety, record policies, and implementation slices.
+
+Validation:
+
+- Independent verifier PASS after checking every task condition, current source contracts, trunk ancestry and override behavior, goal/status boundaries, scenario coverage, and implementation seams.
+- cargo test --locked --test documentation-contract passed.
+- cargo fmt, Markdown fence checks, state audit, and git diff --check passed.

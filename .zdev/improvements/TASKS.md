@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 30
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 29
+- Done: 30
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -38,4 +38,4 @@
 | [improvements-027](tasks/027-reduce-zdev-workflow-round-trips-without-weakening-evidence.md) | Reduce zdev workflow round trips without weakening evidence | done | — |
 | [improvements-028](tasks/028-assess-gpt-5-6-luna-for-zdev-coordination.md) | Assess gpt-5.6-luna for zdev coordination | done | — |
 | [improvements-029](tasks/029-define-safe-derived-tasks-without-repeated-approval-ceremony.md) | Define safe derived tasks without repeated approval ceremony | done | — |
-| [improvements-030](tasks/030-define-first-class-trunk-based-area-work.md) | Define first-class trunk-based area work | ready | — |
+| [improvements-030](tasks/030-define-first-class-trunk-based-area-work.md) | Define first-class trunk-based area work | done | — |

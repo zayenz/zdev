@@ -26,6 +26,29 @@ and supplies evidence appropriate to the risk of the change.
   indirection.
 - Treat checked-in harness integrations and `TASKS.md` as generated artifacts;
   change their sources and regenerate them through the established commands.
+- Organize larger improvements as lightweight slices inside an area. A slice
+  has a short brief, may group several tasks, and derives its progress from
+  those tasks instead of maintaining a second lifecycle.
+- Use the conventional tag `general` for an ordinary area with a standing
+  minimal brief for one-off tasks and slices. Do not add a separate area kind or
+  lifecycle. Those items still need concrete outcomes and useful validation,
+  but they do not require a separate research phase.
+- Preserve area-specific task selection and add an explicit project-wide mode
+  for requests to work on any ready task. Selection must report the owning area
+  and branch; it must not hide branch changes.
+- Treat a stale link to an area's parent or trunk as advisory while its recorded
+  anchor, branches, ancestry, and linear child history remain valid and no Git
+  recovery operation is active. Keep managed rebasing explicit and recommend it
+  when work needs newer base changes or approaches an integration boundary.
+- Define worker levels as editable, harness-specific recommendations seeded
+  from published coding-agent evidence. Zdev will not run model evaluations or
+  maintain an evaluation framework.
+- Use one common zdev vocabulary for goals and orchestration, rendered into
+  each harness's native mechanisms. Keep canonical skill and workflow sources
+  as unexpanded templates and realize them during installation.
+- Integrate focused external skills only when they improve zdev without
+  importing another tool's runtime assumptions. Poteto's `unslop` skill is the
+  first intended core addition; other Noodle skills require individual review.
 
 ## Testing
 

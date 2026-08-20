@@ -153,9 +153,11 @@ A path is accepted for manual use and remains in place after review or import.
 When adding tasks to an existing task list, add `--commit --format json` to the
 import command. Use ordinary import for the initial split or when the user
 wants uncommitted additions. A committed import contains only the new task
-files and regenerated `TASKS.md`; its JSON result includes task IDs, paths, the
-commit hash, and stable change ID. Zdev validates the complete dependency graph
-before creating any task file.
+files, regenerated `TASKS.md`, and the owning area's tracked modified brief when
+present. Leave that brief unstaged; zdev validates and commits it with the
+tasks. Its JSON result includes task IDs, paths, the commit hash, and stable
+change ID. Zdev validates the brief and complete dependency graph before
+creating any task file.
 
 Keep shared context, including the required area-wide testing level, in
 `brief.md`. For newly drafted implementation tasks, use `context` to select and

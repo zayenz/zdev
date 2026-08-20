@@ -258,8 +258,10 @@ zdev tasks import scheduling --from - --approval <approval-id> --commit --format
 ```
 
 Use ordinary import for the initial task split or when you explicitly want the
-additions left uncommitted. A committed import contains only the new task files
-and regenerated `TASKS.md`; unrelated staged and unstaged changes are
+additions left uncommitted. If the approved work modified the owning area's
+tracked `brief.md`, leave it unstaged. The committed import validates and
+includes the brief with the new task files and regenerated `TASKS.md`; no
+separate brief commit is needed. Unrelated staged and unstaged changes are
 preserved. The JSON result includes task IDs, paths, the commit hash, and the
 stable change ID.
 

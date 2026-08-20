@@ -87,6 +87,10 @@ with:
 zdev tasks import scheduling --from - --approval <approval-id> --commit --format json
 ```
 
+If the approved task work modified the area's tracked `brief.md`, leave it
+unstaged. The committed import validates and includes the brief with the new
+tasks and generated index; no separate brief commit is needed.
+
 Check the area and select its next ready task:
 
 ```sh
@@ -111,9 +115,9 @@ zdev commit -m "feat: add scheduling model"
 not implement or review the code. `zdev commit` commits the existing Git index
 and adds a stable `Zdev-Change-Id` trailer.
 
-A commit containing only new task files and the regenerated `TASKS.md` does not
-interrupt the selected task. Zdev considers the additions the next time you
-run `zdev next`.
+A managed task-import commit, including a modified area brief when present,
+does not interrupt the selected task. Zdev considers the additions the next
+time you run `zdev next`.
 
 For a `pull-request` record, commit `.zdev` normally during review. Immediately
 before squash merge, use a clean feature branch and run:

@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 23
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 22
+- Done: 23
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -31,4 +31,4 @@
 | [improvements-020](tasks/020-install-the-common-zdev-audit-workflow.md) | Install the common zdev audit workflow | done | improvements-016 |
 | [improvements-021](tasks/021-install-common-implement-and-verify-workflows.md) | Install common implement and verify workflows | done | improvements-017, improvements-020 |
 | [improvements-022](tasks/022-define-explicit-area-closure-independently-of-queue-exhausti.md) | Define explicit area closure independently of queue exhaustion | done | — |
-| [improvements-023](tasks/023-include-an-approved-area-brief-in-committed-task-imports.md) | Include an approved area brief in committed task imports | ready | — |
+| [improvements-023](tasks/023-include-an-approved-area-brief-in-committed-task-imports.md) | Include an approved area brief in committed task imports | done | — |

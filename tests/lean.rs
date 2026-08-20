@@ -1746,6 +1746,9 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
     fs::write(root.join("staged.txt"), "staged implementation\n").expect("staged change");
     git(root, &["add", "staged.txt"]);
     fs::write(root.join("unstaged.txt"), "unstaged implementation\n").expect("unstaged change");
+    let brief_path = root.join(".zdev/concurrent/brief.md");
+    let brief = "# Concurrent\n\n## Objective\n\nAccept approved task additions.\n\n## Testing\n\nFocused coverage.\n";
+    fs::write(&brief_path, brief).expect("updated brief");
     let bundle = serde_json::to_vec(&json!({
         "schema_version": 1,
         "area": "concurrent",
@@ -1768,7 +1771,14 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
 
     assert_eq!(imported["status"], "committed");
     assert_eq!(imported["tasks"][0], "concurrent-002");
-    assert_eq!(imported["paths"].as_array().expect("paths").len(), 2);
+    assert_eq!(
+        imported["paths"],
+        json!([
+            ".zdev/concurrent/brief.md",
+            ".zdev/concurrent/tasks/002-add-concurrent-task.md",
+            ".zdev/concurrent/TASKS.md"
+        ])
+    );
     assert!(
         imported["commit"]
             .as_str()
@@ -1785,17 +1795,45 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
             .collect::<Vec<_>>(),
         [
             ".zdev/concurrent/TASKS.md",
+            ".zdev/concurrent/brief.md",
             ".zdev/concurrent/tasks/002-add-concurrent-task.md",
         ]
     );
+    assert_eq!(fs::read_to_string(&brief_path).expect("brief"), brief);
     assert_eq!(
         git(root, &["diff", "--cached", "--name-only"]),
         "staged.txt"
     );
     assert_eq!(git(root, &["diff", "--name-only"]), "unstaged.txt");
+    assert!(git(root, &["status", "--short", "--", ".zdev/concurrent"]).is_empty());
     assert_eq!(
         json_output(root, &["next", "concurrent"])["task"]["id"],
         "concurrent-001"
+    );
+
+    let task_only = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "concurrent",
+        "tasks": [{
+            "key": "task-only",
+            "title": "Preserve task-only import",
+            "outcome": "An unchanged brief keeps the existing path contract.",
+            "done_when": ["Only the task and index are committed."],
+            "blocked_by": []
+        }]
+    }))
+    .expect("task-only bundle");
+    let task_only = json_output_with_stdin(
+        root,
+        &["tasks", "import", "concurrent", "--from", "-", "--commit"],
+        &task_only,
+    );
+    assert_eq!(
+        task_only["paths"],
+        json!([
+            ".zdev/concurrent/tasks/003-preserve-task-only-import.md",
+            ".zdev/concurrent/TASKS.md"
+        ])
     );
 }
 
@@ -1819,10 +1857,10 @@ fn committed_task_import_recovery_text_names_the_problem_and_action() {
     );
     commit_all(root, "configure intake area");
     fs::write(
-        root.join(".zdev/intake-action/brief.md"),
-        "# Locally changed\n",
+        root.join(".zdev/intake-action/TASKS.md"),
+        "locally changed\n",
     )
-    .expect("change area brief");
+    .expect("change generated index");
     let bundle = serde_json::to_vec(&json!({
         "schema_version": 1,
         "area": "intake-action",
@@ -1886,6 +1924,10 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
     commit_all(root, "configure failure area");
     let summary_before =
         fs::read_to_string(root.join(".zdev/commit-failure/TASKS.md")).expect("summary");
+    let brief_path = root.join(".zdev/commit-failure/brief.md");
+    let brief = "# Commit failure\n\n## Objective\n\nRecover a failed import.\n\n## Testing\n\nFocused coverage.\n";
+    fs::write(&brief_path, brief).expect("updated brief");
+    let brief_diff_before = git(root, &["diff", "--", ".zdev/commit-failure/brief.md"]);
     fs::write(root.join("implementation.txt"), "staged implementation\n")
         .expect("implementation change");
     git(root, &["add", "implementation.txt"]);
@@ -1931,6 +1973,18 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
         fs::read_to_string(root.join(".zdev/commit-failure/TASKS.md")).expect("summary"),
         summary_before
     );
+    assert_eq!(fs::read_to_string(&brief_path).expect("brief"), brief);
+    assert_eq!(
+        git(root, &["diff", "--", ".zdev/commit-failure/brief.md"]),
+        brief_diff_before
+    );
+    assert!(
+        git(
+            root,
+            &["diff", "--cached", "--", ".zdev/commit-failure/brief.md"]
+        )
+        .is_empty()
+    );
     assert_eq!(
         git(root, &["diff", "--cached", "--name-only"]),
         "implementation.txt"
@@ -1938,6 +1992,93 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
     assert_eq!(
         git(root, &["log", "-1", "--format=%s"]),
         "configure failure area"
+    );
+}
+
+#[test]
+fn committed_task_import_rejects_invalid_or_partially_staged_briefs_before_publication() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "brief-state",
+            "--title",
+            "Brief state",
+            "--objective",
+            "Reject unsafe brief states.",
+        ],
+    );
+    commit_all(root, "configure brief state area");
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "brief-state",
+        "tasks": [{
+            "key": "added",
+            "title": "Must not publish",
+            "outcome": "Unsafe brief state prevents publication.",
+            "done_when": ["No task is added."],
+            "blocked_by": []
+        }]
+    }))
+    .expect("bundle");
+    let brief = root.join(".zdev/brief-state/brief.md");
+    let index_before = fs::read_to_string(root.join(".zdev/brief-state/TASKS.md")).expect("index");
+
+    fs::write(&brief, "# Invalid brief\n").expect("malformed brief");
+    let malformed = json_output_with_stdin_status(
+        root,
+        &["tasks", "import", "brief-state", "--from", "-", "--commit"],
+        &bundle,
+    );
+    assert!(!malformed.status.success());
+    assert!(String::from_utf8_lossy(&malformed.stderr).contains("Brief lacks ## Objective"));
+
+    fs::write(
+        &brief,
+        "# Brief state\n\n## Objective\n\nStaged version.\n\n## Testing\n\nFocused coverage.\n",
+    )
+    .expect("staged brief");
+    git(root, &["add", ".zdev/brief-state/brief.md"]);
+    fs::write(
+        &brief,
+        "# Brief state\n\n## Objective\n\nWorktree version.\n\n## Testing\n\nFocused coverage.\n",
+    )
+    .expect("worktree brief");
+    let cached_before = git(
+        root,
+        &["diff", "--cached", "--", ".zdev/brief-state/brief.md"],
+    );
+    let worktree_before = git(root, &["diff", "--", ".zdev/brief-state/brief.md"]);
+    let ambiguous = json_output_with_stdin_status(
+        root,
+        &["tasks", "import", "brief-state", "--from", "-", "--commit"],
+        &bundle,
+    );
+    assert!(!ambiguous.status.success());
+    assert_eq!(
+        git(
+            root,
+            &["diff", "--cached", "--", ".zdev/brief-state/brief.md"]
+        ),
+        cached_before
+    );
+    assert_eq!(
+        git(root, &["diff", "--", ".zdev/brief-state/brief.md"]),
+        worktree_before
+    );
+    assert_eq!(
+        fs::read_to_string(root.join(".zdev/brief-state/TASKS.md")).expect("index"),
+        index_before
+    );
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/brief-state/tasks"))
+            .expect("tasks")
+            .count(),
+        0
     );
 }
 

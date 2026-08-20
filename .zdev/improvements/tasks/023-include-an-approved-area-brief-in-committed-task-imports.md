@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-023"
 key = "commit-brief-with-task-import"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Include an approved area brief in committed task imports
@@ -28,12 +28,12 @@ blocked_by = []
 
 ## Done when
 
-- [ ] A valid modified brief plus an approved bundle produces one commit containing only brief.md, new task files, and regenerated TASKS.md.
-- [ ] JSON paths includes the brief only when it was committed, in deterministic order; an unchanged brief preserves the existing task-only commit contract.
-- [ ] Invalid or ambiguous brief state and every other owning-area modification fail before task publication.
-- [ ] Commit or staging failure removes imported tasks, restores the prior TASKS.md, preserves exact brief bytes and its prior index and worktree state, and preserves unrelated changes.
-- [ ] Successful import leaves the committed brief, task, and index paths clean while retaining unrelated staged and unstaged changes.
-- [ ] Canonical task-authoring guidance, generated copies, README, and user guide describe the single managed commit and no longer request a separate brief commit.
+- [x] A valid modified brief plus an approved bundle produces one commit containing only brief.md, new task files, and regenerated TASKS.md.
+- [x] JSON paths includes the brief only when it was committed, in deterministic order; an unchanged brief preserves the existing task-only commit contract.
+- [x] Invalid or ambiguous brief state and every other owning-area modification fail before task publication.
+- [x] Commit or staging failure removes imported tasks, restores the prior TASKS.md, preserves exact brief bytes and its prior index and worktree state, and preserves unrelated changes.
+- [x] Successful import leaves the committed brief, task, and index paths clean while retaining unrelated staged and unstaged changes.
+- [x] Canonical task-authoring guidance, generated copies, README, and user guide describe the single managed commit and no longer request a separate brief commit.
 
 ## Validation
 
@@ -42,3 +42,14 @@ blocked_by = []
 - Run focused hook or staging-failure recovery coverage proving task and index rollback plus exact brief and unrelated-index preservation.
 - Run the existing committed-import, approval, concurrent-change, and recovery tests.
 - Run cargo test --locked --test lean and the repository's standard full validation from the area brief.
+
+## Result
+
+Committed valid owning-area brief updates atomically with approved task imports while preserving unrelated Git state.
+
+Validation:
+
+- Independent code and contract review passed, including direct unsafe-state probes and rollback audit.
+- Focused committed-import and generated-fixture tests passed.
+- cargo test --locked --test lean passed (92/92).
+- Formatting, Clippy with warnings denied, full tests, build, package verification, and git diff --check passed.

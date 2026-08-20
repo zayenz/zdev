@@ -129,14 +129,17 @@ zdev tasks list <area> --format json
 
 When adding tasks to an existing task list, add `--commit --format json` to the
 import command. Use ordinary import for the initial task split or when the user
-wants uncommitted additions. Report the returned commit and stable change ID
-for a committed import. Follow zdev's recovery message if it cannot commit.
+wants uncommitted additions. If the approved work also modified the owning
+area's brief, leave that tracked worktree change in place: the committed import
+validates and includes it in the same managed commit. Report the returned
+commit and stable change ID. Follow zdev's recovery message if it cannot commit.
 Do not stage, unstage, or commit paths manually while recovering the import.
 
-A commit containing only new task files and regenerated `TASKS.md` does not
-interrupt a selected task. Keep the current selection and consider additions at
-the next `zdev next` boundary. Review any concurrent commit that changes existing
-tasks, `brief.md`, area metadata, lifecycle state, or source.
+The managed commit contains the modified brief when present, new task files,
+and regenerated `TASKS.md`. It does not interrupt a selected task. Keep the
+current selection and consider additions at the next `zdev next` boundary.
+Review any other concurrent commit that changes existing tasks, `brief.md`, area
+metadata, lifecycle state, or source.
 
 If the user supplies a bundle path, pass it to both review and import unchanged.
 Report allocated task IDs and the ready frontier from the post-import task list.

@@ -69,6 +69,8 @@ grep -Fq 'Use `cargo test --locked` for validation.' \
     fail "Codex skill did not install UI metadata"
 [ "$(find "$project/.codex/skills/zdev" -type f | wc -l | tr -d ' ')" -eq 12 ] ||
     fail "Codex skill did not install its complete inventory"
+[ -f "$project/.codex/skills/zdev-audit/SKILL.md" ] ||
+    fail "Codex audit skill was not installed"
 grep -Fq 'Use `cargo test --locked` for validation.' \
     "$project/.claude/skills/zdev/skills/zdev/SKILL.md" ||
     fail "Claude skill did not render persisted project guidance"
@@ -79,6 +81,8 @@ grep -Fq '@zdev-implementer' "$project/.opencode/skills/zdev-opencode/SKILL.md" 
     fail "OpenCode skill did not name its implementation subagent"
 grep -Fq 'edit: deny' "$project/.opencode/agents/zdev-verifier.md" ||
     fail "OpenCode verifier gained edit permission"
+[ -f "$project/.opencode/commands/zdev-audit.md" ] ||
+    fail "OpenCode audit command was not installed"
 grep -Fq 'Use `cargo test --locked` for validation.' \
     "$project/.pi/skills/zdev-pi/SKILL.md" ||
     fail "Pi skill did not render persisted project guidance"
@@ -91,12 +95,16 @@ grep -Fq 'read,bash,grep,find,ls' \
 grep -Fq '"--no-extensions"' \
     "$project/.pi/extensions/zdev-subagent.ts" ||
     fail "Pi child processes can load the delegation extension"
+[ -f "$project/.pi/prompts/zdev-audit.md" ] ||
+    fail "Pi audit prompt was not installed"
 grep -Fq 'Use `cargo test --locked` for validation.' \
     "$project/.omp/skills/zdev/SKILL.md" ||
     fail "Oh My Pi skill did not render persisted project guidance"
 grep -Fq 'tools: read, grep, bash' \
     "$project/.omp/agents/zdev-verifier.md" ||
     fail "Oh My Pi verifier gained edit tools"
+[ -f "$project/.omp/prompts/zdev-audit.md" ] ||
+    fail "Oh My Pi audit prompt was not installed"
 grep -Fq 'zdev:zdev-implementer' \
     "$project/.claude/skills/zdev/skills/zdev/SKILL.md" ||
     fail "Claude skill did not name the packaged implementer"
@@ -106,6 +114,9 @@ grep -Fq 'tools: Read, Bash, Grep, Glob' \
 grep -Fq 'while (/^REWORK\b/.test(verdict))' \
     "$project/.claude/skills/zdev/workflows/zdev-task.js" ||
     fail "Claude task workflow lost its repeated rework loop"
+grep -Fq "agentType: 'zdev:zdev-verifier'" \
+    "$project/.claude/skills/zdev/workflows/zdev-audit.js" ||
+    fail "Claude audit workflow did not route through the verifier"
 
 $binary --root "$project" area create smoke \
     --title "Release smoke" \

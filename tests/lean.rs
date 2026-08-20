@@ -2345,19 +2345,21 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
         &["skill", "install", "codex", "--to", destination_text],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 12);
-    let rendered = fs::read_to_string(destination.join("SKILL.md")).expect("installed skill");
+    assert_eq!(installed["files"], 13);
+    let rendered = fs::read_to_string(destination.join("zdev/SKILL.md")).expect("installed skill");
     assert_eq!(rendered, packaged_skill);
     assert_eq!(
-        fs::read_to_string(destination.join("references/verify.md")).expect("verify reference"),
+        fs::read_to_string(destination.join("zdev/references/verify.md"))
+            .expect("verify reference"),
         include_str!("../templates/zdev/references/verify.md")
     );
     assert_eq!(
-        fs::read_to_string(destination.join("references/discuss.md")).expect("discuss reference"),
+        fs::read_to_string(destination.join("zdev/references/discuss.md"))
+            .expect("discuss reference"),
         include_str!("../skills/zdev/references/discuss.md")
     );
     assert_eq!(
-        fs::read_to_string(destination.join("references/task-format.md"))
+        fs::read_to_string(destination.join("zdev/references/task-format.md"))
             .expect("task format reference"),
         include_str!("../templates/zdev/references/task-format.md")
     );
@@ -2368,7 +2370,7 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
     );
     assert_eq!(unchanged["status"], "unchanged");
 
-    fs::write(destination.join("SKILL.md"), "locally changed\n").expect("change skill");
+    fs::write(destination.join("zdev/SKILL.md"), "locally changed\n").expect("change skill");
     let refused = run_zdev(
         root,
         &["skill", "install", "codex", "--to", destination_text],
@@ -2389,7 +2391,7 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
     );
     assert_eq!(replaced["status"], "replaced");
     assert_eq!(
-        fs::read_to_string(destination.join("SKILL.md")).expect("replaced skill"),
+        fs::read_to_string(destination.join("zdev/SKILL.md")).expect("replaced skill"),
         rendered
     );
 }
@@ -2400,7 +2402,7 @@ fn skill_human_output_names_zdev_integrations_and_their_harnesses() {
     let root = repository.path();
 
     for (harness, display_name, skill_path) in [
-        ("codex", "Codex", "SKILL.md"),
+        ("codex", "Codex", "zdev/SKILL.md"),
         ("claude", "Claude Code", "skills/zdev/SKILL.md"),
         ("opencode", "OpenCode", "skills/zdev-opencode/SKILL.md"),
         ("pi", "Pi", "skills/zdev-pi/SKILL.md"),
@@ -2879,90 +2881,85 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
     let repository = repository();
     let root = repository.path();
 
-    for harness in ["codex", "claude"] {
-        let destination = root.join(format!("installed/{harness}/zdev"));
-        let destination_text = destination.to_str().expect("destination path");
+    let harness = "claude";
+    let destination = root.join(format!("installed/{harness}/zdev"));
+    let destination_text = destination.to_str().expect("destination path");
 
-        let installed = json_output(
-            root,
-            &["skill", "install", harness, "--to", destination_text],
-        );
-        assert_eq!(installed["harness"], harness);
-        assert_eq!(installed["scope"], "explicit");
-        assert_eq!(installed["status"], "created");
-        assert_eq!(installed["files"], if harness == "codex" { 12 } else { 16 });
+    let installed = json_output(
+        root,
+        &["skill", "install", harness, "--to", destination_text],
+    );
+    assert_eq!(installed["harness"], harness);
+    assert_eq!(installed["scope"], "explicit");
+    assert_eq!(installed["status"], "created");
+    assert_eq!(installed["files"], 16);
 
-        let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
-        assert_eq!(checked["status"], "ok");
-        assert_eq!(checked["harness"], harness);
+    let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
+    assert_eq!(checked["status"], "ok");
+    assert_eq!(checked["harness"], harness);
 
-        let unchanged = json_output(
-            root,
-            &["skill", "install", harness, "--to", destination_text],
-        );
-        assert_eq!(unchanged["status"], "unchanged");
+    let unchanged = json_output(
+        root,
+        &["skill", "install", harness, "--to", destination_text],
+    );
+    assert_eq!(unchanged["status"], "unchanged");
 
-        fs::create_dir(destination.join("unexpected-empty-directory"))
-            .expect("create extra empty directory");
-        let extra_directory = json_output_with_exit_code(
-            root,
-            &["skill", "check", harness, "--to", destination_text],
-            1,
-        );
-        assert_eq!(extra_directory["status"], "conflict");
-        let refused = run_zdev(
-            root,
-            &["skill", "install", harness, "--to", destination_text],
-        );
-        assert!(!refused.status.success());
-        assert!(String::from_utf8_lossy(&refused.stderr).contains("--force"));
-        let replaced = json_output(
-            root,
-            &[
-                "skill",
-                "install",
-                harness,
-                "--to",
-                destination_text,
-                "--force",
-            ],
-        );
-        assert_eq!(replaced["status"], "replaced");
-        assert!(!destination.join("unexpected-empty-directory").exists());
+    fs::create_dir(destination.join("unexpected-empty-directory"))
+        .expect("create extra empty directory");
+    let extra_directory = json_output_with_exit_code(
+        root,
+        &["skill", "check", harness, "--to", destination_text],
+        1,
+    );
+    assert_eq!(extra_directory["status"], "conflict");
+    let refused = run_zdev(
+        root,
+        &["skill", "install", harness, "--to", destination_text],
+    );
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("--force"));
+    let replaced = json_output(
+        root,
+        &[
+            "skill",
+            "install",
+            harness,
+            "--to",
+            destination_text,
+            "--force",
+        ],
+    );
+    assert_eq!(replaced["status"], "replaced");
+    assert!(!destination.join("unexpected-empty-directory").exists());
 
-        let skill = if harness == "codex" {
-            destination.join("SKILL.md")
-        } else {
-            destination.join("skills/zdev/SKILL.md")
-        };
-        fs::write(skill, "locally changed\n").expect("change integration");
-        let conflict = json_output_with_exit_code(
-            root,
-            &["skill", "check", harness, "--to", destination_text],
-            1,
-        );
-        assert_eq!(conflict["status"], "conflict");
+    let skill = destination.join("skills/zdev/SKILL.md");
+    fs::write(skill, "locally changed\n").expect("change integration");
+    let conflict = json_output_with_exit_code(
+        root,
+        &["skill", "check", harness, "--to", destination_text],
+        1,
+    );
+    assert_eq!(conflict["status"], "conflict");
 
-        let refused = run_zdev(
-            root,
-            &["skill", "install", harness, "--to", destination_text],
-        );
-        assert!(!refused.status.success());
-        assert!(String::from_utf8_lossy(&refused.stderr).contains("--force"));
+    let refused = run_zdev(
+        root,
+        &["skill", "install", harness, "--to", destination_text],
+    );
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("--force"));
 
-        let replaced = json_output(
-            root,
-            &[
-                "skill",
-                "install",
-                harness,
-                "--to",
-                destination_text,
-                "--force",
-            ],
-        );
-        assert_eq!(replaced["status"], "replaced");
-    }
+    let replaced = json_output(
+        root,
+        &[
+            "skill",
+            "install",
+            harness,
+            "--to",
+            destination_text,
+            "--force",
+        ],
+    );
+    assert_eq!(replaced["status"], "replaced");
 }
 
 #[test]
@@ -2995,23 +2992,24 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert_eq!(
         file_inventory(&codex),
         [
-            "SKILL.md",
-            "agents/openai.yaml",
-            "references/discuss.md",
-            "references/implement.md",
-            "references/improve.md",
-            "references/investigate.md",
-            "references/recovery.md",
-            "references/setup.md",
-            "references/shape-work.md",
-            "references/task-format.md",
-            "references/to-tasks.md",
-            "references/verify.md",
+            "zdev-audit/SKILL.md",
+            "zdev/SKILL.md",
+            "zdev/agents/openai.yaml",
+            "zdev/references/discuss.md",
+            "zdev/references/implement.md",
+            "zdev/references/improve.md",
+            "zdev/references/investigate.md",
+            "zdev/references/recovery.md",
+            "zdev/references/setup.md",
+            "zdev/references/shape-work.md",
+            "zdev/references/task-format.md",
+            "zdev/references/to-tasks.md",
+            "zdev/references/verify.md",
         ]
     );
 
     assert_eq!(
-        fs::read(codex.join("agents/openai.yaml")).expect("Codex UI metadata"),
+        fs::read(codex.join("zdev/agents/openai.yaml")).expect("Codex UI metadata"),
         include_bytes!("../skills/zdev/agents/openai.yaml")
     );
     assert_eq!(
@@ -3065,6 +3063,242 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert!(audit_workflow.contains("Array.isArray(input.lenses)"));
     assert_eq!(audit_workflow.matches("audit evidence vetter").count(), 1);
 }
+
+#[test]
+fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract() {
+    let repository = repository();
+    let root = repository.path();
+    let config_home = root.join("audit-worker-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    for (harness, entrypoint) in [
+        ("codex", "zdev-audit/SKILL.md"),
+        ("claude", "workflows/zdev-audit.js"),
+        ("opencode", "commands/zdev-audit.md"),
+        ("pi", "prompts/zdev-audit.md"),
+        ("omp", "prompts/zdev-audit.md"),
+    ] {
+        let destination = root.join(format!("audit-{harness}"));
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("audit destination"),
+            ],
+            &environment,
+        );
+        let audit_paths = file_inventory(&destination)
+            .into_iter()
+            .filter(|path| path.contains("zdev-audit"))
+            .collect::<Vec<_>>();
+        assert_eq!(audit_paths, [entrypoint], "{harness} audit discovery");
+        let audit =
+            fs::read_to_string(destination.join(entrypoint)).expect("audit entrypoint content");
+        for required in [
+            "PASS zdev-audit",
+            "FINDINGS zdev-audit",
+            "BLOCKER zdev-audit",
+            "Boundary",
+            "Inspected",
+            "Omitted",
+            "Checked evidence",
+            "path:line",
+            "verifier",
+        ] {
+            assert!(audit.contains(required), "{harness} missing {required}");
+        }
+        match harness {
+            "codex" => {
+                assert!(audit.contains("model=\"gpt-5.6-sol\""));
+                assert!(audit.contains("reasoning_effort=\"high\""));
+            }
+            "claude" => {
+                assert_eq!(audit.matches("agentType: 'zdev:zdev-verifier'").count(), 2);
+                assert!(audit.contains("pipeline(reviewScopes"));
+                assert!(audit.contains("/^(PASS|FINDINGS|BLOCKER) zdev-audit"));
+                assert!(audit.contains("const completeBody"));
+                assert!(audit.contains("const locatedFindings"));
+                let manifest: Value = serde_json::from_slice(
+                    &fs::read(destination.join(".claude-plugin/plugin.json"))
+                        .expect("Claude audit manifest"),
+                )
+                .expect("Claude audit manifest JSON");
+                assert_eq!(manifest["workflows"], "./workflows/");
+            }
+            "opencode" => {
+                assert!(audit.contains("`zdev-verifier` subagent"));
+                let verifier = fs::read_to_string(destination.join("agents/zdev-verifier.md"))
+                    .expect("OpenCode verifier");
+                assert!(verifier.contains("model: \"anthropic/claude-opus-5\""));
+            }
+            "pi" => {
+                assert!(audit.contains("role `verifier`"));
+                let extension = fs::read_to_string(destination.join("extensions/zdev-subagent.ts"))
+                    .expect("Pi verifier extension");
+                assert!(extension.contains(
+                    "verifier: { model: \"anthropic/claude-opus-5\", effort: \"high\" }"
+                ));
+            }
+            "omp" => {
+                assert!(audit.contains("blocking agent `zdev-verifier`"));
+                let verifier = fs::read_to_string(destination.join("agents/zdev-verifier.md"))
+                    .expect("Oh My Pi verifier");
+                assert!(verifier.contains("model: \"anthropic/claude-opus-5\""));
+                assert!(verifier.contains("thinking-level: \"high\""));
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            json_output_with_env(
+                root,
+                &[
+                    "skill",
+                    "check",
+                    harness,
+                    "--to",
+                    destination.to_str().expect("audit destination"),
+                ],
+                &environment,
+            )["status"],
+            "ok"
+        );
+    }
+}
+
+#[test]
+fn audit_migration_is_allowlisted_and_invalid_profiles_fail_before_publication() {
+    let repository = repository();
+    let root = repository.path();
+    let destination = root.join("audit-opencode-migration");
+    let legacy = destination.join("command/zdev-audit.md");
+    let unrelated = destination.join("commands/team-audit.md");
+    fs::create_dir_all(legacy.parent().expect("legacy parent")).expect("legacy directory");
+    fs::create_dir_all(unrelated.parent().expect("unrelated parent")).expect("unrelated directory");
+    fs::write(&legacy, "legacy zdev audit\n").expect("legacy audit");
+    fs::write(&unrelated, "team audit\n").expect("unrelated audit");
+    let before = file_inventory(&destination);
+
+    let config_home = root.join("invalid-audit-workers");
+    let global_workers = config_home.join("zdev/workers.toml");
+    fs::create_dir_all(global_workers.parent().expect("worker parent")).expect("worker directory");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    let refused = run_zdev_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "opencode",
+            "--to",
+            destination.to_str().expect("migration destination"),
+        ],
+        &environment,
+    );
+    assert!(!refused.status.success());
+    let refusal = String::from_utf8_lossy(&refused.stderr);
+    assert!(refusal.contains("legacy zdev audit entrypoint"));
+    assert!(refusal.contains("--force"));
+    assert_eq!(file_inventory(&destination), before);
+    assert!(!destination.join("commands/zdev-audit.md").exists());
+
+    let checked = run_zdev_with_env(
+        root,
+        &[
+            "skill",
+            "check",
+            "opencode",
+            "--to",
+            destination.to_str().expect("migration destination"),
+        ],
+        &environment,
+    );
+    assert_eq!(checked.status.code(), Some(1));
+    let readiness = String::from_utf8_lossy(&checked.stdout);
+    assert!(readiness.contains("differs from this version"));
+    assert!(readiness.contains("--force"));
+    assert_eq!(file_inventory(&destination), before);
+
+    fs::write(
+        &global_workers,
+        "schema_version = 1\n\n[opencode.verifier]\nmodel = \"anthropic/custom\"\neffort = \"high\"\n",
+    )
+    .expect("unsupported audit verifier");
+    let rejected = run_zdev_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "opencode",
+            "--to",
+            destination.to_str().expect("migration destination"),
+            "--force",
+        ],
+        &environment,
+    );
+    assert!(!rejected.status.success());
+    assert_eq!(file_inventory(&destination), before);
+    assert_eq!(
+        fs::read_to_string(&legacy).expect("preserved legacy"),
+        "legacy zdev audit\n"
+    );
+
+    fs::remove_file(global_workers).expect("remove invalid worker profile");
+    let migrated = json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "opencode",
+            "--to",
+            destination.to_str().expect("migration destination"),
+            "--force",
+        ],
+        &environment,
+    );
+    assert_eq!(migrated["status"], "replaced");
+    assert!(!legacy.exists());
+    assert!(destination.join("commands/zdev-audit.md").is_file());
+    assert_eq!(
+        fs::read_to_string(unrelated).expect("unrelated audit"),
+        "team audit\n"
+    );
+    assert_eq!(
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "check",
+                "opencode",
+                "--to",
+                destination.to_str().expect("migration destination"),
+            ],
+            &environment,
+        )["status"],
+        "ok"
+    );
+
+    let codex = root.join("audit-codex-shared-root");
+    fs::create_dir_all(codex.join("team-skill")).expect("unrelated Codex skill directory");
+    fs::write(codex.join("team-skill/SKILL.md"), "team skill\n").expect("unrelated Codex skill");
+    json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "codex",
+            "--to",
+            codex.to_str().expect("Codex shared root"),
+            "--force",
+        ],
+        &environment,
+    );
+    assert_eq!(
+        fs::read_to_string(codex.join("team-skill/SKILL.md")).expect("preserved Codex skill"),
+        "team skill\n"
+    );
+}
 #[test]
 fn canonical_templates_realize_deterministically_and_match_generated_fixtures() {
     let repository = repository();
@@ -3072,6 +3306,7 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
     let source = Path::new(env!("CARGO_MANIFEST_DIR"));
     let canonical_paths = [
         "templates/zdev/codex-skill.md",
+        "templates/zdev/codex-audit-skill.md",
         "templates/zdev/claude/plugin.json",
         "templates/zdev/references/discuss.md",
     ];
@@ -3087,7 +3322,7 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
     let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
 
     for (harness, checked_in_root) in [
-        ("codex", Some("skills/zdev")),
+        ("codex", Some("skills")),
         ("claude", Some(".claude/skills/zdev")),
         ("opencode", Some(".opencode")),
         ("pi", Some(".pi")),
@@ -3134,6 +3369,7 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
             let text = String::from_utf8_lossy(&rendered);
             for expression in [
                 "{{shared_contract}}",
+                "{{audit_contract}}",
                 "{{repository_guidance}}",
                 "{{question_tool_guidance}}",
                 "{{version}}",
@@ -3164,7 +3400,8 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
         );
         match harness {
             "codex" => {
-                let skill = fs::read_to_string(destination.join("SKILL.md")).expect("Codex skill");
+                let skill =
+                    fs::read_to_string(destination.join("zdev/SKILL.md")).expect("Codex skill");
                 assert!(skill.contains("`model=\"gpt-5.6-sol\"`"));
                 assert!(skill.contains("`reasoning_effort=\"high\"`"));
             }
@@ -3690,7 +3927,7 @@ fn worker_profiles_use_whole_profile_layering_and_native_inheritance() {
         installed["workers"]["verifier"]["origin"]["scope"],
         "default"
     );
-    let skill = fs::read_to_string(codex_destination.join("SKILL.md")).expect("Codex skill");
+    let skill = fs::read_to_string(codex_destination.join("zdev/SKILL.md")).expect("Codex skill");
     assert!(skill.contains("`model=\"gpt-local\"`"));
     assert!(skill.contains("`reasoning_effort=\"xhigh\"`"));
     assert!(!skill.contains("gpt-global"));
@@ -3897,9 +4134,9 @@ fn codex_skill_check_and_force_install_manage_ui_metadata() {
         root,
         &["skill", "install", "codex", "--to", destination_text],
     );
-    assert_eq!(installed["files"], 12);
+    assert_eq!(installed["files"], 13);
 
-    let metadata = destination.join("agents/openai.yaml");
+    let metadata = destination.join("zdev/agents/openai.yaml");
     fs::remove_file(&metadata).expect("remove Codex UI metadata");
     let missing = json_output_with_exit_code(
         root,
@@ -4004,7 +4241,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         "agents/zdev-implementer.md",
         "agents/zdev-verifier.md",
         "command/zdev-task.md",
-        "command/zdev-audit.md",
+        "commands/zdev-audit.md",
     ] {
         assert!(destination.join(path).is_file(), "missing {path}");
     }
@@ -4254,12 +4491,13 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     );
     assert_eq!(installed["harness"], "omp");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 13);
+    assert_eq!(installed["files"], 14);
     assert_eq!(
         file_inventory(&destination),
         [
             "agents/zdev-implementer.md",
             "agents/zdev-verifier.md",
+            "prompts/zdev-audit.md",
             "settings.json",
             "skills/zdev/SKILL.md",
             "skills/zdev/references/discuss.md",
@@ -4279,11 +4517,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         "{\"theme\":\"dark\"}\n"
     );
 
-    for pi_only_asset in [
-        "extensions/zdev-subagent.ts",
-        "prompts/zdev-task.md",
-        "prompts/zdev-audit.md",
-    ] {
+    for pi_only_asset in ["extensions/zdev-subagent.ts", "prompts/zdev-task.md"] {
         assert!(!destination.join(pi_only_asset).exists());
     }
 
@@ -4546,7 +4780,7 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
         &["skill", "install", "codex"],
         &[("CODEX_HOME", codex_home.as_path())],
     );
-    assert_eq!(codex["path"], json!(codex_home.join("skills/zdev")));
+    assert_eq!(codex["path"], json!(codex_home.join("skills")));
     assert_eq!(codex["scope"], "user");
 
     let claude = json_output_with_env(
@@ -4599,7 +4833,7 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
     let canonical_root = fs::canonicalize(root).expect("canonical repository root");
     assert_eq!(
         codex_project["path"],
-        json!(canonical_root.join(".codex/skills/zdev"))
+        json!(canonical_root.join(".codex/skills"))
     );
     assert_eq!(codex_project["scope"], "project");
 
@@ -4767,7 +5001,7 @@ fn project_skill_install_always_inlines_guidance_while_user_install_does_not() {
             ],
         );
         let user_skill = match harness {
-            "codex" => user_destination.join("SKILL.md"),
+            "codex" => user_destination.join("zdev/SKILL.md"),
             "claude" => user_destination.join("skills/zdev/SKILL.md"),
             "opencode" => user_destination.join("skills/zdev-opencode/SKILL.md"),
             "pi" => user_destination.join("skills/zdev-pi/SKILL.md"),
@@ -4881,7 +5115,7 @@ fn explicit_guidance_modes_report_markers_missing_files_and_safe_custom_paths() 
     );
     assert_eq!(custom["guidance"]["mode"], "custom");
     assert_eq!(custom["guidance"]["source"], "docs/build.md");
-    fs::write(custom_bundle.join("SKILL.md"), "replace\n").expect("change bundle");
+    fs::write(custom_bundle.join("zdev/SKILL.md"), "replace\n").expect("change bundle");
     json_output(
         root,
         &[
@@ -5268,7 +5502,7 @@ fn check_validates_slice_frontmatter_identity_and_required_sections() {
 fn project_check_says_current_bundle_is_not_ready_when_guidance_is_missing() {
     let repository = repository();
     let root = repository.path();
-    let destination = root.join(".codex/skills/zdev");
+    let destination = root.join(".codex/skills");
     json_output(root, &["init", "--record", "project"]);
     json_output(
         root,

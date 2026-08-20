@@ -1,6 +1,9 @@
 ---
-description: Review a codebase and return checked findings
+name: zdev-audit
+description: "Run a read-only zdev codebase audit with independently checked findings. Use when the user invokes $zdev-audit or asks active zdev to audit a named boundary."
 ---
+
+# Zdev audit for Codex
 
 Audit the requested boundary without changing files, zdev state, Git state, or
 task lifecycle. An omitted or blank boundary means the current repository.
@@ -26,10 +29,12 @@ safe result.
 Missing output, an unrecognized first line, or evidence that was not opened and
 checked becomes `BLOCKER zdev-audit`; it is never treated as a pass.
 
-Boundary: `$ARGUMENTS`
-
-Call `zdev_subagent` with role `verifier`, this contract, and the boundary. For
-warranted fan-out, use independent verifier calls and a different final
-verifier call to open, check, and deduplicate every candidate location.
-Validate the final first line and required body before returning it. The
-coordinating agent decides whether to record any work.
+Use a fresh Codex collaboration agent as the verifier. Pass
+`model="gpt-5.6-sol"` and
+`reasoning_effort="high"` when spawning it.
+Give it the boundary, repository guidance, applicable `AGENTS.md` instructions,
+and the audit contract above. If fan-out is warranted, use fresh verifier
+agents for the lenses and a different fresh verifier for final evidence
+vetting. Validate the returned first line and required body before reporting
+it. Do not create tasks automatically; the user decides whether findings
+become durable work.

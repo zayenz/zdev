@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-020"
 key = "workflow-audit-entrypoints"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-016"]
 +++
 # Install the common zdev audit workflow
@@ -27,12 +27,12 @@ Implement the audit slice of docs/harness-orchestration.md through src/integrati
 
 ## Done when
 
-- [ ] Codex, Claude Code, OpenCode, Pi, and Oh My Pi each install exactly one discoverable zdev-audit entrypoint at the documented native path.
-- [ ] Every adapter accepts PASS zdev-audit, FINDINGS zdev-audit, or BLOCKER zdev-audit and requires boundary, inspected and omitted scope, and located checked evidence.
-- [ ] Claude retains its native review-and-vet pipeline while the other harnesses express the same contract through native skills, commands, prompts, and workers.
-- [ ] Missing or invalid worker output fails closed and no adapter claims unchecked findings.
-- [ ] Install and check agree byte-for-byte, known legacy entrypoints are removed on forced replacement, and unrelated harness files are preserved.
-- [ ] Focused artifact tests cover discovery, verifier-profile routing, envelopes, deterministic realization, safe legacy migration, and one pre-publication failure without executing fake harnesses.
+- [x] Codex, Claude Code, OpenCode, Pi, and Oh My Pi each install exactly one discoverable zdev-audit entrypoint at the documented native path.
+- [x] Every adapter accepts PASS zdev-audit, FINDINGS zdev-audit, or BLOCKER zdev-audit and requires boundary, inspected and omitted scope, and located checked evidence.
+- [x] Claude retains its native review-and-vet pipeline while the other harnesses express the same contract through native skills, commands, prompts, and workers.
+- [x] Missing or invalid worker output fails closed and no adapter claims unchecked findings.
+- [x] Install and check agree byte-for-byte, known legacy entrypoints are removed on forced replacement, and unrelated harness files are preserved.
+- [x] Focused artifact tests cover discovery, verifier-profile routing, envelopes, deterministic realization, safe legacy migration, and one pre-publication failure without executing fake harnesses.
 
 ## Validation
 
@@ -40,3 +40,19 @@ Implement the audit slice of docs/harness-orchestration.md through src/integrati
 - Run cargo test --locked --test lean.
 - Run the all-harness install/check release smoke.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Installed one native zdev-audit entrypoint per harness with verifier-only checked findings, deterministic generation, and safe allowlisted legacy migration.
+
+Validation:
+
+- Independent verification passed after making non-forced OpenCode legacy upgrades fail closed and confirming safe forced migration for files, symlinks, directories, and unrelated shared-root content.
+- cargo test --locked --test lean (88 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked
+- cargo build --locked
+- all-harness release smoke
+- cargo package --locked --allow-dirty
+- git diff --check

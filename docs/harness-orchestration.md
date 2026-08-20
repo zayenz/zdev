@@ -155,6 +155,19 @@ These are renderable files, not a new runtime. Install and check must render the
 same bytes through the existing integration renderer. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 
+The audit rollout installs the `zdev-audit` entry point first; the
+`zdev-implement` and `zdev-verify` artifacts remain a separate implementation
+step. Codex installation now targets the shared `skills/` root so the existing
+`zdev/` skill and the sibling workflow skills form one managed bundle while
+unrelated skills remain untouched.
+
+Forced audit migration has one hard-coded removal in this step:
+`command/zdev-audit.md` under an OpenCode shared root. It is the previous
+zdev-owned singular-directory path, replaced by
+`commands/zdev-audit.md`. No other shared-root file is removed. In particular,
+the legacy task entry points remain until the implement-and-verify rollout owns
+their replacement.
+
 ## Common execution contract
 
 ### Deterministic task selection

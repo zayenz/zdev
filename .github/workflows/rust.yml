@@ -109,6 +109,7 @@ jobs:
             src/lib.rs \
             src/main.rs \
             skills/zdev/SKILL.md \
+            skills/zdev-audit/SKILL.md \
             skills/zdev/agents/openai.yaml \
             skills/zdev/references/discuss.md \
             skills/zdev/references/implement.md \
@@ -119,7 +120,9 @@ jobs:
             skills/zdev/references/to-tasks.md \
             skills/zdev/references/verify.md \
             templates/zdev/shared-contract.md \
+            templates/zdev/audit.md \
             templates/zdev/codex-skill.md \
+            templates/zdev/codex-audit-skill.md \
             templates/zdev/claude-skill.md \
             templates/zdev/claude/plugin.json \
             templates/zdev/claude/agents/zdev-implementer.md \
@@ -130,7 +133,7 @@ jobs:
             templates/zdev/opencode/agents/zdev-implementer.md \
             templates/zdev/opencode/agents/zdev-verifier.md \
             templates/zdev/opencode/command/zdev-task.md \
-            templates/zdev/opencode/command/zdev-audit.md \
+            templates/zdev/opencode/commands/zdev-audit.md \
             templates/zdev/pi-skill.md \
             templates/zdev/pi/prompts/zdev-task.md \
             templates/zdev/pi/prompts/zdev-audit.md \
@@ -138,6 +141,7 @@ jobs:
             templates/zdev/omp-skill.md \
             templates/zdev/omp/agents/zdev-implementer.md \
             templates/zdev/omp/agents/zdev-verifier.md \
+            templates/zdev/omp/prompts/zdev-audit.md \
             docs/adapted-methods.md \
             docs/user-guide.md \
             docs/workflow.md \

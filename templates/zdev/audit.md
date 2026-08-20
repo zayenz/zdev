@@ -1,7 +1,3 @@
----
-description: Review a codebase and return checked findings
----
-
 Audit the requested boundary without changing files, zdev state, Git state, or
 task lifecycle. An omitted or blank boundary means the current repository.
 Use only the resolved `verifier` worker profile; there is no auditor role.
@@ -25,11 +21,3 @@ names the failed stage, the available checked evidence, and what prevented a
 safe result.
 Missing output, an unrecognized first line, or evidence that was not opened and
 checked becomes `BLOCKER zdev-audit`; it is never treated as a pass.
-
-Boundary: `$ARGUMENTS`
-
-Call `zdev_subagent` with role `verifier`, this contract, and the boundary. For
-warranted fan-out, use independent verifier calls and a different final
-verifier call to open, check, and deduplicate every candidate location.
-Validate the final first line and required body before returning it. The
-coordinating agent decides whether to record any work.

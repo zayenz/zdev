@@ -9,6 +9,8 @@ description: Zdev manages durable software work through briefs, tasks, implement
 
 ## Oh My Pi orchestration
 
+Use `/zdev-audit` for the installed read-only audit workflow.
+
 For an ordinary task, use the built-in `task` tool to give the selected brief,
 task, repository guidance, and relevant source to `zdev-implementer`. Inspect
 the resulting diff, then ask a different `zdev-verifier` to check the task

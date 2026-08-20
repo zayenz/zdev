@@ -17,10 +17,10 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "zdev_subagent",
     label: "Zdev Subagent",
-    description: "Run a Pi implementer or verifier for one zdev task.",
+    description: "Run a Pi implementer or verifier for one zdev task or read-only audit.",
     parameters: Type.Object({
       role: Type.Union([Type.Literal("implementer"), Type.Literal("verifier")]),
-      prompt: Type.String({ description: "Area brief, task, repository guidance, diff, and relevant context." }),
+      prompt: Type.String({ description: "Task or audit boundary, repository guidance, diff, and relevant context." }),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const tools =

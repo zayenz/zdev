@@ -60,7 +60,9 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
     ),
 ];
 const SHARED_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/shared-contract.md");
+const AUDIT_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/audit.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
+const CODEX_AUDIT_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-audit-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
@@ -76,7 +78,7 @@ const OPENCODE_IMPLEMENTER: &str =
 const OPENCODE_VERIFIER: &str = include_str!("../templates/zdev/opencode/agents/zdev-verifier.md");
 const OPENCODE_TASK_COMMAND: &str = include_str!("../templates/zdev/opencode/command/zdev-task.md");
 const OPENCODE_AUDIT_COMMAND: &str =
-    include_str!("../templates/zdev/opencode/command/zdev-audit.md");
+    include_str!("../templates/zdev/opencode/commands/zdev-audit.md");
 const PI_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/pi-skill.md");
 const PI_TASK_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-task.md");
 const PI_AUDIT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-audit.md");
@@ -85,6 +87,8 @@ const PI_SUBAGENT_EXTENSION: &str =
 const OMP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/omp-skill.md");
 const OMP_IMPLEMENTER: &str = include_str!("../templates/zdev/omp/agents/zdev-implementer.md");
 const OMP_VERIFIER: &str = include_str!("../templates/zdev/omp/agents/zdev-verifier.md");
+const OMP_AUDIT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-audit.md");
+const OPENCODE_LEGACY_AUDIT_FILES: &[&str] = &["command/zdev-audit.md"];
 const OMP_RELOCATED_USER_WARNING: &str = "Oh My Pi 17.2.15 discovers the zdev skill at this PI_CODING_AGENT_DIR location but may not discover its user task agents. Unset PI_CODING_AGENT_DIR to use ~/.omp/agent, or install with --scope project under .omp, until upstream task-agent discovery is fixed.";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -155,19 +159,23 @@ impl Harness {
         match self {
             Self::Codex => {
                 files.push(IntegrationFile {
-                    path: "SKILL.md".to_owned(),
+                    path: "zdev/SKILL.md".to_owned(),
                     content: CODEX_SKILL_TEMPLATE.to_owned(),
                 });
                 files.push(IntegrationFile {
-                    path: "agents/openai.yaml".to_owned(),
+                    path: "zdev/agents/openai.yaml".to_owned(),
                     content: CODEX_OPENAI_YAML.to_owned(),
                 });
                 files.extend(SHARED_REFERENCE_FILES.iter().map(|(path, content)| {
                     IntegrationFile {
-                        path: (*path).to_owned(),
+                        path: format!("zdev/{path}"),
                         content: (*content).to_owned(),
                     }
                 }));
+                files.push(IntegrationFile {
+                    path: "zdev-audit/SKILL.md".to_owned(),
+                    content: CODEX_AUDIT_SKILL_TEMPLATE.to_owned(),
+                });
             }
             Self::Claude => {
                 files.push(IntegrationFile {
@@ -228,7 +236,7 @@ impl Harness {
                         content: OPENCODE_TASK_COMMAND.to_owned(),
                     },
                     IntegrationFile {
-                        path: "command/zdev-audit.md".to_owned(),
+                        path: "commands/zdev-audit.md".to_owned(),
                         content: OPENCODE_AUDIT_COMMAND.to_owned(),
                     },
                 ]);
@@ -279,6 +287,10 @@ impl Harness {
                         path: "agents/zdev-verifier.md".to_owned(),
                         content: OMP_VERIFIER.to_owned(),
                     },
+                    IntegrationFile {
+                        path: "prompts/zdev-audit.md".to_owned(),
+                        content: OMP_AUDIT_PROMPT.to_owned(),
+                    },
                 ]);
             }
         }
@@ -286,10 +298,15 @@ impl Harness {
         Ok(SkillIntegration {
             harness: self,
             version: env!("CARGO_PKG_VERSION"),
-            layout: if matches!(self, Self::Opencode | Self::Pi | Self::Omp) {
+            layout: if matches!(self, Self::Codex | Self::Opencode | Self::Pi | Self::Omp) {
                 IntegrationLayout::SharedRoot
             } else {
                 IntegrationLayout::ExactTree
+            },
+            legacy_files: if self == Self::Opencode {
+                OPENCODE_LEGACY_AUDIT_FILES
+            } else {
+                &[]
             },
             files,
             workers,
@@ -317,7 +334,7 @@ fn template_environment() -> Environment<'static> {
 fn render_template(
     name: &str,
     source: &str,
-    shared_contract: &str,
+    contracts: (&str, &str),
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
@@ -333,7 +350,8 @@ fn render_template(
         })?;
     let mut rendered = template
         .render(context! {
-            shared_contract,
+            shared_contract => contracts.0,
+            audit_contract => contracts.1,
             repository_guidance,
             question_tool_guidance,
             version,
@@ -358,7 +376,7 @@ fn render_template(
 }
 
 fn prepare_template_value(path: &str, value: &str) -> Result<String, ZdevError> {
-    if path.ends_with(".json") {
+    if path.ends_with(".json") || path.ends_with(".js") {
         serde_json::to_string(value).map_err(|error| {
             ZdevError::new(format!(
                 "Cannot prepare values for zdev integration template {path}: {error}"
@@ -377,10 +395,19 @@ fn realize_templates(
 ) -> Result<(), ZdevError> {
     let repository_guidance = repository_guidance(guidance);
     let version = env!("CARGO_PKG_VERSION");
+    let audit_contract = render_template(
+        "audit.md",
+        AUDIT_CONTRACT_TEMPLATE,
+        ("", ""),
+        &repository_guidance,
+        harness.question_tool_guidance(),
+        version,
+        workers,
+    )?;
     let shared_contract = render_template(
         "shared-contract.md",
         SHARED_CONTRACT_TEMPLATE,
-        "",
+        ("", ""),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -390,6 +417,7 @@ fn realize_templates(
     for file in files {
         let is_json = file.path.ends_with(".json");
         let shared_contract = prepare_template_value(&file.path, shared_contract.trim_end())?;
+        let audit_contract = prepare_template_value(&file.path, audit_contract.trim_end())?;
         let repository_guidance = prepare_template_value(&file.path, &repository_guidance)?;
         let question_tool_guidance =
             prepare_template_value(&file.path, harness.question_tool_guidance())?;
@@ -397,7 +425,7 @@ fn realize_templates(
         file.content = render_template(
             &file.path,
             &file.content,
-            &shared_contract,
+            (&shared_contract, &audit_contract),
             &repository_guidance,
             &question_tool_guidance,
             &version,
@@ -479,6 +507,7 @@ struct SkillIntegration {
     harness: Harness,
     version: &'static str,
     layout: IntegrationLayout,
+    legacy_files: &'static [&'static str],
     files: Vec<IntegrationFile>,
     workers: ResolvedWorkers,
 }
@@ -672,7 +701,7 @@ fn resolve_integration_destination(
                 ZdevError::new("Cannot resolve the project integration destination")
             })?;
             match harness {
-                Harness::Codex => root.join(".codex/skills/zdev"),
+                Harness::Codex => root.join(".codex/skills"),
                 Harness::Claude => root.join(".claude/skills/zdev"),
                 Harness::Opencode => root.join(".opencode"),
                 Harness::Pi => root.join(".pi"),
@@ -718,7 +747,8 @@ fn resolve_integration_destination(
                 })
             };
             match harness {
-                Harness::Codex | Harness::Claude => config_home.join("skills/zdev"),
+                Harness::Codex => config_home.join("skills"),
+                Harness::Claude => config_home.join("skills/zdev"),
                 Harness::Opencode | Harness::Pi | Harness::Omp => config_home,
             }
         }
@@ -948,6 +978,13 @@ fn installed_integration_matches(
     destination: &Path,
 ) -> Result<bool, ZdevError> {
     if matches!(integration.layout, IntegrationLayout::SharedRoot) {
+        if integration
+            .legacy_files
+            .iter()
+            .any(|path| fs::symlink_metadata(destination.join(path)).is_ok())
+        {
+            return Ok(false);
+        }
         for expected in &integration.files {
             let file = destination.join(&expected.path);
             if !file.is_file() {
@@ -1271,7 +1308,29 @@ fn publish_shared_root_integration(
             destination.display()
         )));
     }
-    if destination.is_dir() && installed_integration_matches(integration, destination)? {
+    let legacy_paths = integration
+        .legacy_files
+        .iter()
+        .map(|path| destination.join(path))
+        .collect::<Vec<_>>();
+    let has_legacy = legacy_paths
+        .iter()
+        .any(|path| fs::symlink_metadata(path).is_ok());
+    if has_legacy && !force {
+        let legacy = legacy_paths
+            .iter()
+            .find(|path| fs::symlink_metadata(path).is_ok())
+            .expect("legacy path was found");
+        return Err(ZdevError::new(format!(
+            "A legacy zdev audit entrypoint exists at {}; rerun this `zdev skill install {}` command with `--force`",
+            legacy.display(),
+            integration.harness.as_str()
+        )));
+    }
+    if destination.is_dir()
+        && installed_integration_matches(integration, destination)?
+        && !(force && has_legacy)
+    {
         return Ok(InstallResult {
             status: "unchanged",
             destination: destination.to_path_buf(),
@@ -1295,6 +1354,19 @@ fn publish_shared_root_integration(
             }
         }
     }
+    if force {
+        for path in &legacy_paths {
+            if let Ok(metadata) = fs::symlink_metadata(path) {
+                if !metadata.is_file() && !metadata.file_type().is_symlink() {
+                    return Err(ZdevError::new(format!(
+                        "Cannot remove legacy zdev entrypoint because it is not a file: {}",
+                        path.display()
+                    )));
+                }
+                replaced = true;
+            }
+        }
+    }
     fs::create_dir_all(destination).map_err(|error| {
         ZdevError::io(format!("Cannot create {}", destination.display()), error)
     })?;
@@ -1309,6 +1381,18 @@ fn publish_shared_root_integration(
         fs::create_dir_all(parent)
             .map_err(|error| ZdevError::io(format!("Cannot create {}", parent.display()), error))?;
         write_atomic(&path, expected.content.as_bytes())?;
+    }
+    if force {
+        for path in legacy_paths {
+            if fs::symlink_metadata(&path).is_ok() {
+                fs::remove_file(&path).map_err(|error| {
+                    ZdevError::io(
+                        format!("Cannot remove legacy zdev entrypoint {}", path.display()),
+                        error,
+                    )
+                })?;
+            }
+        }
     }
     Ok(InstallResult {
         status: if replaced { "replaced" } else { "created" },
@@ -1327,7 +1411,7 @@ mod tests {
             ("unknown.md", "{{unknown}}", "Cannot render"),
             ("invalid.md", "{{", "Cannot parse"),
         ] {
-            let error = render_template(name, source, "", "", "", "", &workers)
+            let error = render_template(name, source, ("", ""), "", "", "", &workers)
                 .expect_err("invalid template must fail");
             assert!(error.to_string().contains(expected));
             assert!(error.to_string().contains(name));

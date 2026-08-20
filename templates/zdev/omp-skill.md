@@ -18,6 +18,11 @@ Return concrete failures to the existing implementer with `hub` when possible,
 then verify the correction with a different agent. Continue until `PASS` or
 `BLOCKER`. The coordinating agent runs `zdev task done` and `zdev commit`.
 
+Inspect `/goal show` before explicit native-goal use, then apply `/goal set
+<native_goal>` only when no unfinished goal exists. Otherwise follow the shared
+ordinary-prompt or unavailable-feature fallback; never drop or replace an
+existing Oh My Pi goal implicitly.
+
 {{repository_guidance}}
 
 The [task format](references/task-format.md) defines imported task bundles.

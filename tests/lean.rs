@@ -219,6 +219,197 @@ fn import_one_task(root: &Path, area: &str) {
 }
 
 #[test]
+fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "checkout",
+            "--title",
+            "Checkout reliability",
+            "--objective",
+            "Make checkout failures safe and understandable.",
+        ],
+    );
+    json_output(
+        root,
+        &[
+            "slice",
+            "create",
+            "checkout",
+            "payments",
+            "--title",
+            "Payment submission",
+            "--objective",
+            "Make payment submission safe to retry.",
+            "--boundary",
+            "Do not change provider selection.",
+        ],
+    );
+    commit_all(root, "record checkout area");
+    git(root, &["switch", "--detach", "-q", "HEAD"]);
+    let tasks = root.join(".zdev/checkout/tasks");
+    fs::write(
+        tasks.join("001-shipped-foundation.md"),
+        "+++\nschema_version = 1\nid = \"checkout-001\"\nkey = \"shipped-foundation\"\narea = \"checkout\"\nstatus = \"done\"\nblocked_by = []\n+++\n# Ship the foundation\n\n## Outcome\n\nThe foundation is shipped.\n\n## Done when\n\n- [x] The foundation is present.\n\n## Validation\n\n- Run the foundation check.\n\n## Result\n\nShipped and checked.\n",
+    )
+    .expect("done goal task");
+    fs::write(
+        tasks.join("002-reject-duplicate-payment.md"),
+        "+++\nschema_version = 1\nid = \"checkout-002\"\nkey = \"reject-duplicate-payment\"\narea = \"checkout\"\nstatus = \"open\"\nslice = \"payments\"\nblocked_by = []\n+++\n# Reject duplicate payment submission\n\n## Outcome\n\nA repeated submission returns the original payment result without charging again.\n\n## Context\n\nThe provider can retry after losing our first response.\n\n## Boundaries\n\n- Keep the public response schema unchanged.\n\n## Done when\n\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\n## Validation\n\n- Run the focused payment integration test.\n",
+    )
+    .expect("ready goal task");
+    fs::write(
+        tasks.join("003-follow-up.md"),
+        "+++\nschema_version = 1\nid = \"checkout-003\"\nkey = \"follow-up\"\narea = \"checkout\"\nstatus = \"open\"\nblocked_by = [\"checkout-002\"]\n+++\n# Follow up\n\n## Outcome\n\nThe follow-up is complete.\n\n## Done when\n\n- [ ] The follow-up is complete.\n\n## Validation\n\n- Run the follow-up check.\n",
+    )
+    .expect("blocked goal task");
+
+    let first = run_zdev(root, &["goal", "checkout"]);
+    let second = run_zdev(root, &["goal", "checkout"]);
+    assert!(first.status.success());
+    assert_eq!(first.stdout, second.stdout);
+    let native_goal = "Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.";
+    let expected_text = format!(
+        "Area: checkout — Checkout reliability\nState: ready\nObjective:\nMake checkout failures safe and understandable.\nCounts: 3 total; 2 open; 1 ready; 1 blocked; 1 done\n\nTask: checkout-002 — Reject duplicate payment submission\nTask source: .zdev/checkout/tasks/002-reject-duplicate-payment.md\nOutcome:\nA repeated submission returns the original payment result without charging again.\n\nContext:\nThe provider can retry after losing our first response.\n\nSlice: payments — Payment submission\nSlice source: .zdev/checkout/slices/payments.md\nSlice objective:\nMake payment submission safe to retry.\nSlice boundaries:\n- Do not change provider selection.\n\nBoundaries:\n- Keep the public response schema unchanged.\n\nDone when:\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\nValidation:\n- Run the focused payment integration test.\n\nNative goal:\n{native_goal}\n"
+    );
+    assert_eq!(first.stdout, expected_text.as_bytes());
+
+    let json_first = run_zdev(root, &["goal", "checkout", "--format", "json"]);
+    let json_second = run_zdev(root, &["goal", "checkout", "--format", "json"]);
+    assert_eq!(json_first.stdout, json_second.stdout);
+    let expected_json = format!(
+        "{{\n  \"schema_version\": 1,\n  \"area\": {{\n    \"tag\": \"checkout\",\n    \"title\": \"Checkout reliability\",\n    \"objective\": \"Make checkout failures safe and understandable.\",\n    \"path\": \".zdev/checkout\"\n  }},\n  \"state\": \"ready\",\n  \"counts\": {{\n    \"total\": 3,\n    \"open\": 2,\n    \"ready\": 1,\n    \"blocked\": 1,\n    \"done\": 1\n  }},\n  \"task\": {{\n    \"id\": \"checkout-002\",\n    \"key\": \"reject-duplicate-payment\",\n    \"title\": \"Reject duplicate payment submission\",\n    \"path\": \".zdev/checkout/tasks/002-reject-duplicate-payment.md\",\n    \"outcome\": \"A repeated submission returns the original payment result without charging again.\",\n    \"context\": \"The provider can retry after losing our first response.\",\n    \"boundaries\": \"- Keep the public response schema unchanged.\",\n    \"done_when\": \"- [ ] Duplicate provider calls are prevented.\\n- [ ] The original result is returned.\",\n    \"validation\": \"- Run the focused payment integration test.\",\n    \"blocked_by\": [],\n    \"slice\": {{\n      \"key\": \"payments\",\n      \"title\": \"Payment submission\",\n      \"path\": \".zdev/checkout/slices/payments.md\",\n      \"objective\": \"Make payment submission safe to retry.\",\n      \"boundaries\": \"- Do not change provider selection.\"\n    }}\n  }},\n  \"native_goal\": \"{native_goal}\"\n}}\n"
+    );
+    assert_eq!(json_first.stdout, expected_json.as_bytes());
+}
+
+#[test]
+fn goal_handles_empty_unsliced_and_complete_states() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "general",
+            "--title",
+            "General improvements",
+            "--objective",
+            "Capture small approved improvements without inventing a product roadmap.",
+        ],
+    );
+    let empty = run_zdev(root, &["goal", "general"]);
+    assert_eq!(
+        String::from_utf8(empty.stdout).expect("empty goal"),
+        "Area: general — General improvements\nState: empty\nObjective:\nCapture small approved improvements without inventing a product roadmap.\nCounts: 0 total; 0 open; 0 ready; 0 blocked; 0 done\n\nNo tasks are recorded. Create and approve a task before applying a harness goal.\n"
+    );
+    let empty_output = run_zdev(root, &["goal", "general", "--format", "json"]);
+    assert_eq!(
+        empty_output.stdout,
+        b"{\n  \"schema_version\": 1,\n  \"area\": {\n    \"tag\": \"general\",\n    \"title\": \"General improvements\",\n    \"objective\": \"Capture small approved improvements without inventing a product roadmap.\",\n    \"path\": \".zdev/general\"\n  },\n  \"state\": \"empty\",\n  \"counts\": {\n    \"total\": 0,\n    \"open\": 0,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"done\": 0\n  },\n  \"task\": null\n}\n"
+    );
+    let empty_json: Value = serde_json::from_slice(&empty_output.stdout).expect("empty JSON");
+    assert_eq!(empty_json["state"], "empty");
+    assert_eq!(empty_json["task"], Value::Null);
+    assert!(empty_json.get("native_goal").is_none());
+
+    let task_path = root.join(".zdev/general/tasks/001-one-off.md");
+    fs::write(
+        &task_path,
+        "+++\nschema_version = 1\nid = \"general-001\"\nkey = \"one-off\"\narea = \"general\"\nstatus = \"open\"\nblocked_by = []\n+++\n# Improve one thing\n\n## Outcome\n\nOne useful thing improves.\n\n## Done when\n\n- [ ] The improvement works.\n\n## Validation\n\n- Run the focused check.\n",
+    )
+    .expect("unsliced goal task");
+    let unsliced = json_output(root, &["goal", "general"]);
+    let task = &unsliced["task"];
+    assert_eq!(task["id"], "general-001");
+    for omitted in ["context", "boundaries", "slice"] {
+        assert!(task.get(omitted).is_none(), "unexpected {omitted}");
+    }
+    assert!(
+        !unsliced["native_goal"]
+            .as_str()
+            .expect("native goal")
+            .contains("slices/")
+    );
+
+    fs::write(
+        &task_path,
+        "+++\nschema_version = 1\nid = \"general-001\"\nkey = \"one-off\"\narea = \"general\"\nstatus = \"done\"\nblocked_by = []\n+++\n# Improve one thing\n\n## Outcome\n\nOne useful thing improves.\n\n## Done when\n\n- [x] The improvement works.\n\n## Validation\n\n- Run the focused check.\n\n## Result\n\nThe improvement works.\n",
+    )
+    .expect("complete goal task");
+    let complete = run_zdev(root, &["goal", "general"]);
+    assert_eq!(
+        String::from_utf8(complete.stdout).expect("complete goal"),
+        "Area: general — General improvements\nState: complete\nObjective:\nCapture small approved improvements without inventing a product roadmap.\nCounts: 1 total; 0 open; 0 ready; 0 blocked; 1 done\n\nNo open tasks remain.\n"
+    );
+    let complete_output = run_zdev(root, &["goal", "general", "--format", "json"]);
+    assert_eq!(
+        complete_output.stdout,
+        b"{\n  \"schema_version\": 1,\n  \"area\": {\n    \"tag\": \"general\",\n    \"title\": \"General improvements\",\n    \"objective\": \"Capture small approved improvements without inventing a product roadmap.\",\n    \"path\": \".zdev/general\"\n  },\n  \"state\": \"complete\",\n  \"counts\": {\n    \"total\": 1,\n    \"open\": 0,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"done\": 1\n  },\n  \"task\": null\n}\n"
+    );
+    let complete_json: Value =
+        serde_json::from_slice(&complete_output.stdout).expect("complete JSON");
+    assert_eq!(complete_json["state"], "complete");
+    assert_eq!(complete_json["task"], Value::Null);
+    assert!(complete_json.get("native_goal").is_none());
+}
+
+#[test]
+fn malformed_goal_graph_fails_without_mutation() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "broken",
+            "--title",
+            "Broken graph",
+            "--objective",
+            "Reject malformed task dependencies.",
+        ],
+    );
+    let task_path = root.join(".zdev/broken/tasks/001-broken.md");
+    fs::write(
+        &task_path,
+        "+++\nschema_version = 1\nid = \"broken-001\"\nkey = \"broken\"\narea = \"broken\"\nstatus = \"open\"\nblocked_by = [\"broken-999\"]\n+++\n# Broken dependency\n\n## Outcome\n\nThe malformed graph is rejected.\n\n## Done when\n\n- [ ] The command fails.\n\n## Validation\n\n- Run the focused check.\n",
+    )
+    .expect("malformed goal task");
+    let before = fs::read(&task_path).expect("task before goal");
+    let inventory = file_inventory(&root.join(".zdev"));
+    let git_before = git(root, &["status", "--porcelain=v1", "--untracked-files=all"]);
+
+    let rejected = run_zdev(root, &["goal", "broken", "--format", "json"]);
+    assert!(!rejected.status.success());
+    assert!(rejected.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&rejected.stderr).expect("goal error JSON");
+    assert_eq!(error["command"], "goal");
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("goal error")
+            .contains("missing blocker broken-999")
+    );
+    assert_eq!(fs::read(&task_path).expect("task after goal"), before);
+    assert_eq!(file_inventory(&root.join(".zdev")), inventory);
+    assert_eq!(
+        git(root, &["status", "--porcelain=v1", "--untracked-files=all"]),
+        git_before
+    );
+}
+
+#[test]
 fn next_any_selects_ready_work_across_areas_without_changing_git_state() {
     let repository = repository();
     let root = repository.path();

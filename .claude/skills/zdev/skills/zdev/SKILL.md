@@ -93,6 +93,25 @@ stops implementation, verification, completion, and commit preparation.
 Keep existing Git changes in place. Establish ownership before touching an
 overlapping path or changing the index.
 
+## Deterministic task context
+
+For work in a named area, run `zdev goal <area> --format json` first. An `empty`
+or `complete` result means there is no executable task; report it without
+starting a worker or native goal. For `ready`, use `zdev goal <area>` as
+ordinary prompt context unless the user explicitly asks to apply a continuing
+native goal. Do not reproduce the goal renderer in the harness.
+
+On a harness with native goals, inspect the current native goal before applying
+one. An active, paused, budget-limited, or otherwise unfinished native goal
+wins. Do not edit, clear, replace, or layer task work over it; report the
+conflict and ask the user whether to keep or explicitly replace it. When native
+mode was explicitly requested and no unfinished goal exists, apply the exact
+`native_goal` value. If the feature is absent, disabled, or unavailable, use
+the ordinary prompt instead and say that no native continuation was started.
+
+A native goal never completes a zdev task or commits. Goal command failure also
+leaves the session goal unchanged.
+
 ## Write human-facing prose plainly
 
 When composing or revising human-facing prose written for zdev, preserve the
@@ -133,6 +152,11 @@ boundaries.
 When the packaged workflows are available, `/zdev:zdev-task` runs this task
 cycle and `/zdev:zdev-audit` runs a read-only audit. The ordinary subagent loop
 also works. The coordinating agent runs `zdev task done` and `zdev commit`.
+
+Inspect `/goal` before explicit native-goal use, then apply `/goal <native_goal>`
+only when no unfinished goal exists. Otherwise follow the shared ordinary-prompt
+or unavailable-feature fallback; never replace an existing Claude Code goal
+implicitly.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

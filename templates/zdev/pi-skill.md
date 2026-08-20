@@ -20,6 +20,10 @@ Use `/zdev-task` for one task cycle and `/zdev-audit` for a read-only audit.
 Child Pi processes cannot load extensions or delegate. The coordinating agent
 runs `zdev task done` and `zdev commit`.
 
+Stock Pi has no native goal surface. Use the rendered zdev goal as an ordinary
+prompt, including when a native feature was requested but is unavailable, and
+state that no native continuation was started.
+
 {{repository_guidance}}
 
 The [task format](references/task-format.md) defines imported task bundles.

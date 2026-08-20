@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-017"
 key = "deterministic-goal-command"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Add the deterministic area goal command
@@ -26,15 +26,31 @@ Implement docs/harness-goals.md. Add a small goal projection module routed from 
 
 ## Done when
 
-- [ ] Human and JSON output match the documented fields, ordering, omissions, paths, counts, fixed native condition, and final newline for ready, empty, and complete states.
-- [ ] Goal selection is identical to ordinary next-task ordering for the same valid graph without requiring the area branch.
-- [ ] Sliced and unsliced tasks expose exactly their recorded objective, context, boundaries, proof conditions, and validation.
-- [ ] Repeated runs over unchanged records are byte-identical.
-- [ ] Malformed records, missing slices, missing blockers, and cycles use the existing error envelope and leave files and Git unchanged.
-- [ ] All five realized integrations describe ordinary-prompt use, explicit native-goal intent, unfinished-goal precedence, and unavailable-feature fallback consistently.
+- [x] Human and JSON output match the documented fields, ordering, omissions, paths, counts, fixed native condition, and final newline for ready, empty, and complete states.
+- [x] Goal selection is identical to ordinary next-task ordering for the same valid graph without requiring the area branch.
+- [x] Sliced and unsliced tasks expose exactly their recorded objective, context, boundaries, proof conditions, and validation.
+- [x] Repeated runs over unchanged records are byte-identical.
+- [x] Malformed records, missing slices, missing blockers, and cycles use the existing error envelope and leave files and Git unchanged.
+- [x] All five realized integrations describe ordinary-prompt use, explicit native-goal intent, unfinished-goal precedence, and unavailable-feature fallback consistently.
 
 ## Validation
 
 - Run focused black-box tests for sliced ready output, unsliced omission, empty, complete, deterministic reruns, and one non-mutating malformed graph.
 - Run cargo test --locked --test lean.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Added deterministic read-only area goal projection with exact ready, empty, and complete outputs plus consistent native-goal guidance for every harness.
+
+Validation:
+
+- Independent verification confirmed exact byte contracts, shared task ordering and validation, off-branch behavior, deterministic generation, and non-mutation.
+- cargo test --locked --test lean (81 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked
+- cargo build --locked
+- all-harness install/check release smoke
+- cargo package --locked --allow-dirty
+- git diff --check

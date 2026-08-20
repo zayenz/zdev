@@ -91,6 +91,14 @@ pub(super) struct SliceBrief {
     pub path: PathBuf,
 }
 
+pub(super) struct GoalSliceRead {
+    pub key: String,
+    pub title: String,
+    pub objective: String,
+    pub boundaries: String,
+    pub path: PathBuf,
+}
+
 pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOutput, ZdevError> {
     let state_dir = root.join(".zdev");
     if state_dir.exists() {
@@ -577,6 +585,20 @@ pub(super) fn slice_briefs(root: &Path, area: &str) -> Result<Vec<SliceBrief>, Z
             path: slice.path,
         })
         .collect())
+}
+
+pub(super) fn goal_slice(root: &Path, area: &str, key: &str) -> Result<GoalSliceRead, ZdevError> {
+    load_slices(root, area)?
+        .into_iter()
+        .find(|slice| slice.header.key == key)
+        .map(|slice| GoalSliceRead {
+            key: slice.header.key,
+            title: slice.header.title,
+            objective: slice.objective,
+            boundaries: slice.boundaries,
+            path: slice.path,
+        })
+        .ok_or_else(|| ZdevError::new(format!("Unknown slice: {area}/{key}")))
 }
 
 fn write_new_atomic(path: &Path, bytes: &[u8], exists_message: &str) -> Result<(), ZdevError> {

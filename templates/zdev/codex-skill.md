@@ -19,7 +19,9 @@ applicable `AGENTS.md` instructions.
 {% if verifier_has_model %}For the verifier, pass `model={{ verifier_model }}`{% if verifier_has_effort %} and
 `reasoning_effort={{ verifier_effort }}`{% endif %} to the spawned agent.{% else %}Leave the verifier's model and reasoning effort unset so it inherits them.{% endif %}
 
-For longer work, use a Codex goal only when the user explicitly requests one.
+Inspect `/goal` before explicit native-goal use, then apply `/goal <native_goal>`
+only when no unfinished goal exists. Otherwise follow the shared ordinary-prompt
+or unavailable-feature fallback.
 
 {{repository_guidance}}
 

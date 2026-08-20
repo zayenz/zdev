@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod config;
+mod goal;
 mod integrations;
 mod project;
 mod tasks;
@@ -143,6 +144,11 @@ enum Command {
         /// Select ready work across all structurally safe areas
         #[arg(long, conflicts_with = "area")]
         any: bool,
+    },
+    /// Show a stable read-only projection of the next ready task in an area
+    Goal {
+        /// Area tag whose next ready task to project
+        area: String,
     },
     /// Show task counts and branch health
     ///
@@ -394,6 +400,7 @@ impl Cli {
             Command::Tasks { .. } => "tasks",
             Command::Task { .. } => "task",
             Command::Next { .. } => "next",
+            Command::Goal { .. } => "goal",
             Command::Status { .. } => "status",
             Command::Check { .. } => "check",
             Command::Skill { .. } => "skill",
@@ -408,6 +415,7 @@ pub struct CommandOutput {
     pub exit_code: u8,
     text: String,
     value: Value,
+    json: Option<String>,
 }
 
 impl CommandOutput {
@@ -416,14 +424,23 @@ impl CommandOutput {
             exit_code: 0,
             text: text.into(),
             value,
+            json: None,
         }
+    }
+
+    fn with_json(mut self, json: String) -> Self {
+        self.json = Some(json);
+        self
     }
 }
 
 pub fn render_success(format: OutputFormat, output: &CommandOutput) {
     match format {
         OutputFormat::Text => println!("{}", output.text),
-        OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&output.value).unwrap()),
+        OutputFormat::Json => match &output.json {
+            Some(json) => println!("{json}"),
+            None => println!("{}", serde_json::to_string_pretty(&output.value).unwrap()),
+        },
     }
 }
 
@@ -528,6 +545,7 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 tasks::next(&root, area.as_deref())
             }
         }
+        Command::Goal { area } => goal::show(&root, area),
         Command::Status { area } => status_output(&root, area.as_deref()),
         Command::Check { area } => check_output(&root, area.as_deref()),
         Command::Skill { .. } => unreachable!(),

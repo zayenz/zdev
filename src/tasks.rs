@@ -1404,6 +1404,73 @@ pub(super) fn empty_index(area: &str) -> Result<String, ZdevError> {
     render_index(area, &[])
 }
 
+pub(super) struct GoalTaskRead {
+    pub id: String,
+    pub key: String,
+    pub title: String,
+    pub path: PathBuf,
+    pub outcome: String,
+    pub context: Option<String>,
+    pub boundaries: Option<String>,
+    pub done_when: String,
+    pub validation: String,
+    pub blocked_by: Vec<String>,
+    pub slice: Option<String>,
+}
+
+pub(super) struct GoalTasksRead {
+    pub total: usize,
+    pub open: usize,
+    pub ready: usize,
+    pub blocked: usize,
+    pub done: usize,
+    pub focus: Option<GoalTaskRead>,
+}
+
+pub(super) fn goal_tasks(root: &Path, area: &str) -> Result<GoalTasksRead, ZdevError> {
+    let tasks = load_tasks(root, area)?;
+    let ready = tasks
+        .iter()
+        .filter(|task| task_state(task, &tasks) == "ready")
+        .count();
+    let blocked = tasks
+        .iter()
+        .filter(|task| task_state(task, &tasks) == "blocked")
+        .count();
+    let done = tasks
+        .iter()
+        .filter(|task| task.header.status == TaskStatus::Done)
+        .count();
+    let focus = next_task(&tasks)
+        .map(|task| {
+            Ok(GoalTaskRead {
+                id: task.header.id.clone(),
+                key: task.header.key.clone(),
+                title: task.title.clone(),
+                path: task.path.clone(),
+                outcome: required_markdown_section(&task.body, "Outcome", &task.path)?.to_owned(),
+                context: markdown_section(&task.body, "Context", &task.path)?.map(str::to_owned),
+                boundaries: markdown_section(&task.body, "Boundaries", &task.path)?
+                    .map(str::to_owned),
+                done_when: required_markdown_section(&task.body, "Done when", &task.path)?
+                    .to_owned(),
+                validation: required_markdown_section(&task.body, "Validation", &task.path)?
+                    .to_owned(),
+                blocked_by: task.header.blocked_by.clone(),
+                slice: task.header.slice.clone(),
+            })
+        })
+        .transpose()?;
+    Ok(GoalTasksRead {
+        total: tasks.len(),
+        open: tasks.len() - done,
+        ready,
+        blocked,
+        done,
+        focus,
+    })
+}
+
 fn write_index(root: &Path, area: &str) -> Result<PathBuf, ZdevError> {
     let (_, area_dir) = load_area(root, area)?;
     let tasks = load_tasks(root, area)?;

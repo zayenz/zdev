@@ -5,6 +5,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use clap::{Subcommand, ValueEnum};
+use minijinja::{AutoEscape, Environment, UndefinedBehavior, context};
 use serde_json::{Value, json};
 
 use super::project::{read_config, write_config};
@@ -16,48 +17,48 @@ const GUIDANCE_TEMPLATE: &str = "# Repository guidance for zdev\n\n## Understand
 const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
     (
         "references/discuss.md",
-        include_str!("../skills/zdev/references/discuss.md"),
+        include_str!("../templates/zdev/references/discuss.md"),
     ),
     (
         "references/implement.md",
-        include_str!("../skills/zdev/references/implement.md"),
+        include_str!("../templates/zdev/references/implement.md"),
     ),
     (
         "references/improve.md",
-        include_str!("../skills/zdev/references/improve.md"),
+        include_str!("../templates/zdev/references/improve.md"),
     ),
     (
         "references/investigate.md",
-        include_str!("../skills/zdev/references/investigate.md"),
+        include_str!("../templates/zdev/references/investigate.md"),
     ),
     (
         "references/shape-work.md",
-        include_str!("../skills/zdev/references/shape-work.md"),
+        include_str!("../templates/zdev/references/shape-work.md"),
     ),
     (
         "references/setup.md",
-        include_str!("../skills/zdev/references/setup.md"),
+        include_str!("../templates/zdev/references/setup.md"),
     ),
     (
         "references/task-format.md",
-        include_str!("../skills/zdev/references/task-format.md"),
+        include_str!("../templates/zdev/references/task-format.md"),
     ),
     (
         "references/to-tasks.md",
-        include_str!("../skills/zdev/references/to-tasks.md"),
+        include_str!("../templates/zdev/references/to-tasks.md"),
     ),
     (
         "references/recovery.md",
-        include_str!("../skills/zdev/references/recovery.md"),
+        include_str!("../templates/zdev/references/recovery.md"),
     ),
     (
         "references/verify.md",
-        include_str!("../skills/zdev/references/verify.md"),
+        include_str!("../templates/zdev/references/verify.md"),
     ),
 ];
 const SHARED_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/shared-contract.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
-const CODEX_OPENAI_YAML: &str = include_str!("../skills/zdev/agents/openai.yaml");
+const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
 const CLAUDE_IMPLEMENTER: &str =
@@ -132,21 +133,13 @@ impl Harness {
         }
     }
 
-    fn render_reference(self, path: &str, content: &str) -> String {
-        if path == "references/discuss.md" {
-            content.replace("{{question_tool_guidance}}", self.question_tool_guidance())
-        } else {
-            content.to_owned()
-        }
-    }
-
-    fn integration(self, guidance: Option<(&str, &str)>) -> SkillIntegration {
+    fn integration(self, guidance: Option<(&str, &str)>) -> Result<SkillIntegration, ZdevError> {
         let mut files = Vec::new();
         match self {
             Self::Codex => {
                 files.push(IntegrationFile {
                     path: "SKILL.md".to_owned(),
-                    content: render_skill(CODEX_SKILL_TEMPLATE, guidance),
+                    content: CODEX_SKILL_TEMPLATE.to_owned(),
                 });
                 files.push(IntegrationFile {
                     path: "agents/openai.yaml".to_owned(),
@@ -155,24 +148,23 @@ impl Harness {
                 files.extend(SHARED_REFERENCE_FILES.iter().map(|(path, content)| {
                     IntegrationFile {
                         path: (*path).to_owned(),
-                        content: self.render_reference(path, content),
+                        content: (*content).to_owned(),
                     }
                 }));
             }
             Self::Claude => {
                 files.push(IntegrationFile {
                     path: ".claude-plugin/plugin.json".to_owned(),
-                    content: CLAUDE_PLUGIN_TEMPLATE
-                        .replace("{{version}}", env!("CARGO_PKG_VERSION")),
+                    content: CLAUDE_PLUGIN_TEMPLATE.to_owned(),
                 });
                 files.push(IntegrationFile {
                     path: "skills/zdev/SKILL.md".to_owned(),
-                    content: render_skill(CLAUDE_SKILL_TEMPLATE, guidance),
+                    content: CLAUDE_SKILL_TEMPLATE.to_owned(),
                 });
                 files.extend(SHARED_REFERENCE_FILES.iter().map(|(path, content)| {
                     IntegrationFile {
                         path: format!("skills/zdev/{path}"),
-                        content: self.render_reference(path, content),
+                        content: (*content).to_owned(),
                     }
                 }));
                 files.extend([
@@ -197,12 +189,12 @@ impl Harness {
             Self::Opencode => {
                 files.push(IntegrationFile {
                     path: "skills/zdev-opencode/SKILL.md".to_owned(),
-                    content: render_skill(OPENCODE_SKILL_TEMPLATE, guidance),
+                    content: OPENCODE_SKILL_TEMPLATE.to_owned(),
                 });
                 files.extend(SHARED_REFERENCE_FILES.iter().map(|(path, content)| {
                     IntegrationFile {
                         path: format!("skills/zdev-opencode/{path}"),
-                        content: self.render_reference(path, content),
+                        content: (*content).to_owned(),
                     }
                 }));
                 files.extend([
@@ -227,12 +219,12 @@ impl Harness {
             Self::Pi => {
                 files.push(IntegrationFile {
                     path: "skills/zdev-pi/SKILL.md".to_owned(),
-                    content: render_skill(PI_SKILL_TEMPLATE, guidance),
+                    content: PI_SKILL_TEMPLATE.to_owned(),
                 });
                 files.extend(SHARED_REFERENCE_FILES.iter().map(|(path, content)| {
                     IntegrationFile {
                         path: format!("skills/zdev-pi/{path}"),
-                        content: self.render_reference(path, content),
+                        content: (*content).to_owned(),
                     }
                 }));
                 files.extend([
@@ -253,12 +245,12 @@ impl Harness {
             Self::Omp => {
                 files.push(IntegrationFile {
                     path: "skills/zdev/SKILL.md".to_owned(),
-                    content: render_skill(OMP_SKILL_TEMPLATE, guidance),
+                    content: OMP_SKILL_TEMPLATE.to_owned(),
                 });
                 files.extend(SHARED_REFERENCE_FILES.iter().map(|(path, content)| {
                     IntegrationFile {
                         path: format!("skills/zdev/{path}"),
-                        content: self.render_reference(path, content),
+                        content: (*content).to_owned(),
                     }
                 }));
                 files.extend([
@@ -273,7 +265,8 @@ impl Harness {
                 ]);
             }
         }
-        SkillIntegration {
+        realize_templates(self, guidance, &mut files)?;
+        Ok(SkillIntegration {
             harness: self,
             version: env!("CARGO_PKG_VERSION"),
             layout: if matches!(self, Self::Opencode | Self::Pi | Self::Omp) {
@@ -282,21 +275,117 @@ impl Harness {
                 IntegrationLayout::ExactTree
             },
             files,
-        }
+        })
     }
 }
 
-fn render_skill(template: &str, guidance: Option<(&str, &str)>) -> String {
-    let guidance = match guidance {
+fn repository_guidance(guidance: Option<(&str, &str)>) -> String {
+    match guidance {
         Some((source, content)) => format!(
             "<!-- zdev:generated-repository-guidance:start -->\n## Rendered repository guidance\n\nSource: `{source}`. The source file remains authoritative.\n\n{}\n<!-- zdev:generated-repository-guidance:end -->",
             content.trim_end()
         ),
         None => "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore planning or changing code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->".to_owned(),
-    };
-    template
-        .replace("{{shared_contract}}", SHARED_CONTRACT_TEMPLATE.trim_end())
-        .replace("{{repository_guidance}}", &guidance)
+    }
+}
+
+fn template_environment() -> Environment<'static> {
+    let mut environment = Environment::empty();
+    environment.set_undefined_behavior(UndefinedBehavior::Strict);
+    environment.set_auto_escape_callback(|_| AutoEscape::None);
+    environment
+}
+
+fn render_template(
+    environment: &Environment<'_>,
+    name: &str,
+    source: &str,
+    shared_contract: &str,
+    repository_guidance: &str,
+    question_tool_guidance: &str,
+    version: &str,
+) -> Result<String, ZdevError> {
+    let template = environment
+        .template_from_named_str(name, source)
+        .map_err(|error| {
+            ZdevError::new(format!(
+                "Cannot parse zdev integration template {name}: {error}"
+            ))
+        })?;
+    let mut rendered = template
+        .render(context! {
+            shared_contract,
+            repository_guidance,
+            question_tool_guidance,
+            version,
+        })
+        .map_err(|error| {
+            ZdevError::new(format!(
+                "Cannot render zdev integration template {name}: {error}"
+            ))
+        })?;
+    if source.ends_with('\n') && !rendered.ends_with('\n') {
+        rendered.push('\n');
+    }
+    Ok(rendered)
+}
+
+fn prepare_template_value(path: &str, value: &str) -> Result<String, ZdevError> {
+    if path.ends_with(".json") {
+        serde_json::to_string(value).map_err(|error| {
+            ZdevError::new(format!(
+                "Cannot prepare values for zdev integration template {path}: {error}"
+            ))
+        })
+    } else {
+        Ok(value.to_owned())
+    }
+}
+
+fn realize_templates(
+    harness: Harness,
+    guidance: Option<(&str, &str)>,
+    files: &mut [IntegrationFile],
+) -> Result<(), ZdevError> {
+    let environment = template_environment();
+    let repository_guidance = repository_guidance(guidance);
+    let version = env!("CARGO_PKG_VERSION");
+    let shared_contract = render_template(
+        &environment,
+        "shared-contract.md",
+        SHARED_CONTRACT_TEMPLATE,
+        "",
+        &repository_guidance,
+        harness.question_tool_guidance(),
+        version,
+    )?;
+
+    for file in files {
+        let is_json = file.path.ends_with(".json");
+        let shared_contract = prepare_template_value(&file.path, shared_contract.trim_end())?;
+        let repository_guidance = prepare_template_value(&file.path, &repository_guidance)?;
+        let question_tool_guidance =
+            prepare_template_value(&file.path, harness.question_tool_guidance())?;
+        let version = prepare_template_value(&file.path, version)?;
+        file.content = render_template(
+            &environment,
+            &file.path,
+            &file.content,
+            &shared_contract,
+            &repository_guidance,
+            &question_tool_guidance,
+            &version,
+        )?;
+        if is_json {
+            serde_json::from_str::<Value>(&file.content).map_err(|error| {
+                ZdevError::new(format!(
+                    "Rendered zdev integration template {} is invalid JSON: {error}",
+                    file.path
+                ))
+            })?;
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
@@ -473,7 +562,7 @@ pub(super) fn run_skill_command(
                     .as_deref()
                     .map(|content| (guidance.source.as_str(), content))
             });
-            let integration = harness.integration(guidance_view);
+            let integration = harness.integration(guidance_view)?;
             let result = publish_integration(&integration, &destination.path, *force)?;
             if let (Some(root), Some(guidance)) = (project_root.as_deref(), guidance.as_ref()) {
                 let recorded = if guidance_selection == "agents" {
@@ -503,7 +592,7 @@ pub(super) fn run_skill_command(
                     .map(|content| (guidance.source.as_str(), content))
             });
             check_integration(
-                harness.integration(guidance_view),
+                harness.integration(guidance_view)?,
                 destination,
                 guidance,
                 project_root.as_ref().map(|_| guidance_selection.as_str()),
@@ -1187,4 +1276,45 @@ fn publish_shared_root_integration(
         status: if replaced { "replaced" } else { "created" },
         destination: destination.to_path_buf(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn template_failures_name_the_source_and_fail_realization() {
+        let environment = template_environment();
+        for (name, source, expected) in [
+            ("unknown.md", "{{unknown}}", "Cannot render"),
+            ("invalid.md", "{{", "Cannot parse"),
+        ] {
+            let error = render_template(&environment, name, source, "", "", "", "")
+                .expect_err("invalid template must fail");
+            assert!(error.to_string().contains(expected));
+            assert!(error.to_string().contains(name));
+        }
+    }
+
+    #[test]
+    fn json_destinations_prepare_trusted_values_before_rendering() {
+        let mut files = vec![IntegrationFile {
+            path: "manifest.json".to_owned(),
+            content: "{\"guidance\": {{repository_guidance}}}\n".to_owned(),
+        }];
+        let guidance = "quoted \"text\" and {{trusted_fragment}}";
+        realize_templates(Harness::Claude, Some(("AGENTS.md", guidance)), &mut files)
+            .expect("render JSON artifact");
+
+        let manifest: Value = serde_json::from_str(&files[0].content).expect("rendered JSON");
+        let rendered = manifest["guidance"].as_str().expect("guidance string");
+        assert!(rendered.contains(guidance));
+        assert!(rendered.contains("{{trusted_fragment}}"));
+
+        files[0].content = "{\"version\": {{version}}\n".to_owned();
+        let error = realize_templates(Harness::Claude, None, &mut files)
+            .expect_err("invalid destination syntax must fail");
+        assert!(error.to_string().contains("invalid JSON"));
+        assert!(error.to_string().contains("manifest.json"));
+    }
 }

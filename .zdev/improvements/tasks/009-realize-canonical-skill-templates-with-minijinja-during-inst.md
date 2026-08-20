@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-009"
 key = "template-realization"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Realize canonical skill templates with MiniJinja during installation
@@ -26,14 +26,29 @@ Zdev keeps every canonical harness skill, reference, agent, workflow, command, p
 
 ## Done when
 
-- [ ] Every canonical template parses under MiniJinja while retaining its Jinja expressions in the checked-in source.
-- [ ] Every supported harness and installation scope realizes complete artifacts with no unresolved Jinja expressions.
-- [ ] `zdev skill install` and `zdev skill check` call the same rendering function and agree across the supported harness, scope, and guidance matrix.
-- [ ] Missing variables, unknown variables, invalid syntax, and destination-value escaping failures produce clear errors before publication.
-- [ ] Focused tests prove byte determinism, trusted fragment insertion, canonical-source preservation, installed-output realization, and generated-fixture consistency.
-- [ ] Packaging includes the canonical templates and MiniJinja runtime needed by the binary.
+- [x] Every canonical template parses under MiniJinja while retaining its Jinja expressions in the checked-in source.
+- [x] Every supported harness and installation scope realizes complete artifacts with no unresolved Jinja expressions.
+- [x] `zdev skill install` and `zdev skill check` call the same rendering function and agree across the supported harness, scope, and guidance matrix.
+- [x] Missing variables, unknown variables, invalid syntax, and destination-value escaping failures produce clear errors before publication.
+- [x] Focused tests prove byte determinism, trusted fragment insertion, canonical-source preservation, installed-output realization, and generated-fixture consistency.
+- [x] Packaging includes the canonical templates and MiniJinja runtime needed by the binary.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Moved canonical harness artifacts under one template boundary and realized them deterministically with a strict shared MiniJinja path for install and check.
+
+Validation:
+
+- Independent verification confirmed pre-publication rendering, destination-safe JSON handling, canonical-source preservation, fixture consistency, and complete package contents.
+- cargo test --locked --test lean (73 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (77 passed)
+- cargo build --locked
+- cargo package --locked --allow-dirty
+- git diff --check

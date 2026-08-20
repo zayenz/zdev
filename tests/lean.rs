@@ -2159,19 +2159,16 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
     assert_eq!(rendered, packaged_skill);
     assert_eq!(
         fs::read_to_string(destination.join("references/verify.md")).expect("verify reference"),
-        include_str!("../skills/zdev/references/verify.md")
+        include_str!("../templates/zdev/references/verify.md")
     );
     assert_eq!(
         fs::read_to_string(destination.join("references/discuss.md")).expect("discuss reference"),
-        include_str!("../skills/zdev/references/discuss.md").replace(
-            "{{question_tool_guidance}}",
-            "Use Codex's `request_user_input` tool with two or three questions in one call when it is available. Put the recommended option first for each question and explain its impact. If the tool is unavailable, present the same round as a concise numbered list."
-        )
+        include_str!("../skills/zdev/references/discuss.md")
     );
     assert_eq!(
         fs::read_to_string(destination.join("references/task-format.md"))
             .expect("task format reference"),
-        include_str!("../skills/zdev/references/task-format.md")
+        include_str!("../templates/zdev/references/task-format.md")
     );
 
     let unchanged = json_output(
@@ -2847,28 +2844,30 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert_eq!(audit_workflow.matches("audit evidence vetter").count(), 1);
 }
 #[test]
-fn checked_in_harness_skills_match_current_templates() {
+fn canonical_templates_realize_deterministically_and_match_generated_fixtures() {
     let repository = repository();
     let root = repository.path();
     let source = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let canonical_paths = [
+        "templates/zdev/codex-skill.md",
+        "templates/zdev/claude/plugin.json",
+        "templates/zdev/references/discuss.md",
+    ];
+    let canonical = canonical_paths.map(|path| {
+        let bytes = fs::read(source.join(path)).expect("canonical template");
+        assert!(
+            String::from_utf8_lossy(&bytes).contains("{{"),
+            "{path} must retain its Jinja expression"
+        );
+        (path, bytes)
+    });
 
-    for (harness, rendered_skill, checked_in_skill) in [
-        ("codex", "SKILL.md", "skills/zdev/SKILL.md"),
-        (
-            "claude",
-            "skills/zdev/SKILL.md",
-            ".claude/skills/zdev/skills/zdev/SKILL.md",
-        ),
-        (
-            "opencode",
-            "skills/zdev-opencode/SKILL.md",
-            ".opencode/skills/zdev-opencode/SKILL.md",
-        ),
-        (
-            "pi",
-            "skills/zdev-pi/SKILL.md",
-            ".pi/skills/zdev-pi/SKILL.md",
-        ),
+    for (harness, checked_in_root) in [
+        ("codex", Some("skills/zdev")),
+        ("claude", Some(".claude/skills/zdev")),
+        ("opencode", Some(".opencode")),
+        ("pi", Some(".pi")),
+        ("omp", None),
     ] {
         let destination = root.join(format!("checked-in-{harness}"));
         json_output(
@@ -2881,10 +2880,53 @@ fn checked_in_harness_skills_match_current_templates() {
                 destination.to_str().expect("integration destination"),
             ],
         );
+        let second = root.join(format!("deterministic-{harness}"));
+        json_output(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                second.to_str().expect("second integration destination"),
+            ],
+        );
+        assert_eq!(file_inventory(&destination), file_inventory(&second));
+        for path in file_inventory(&destination) {
+            let rendered = fs::read(destination.join(&path)).expect("rendered integration file");
+            assert_eq!(
+                rendered,
+                fs::read(second.join(&path)).expect("second rendered integration file"),
+                "{harness} integration file {path} was not byte deterministic"
+            );
+            let text = String::from_utf8_lossy(&rendered);
+            for expression in [
+                "{{shared_contract}}",
+                "{{repository_guidance}}",
+                "{{question_tool_guidance}}",
+                "{{version}}",
+            ] {
+                assert!(
+                    !text.contains(expression),
+                    "{harness} integration file {path} retained {expression}"
+                );
+            }
+            if let Some(checked_in_root) = checked_in_root {
+                assert_eq!(
+                    rendered,
+                    fs::read(source.join(checked_in_root).join(&path))
+                        .expect("checked-in integration file"),
+                    "checked-in {harness} integration file {path} drifted from its template"
+                );
+            }
+        }
+    }
+
+    for (path, bytes) in canonical {
         assert_eq!(
-            fs::read(destination.join(rendered_skill)).expect("rendered harness skill"),
-            fs::read(source.join(checked_in_skill)).expect("checked-in harness skill"),
-            "checked-in {harness} skill drifted from its template"
+            fs::read(source.join(path)).expect("canonical template after realization"),
+            bytes,
+            "realization changed canonical source {path}"
         );
     }
 }
@@ -3681,7 +3723,7 @@ fn project_skill_install_always_inlines_guidance_while_user_install_does_not() {
     let repository = repository();
     let root = repository.path();
     json_output(root, &["init", "--record", "project"]);
-    let guidance = "# Repository instructions\n\nRun `just ci-project-only`.\n";
+    let guidance = "# Repository instructions\n\nRun `just ci-project-only`. Keep `{{trusted_fragment}}` and \"quoted text\" literal.\n";
     fs::write(root.join("AGENTS.md"), guidance).expect("repository guidance");
 
     for (harness, skill_path) in [
@@ -3696,6 +3738,7 @@ fn project_skill_install_always_inlines_guidance_while_user_install_does_not() {
         assert!(rendered.contains("## Rendered repository guidance"));
         assert!(rendered.contains("Source: `AGENTS.md`"));
         assert!(rendered.contains(guidance.trim_end()));
+        assert!(rendered.contains("{{trusted_fragment}}"));
         assert!(!rendered.contains("## Repository guidance discovery"));
 
         let user_destination = root.join(format!("user-{harness}"));

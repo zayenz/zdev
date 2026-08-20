@@ -25,11 +25,11 @@ git diff --check
 `src/lib.rs` and `src/main.rs` contain the Rust CLI. Black-box behavior tests
 live in `tests/lean.rs`.
 
-Several checked-in harness integrations are generated from templates under
-`templates/zdev/` and source workflow references under `skills/zdev/`. Change
-the source templates or references, then regenerate the integrations; do not
-patch generated copies independently. Likewise, edit individual task files
-under `.zdev/<area>/tasks/`, not the generated `TASKS.md` index.
+Canonical harness sources live under `templates/zdev/`. The checked-in harness
+integrations are generated fixtures. Change the templates, then regenerate the
+fixtures; do not patch generated copies independently. Likewise, edit
+individual task files under `.zdev/<area>/tasks/`, not the generated `TASKS.md`
+index.
 
 Release and packaging changes should also follow the repository's existing
 release scripts and package checks.

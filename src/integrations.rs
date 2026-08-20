@@ -7,10 +7,8 @@ use std::path::{Component, Path, PathBuf};
 use clap::{Subcommand, ValueEnum};
 use serde_json::{Value, json};
 
-use super::{
-    CommandOutput, SCHEMA_VERSION, ZdevError, read_config, relative, resolve_root, write_atomic,
-    write_config,
-};
+use super::project::{read_config, write_config};
+use super::{CommandOutput, SCHEMA_VERSION, ZdevError, relative, resolve_root, write_atomic};
 
 const GUIDANCE_START_MARKER: &str = "<!-- zdev:guidance:start -->";
 const GUIDANCE_END_MARKER: &str = "<!-- zdev:guidance:end -->";

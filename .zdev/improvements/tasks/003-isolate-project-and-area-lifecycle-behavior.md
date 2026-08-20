@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-003"
 key = "areas-module"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Isolate project and area lifecycle behavior
@@ -26,12 +26,21 @@ Configuration, initialization, cleanup, area metadata, branch relationships, man
 
 ## Done when
 
-- [ ] Project and area lifecycle logic has one clear internal home.
-- [ ] Task and harness modules consume only the project and area facts or operations they need.
-- [ ] Existing branch, rebase, initialization, cleanup, status, and validation behavior remains unchanged.
-- [ ] Existing black-box coverage passes unchanged.
+- [x] Project and area lifecycle logic has one clear internal home.
+- [x] Task and harness modules consume only the project and area facts or operations they need.
+- [x] Existing branch, rebase, initialization, cleanup, status, and validation behavior remains unchanged.
+- [x] Existing black-box coverage passes unchanged.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the full validation set in `brief.md`.
+
+## Result
+
+Isolated project and area lifecycle behavior in a cohesive internal module and independently verified behavioral preservation.
+
+Validation:
+
+- Focused lean integration suite passed: 65 tests.
+- Full repository validation passed: format, Clippy, 66 tests, build, and diff check.

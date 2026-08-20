@@ -2,8 +2,8 @@
 
 # Tasks: improvements
 
-- Total: 23
-- Ready: 0
+- Total: 29
+- Ready: 6
 - Blocked: 0
 - Done: 23
 
@@ -32,3 +32,9 @@
 | [improvements-021](tasks/021-install-common-implement-and-verify-workflows.md) | Install common implement and verify workflows | done | improvements-017, improvements-020 |
 | [improvements-022](tasks/022-define-explicit-area-closure-independently-of-queue-exhausti.md) | Define explicit area closure independently of queue exhaustion | done | — |
 | [improvements-023](tasks/023-include-an-approved-area-brief-in-committed-task-imports.md) | Include an approved area brief in committed task imports | done | — |
+| [improvements-024](tasks/024-distinguish-area-closure-from-task-queue-exhaustion.md) | Distinguish area closure from task-queue exhaustion | ready | — |
+| [improvements-025](tasks/025-define-task-complexity-and-worker-escalation-without-evaluat.md) | Define task complexity and worker escalation without evaluation machinery | ready | — |
+| [improvements-026](tasks/026-define-an-explicit-zdev-area-loop-across-harnesses.md) | Define an explicit zdev area loop across harnesses | ready | — |
+| [improvements-027](tasks/027-reduce-zdev-workflow-round-trips-without-weakening-evidence.md) | Reduce zdev workflow round trips without weakening evidence | ready | — |
+| [improvements-028](tasks/028-assess-gpt-5-6-luna-for-zdev-coordination.md) | Assess gpt-5.6-luna for zdev coordination | ready | — |
+| [improvements-029](tasks/029-define-safe-derived-tasks-without-repeated-approval-ceremony.md) | Define safe derived tasks without repeated approval ceremony | ready | — |

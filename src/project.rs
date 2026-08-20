@@ -85,6 +85,12 @@ struct Slice {
     path: PathBuf,
 }
 
+pub(super) struct SliceBrief {
+    pub key: String,
+    pub title: String,
+    pub path: PathBuf,
+}
+
 pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOutput, ZdevError> {
     let state_dir = root.join(".zdev");
     if state_dir.exists() {
@@ -560,6 +566,17 @@ fn load_slices(root: &Path, area: &str) -> Result<Vec<Slice>, ZdevError> {
     }
     slices.sort_by(|left, right| left.header.key.cmp(&right.header.key));
     Ok(slices)
+}
+
+pub(super) fn slice_briefs(root: &Path, area: &str) -> Result<Vec<SliceBrief>, ZdevError> {
+    Ok(load_slices(root, area)?
+        .into_iter()
+        .map(|slice| SliceBrief {
+            key: slice.header.key,
+            title: slice.header.title,
+            path: slice.path,
+        })
+        .collect())
 }
 
 fn write_new_atomic(path: &Path, bytes: &[u8], exists_message: &str) -> Result<(), ZdevError> {

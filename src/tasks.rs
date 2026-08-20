@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use super::project::{
     list_areas, load_area, read_config, require_checked_out_area_branch,
-    require_task_work_area_link,
+    require_task_work_area_link, slice_briefs,
 };
 use super::{
     CHANGE_ID_TRAILER, CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, generate_change_id,
@@ -43,6 +43,8 @@ struct TaskHeader {
     key: String,
     area: String,
     status: TaskStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slice: Option<String>,
     #[serde(default)]
     blocked_by: Vec<String>,
 }
@@ -68,6 +70,8 @@ struct TaskBundle {
 struct TaskDraft {
     key: String,
     title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slice: Option<String>,
     #[serde(default)]
     blocked_by: Vec<String>,
     outcome: String,
@@ -86,6 +90,8 @@ struct TaskView<'a> {
     status: &'static str,
     state: &'static str,
     blocked_by: &'a [String],
+    slice: Option<&'a str>,
+    slice_brief: Option<String>,
     path: String,
 }
 
@@ -104,7 +110,7 @@ fn read_task_bundle(source: &Path) -> Result<TaskBundle, ZdevError> {
         .map_err(|error| ZdevError::new(format!("Invalid task bundle: {error}")))
 }
 
-fn validate_task_bundle(bundle: &TaskBundle, area: &str) -> Result<(), ZdevError> {
+fn validate_task_bundle(root: &Path, bundle: &TaskBundle, area: &str) -> Result<(), ZdevError> {
     if bundle.schema_version != SCHEMA_VERSION || bundle.area != area {
         return Err(ZdevError::new(
             "Task bundle does not match the selected area",
@@ -113,11 +119,25 @@ fn validate_task_bundle(bundle: &TaskBundle, area: &str) -> Result<(), ZdevError
     if bundle.tasks.is_empty() {
         return Err(ZdevError::new("Task bundle contains no tasks"));
     }
+    let slices = slice_briefs(root, area)?;
+    let slice_keys = slices
+        .iter()
+        .map(|slice| slice.key.as_str())
+        .collect::<BTreeSet<_>>();
     let mut seen_keys = BTreeSet::new();
     for task in &bundle.tasks {
         validate_segment(&task.key, "Task key")?;
         validate_nonempty_line(&task.title, "Task title")?;
         validate_nonempty_line(&task.outcome, "Task outcome")?;
+        if let Some(slice) = &task.slice {
+            validate_segment(slice, "Slice key")?;
+            if !slice_keys.contains(slice.as_str()) {
+                return Err(ZdevError::new(format!(
+                    "Task {} references unknown slice {slice}",
+                    task.key
+                )));
+            }
+        }
         if task
             .context
             .as_deref()
@@ -182,10 +202,11 @@ fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
     );
     for (index, task) in bundle.tasks.iter().enumerate() {
         document.push_str(&format!(
-            "\n\n## Task {}\n\n### Key\n{}\n\n### Title\n{}\n\n### Outcome\n{}\n\n### Context\n{}\n\n### Boundaries\n{}\n\n### Blocked by\n{}\n\n### Done when / proof\n{}\n\n### Validation / Testing\n{}",
+            "\n\n## Task {}\n\n### Key\n{}\n\n### Title\n{}\n\n### Slice\n{}\n\n### Outcome\n{}\n\n### Context\n{}\n\n### Boundaries\n{}\n\n### Blocked by\n{}\n\n### Done when / proof\n{}\n\n### Validation / Testing\n{}",
             index + 1,
             task.key,
             task.title,
+            approval_value(task.slice.as_deref()),
             task.outcome,
             approval_value(task.context.as_deref()),
             approval_list(&task.boundaries),
@@ -201,7 +222,7 @@ fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
 pub(super) fn review(root: &Path, area: &str, source: &Path) -> Result<CommandOutput, ZdevError> {
     load_area(root, area)?;
     let bundle = read_task_bundle(source)?;
-    validate_task_bundle(&bundle, area)?;
+    validate_task_bundle(root, &bundle, area)?;
     let approval = task_bundle_approval_id(&bundle)?;
     let markdown = render_task_bundle_approval(&bundle);
     Ok(CommandOutput::new(
@@ -224,7 +245,7 @@ pub(super) fn import(
     approval: Option<&str>,
 ) -> Result<CommandOutput, ZdevError> {
     let bundle = read_task_bundle(source)?;
-    validate_task_bundle(&bundle, area)?;
+    validate_task_bundle(root, &bundle, area)?;
     if let Some(approval) = approval {
         let actual = task_bundle_approval_id(&bundle)?;
         if approval != actual {
@@ -291,6 +312,7 @@ pub(super) fn import(
             key: draft.key.clone(),
             area: area.to_owned(),
             status: TaskStatus::Open,
+            slice: draft.slice.clone(),
             blocked_by: blockers,
         };
         let path = area_dir.join("tasks").join(format!(
@@ -597,6 +619,7 @@ fn load_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
             .map_err(|error| ZdevError::io(format!("Cannot read {}", path.display()), error))?;
         tasks.push(parse_task(&content, &path, area)?);
     }
+    validate_task_slices(root, area, &tasks)?;
     tasks.sort_by(compare_tasks_by_id);
     validate_graph(&tasks)?;
     Ok(tasks)
@@ -618,6 +641,9 @@ fn parse_task(content: &str, path: &Path, area: &str) -> Result<Task, ZdevError>
         )));
     }
     validate_segment(&header.key, "Task key")?;
+    if let Some(slice) = &header.slice {
+        validate_segment(slice, "Slice key")?;
+    }
     let expected_prefix = format!("{area}-");
     if !header.id.starts_with(&expected_prefix) || parse_number(&header.id).is_err() {
         return Err(ZdevError::new(format!("Invalid task ID: {}", header.id)));
@@ -635,6 +661,26 @@ fn parse_task(content: &str, path: &Path, area: &str) -> Result<Task, ZdevError>
         body: body.to_owned(),
         path: path.to_path_buf(),
     })
+}
+
+fn validate_task_slices(root: &Path, area: &str, tasks: &[Task]) -> Result<(), ZdevError> {
+    let slices = slice_briefs(root, area)?;
+    let keys = slices
+        .iter()
+        .map(|slice| slice.key.as_str())
+        .collect::<BTreeSet<_>>();
+    for task in tasks {
+        if let Some(slice) = &task.header.slice
+            && !keys.contains(slice.as_str())
+        {
+            return Err(ZdevError::new(format!(
+                "Task {} references unknown slice {slice}: {}",
+                task.header.id,
+                task.path.display()
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn markdown_section<'a>(
@@ -859,6 +905,8 @@ fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
             status: task.header.status.as_str(),
             state: task_state(task, tasks),
             blocked_by: &task.header.blocked_by,
+            slice: task.header.slice.as_deref(),
+            slice_brief: task_slice_brief_path(root, task),
             path: relative(root, &task.path),
         })
         .collect()
@@ -872,7 +920,13 @@ pub(super) fn list(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
     } else {
         task_views
             .iter()
-            .map(|task| format!("{}  {:7}  {}", task.id, task.state, task.title))
+            .map(|task| {
+                let slice = task
+                    .slice
+                    .map(|slice| format!("  slice:{slice}"))
+                    .unwrap_or_default();
+                format!("{}  {:7}  {}{slice}", task.id, task.state, task.title)
+            })
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -950,6 +1004,8 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         status: task.header.status.as_str(),
         state: "ready",
         blocked_by: &task.header.blocked_by,
+        slice: task.header.slice.as_deref(),
+        slice_brief: task_slice_brief_path(root, task),
         path: relative(root, &task.path),
     };
     let mut text = format!(
@@ -958,6 +1014,9 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         task.title,
         task.path.display()
     );
+    if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
+        text.push_str(&format!("\nSlice: {slice}\nSlice brief: {path}"));
+    }
     if let Some(advisory) = &branch.advisory {
         text.push('\n');
         text.push_str(advisory);
@@ -971,10 +1030,15 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
 pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, ZdevError> {
     let tasks = load_tasks(root, area)?;
     let task = find_task(&tasks, id)?;
+    let content = fs::read_to_string(&task.path)
+        .map_err(|error| ZdevError::io(format!("Cannot read {}", task.path.display()), error))?;
+    let slice_brief = task_slice_brief_path(root, task);
+    let text = match (&task.header.slice, &slice_brief) {
+        (Some(slice), Some(path)) => format!("Slice: {slice}\nSlice brief: {path}\n\n{content}"),
+        _ => content,
+    };
     Ok(CommandOutput::new(
-        fs::read_to_string(&task.path).map_err(|error| {
-            ZdevError::io(format!("Cannot read {}", task.path.display()), error)
-        })?,
+        text,
         json!({
             "schema_version": SCHEMA_VERSION,
             "area": area,
@@ -983,10 +1047,25 @@ pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, Z
             "status": task.header.status.as_str(),
             "state": task_state(task, &tasks),
             "blocked_by": task.header.blocked_by,
+            "slice": task.header.slice,
+            "slice_brief": slice_brief,
             "path": relative(root, &task.path),
             "body": task.body,
         }),
     ))
+}
+
+fn task_slice_brief_path(root: &Path, task: &Task) -> Option<String> {
+    task.header.slice.as_deref().map(|slice| {
+        relative(
+            root,
+            &root
+                .join(".zdev")
+                .join(&task.header.area)
+                .join("slices")
+                .join(format!("{slice}.md")),
+        )
+    })
 }
 
 fn find_task<'a>(tasks: &'a [Task], id: &str) -> Result<&'a Task, ZdevError> {
@@ -1139,8 +1218,14 @@ fn render_index(area: &str, tasks: &[Task]) -> Result<String, ZdevError> {
         .iter()
         .filter(|task| task.header.status == TaskStatus::Done)
         .count();
+    let has_slices = tasks.iter().any(|task| task.header.slice.is_some());
+    let columns = if has_slices {
+        "| ID | Task | Slice | State | Blocked by |\n| --- | --- | --- | --- | --- |\n"
+    } else {
+        "| ID | Task | State | Blocked by |\n| --- | --- | --- | --- |\n"
+    };
     let mut result = format!(
-        "{GENERATED_MARKER}\n\n# Tasks: {area}\n\n- Total: {}\n- Ready: {ready}\n- Blocked: {blocked}\n- Done: {done}\n\n| ID | Task | State | Blocked by |\n| --- | --- | --- | --- |\n",
+        "{GENERATED_MARKER}\n\n# Tasks: {area}\n\n- Total: {}\n- Ready: {ready}\n- Blocked: {blocked}\n- Done: {done}\n\n{columns}",
         tasks.len()
     );
     for task in tasks {
@@ -1154,12 +1239,22 @@ fn render_index(area: &str, tasks: &[Task]) -> Result<String, ZdevError> {
             .file_name()
             .and_then(OsStr::to_str)
             .unwrap_or("task.md");
-        result.push_str(&format!(
-            "| [{}](tasks/{filename}) | {} | {} | {blockers} |\n",
-            task.header.id,
-            table_text(&task.title),
-            task_state(task, tasks),
-        ));
+        if has_slices {
+            let slice = task.header.slice.as_deref().unwrap_or("—");
+            result.push_str(&format!(
+                "| [{}](tasks/{filename}) | {} | {slice} | {} | {blockers} |\n",
+                task.header.id,
+                table_text(&task.title),
+                task_state(task, tasks),
+            ));
+        } else {
+            result.push_str(&format!(
+                "| [{}](tasks/{filename}) | {} | {} | {blockers} |\n",
+                task.header.id,
+                table_text(&task.title),
+                task_state(task, tasks),
+            ));
+        }
     }
     Ok(result)
 }
@@ -1192,6 +1287,17 @@ pub(super) struct AreaTaskSummary {
     pub done: usize,
     pub open: usize,
     pub next: Option<String>,
+    pub slices: Vec<SliceTaskSummary>,
+}
+
+#[derive(Serialize)]
+pub(super) struct SliceTaskSummary {
+    pub key: String,
+    pub title: String,
+    pub path: String,
+    pub ready: usize,
+    pub blocked: usize,
+    pub done: usize,
 }
 
 pub(super) fn summary(root: &Path, area: &str) -> Result<AreaTaskSummary, ZdevError> {
@@ -1208,6 +1314,32 @@ pub(super) fn summary(root: &Path, area: &str) -> Result<AreaTaskSummary, ZdevEr
         .iter()
         .filter(|task| task.header.status == TaskStatus::Done)
         .count();
+    let slices = slice_briefs(root, area)?
+        .into_iter()
+        .map(|slice| {
+            let slice_tasks = tasks
+                .iter()
+                .filter(|task| task.header.slice.as_deref() == Some(slice.key.as_str()))
+                .collect::<Vec<_>>();
+            SliceTaskSummary {
+                key: slice.key,
+                title: slice.title,
+                path: relative(root, &slice.path),
+                ready: slice_tasks
+                    .iter()
+                    .filter(|task| task_state(task, &tasks) == "ready")
+                    .count(),
+                blocked: slice_tasks
+                    .iter()
+                    .filter(|task| task_state(task, &tasks) == "blocked")
+                    .count(),
+                done: slice_tasks
+                    .iter()
+                    .filter(|task| task.header.status == TaskStatus::Done)
+                    .count(),
+            }
+        })
+        .collect();
     Ok(AreaTaskSummary {
         total: tasks.len(),
         ready,
@@ -1215,6 +1347,7 @@ pub(super) fn summary(root: &Path, area: &str) -> Result<AreaTaskSummary, ZdevEr
         done,
         open: tasks.len() - done,
         next: next_task(&tasks).map(|task| task.header.id.clone()),
+        slices,
     })
 }
 

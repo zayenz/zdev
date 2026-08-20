@@ -50,6 +50,7 @@ id = "scheduling-001"
 key = "model"
 area = "scheduling"
 status = "open"
+slice = "api"
 blocked_by = []
 +++
 # Add the scheduling model
@@ -86,6 +87,7 @@ The frontmatter contains only routing state:
 - `key` connects a temporary import bundle to the durable task;
 - `area` prevents tasks from being moved between objectives accidentally;
 - `status` is `open` or `done`; and
+- optional `slice` names an existing slice brief in the same area; and
 - `blocked_by` contains stable task IDs.
 
 An open task is ready when every blocker is done. Otherwise it is blocked.
@@ -114,6 +116,7 @@ never an authored source.
 
 - `key`;
 - `title`;
+- optional `slice`, naming an existing slice brief in the area;
 - `blocked_by`, using keys from the same bundle or existing task IDs;
 - `outcome`;
 - optional `context`, rendered as prose under `## Context`;
@@ -126,6 +129,10 @@ and render its complete approval document. The result includes an `approval`
 fingerprint. After approval, pass the unchanged JSON to
 `zdev tasks import <area> --from - --approval <approval-id>`. Zdev rejects a
 bundle that differs from the reviewed content.
+
+Review, import, and `zdev check` reject a task whose `slice` does not name an
+existing `.zdev/<area>/slices/<key>.md`. Unsliced tasks remain valid and appear
+only in area-wide progress totals.
 
 A path is accepted for manual use and remains in place after review or import.
 When adding tasks to an existing task list, add `--commit --format json` to the

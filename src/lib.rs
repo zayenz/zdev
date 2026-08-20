@@ -723,16 +723,24 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
             .unwrap_or(false)
             .then(|| project::rebase_advisory(&area));
         let mut text = format!(
-            "{}: {} ready, {} blocked, {} done\n{branch_line}",
+            "{}: {} ready, {} blocked, {} done",
             metadata.title, tasks.ready, tasks.blocked, tasks.done,
         );
+        for slice in &tasks.slices {
+            text.push_str(&format!(
+                "\nSlice {}: {} ready, {} blocked, {} done",
+                slice.key, slice.ready, slice.blocked, slice.done
+            ));
+        }
+        text.push('\n');
+        text.push_str(&branch_line);
         if let Some(advisory) = &advisory {
             text.push('\n');
             text.push_str(advisory);
         }
         return Ok(CommandOutput::new(
             text,
-            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "next": tasks.next, "advisory": advisory}),
+            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "advisory": advisory}),
         ));
     }
     let mut summaries = Vec::new();
@@ -748,6 +756,7 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
             "branch_status": branch_status,
             "open": tasks.open,
             "done": tasks.done,
+            "slices": tasks.slices,
         }));
     }
     let trunk = config.project.trunk.as_deref().unwrap_or("unbound");

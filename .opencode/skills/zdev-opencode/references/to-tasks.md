@@ -53,6 +53,10 @@ Prefer several thin vertical slices to horizontal phases. Add a small
 behavior-preserving prefactor first only when it materially simplifies an
 approved slice.
 
+When a task belongs to an existing slice brief, set its optional `slice` key in
+the bundle. Leave unrelated tasks unsliced. Use `blocked_by` for task ordering;
+slice membership does not create another dependency mechanism.
+
 For a wide mechanical change that cannot land as vertical slices, use
 expand–migrate–contract: add the new form beside the old, migrate callers in
 green batches, then remove the old form after every batch. Express those gates

@@ -18,8 +18,9 @@ Require the verifier to:
    value is `BLOCKER`; use the structured diagnostics to report the unsafe
    branch, anchor, ancestry, history, or Git-operation state.
 2. Read `brief.md` first and confirm that it has a concrete `Testing` section
-   covering the task. Then read the task, any slice brief it explicitly links,
-   and only its relevant linked background documents; do not load an area's
+   covering the task. Inspect the task's routing frontmatter; when it names a
+   slice, read that slice brief next, then read the complete task and only its
+   relevant linked background documents; do not load an area's
    entire `background/` corpus by default. Treat the area brief as the
    authoritative synthesis; a slice adds narrower objective and boundary
    context without overriding area decisions or testing. If the testing section

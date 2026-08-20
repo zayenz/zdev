@@ -136,8 +136,10 @@ zdev slice show scheduling api
 ```
 
 Slice files live under `.zdev/scheduling/slices/`. They contain an objective
-and boundaries but no status; tasks do not have to belong to a slice. The area
-brief still owns shared decisions and testing.
+and boundaries but no stored status. Tasks may name a slice, and zdev derives
+its ready, blocked, and done counts from those tasks, including zeros for an
+empty slice. Unsliced tasks remain valid and count only in area totals. Task
+selection reports the slice brief to read after the authoritative area brief.
 
 ## 5. Explore and discuss the objective
 

@@ -168,6 +168,24 @@ fn create_area(root: &Path, area: &str, branch: &str) {
     );
 }
 
+fn create_slice(root: &Path, area: &str, key: &str, title: &str) {
+    json_output(
+        root,
+        &[
+            "slice",
+            "create",
+            area,
+            key,
+            "--title",
+            title,
+            "--objective",
+            "Exercise task slice membership.",
+            "--boundary",
+            "Keep the slice focused.",
+        ],
+    );
+}
+
 fn import_one_task(root: &Path, area: &str) {
     let bundle = root.join(format!("{area}-task.json"));
     fs::write(
@@ -4161,4 +4179,238 @@ fn custom_guidance_rejects_symlinks() {
     );
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("not a symlink"));
+}
+
+#[test]
+fn task_slice_membership_flows_through_selection_and_derived_progress() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "feature", "main");
+    create_slice(root, "feature", "alpha", "Alpha slice");
+    create_slice(root, "feature", "empty", "Empty slice");
+
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "feature",
+        "tasks": [
+            {
+                "key": "alpha-first",
+                "title": "Build alpha foundation",
+                "slice": "alpha",
+                "blocked_by": [],
+                "outcome": "The slice has a ready task.",
+                "done_when": ["The foundation is complete."],
+                "validation": ["Exercise slice task behavior."]
+            },
+            {
+                "key": "alpha-second",
+                "title": "Build alpha follow-up",
+                "slice": "alpha",
+                "blocked_by": ["alpha-first"],
+                "outcome": "The slice has a blocked task.",
+                "done_when": ["The follow-up is complete."],
+                "validation": ["Exercise derived slice progress."]
+            },
+            {
+                "key": "ordinary",
+                "title": "Keep one ordinary task",
+                "blocked_by": [],
+                "outcome": "Unsliced tasks remain valid.",
+                "done_when": ["The ordinary task remains selectable."],
+                "validation": ["Exercise area totals."]
+            }
+        ]
+    }))
+    .expect("task bundle");
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "review", "feature", "--from", "-"],
+        &bundle,
+    );
+    let markdown = reviewed["markdown"].as_str().expect("approval markdown");
+    assert!(markdown.contains("### Slice\nalpha"));
+    assert!(markdown.contains("### Slice\nNone"));
+    let approval = reviewed["approval"].as_str().expect("approval");
+    json_output_with_stdin(
+        root,
+        &[
+            "tasks",
+            "import",
+            "feature",
+            "--from",
+            "-",
+            "--approval",
+            approval,
+        ],
+        &bundle,
+    );
+
+    let first_path = root.join(".zdev/feature/tasks/001-build-alpha-foundation.md");
+    assert!(
+        fs::read_to_string(&first_path)
+            .expect("first task")
+            .contains("slice = \"alpha\"")
+    );
+    let ordinary_path = root.join(".zdev/feature/tasks/003-keep-one-ordinary-task.md");
+    assert!(
+        !fs::read_to_string(ordinary_path)
+            .expect("ordinary task")
+            .contains("slice =")
+    );
+
+    let listed = json_output(root, &["tasks", "list", "feature"]);
+    assert_eq!(listed["tasks"][0]["slice"], "alpha");
+    assert_eq!(listed["tasks"][2]["slice"], Value::Null);
+    let listed_text = run_zdev(root, &["tasks", "list", "feature"]);
+    assert!(String::from_utf8_lossy(&listed_text.stdout).contains("slice:alpha"));
+
+    let shown = json_output(root, &["task", "show", "feature", "feature-001"]);
+    assert_eq!(shown["slice"], "alpha");
+    assert_eq!(shown["slice_brief"], ".zdev/feature/slices/alpha.md");
+    let shown_text = run_zdev(root, &["task", "show", "feature", "feature-001"]);
+    assert!(
+        String::from_utf8_lossy(&shown_text.stdout)
+            .contains("Slice brief: .zdev/feature/slices/alpha.md")
+    );
+
+    let next = json_output(root, &["next", "feature"]);
+    assert_eq!(next["task"]["id"], "feature-001");
+    assert_eq!(next["task"]["slice"], "alpha");
+    assert_eq!(next["task"]["slice_brief"], ".zdev/feature/slices/alpha.md");
+    let next_text = run_zdev(root, &["next", "feature"]);
+    assert!(
+        String::from_utf8_lossy(&next_text.stdout)
+            .contains("Slice brief: .zdev/feature/slices/alpha.md")
+    );
+
+    let index = fs::read_to_string(root.join(".zdev/feature/TASKS.md")).expect("task index");
+    assert!(index.contains("| ID | Task | Slice | State | Blocked by |"));
+    assert!(index.contains("| alpha | ready |"));
+    assert!(index.contains("| — | ready |"));
+
+    let status = json_output(root, &["status", "feature"]);
+    assert_eq!(
+        status["counts"],
+        json!({"total": 3, "ready": 2, "blocked": 1, "done": 0})
+    );
+    assert_eq!(
+        status["slices"][0],
+        json!({
+            "key": "alpha",
+            "title": "Alpha slice",
+            "path": ".zdev/feature/slices/alpha.md",
+            "ready": 1,
+            "blocked": 1,
+            "done": 0
+        })
+    );
+    assert_eq!(status["slices"][1]["key"], "empty");
+    assert_eq!(status["slices"][1]["ready"], 0);
+    assert_eq!(status["slices"][1]["blocked"], 0);
+    assert_eq!(status["slices"][1]["done"], 0);
+    let status_text = run_zdev(root, &["status", "feature"]);
+    assert!(
+        String::from_utf8_lossy(&status_text.stdout)
+            .contains("Slice empty: 0 ready, 0 blocked, 0 done")
+    );
+
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "feature",
+            "feature-001",
+            "--summary",
+            "Completed the first slice task.",
+            "--validation",
+            "Focused slice checks passed.",
+        ],
+    );
+    let progressed = json_output(root, &["status", "feature"]);
+    assert_eq!(progressed["slices"][0]["ready"], 1);
+    assert_eq!(progressed["slices"][0]["blocked"], 0);
+    assert_eq!(progressed["slices"][0]["done"], 1);
+}
+
+#[test]
+fn legacy_unsliced_task_index_remains_valid() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "feature", "main");
+    import_one_task(root, "feature");
+
+    let index = fs::read_to_string(root.join(".zdev/feature/TASKS.md")).expect("task index");
+    assert!(index.contains("| ID | Task | State | Blocked by |"));
+    assert!(!index.contains("| ID | Task | Slice | State | Blocked by |"));
+    assert_eq!(json_output(root, &["check", "feature"])["status"], "ok");
+}
+
+#[test]
+fn missing_task_slice_references_fail_before_publication_and_during_check() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "feature", "main");
+    create_slice(root, "feature", "known", "Known slice");
+    let index_path = root.join(".zdev/feature/TASKS.md");
+    let original_index = fs::read(&index_path).expect("original index");
+    let invalid = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "feature",
+        "tasks": [{
+            "key": "missing",
+            "title": "Reference a missing slice",
+            "slice": "missing",
+            "blocked_by": [],
+            "outcome": "Invalid membership is rejected.",
+            "done_when": ["No task is published."],
+            "validation": ["Exercise reference validation."]
+        }]
+    }))
+    .expect("invalid bundle");
+    for command in [
+        ["tasks", "review", "feature", "--from", "-"],
+        ["tasks", "import", "feature", "--from", "-"],
+    ] {
+        let output = json_output_with_stdin_status(root, &command, &invalid);
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unknown slice missing"));
+        assert_eq!(
+            fs::read(&index_path).expect("unchanged index"),
+            original_index
+        );
+        assert_eq!(
+            fs::read_dir(root.join(".zdev/feature/tasks"))
+                .expect("tasks directory")
+                .count(),
+            0
+        );
+    }
+
+    let valid = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "feature",
+        "tasks": [{
+            "key": "known",
+            "title": "Reference the known slice",
+            "slice": "known",
+            "blocked_by": [],
+            "outcome": "Manual references are checked.",
+            "done_when": ["The task is valid."],
+            "validation": ["Run zdev check."]
+        }]
+    }))
+    .expect("valid bundle");
+    json_output_with_stdin(root, &["tasks", "import", "feature", "--from", "-"], &valid);
+    let task_path = root.join(".zdev/feature/tasks/001-reference-the-known-slice.md");
+    let task = fs::read_to_string(&task_path)
+        .expect("task")
+        .replace("slice = \"known\"", "slice = \"missing\"");
+    fs::write(task_path, task).expect("write invalid manual reference");
+    let checked = run_zdev(root, &["check", "feature"]);
+    assert!(!checked.status.success());
+    assert!(String::from_utf8_lossy(&checked.stderr).contains("unknown slice missing"));
 }

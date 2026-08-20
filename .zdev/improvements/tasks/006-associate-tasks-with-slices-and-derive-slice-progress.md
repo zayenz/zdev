@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-006"
 key = "slice-tasks"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-005"]
 +++
 # Associate tasks with slices and derive slice progress
@@ -25,14 +25,28 @@ After lightweight slice briefs exist, extend the task bundle and durable header 
 
 ## Done when
 
-- [ ] Reviewed bundles, imported task files, and manual task validation accept an optional slice key and reject references to missing slices before publishing state.
-- [ ] `zdev tasks list`, `zdev task show`, `zdev next`, and generated `TASKS.md` expose task slice membership.
-- [ ] `zdev task show` and `zdev next` include the slice brief path in useful human and JSON output.
-- [ ] Area status reports derived ready, blocked, and done counts for every slice while keeping unsliced tasks only in area totals.
-- [ ] Canonical implement and verify workflows load slice context in the agreed order, and checked-in integrations match generated sources.
-- [ ] Focused tests cover bundle review/import, invalid manual references, index rendering, status counts, zero-task slices, and selected-task context.
+- [x] Reviewed bundles, imported task files, and manual task validation accept an optional slice key and reject references to missing slices before publishing state.
+- [x] `zdev tasks list`, `zdev task show`, `zdev next`, and generated `TASKS.md` expose task slice membership.
+- [x] `zdev task show` and `zdev next` include the slice brief path in useful human and JSON output.
+- [x] Area status reports derived ready, blocked, and done counts for every slice while keeping unsliced tasks only in area totals.
+- [x] Canonical implement and verify workflows load slice context in the agreed order, and checked-in integrations match generated sources.
+- [x] Focused tests cover bundle review/import, invalid manual references, index rendering, status counts, zero-task slices, and selected-task context.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Added optional task-to-slice membership with validated references, slice-aware selection output, and derived per-slice progress.
+
+Validation:
+
+- Independent verification passed, including upgrade compatibility for existing unsliced task indexes.
+- cargo test --locked --test lean (71 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (73 passed)
+- cargo build --locked
+- git diff --check

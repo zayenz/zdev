@@ -14,9 +14,10 @@ Use this method for each task returned by `zdev next`.
    is false, follow [recovery.md](recovery.md) before selecting work. Recommend
    the explicit managed rebase when the task needs newer base changes or is
    approaching an integration boundary.
-2. Read the area brief first, then the task file, any slice brief explicitly
-   linked by that task, repository instructions, and the smallest relevant
-   source and tests. When the brief indexes an area-local
+2. Read the area brief first. Inspect the selected task's routing frontmatter;
+   when it names a slice, read that slice brief next, then read the complete
+   task file, repository instructions, and the smallest relevant source and
+   tests. When the brief indexes an area-local
    `background/` corpus, follow only links identified as relevant to the task,
    including any focused links in the task file; do not load the entire corpus
    by default. Treat `brief.md` as the authoritative synthesis when background

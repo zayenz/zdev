@@ -134,9 +134,12 @@ zdev slice list <area>
 zdev slice show <area> <key>
 ```
 
-Slices have no status and tasks do not have to belong to one. Progress still
-comes from tasks. The area brief remains authoritative for shared decisions and
-testing; tasks that use a slice can link its brief directly.
+Slices have no stored status and tasks do not have to belong to one. A task may
+name an existing slice in its routing frontmatter. Zdev derives per-slice
+ready, blocked, and done counts from those tasks, including zero counts for an
+empty slice; unsliced tasks appear only in area totals. Task list, show, next,
+status, and generated index output carry the applicable slice context. The area
+brief remains authoritative for shared decisions and testing.
 
 Keep a large source corpus as individual files under
 `.zdev/<area>/background/`. Link them from the brief, and link only relevant

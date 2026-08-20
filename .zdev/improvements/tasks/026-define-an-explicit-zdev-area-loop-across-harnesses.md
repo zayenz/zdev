@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-026"
 key = "design-continuing-area-loop"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Define an explicit zdev area loop across harnesses
@@ -27,13 +27,13 @@ zdev goal intentionally projects one task. Codex, Claude Code, and Oh My Pi expo
 
 ## Done when
 
-- [ ] The contract defines exact invocation names and activation phrases without hijacking generic goal requests.
-- [ ] It defines the loop condition and stop matrix for ready, empty, exhausted, closed, unsafe, malformed, blocker, REWORK, user decision, and native-goal conflict.
-- [ ] It defines per-harness continuation through a native mechanism where supported and an honest bounded fallback elsewhere.
-- [ ] It specifies how each iteration obtains fresh status, goal, and Git evidence while preserving one-task commits.
-- [ ] It defines restart and resume behavior without new durable execution state.
-- [ ] It reconciles task-sized native_goal with area-level continuation.
-- [ ] It produces exact per-harness installation forms and follow-up implementation tasks.
+- [x] The contract defines exact invocation names and activation phrases without hijacking generic goal requests.
+- [x] It defines the loop condition and stop matrix for ready, empty, exhausted, closed, unsafe, malformed, blocker, REWORK, user decision, and native-goal conflict.
+- [x] It defines per-harness continuation through a native mechanism where supported and an honest bounded fallback elsewhere.
+- [x] It specifies how each iteration obtains fresh status, goal, and Git evidence while preserving one-task commits.
+- [x] It defines restart and resume behavior without new durable execution state.
+- [x] It reconciles task-sized native_goal with area-level continuation.
+- [x] It produces exact per-harness installation forms and follow-up implementation tasks.
 
 ## Validation
 
@@ -41,3 +41,12 @@ zdev goal intentionally projects one task. Codex, Claude Code, and Oh My Pi expo
 - Walk through ready-to-ready, ready-to-exhausted, closed, unsafe, REWORK, and active-native-goal scenarios.
 - Compare proposed prompts and workflows with templates/zdev/task-workflows.md and the strict Claude JavaScript parsers.
 - Do not implement runtime behavior or run an autonomous end-to-end campaign.
+
+## Result
+
+Defined explicit zdev goal and loop routes with safe native continuation and honest bounded fallbacks across all five harnesses.
+
+Validation:
+
+- Independent design and source review passed after correcting unsupported Claude native-goal claims and the existing documentation authority gap.
+- Current primary-source link checks, documentation contract, relative-link, whitespace, and git diff checks passed.

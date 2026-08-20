@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 30
-- Ready: 5
+- Ready: 4
 - Blocked: 0
-- Done: 25
+- Done: 26
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@
 | [improvements-023](tasks/023-include-an-approved-area-brief-in-committed-task-imports.md) | Include an approved area brief in committed task imports | done | — |
 | [improvements-024](tasks/024-distinguish-area-closure-from-task-queue-exhaustion.md) | Distinguish area closure from task-queue exhaustion | done | — |
 | [improvements-025](tasks/025-define-task-complexity-and-worker-escalation-without-evaluat.md) | Define task complexity and worker escalation without evaluation machinery | done | — |
-| [improvements-026](tasks/026-define-an-explicit-zdev-area-loop-across-harnesses.md) | Define an explicit zdev area loop across harnesses | ready | — |
+| [improvements-026](tasks/026-define-an-explicit-zdev-area-loop-across-harnesses.md) | Define an explicit zdev area loop across harnesses | done | — |
 | [improvements-027](tasks/027-reduce-zdev-workflow-round-trips-without-weakening-evidence.md) | Reduce zdev workflow round trips without weakening evidence | ready | — |
 | [improvements-028](tasks/028-assess-gpt-5-6-luna-for-zdev-coordination.md) | Assess gpt-5.6-luna for zdev coordination | ready | — |
 | [improvements-029](tasks/029-define-safe-derived-tasks-without-repeated-approval-ceremony.md) | Define safe derived tasks without repeated approval ceremony | ready | — |

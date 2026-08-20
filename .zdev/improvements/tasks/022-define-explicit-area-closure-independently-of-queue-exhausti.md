@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-022"
 key = "explicit-area-closure-contract"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Define explicit area closure independently of queue exhaustion
@@ -26,15 +26,25 @@ Today `zdev goal` calls an all-done task set `complete`; `zdev next`, `zdev next
 
 ## Done when
 
-- [ ] The record defines a complete matrix for open and closed areas with zero tasks, ready work, blocked work, and all tasks done.
-- [ ] It settles exact human and JSON vocabulary for goal, area-specific next, project-wide next, and status so queue exhaustion and objective closure cannot be confused.
-- [ ] It settles durable representation, the default for existing area.toml files, and exact area close and reopen grammar.
-- [ ] It defines whether empty areas may close and which branch or structural-safety gates closure requires.
-- [ ] It defines behavior for task import, task reopen, general areas, parent and child areas, and closed-area selection.
-- [ ] It ends with one narrow implementation seam and acceptance criteria requiring no further product decision.
+- [x] The record defines a complete matrix for open and closed areas with zero tasks, ready work, blocked work, and all tasks done.
+- [x] It settles exact human and JSON vocabulary for goal, area-specific next, project-wide next, and status so queue exhaustion and objective closure cannot be confused.
+- [x] It settles durable representation, the default for existing area.toml files, and exact area close and reopen grammar.
+- [x] It defines whether empty areas may close and which branch or structural-safety gates closure requires.
+- [x] It defines behavior for task import, task reopen, general areas, parent and child areas, and closed-area selection.
+- [x] It ends with one narrow implementation seam and acceptance criteria requiring no further product decision.
 
 ## Validation
 
 - Compare the lifecycle matrix against src/goal.rs, task selection in src/tasks.rs, status rendering, orchestration templates, and current goal fixtures.
 - Review the contract for contradictions with general areas, parent areas, and existing area records.
 - Run `git diff --check`.
+
+## Result
+
+Defined an explicit area lifecycle contract that separates queue exhaustion from objective closure.
+
+Validation:
+
+- Independent contract and code-path review passed after resolving workflow, branch-preflight, and JSON-shape ambiguities.
+- Focused goal-state, project-wide selection, and all-harness workflow contract tests passed.
+- git diff --check passed.

@@ -4,8 +4,9 @@
 
 Use **Explore an objective** after zdev is active when the user wants to start
 an area, compare possible paths, or sharpen an objective before creating tasks.
-Exploration creates or revises the area's authoritative `brief.md`; it does not
-create tasks or a second plan.
+Exploration creates or revises the area's authoritative `brief.md`, or a named
+slice brief when the user is shaping one increment within a larger area. It
+does not create tasks or a second lifecycle.
 
 ## Do
 
@@ -29,7 +30,9 @@ create tasks or a second plan.
    - Testing
    - Validation
 
-Keep `brief.md` as the only area-level synthesis. When a settled term or model
+Keep `brief.md` as the area-level synthesis. Use a slice brief only for the
+objective and boundaries of one named increment; area-level decisions and
+testing remain in `brief.md`. When a settled term or model
 applies across objectives, propose an update to existing domain documentation.
 When a hard-to-reverse or surprising trade-off deserves an ADR, follow the
 repository's convention. Unless the user already requested those changes,

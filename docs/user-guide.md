@@ -123,6 +123,22 @@ source material, keep it as separate files under `background/` and link them
 from the brief. Each task remains the source of truth for its own outcome,
 boundaries, and done conditions.
 
+For a larger area with several related increments, add lightweight slice
+briefs as needed:
+
+```sh
+zdev slice create scheduling api \
+  --title "Scheduling API" \
+  --objective "Expose the scheduling model through a stable API." \
+  --boundary "Keep persistence out of this slice."
+zdev slice list scheduling
+zdev slice show scheduling api
+```
+
+Slice files live under `.zdev/scheduling/slices/`. They contain an objective
+and boundaries but no status; tasks do not have to belong to a slice. The area
+brief still owns shared decisions and testing.
+
 ## 5. Explore and discuss the objective
 
 Zdev is the top-level trigger for its harness workflow. Mention `zdev`,

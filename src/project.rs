@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
@@ -65,6 +66,23 @@ pub(super) struct AreaMetadata {
     pub(super) parent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) base_commit: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SliceHeader {
+    schema_version: u64,
+    key: String,
+    area: String,
+    title: String,
+}
+
+struct Slice {
+    header: SliceHeader,
+    objective: String,
+    boundaries: String,
+    content: String,
+    path: PathBuf,
 }
 
 pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOutput, ZdevError> {
@@ -432,6 +450,249 @@ pub(super) fn list_areas(root: &Path) -> Result<Vec<AreaMetadata>, ZdevError> {
     }
     areas.sort_by(|left, right| left.tag.cmp(&right.tag));
     Ok(areas)
+}
+
+fn slice_section<'a>(body: &'a str, heading: &str, path: &Path) -> Result<&'a str, ZdevError> {
+    let marker = format!("## {heading}");
+    let mut found = false;
+    let mut start = 0;
+    let mut end = body.len();
+    let mut offset = 0;
+
+    for line in body.split_inclusive('\n') {
+        let text = line.trim_end_matches(['\r', '\n']);
+        if text.starts_with("## ") {
+            if found && end == body.len() {
+                end = offset;
+            }
+            if text == marker {
+                if found {
+                    return Err(ZdevError::new(format!(
+                        "Slice repeats ## {heading}: {}",
+                        path.display()
+                    )));
+                }
+                found = true;
+                start = offset + line.len();
+                end = body.len();
+            }
+        }
+        offset += line.len();
+    }
+
+    if !found {
+        return Err(ZdevError::new(format!(
+            "Slice lacks ## {heading}: {}",
+            path.display()
+        )));
+    }
+    let section = body[start..end].trim();
+    if section.is_empty() {
+        return Err(ZdevError::new(format!(
+            "Slice has empty ## {heading}: {}",
+            path.display()
+        )));
+    }
+    Ok(section)
+}
+
+fn parse_slice(content: &str, path: &Path, area: &str) -> Result<Slice, ZdevError> {
+    let rest = content.strip_prefix("+++\n").ok_or_else(|| {
+        ZdevError::new(format!("Slice lacks TOML frontmatter: {}", path.display()))
+    })?;
+    let (frontmatter, body) = rest.split_once("+++\n").ok_or_else(|| {
+        ZdevError::new(format!(
+            "Slice has unclosed frontmatter: {}",
+            path.display()
+        ))
+    })?;
+    let header: SliceHeader = toml::from_str(frontmatter)
+        .map_err(|error| ZdevError::new(format!("Invalid slice {}: {error}", path.display())))?;
+    validate_segment(&header.key, "Slice key")?;
+    validate_nonempty_line(&header.title, "Slice title")?;
+    if header.schema_version != SCHEMA_VERSION || header.area != area {
+        return Err(ZdevError::new(format!(
+            "Slice has invalid area or schema: {}",
+            path.display()
+        )));
+    }
+    if path.file_name() != Some(OsStr::new(&format!("{}.md", header.key))) {
+        return Err(ZdevError::new(format!(
+            "Slice key does not match its filename: {}",
+            path.display()
+        )));
+    }
+    let objective = slice_section(body, "Objective", path)?.to_owned();
+    let boundaries = slice_section(body, "Boundaries", path)?.to_owned();
+    Ok(Slice {
+        header,
+        objective,
+        boundaries,
+        content: content.to_owned(),
+        path: path.to_path_buf(),
+    })
+}
+
+fn load_slices(root: &Path, area: &str) -> Result<Vec<Slice>, ZdevError> {
+    let (_, area_dir) = load_area(root, area)?;
+    let slices_dir = area_dir.join("slices");
+    if !slices_dir.exists() {
+        return Ok(Vec::new());
+    }
+    if !slices_dir.is_dir() {
+        return Err(ZdevError::new(format!(
+            "Area {area} slices path is not a directory: {}",
+            slices_dir.display()
+        )));
+    }
+    let mut slices = Vec::new();
+    for entry in fs::read_dir(&slices_dir)
+        .map_err(|error| ZdevError::io(format!("Cannot list {}", slices_dir.display()), error))?
+    {
+        let entry = entry.map_err(|error| ZdevError::io("Cannot inspect slice", error))?;
+        let path = entry.path();
+        if path.extension() != Some(OsStr::new("md")) {
+            continue;
+        }
+        let content = fs::read_to_string(&path)
+            .map_err(|error| ZdevError::io(format!("Cannot read {}", path.display()), error))?;
+        slices.push(parse_slice(&content, &path, area)?);
+    }
+    slices.sort_by(|left, right| left.header.key.cmp(&right.header.key));
+    Ok(slices)
+}
+
+fn write_new_atomic(path: &Path, bytes: &[u8], exists_message: &str) -> Result<(), ZdevError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| ZdevError::new(format!("Path has no parent: {}", path.display())))?;
+    let mut stage = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|error| ZdevError::io(format!("Cannot stage {}", path.display()), error))?;
+    stage
+        .write_all(bytes)
+        .and_then(|()| stage.as_file().sync_all())
+        .map_err(|error| ZdevError::io(format!("Cannot write {}", path.display()), error))?;
+    stage.persist_noclobber(path).map_err(|error| {
+        if error.error.kind() == std::io::ErrorKind::AlreadyExists {
+            ZdevError::new(exists_message)
+        } else {
+            ZdevError::io(format!("Cannot publish {}", path.display()), error.error)
+        }
+    })?;
+    Ok(())
+}
+
+pub(super) fn create_slice(
+    root: &Path,
+    area: &str,
+    key: &str,
+    title: &str,
+    objective: &str,
+    boundaries: &[String],
+) -> Result<CommandOutput, ZdevError> {
+    validate_segment(key, "Slice key")?;
+    validate_nonempty_line(title, "Slice title")?;
+    validate_nonempty_line(objective, "Slice objective")?;
+    if boundaries.is_empty() {
+        return Err(ZdevError::new("Slice requires at least one boundary"));
+    }
+    for boundary in boundaries {
+        validate_nonempty_line(boundary, "Slice boundary")?;
+    }
+    let (_, area_dir) = load_area(root, area)?;
+    let slices_dir = area_dir.join("slices");
+    fs::create_dir_all(&slices_dir)
+        .map_err(|error| ZdevError::io(format!("Cannot create {}", slices_dir.display()), error))?;
+    let path = slices_dir.join(format!("{key}.md"));
+    if path.exists() {
+        return Err(ZdevError::new(format!(
+            "Slice already exists: {area}/{key}"
+        )));
+    }
+    let header = SliceHeader {
+        schema_version: SCHEMA_VERSION,
+        key: key.to_owned(),
+        area: area.to_owned(),
+        title: title.to_owned(),
+    };
+    let content = format!(
+        "+++\n{}+++\n# {title}\n\n## Objective\n\n{objective}\n\n## Boundaries\n\n{}\n",
+        toml::to_string(&header)
+            .map_err(|error| ZdevError::new(format!("Cannot render slice: {error}")))?,
+        boundaries
+            .iter()
+            .map(|boundary| format!("- {boundary}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    write_new_atomic(
+        &path,
+        content.as_bytes(),
+        &format!("Slice already exists: {area}/{key}"),
+    )?;
+    Ok(CommandOutput::new(
+        format!("Created slice {area}/{key}"),
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "status": "created",
+            "area": area,
+            "key": key,
+            "title": title,
+            "path": relative(root, &path),
+        }),
+    ))
+}
+
+pub(super) fn list_slices(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    let slices = load_slices(root, area)?;
+    let views = slices
+        .iter()
+        .map(|slice| {
+            json!({
+                "key": slice.header.key,
+                "title": slice.header.title,
+                "path": relative(root, &slice.path),
+            })
+        })
+        .collect::<Vec<_>>();
+    let text = if slices.is_empty() {
+        format!("No slices in {area}")
+    } else {
+        slices
+            .iter()
+            .map(|slice| format!("{}  {}", slice.header.key, slice.header.title))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    Ok(CommandOutput::new(
+        text,
+        json!({"schema_version": SCHEMA_VERSION, "area": area, "slices": views}),
+    ))
+}
+
+pub(super) fn show_slice(root: &Path, area: &str, key: &str) -> Result<CommandOutput, ZdevError> {
+    validate_segment(key, "Slice key")?;
+    let (_, area_dir) = load_area(root, area)?;
+    let path = area_dir.join("slices").join(format!("{key}.md"));
+    let content = fs::read_to_string(&path)
+        .map_err(|error| ZdevError::io(format!("Cannot read {}", path.display()), error))?;
+    let slice = parse_slice(&content, &path, area)?;
+    Ok(CommandOutput::new(
+        slice.content,
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "area": area,
+            "key": slice.header.key,
+            "title": slice.header.title,
+            "objective": slice.objective,
+            "boundaries": slice.boundaries,
+            "path": relative(root, &slice.path),
+        }),
+    ))
+}
+
+pub(super) fn validate_slices(root: &Path, area: &str) -> Result<(), ZdevError> {
+    load_slices(root, area).map(|_| ())
 }
 
 fn write_area_metadata(root: &Path, area: &AreaMetadata) -> Result<(), ZdevError> {
@@ -1235,4 +1496,22 @@ pub(super) fn area_branch_status(
         },
         "diagnostics": diagnostics,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_new_atomic;
+
+    #[test]
+    fn new_atomic_write_does_not_replace_a_concurrently_created_destination() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("one.md");
+        std::fs::write(&path, b"existing").expect("existing slice");
+
+        let error = write_new_atomic(&path, b"replacement", "Slice already exists: area/one")
+            .expect_err("existing slice must not be replaced");
+
+        assert_eq!(error.to_string(), "Slice already exists: area/one");
+        assert_eq!(std::fs::read(path).expect("preserved slice"), b"existing");
+    }
 }

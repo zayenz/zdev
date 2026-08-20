@@ -18,6 +18,27 @@ trustworthy base boundary.
 Task dependencies never cross areas. Use an area parent for branch ancestry
 and `blocked_by` for task sequencing within one area.
 
+## Slice briefs
+
+Larger areas may keep lightweight slice briefs under
+`.zdev/<area>/slices/<key>.md`. Create and inspect them with:
+
+```sh
+zdev slice create <area> <key> --title <title> --objective <objective> --boundary <text>
+zdev slice list <area>
+zdev slice show <area> <key>
+```
+
+Repeat `--boundary` for additional boundaries. Each file has TOML frontmatter
+containing exactly `schema_version`, `key`, `area`, and `title`, followed by
+non-empty `## Objective` and `## Boundaries` sections. The key is a lowercase
+path segment and must match the filename.
+
+A slice is durable planning context, not a second lifecycle. It has no status,
+tasks need not belong to one, and the area brief remains authoritative for
+shared decisions and testing. A task that uses a slice should link that slice
+brief explicitly.
+
 ## Task files
 
 Each task is one Markdown file under `.zdev/<area>/tasks/`.

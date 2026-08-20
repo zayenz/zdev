@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-005"
 key = "slice-briefs"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Add lightweight slice briefs to areas
@@ -26,13 +26,27 @@ Areas currently have one `brief.md` and task files only. Add durable slice brief
 
 ## Done when
 
-- [ ] The slice create command publishes a valid brief atomically and rejects invalid identity or missing required content.
-- [ ] Slice list and show expose stable human and JSON representations of every valid slice in an area.
-- [ ] `zdev check` validates every present slice brief and accepts existing areas with no slices.
-- [ ] Canonical workflow and user documentation describe slice briefs as durable area state, and checked-in harness integrations match their generated sources.
-- [ ] Focused black-box tests cover create, list, show, validation failures, and backward compatibility.
+- [x] The slice create command publishes a valid brief atomically and rejects invalid identity or missing required content.
+- [x] Slice list and show expose stable human and JSON representations of every valid slice in an area.
+- [x] `zdev check` validates every present slice brief and accepts existing areas with no slices.
+- [x] Canonical workflow and user documentation describe slice briefs as durable area state, and checked-in harness integrations match their generated sources.
+- [x] Focused black-box tests cover create, list, show, validation failures, and backward compatibility.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Added lightweight, validated slice briefs with atomic create-only publication, listing, display, and project checks.
+
+Validation:
+
+- Independent verification passed after confirming no-clobber concurrent creation semantics.
+- cargo test --locked --test lean (68 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (70 passed)
+- cargo build --locked
+- git diff --check

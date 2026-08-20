@@ -3873,6 +3873,233 @@ fn project_check_reports_missing_or_unmarked_guidance_separately() {
 }
 
 #[test]
+fn slice_briefs_create_list_show_and_leave_existing_areas_valid() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "feature", "main");
+
+    let empty = json_output(root, &["slice", "list", "feature"]);
+    assert_eq!(empty["slices"], json!([]));
+    assert_eq!(json_output(root, &["check", "feature"])["status"], "ok");
+
+    json_output(
+        root,
+        &[
+            "slice",
+            "create",
+            "feature",
+            "second",
+            "--title",
+            "Second slice",
+            "--objective",
+            "Deliver the second useful increment.",
+            "--boundary",
+            "Keep it small.",
+        ],
+    );
+    let created = json_output(
+        root,
+        &[
+            "slice",
+            "create",
+            "feature",
+            "first",
+            "--title",
+            "First slice",
+            "--objective",
+            "Deliver the first useful increment.",
+            "--boundary",
+            "Preserve compatibility.",
+            "--boundary",
+            "Use existing tests.",
+        ],
+    );
+    assert_eq!(created["status"], "created");
+    assert_eq!(created["path"], ".zdev/feature/slices/first.md");
+
+    let listed = json_output(root, &["slice", "list", "feature"]);
+    assert_eq!(listed["slices"][0]["key"], "first");
+    assert_eq!(listed["slices"][0]["title"], "First slice");
+    assert_eq!(listed["slices"][1]["key"], "second");
+    let listed_text = run_zdev(root, &["slice", "list", "feature"]);
+    assert!(listed_text.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&listed_text.stdout),
+        "first  First slice\nsecond  Second slice\n"
+    );
+
+    let shown = json_output(root, &["slice", "show", "feature", "first"]);
+    assert_eq!(shown["title"], "First slice");
+    assert_eq!(shown["objective"], "Deliver the first useful increment.");
+    assert_eq!(
+        shown["boundaries"],
+        "- Preserve compatibility.\n- Use existing tests."
+    );
+    let path = root.join(".zdev/feature/slices/first.md");
+    let text = run_zdev(root, &["slice", "show", "feature", "first"]);
+    assert!(text.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&text.stdout).trim_end(),
+        fs::read_to_string(path).expect("slice brief").trim_end()
+    );
+    assert_eq!(json_output(root, &["check", "feature"])["status"], "ok");
+}
+
+#[test]
+fn slice_create_rejects_invalid_or_incomplete_input_without_replacing_a_slice() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "feature", "main");
+
+    for arguments in [
+        vec![
+            "slice",
+            "create",
+            "feature",
+            "Bad-Key",
+            "--title",
+            "Bad",
+            "--objective",
+            "Bad key.",
+            "--boundary",
+            "No publication.",
+        ],
+        vec![
+            "slice",
+            "create",
+            "feature",
+            "empty-boundary",
+            "--title",
+            "Bad",
+            "--objective",
+            "Empty boundary.",
+            "--boundary",
+            "",
+        ],
+    ] {
+        assert!(!run_zdev(root, &arguments).status.success());
+    }
+    let missing_boundary = run_zdev(
+        root,
+        &[
+            "slice",
+            "create",
+            "feature",
+            "missing-boundary",
+            "--title",
+            "Bad",
+            "--objective",
+            "Missing boundary.",
+        ],
+    );
+    assert!(!missing_boundary.status.success());
+    assert!(!root.join(".zdev/feature/slices").exists());
+
+    json_output(
+        root,
+        &[
+            "slice",
+            "create",
+            "feature",
+            "one",
+            "--title",
+            "One",
+            "--objective",
+            "Create one slice.",
+            "--boundary",
+            "Do not replace it.",
+        ],
+    );
+    let path = root.join(".zdev/feature/slices/one.md");
+    let original = fs::read(&path).expect("original slice");
+    let duplicate = run_zdev(
+        root,
+        &[
+            "slice",
+            "create",
+            "feature",
+            "one",
+            "--title",
+            "Replacement",
+            "--objective",
+            "Replace one slice.",
+            "--boundary",
+            "This must fail.",
+        ],
+    );
+    assert!(!duplicate.status.success());
+    assert_eq!(fs::read(path).expect("preserved slice"), original);
+}
+
+#[test]
+fn check_validates_slice_frontmatter_identity_and_required_sections() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "feature", "main");
+    json_output(
+        root,
+        &[
+            "slice",
+            "create",
+            "feature",
+            "one",
+            "--title",
+            "One",
+            "--objective",
+            "Create one slice.",
+            "--boundary",
+            "Keep validation focused.",
+        ],
+    );
+    let slices = root.join(".zdev/feature/slices");
+    let path = slices.join("one.md");
+    let valid = fs::read_to_string(&path).expect("valid slice");
+
+    fs::write(
+        &path,
+        valid.replace("title = \"One\"", "title = \"One\"\nstatus = \"open\""),
+    )
+    .expect("unknown field slice");
+    let unknown = run_zdev(root, &["check", "feature"]);
+    assert!(!unknown.status.success());
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("unknown field"));
+
+    fs::write(&path, &valid).expect("restore valid slice");
+    fs::rename(&path, slices.join("moved.md")).expect("move slice");
+    let moved = run_zdev(root, &["check", "feature"]);
+    assert!(!moved.status.success());
+    assert!(String::from_utf8_lossy(&moved.stderr).contains("does not match its filename"));
+
+    fs::rename(slices.join("moved.md"), &path).expect("restore slice name");
+    fs::write(
+        &path,
+        valid.replace("## Objective\n\nCreate one slice.", "## Objective\n\n"),
+    )
+    .expect("empty objective slice");
+    let empty = run_zdev(root, &["check", "feature"]);
+    assert!(!empty.status.success());
+    assert!(String::from_utf8_lossy(&empty.stderr).contains("empty ## Objective"));
+
+    fs::write(
+        &path,
+        valid.replace("## Boundaries\n\n- Keep validation focused.\n", ""),
+    )
+    .expect("missing boundaries slice");
+    let missing = run_zdev(root, &["check", "feature"]);
+    assert!(!missing.status.success());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("lacks ## Boundaries"));
+}
+
+#[test]
 fn project_check_says_current_bundle_is_not_ready_when_guidance_is_missing() {
     let repository = repository();
     let root = repository.path();

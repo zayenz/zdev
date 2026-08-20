@@ -117,6 +117,11 @@ enum Command {
         #[command(subcommand)]
         command: AreaCommand,
     },
+    /// Create and inspect lightweight briefs within an area
+    Slice {
+        #[command(subcommand)]
+        command: SliceCommand,
+    },
     /// Review, import, list, and reindex an area's task files
     Tasks {
         #[command(subcommand)]
@@ -251,6 +256,38 @@ enum AreaCommand {
 }
 
 #[derive(Debug, Subcommand)]
+enum SliceCommand {
+    /// Create a lightweight brief within an area
+    Create {
+        /// Area tag that owns the slice
+        area: String,
+        /// Lowercase identifier used as the slice filename
+        key: String,
+        /// Human-readable slice name
+        #[arg(long)]
+        title: String,
+        /// Concise description of the slice outcome
+        #[arg(long)]
+        objective: String,
+        /// Scope boundary; repeat for each boundary
+        #[arg(long, required = true)]
+        boundary: Vec<String>,
+    },
+    /// List every slice brief in an area
+    List {
+        /// Area tag whose slices to list
+        area: String,
+    },
+    /// Show one slice brief
+    Show {
+        /// Area tag that owns the slice
+        area: String,
+        /// Slice key
+        key: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum TasksCommand {
     /// Render a JSON task bundle for human approval
     ///
@@ -349,6 +386,7 @@ impl Cli {
             Command::Cleanup { .. } => "cleanup",
             Command::Config { .. } => "config",
             Command::Area { .. } => "area",
+            Command::Slice { .. } => "slice",
             Command::Tasks { .. } => "tasks",
             Command::Task { .. } => "task",
             Command::Next { .. } => "next",
@@ -446,6 +484,17 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 r#continue,
                 abort,
             } => project::rebase_area(&root, area, *r#continue, *abort),
+        },
+        Command::Slice { command } => match command {
+            SliceCommand::Create {
+                area,
+                key,
+                title,
+                objective,
+                boundary,
+            } => project::create_slice(&root, area, key, title, objective, boundary),
+            SliceCommand::List { area } => project::list_slices(&root, area),
+            SliceCommand::Show { area, key } => project::show_slice(&root, area, key),
         },
         Command::Tasks { command } => match command {
             TasksCommand::Review { area, source } => tasks::review(&root, area, source),
@@ -728,6 +777,7 @@ fn check_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, Z
     let mut checked = Vec::new();
     for area in areas {
         validate_brief(&root.join(".zdev").join(&area.tag).join("brief.md"))?;
+        project::validate_slices(root, &area.tag)?;
         tasks::validate_index(root, &area.tag)?;
         checked.push(area.tag);
     }

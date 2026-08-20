@@ -39,6 +39,11 @@ baseline, and changes only task-owned paths. A fresh verifier checks the task
 requirements, touched code, and required validation. The coordinating agent
 completes and commits the task after `PASS`.
 
+Larger areas may organize several related increments as slice briefs under
+`.zdev/<area>/slices/`. A slice records only a title, objective, and boundaries;
+it has no status or required task membership. The area brief remains
+authoritative for shared decisions and testing.
+
 The brief and selected task define the outcome, boundaries, testing level, and
 done conditions throughout this process.
 
@@ -74,11 +79,11 @@ overlapping path or changing the index.
 
 ## State and reporting
 
-Store only metadata, `brief.md`, task files, and generated `TASKS.md` under
-`.zdev`. Keep transcripts and review evidence in the conversation. Existing
-domain documentation and ADRs remain authoritative across areas. Report what
-changed, what verification passed, and what remains; mention commands only
-when they help the user continue or recover.
+Store only metadata, `brief.md`, optional slice briefs, task files, and generated
+`TASKS.md` under `.zdev`. Keep transcripts and review evidence in the
+conversation. Existing domain documentation and ADRs remain authoritative
+across areas. Report what changed, what verification passed, and what remains;
+mention commands only when they help the user continue or recover.
 
 ## OpenCode orchestration
 

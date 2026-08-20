@@ -18,12 +18,14 @@ Require the verifier to:
    value is `BLOCKER`; use the structured diagnostics to report the unsafe
    branch, anchor, ancestry, history, or Git-operation state.
 2. Read `brief.md` first and confirm that it has a concrete `Testing` section
-   covering the task. Then read the task and only its relevant linked
-   background documents; do not load an area's entire `background/` corpus by
-   default. Treat the brief as the authoritative synthesis when checking
-   background detail. If the testing section is missing or leaves a material
-   testing choice unresolved, return `BLOCKER` for the coordinating agent to
-   resolve with the user; do not invent a testing level during review.
+   covering the task. Then read the task, any slice brief it explicitly links,
+   and only its relevant linked background documents; do not load an area's
+   entire `background/` corpus by default. Treat the area brief as the
+   authoritative synthesis; a slice adds narrower objective and boundary
+   context without overriding area decisions or testing. If the testing section
+   is missing or leaves a material testing choice unresolved, return `BLOCKER`
+   for the coordinating agent to resolve with the user; do not invent a testing
+   level during review.
 3. Capture complete checkout evidence before validation: `git status --short
    --untracked-files=all`, `git diff --cached`, and `git diff`. Inspect relevant
    untracked files directly because they do not appear in either diff. Compare

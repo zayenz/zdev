@@ -24,12 +24,21 @@ const AGENT_INSTRUCTIONS: &str = "Zdev stores durable plans and tasks in `.zdev`
 #[derive(Debug)]
 pub struct ZdevError {
     message: String,
+    details: Option<Value>,
 }
 
 impl ZdevError {
     fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            details: None,
+        }
+    }
+
+    fn with_details(message: impl Into<String>, details: Value) -> Self {
+        Self {
+            message: message.into(),
+            details: Some(details),
         }
     }
 
@@ -379,16 +388,18 @@ pub fn render_success(format: OutputFormat, output: &CommandOutput) {
 pub fn render_error(format: OutputFormat, command: &str, error: &ZdevError) {
     match format {
         OutputFormat::Text => eprintln!("error: {error}"),
-        OutputFormat::Json => eprintln!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
+        OutputFormat::Json => {
+            let mut value = json!({
                 "schema_version": SCHEMA_VERSION,
                 "command": command,
                 "ok": false,
                 "error": error.to_string(),
-            }))
-            .unwrap()
-        ),
+            });
+            if let Some(details) = &error.details {
+                value["details"] = details.clone();
+            }
+            eprintln!("{}", serde_json::to_string_pretty(&value).unwrap());
+        }
     }
 }
 
@@ -658,12 +669,21 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
         let branch_status =
             project::area_branch_status(root, &config, &metadata, &by_tag, checked_out.as_deref());
         let branch_line = render_area_branch_line(&metadata, &branch_status);
+        let advisory = branch_status["task_work"]["stale_advisory"]
+            .as_bool()
+            .unwrap_or(false)
+            .then(|| project::rebase_advisory(&area));
+        let mut text = format!(
+            "{}: {} ready, {} blocked, {} done\n{branch_line}",
+            metadata.title, tasks.ready, tasks.blocked, tasks.done,
+        );
+        if let Some(advisory) = &advisory {
+            text.push('\n');
+            text.push_str(advisory);
+        }
         return Ok(CommandOutput::new(
-            format!(
-                "{}: {} ready, {} blocked, {} done\n{branch_line}",
-                metadata.title, tasks.ready, tasks.blocked, tasks.done,
-            ),
-            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "next": tasks.next}),
+            text,
+            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "next": tasks.next, "advisory": advisory}),
         ));
     }
     let mut summaries = Vec::new();

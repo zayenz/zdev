@@ -6,10 +6,14 @@ Use this method for each task returned by `zdev next`.
 
 ## Do
 
-1. Run `zdev status <area> --format json`. Require all four gates: the recorded
-   branch is checked out, the effective-base link is fresh, its anchor is valid,
-   and base finalization is complete. If any gate fails, follow the managed
-   recovery workflow in [recovery.md](recovery.md) before selecting work.
+1. Run `zdev status <area> --format json` and inspect `branch_status.task_work`.
+   Require `safe` to be true. When `stale_advisory` is true, report the single
+   rebase advisory once and continue; do not ask for rebase consent. A stale
+   link remains safe only while the recorded branch, anchor, ancestry, and
+   linear history are valid and no Git recovery operation is active. If `safe`
+   is false, follow [recovery.md](recovery.md) before selecting work. Recommend
+   the explicit managed rebase when the task needs newer base changes or is
+   approaching an integration boundary.
 2. Read the area brief first, then the task file, repository instructions, and
    the smallest relevant source and tests. When the brief indexes an area-local
    `background/` corpus, follow only links identified as relevant to the task,

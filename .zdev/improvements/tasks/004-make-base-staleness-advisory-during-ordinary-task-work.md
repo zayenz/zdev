@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-004"
 key = "advisory-base-staleness"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Make base staleness advisory during ordinary task work
@@ -25,13 +25,23 @@ Today `require_fresh_area_link` hard-blocks both `zdev next` and `zdev task done
 
 ## Done when
 
-- [ ] `zdev status`, `zdev next`, and `zdev task done` distinguish stale-but-safe relationships from unsafe branch state in human and JSON output.
-- [ ] Human output gives at most one concise `zdev area rebase <area>` advisory, while JSON exposes structured branch diagnostics.
-- [ ] Canonical implement, verify, and recovery workflows continue after reporting stale-but-safe state once instead of asking for rebase consent.
-- [ ] Focused tests cover advancing an independent base, advancing a parent area, and at least one unsafe state that still blocks.
-- [ ] Checked-in harness integrations match their canonical generated sources.
+- [x] `zdev status`, `zdev next`, and `zdev task done` distinguish stale-but-safe relationships from unsafe branch state in human and JSON output.
+- [x] Human output gives at most one concise `zdev area rebase <area>` advisory, while JSON exposes structured branch diagnostics.
+- [x] Canonical implement, verify, and recovery workflows continue after reporting stale-but-safe state once instead of asking for rebase consent.
+- [x] Focused tests cover advancing an independent base, advancing a parent area, and at least one unsafe state that still blocks.
+- [x] Checked-in harness integrations match their canonical generated sources.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Allowed independently verified task work to continue on stale-but-safe base links while preserving explicit rebase control and hard unsafe-state gates.
+
+Validation:
+
+- Focused independent-base and parent-base behavior tests passed.
+- cargo test --locked --test lean passed (65 tests).
+- Formatting, clippy with warnings denied, full tests, locked build, and git diff checks passed.

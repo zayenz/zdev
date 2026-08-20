@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::project::{
-    list_areas, load_area, read_config, require_checked_out_area_branch, require_fresh_area_link,
+    list_areas, load_area, read_config, require_checked_out_area_branch,
+    require_task_work_area_link,
 };
 use super::{
     CHANGE_ID_TRAILER, CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, generate_change_id,
@@ -920,22 +921,27 @@ fn select_area(root: &Path, requested: Option<&str>) -> Result<String, ZdevError
 
 pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput, ZdevError> {
     let area = select_area(root, requested)?;
-    require_fresh_area_link(root, &area)?;
+    let branch = require_task_work_area_link(root, &area)?;
     let tasks = load_tasks(root, &area)?;
     let Some(task) = next_task(&tasks) else {
         let open = tasks
             .iter()
             .any(|task| task.header.status == TaskStatus::Open);
         let status = if open { "blocked" } else { "complete" };
+        let mut text = if open {
+            format!(
+                "No task is ready in {area}. Complete a blocking task or update the dependencies"
+            )
+        } else {
+            format!("All tasks in {area} are done")
+        };
+        if let Some(advisory) = &branch.advisory {
+            text.push('\n');
+            text.push_str(advisory);
+        }
         return Ok(CommandOutput::new(
-            if open {
-                format!(
-                    "No task is ready in {area}. Complete a blocking task or update the dependencies"
-                )
-            } else {
-                format!("All tasks in {area} are done")
-            },
-            json!({"schema_version": SCHEMA_VERSION, "area": area, "status": status, "task": Value::Null}),
+            text,
+            json!({"schema_version": SCHEMA_VERSION, "area": area, "status": status, "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory}),
         ));
     };
     let view = TaskView {
@@ -946,14 +952,19 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         blocked_by: &task.header.blocked_by,
         path: relative(root, &task.path),
     };
+    let mut text = format!(
+        "{}  {}\n{}",
+        task.header.id,
+        task.title,
+        task.path.display()
+    );
+    if let Some(advisory) = &branch.advisory {
+        text.push('\n');
+        text.push_str(advisory);
+    }
     Ok(CommandOutput::new(
-        format!(
-            "{}  {}\n{}",
-            task.header.id,
-            task.title,
-            task.path.display()
-        ),
-        json!({"schema_version": SCHEMA_VERSION, "area": area, "status": "ready", "task": view}),
+        text,
+        json!({"schema_version": SCHEMA_VERSION, "area": area, "status": "ready", "task": view, "branch_status": branch.branch_status, "advisory": branch.advisory}),
     ))
 }
 
@@ -992,7 +1003,7 @@ pub(super) fn complete(
     summary: &str,
     validation: &[String],
 ) -> Result<CommandOutput, ZdevError> {
-    require_fresh_area_link(root, area)?;
+    let branch = require_task_work_area_link(root, area)?;
     validate_nonempty_line(summary, "Completion summary")?;
     for item in validation {
         validate_nonempty_line(item, "Validation result")?;
@@ -1027,9 +1038,14 @@ pub(super) fn complete(
     }
     let content = format!("+++\n{}+++\n{}", toml::to_string(&header).unwrap(), body);
     publish_task_and_index(root, area, task, &content)?;
+    let mut text = format!("Completed task {id}");
+    if let Some(advisory) = &branch.advisory {
+        text.push('\n');
+        text.push_str(advisory);
+    }
     Ok(CommandOutput::new(
-        format!("Completed task {id}"),
-        json!({"schema_version": SCHEMA_VERSION, "status": "done", "area": area, "task": id}),
+        text,
+        json!({"schema_version": SCHEMA_VERSION, "status": "done", "area": area, "task": id, "branch_status": branch.branch_status, "advisory": branch.advisory}),
     ))
 }
 

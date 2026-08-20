@@ -201,7 +201,7 @@ fn import_one_task(root: &Path, area: &str) {
 }
 
 #[test]
-fn managed_rebase_updates_an_independent_area_and_unlocks_task_work() {
+fn stale_independent_base_is_advisory_for_task_work() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -215,14 +215,51 @@ fn managed_rebase_updates_an_independent_area_and_unlocks_task_work() {
     git(root, &["switch", "-q", "main"]);
     commit_file(root, "trunk.txt", "trunk\n", "advance trunk");
 
-    let wrong_branch = run_zdev(root, &["next", "feature"]);
+    let wrong_branch = run_zdev(root, &["next", "feature", "--format", "json"]);
     assert!(!wrong_branch.status.success());
-    assert!(String::from_utf8_lossy(&wrong_branch.stderr).contains("Switch to feature and retry"));
+    let wrong_branch: Value = serde_json::from_slice(&wrong_branch.stderr).expect("JSON error");
+    assert!(
+        wrong_branch["error"]
+            .as_str()
+            .expect("error")
+            .contains("Switch to feature and retry")
+    );
+    assert_eq!(
+        wrong_branch["details"]["branch_status"]["task_work"]["safe"],
+        false
+    );
+    assert!(
+        wrong_branch["details"]["branch_status"]["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .contains(&json!("wrong-branch"))
+    );
     git(root, &["switch", "-q", "feature"]);
-    let stale_next = run_zdev(root, &["next", "feature"]);
-    assert!(!stale_next.status.success());
-    assert!(String::from_utf8_lossy(&stale_next.stderr).contains("zdev area rebase feature"));
-    let stale_done = run_zdev(
+    let stale_status = json_output(root, &["status", "feature"]);
+    assert_eq!(stale_status["branch_status"]["fresh"], false);
+    assert_eq!(stale_status["branch_status"]["task_work"]["safe"], true);
+    assert_eq!(
+        stale_status["branch_status"]["task_work"]["stale_advisory"],
+        true
+    );
+    let status_text = run_zdev(root, &["status", "feature"]);
+    assert!(status_text.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&status_text.stdout)
+            .matches("zdev area rebase feature")
+            .count(),
+        1
+    );
+    let stale_next = json_output(root, &["next", "feature"]);
+    assert_eq!(stale_next["task"]["id"], "feature-001");
+    assert_eq!(stale_next["branch_status"]["task_work"]["safe"], true);
+    assert!(
+        stale_next["advisory"]
+            .as_str()
+            .expect("advisory")
+            .contains("zdev area rebase feature")
+    );
+    let stale_done = json_output(
         root,
         &[
             "task",
@@ -230,14 +267,21 @@ fn managed_rebase_updates_an_independent_area_and_unlocks_task_work() {
             "feature",
             "feature-001",
             "--summary",
-            "Must remain open.",
+            "Completed safely on the stale base.",
             "--validation",
-            "Guarded.",
+            "Focused stale-base coverage passed.",
         ],
     );
-    assert!(!stale_done.status.success());
-    assert!(String::from_utf8_lossy(&stale_done.stderr).contains("stale"));
+    assert_eq!(stale_done["status"], "done");
+    assert_eq!(stale_done["branch_status"]["task_work"]["safe"], true);
+    assert!(
+        stale_done["advisory"]
+            .as_str()
+            .expect("advisory")
+            .contains("zdev area rebase feature")
+    );
 
+    commit_all(root, "complete task on stale base");
     let rebased = json_output(root, &["area", "rebase", "feature"]);
     assert_eq!(rebased["status"], "rebased");
     assert_eq!(rebased["effective_base"], "main");
@@ -246,8 +290,8 @@ fn managed_rebase_updates_an_independent_area_and_unlocks_task_work() {
         true
     );
     assert_eq!(
-        json_output(root, &["next", "feature"])["task"]["id"],
-        "feature-001"
+        json_output(root, &["next", "feature"])["status"],
+        "complete"
     );
     commit_all(root, "record rebased base anchor");
     let no_op = json_output(root, &["area", "rebase", "feature"]);
@@ -263,6 +307,7 @@ fn managed_rebase_uses_a_parent_area_as_the_effective_base() {
     json_output(root, &["init", "--record", "project"]);
     create_area(root, "root-area", "root-area");
     create_area(root, "child-area", "child-area");
+    import_one_task(root, "child-area");
     commit_all(root, "configure dependent areas");
     git(root, &["switch", "-q", "-c", "root-area"]);
     commit_file(root, "root.txt", "one\n", "root work");
@@ -279,6 +324,15 @@ fn managed_rebase_uses_a_parent_area_as_the_effective_base() {
     assert_eq!(
         before["branch_status"]["effective_base"]["branch"],
         "root-area"
+    );
+    assert_eq!(before["branch_status"]["task_work"]["safe"], true);
+    let next = json_output(root, &["next", "child-area"]);
+    assert_eq!(next["task"]["id"], "child-area-001");
+    assert!(
+        next["advisory"]
+            .as_str()
+            .expect("advisory")
+            .contains("zdev area rebase child-area")
     );
     let rebased = json_output(root, &["area", "rebase", "child-area"]);
     assert_eq!(rebased["status"], "rebased");

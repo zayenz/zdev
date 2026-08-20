@@ -18,8 +18,11 @@ normal zdev area rebase command to verify the result and finalize the base
 anchor. For a longer chain, update one link at a time from parent to child.
 
 Run `zdev status <area> --format json` again before task completion. Completion
-requires the recorded branch, a fresh effective base, a valid anchor, and
-finalized base state.
+requires `branch_status.task_work.safe` to be true. A stale-but-safe link is
+advisory: report `zdev area rebase <area>` once and continue. Rebase explicitly
+when the task needs newer base changes or is approaching integration. Wrong or
+detached branches, invalid or unavailable ancestry, nonlinear child history,
+and active Git recovery operations remain blockers.
 
 ## Resume task work
 

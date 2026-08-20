@@ -49,7 +49,7 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
         "zdev area rebase scheduling --abort",
         "zdev change inspect HEAD",
         "zdev change lookup Z0123456789abcdef...",
-        "matching, fresh, anchor-valid, and finalized",
+        "branch_status.task_work.safe",
         "Codex",
         "Claude Code",
         "OpenCode",

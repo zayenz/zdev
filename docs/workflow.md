@@ -64,9 +64,17 @@ Read `branch_status` from `zdev status <area> --format json` during orientation:
 - `anchor_valid` says whether the durable boundary between inherited and
   area-owned commits still exists.
 - `finalized` says whether that boundary has advanced to the current base tip.
+- `task_work.safe` says whether ordinary task selection, implementation,
+  verification, and completion may continue. `stale_advisory` distinguishes a
+  valid but stale relationship from an unsafe state.
 
 A rewritten parent can leave the old anchor valid while the link is stale.
 Current-base ancestry, not anchor containment, determines freshness.
+Staleness is advisory while the recorded branch is checked out, both branches
+and ancestry remain inspectable, the anchor is contained, child history after
+it is linear, and no Git recovery operation is active. Status reports one
+explicit rebase advisory in that case. Wrong or detached branches, missing or
+invalid facts, nonlinear history, and active Git operations remain blockers.
 
 For an occasional two-area stack, create the parent branch and area first.
 Create the child branch from the parent, then record the link:
@@ -108,8 +116,8 @@ Zdev advances the anchor only after a successful rebase. If you finish with
 verify the result and finalize the anchor.
 
 For a longer chain, update one link at a time from parent to child. Parent
-completion is unnecessary; each link only needs to be fresh before child work
-continues.
+completion is unnecessary. Child work may continue on a stale-but-safe link;
+rebase when it needs newer parent changes or approaches integration.
 
 ## Planning and task creation
 
@@ -153,9 +161,12 @@ still requires approval of the exact displayed bundle.
 
 ## Implementation
 
-Run `zdev status <area> --format json` before dispatch. Stop on a branch mismatch,
-stale link, invalid anchor, or pending anchor finalization. Use the managed
-rebase flow, then rerun `zdev next <area> --format json`.
+Run `zdev status <area> --format json` before dispatch and require
+`branch_status.task_work.safe`. Report a stale-but-safe rebase advisory once and
+continue without asking for rebase consent. Stop on an unsafe branch, anchor,
+ancestry, history, or Git-operation state. Use the managed rebase flow when the
+task needs newer base changes or reaches an integration boundary, then rerun
+`zdev next <area> --format json`.
 
 The implementation agent receives the brief, one task, and relevant repository
 context. It reads the brief first, then selectively loads task-relevant sources.
@@ -189,8 +200,9 @@ retry count.
 
 ## Completion and commit
 
-Check area status again before completion. `zdev task done` refuses the wrong
-branch and stale or unfinalized base relationships.
+Check area status again before completion. `zdev task done` permits a
+stale-but-safe relationship with one advisory, and refuses unsafe branch,
+anchor, ancestry, history, or Git-operation state.
 
 After a pass, run `zdev task done`; it updates the task file and regenerates
 `TASKS.md`. Stage the intended source and area files, then run `zdev commit`. The
@@ -212,6 +224,6 @@ The repository contains enough recovery state:
 
 If Git has a rebase in progress, use `zdev area rebase <area> --continue` or
 `--abort`. Otherwise rerun `zdev area rebase <area>` to finalize a manually
-completed rebase or refresh a stale link. Inspect those facts, then restart or
-resume the task. Zdev has no execution claim, abandonment, or transaction
-recovery protocol.
+completed rebase. Refresh a stale-but-safe link when work needs current base
+changes or approaches integration; ordinary task work can resume without it.
+Zdev has no execution claim, abandonment, or transaction recovery protocol.

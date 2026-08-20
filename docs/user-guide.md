@@ -240,9 +240,12 @@ that task, then consider the additions at the next `zdev next`.
 
 ## 8. Keep the area current
 
-Before selecting or completing work, `zdev status` should report a matching,
-fresh, anchor-valid, and finalized branch relationship. If trunk advanced,
-run this from the area branch:
+Before selecting or completing work, require
+`branch_status.task_work.safe` in JSON status. If trunk advances while the
+checked-out branch, anchor, ancestry, and linear history remain valid, zdev
+reports one rebase advisory and allows ordinary task work to continue. Run the
+explicit rebase when you need current trunk changes or are preparing to
+integrate:
 
 ```sh
 zdev area rebase scheduling

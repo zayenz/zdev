@@ -6,7 +6,7 @@ export const meta = {
 const input = args ?? {}
 const target = input.area ? `area ${input.area}` : 'the selected area'
 const preflight = await agent(
-  `Prepare ${target} for implementation without changing files. Run zdev status and zdev next as JSON. Confirm the recorded branch, effective base, anchor, and base finalization. Read the brief, selected task, and repository guidance. Record status with untracked files, the staged diff, and the unstaged diff. Identify task-owned paths. Return READY with the task context and baseline, or BLOCKER with the concrete reason.`,
+  `Prepare ${target} for implementation without changing files. Run zdev status and zdev next as JSON. Require branch_status.task_work.safe. If stale_advisory is true, report the rebase advisory once and continue without requesting a rebase. Read the brief, selected task, and repository guidance. Record status with untracked files, the staged diff, and the unstaged diff. Identify task-owned paths. Return READY with the task context and baseline, or BLOCKER with the concrete unsafe-state reason.`,
   { label: 'zdev preflight' },
 )
 

@@ -63,6 +63,11 @@ done conditions throughout this process.
    [references/recovery.md](references/recovery.md) when a gate fails, Git is
    rebasing, or task ownership must be reconstructed after interruption.
 
+For ordinary task work, use `branch_status.task_work.safe` as the branch gate.
+Report a stale-but-safe rebase advisory once and continue without requesting a
+rebase. Unsafe branch, anchor, ancestry, history, or Git-operation state still
+stops implementation, verification, completion, and commit preparation.
+
 Keep existing Git changes in place. Establish ownership before touching an
 overlapping path or changing the index.
 

@@ -713,38 +713,89 @@ fn require_linear_child_history(root: &Path, anchor: &str, branch: &str) -> Resu
     Ok(())
 }
 
-pub(super) fn require_fresh_area_link(root: &Path, tag: &str) -> Result<(), ZdevError> {
+pub(super) struct TaskWorkBranchState {
+    pub branch_status: Value,
+    pub advisory: Option<String>,
+}
+
+pub(super) fn rebase_advisory(tag: &str) -> String {
+    format!("Advisory: run `zdev area rebase {tag}` when you need current base changes")
+}
+
+pub(super) fn require_task_work_area_link(
+    root: &Path,
+    tag: &str,
+) -> Result<TaskWorkBranchState, ZdevError> {
     let config = read_config(root)?;
     let area = load_area(root, tag)?.0;
-    let branch = require_checked_out_area_branch(root, &area)?;
-    let base = effective_base(root, &config, &area)?;
+    let areas = list_areas(root)?;
+    let by_tag = areas
+        .iter()
+        .map(|area| (area.tag.as_str(), area))
+        .collect::<BTreeMap<_, _>>();
+    let checked_out = current_branch(root)?;
+    let branch_status = area_branch_status(root, &config, &area, &by_tag, checked_out.as_deref());
+    let blocked = |message: String| {
+        ZdevError::with_details(
+            message,
+            json!({"area": tag, "branch_status": branch_status.clone()}),
+        )
+    };
+
+    if let Some(operation) = git_operation(root).map_err(|error| blocked(error.to_string()))? {
+        return Err(blocked(format!(
+            "Cannot use area {tag} while a {operation} is in progress. Finish or abort it, then retry"
+        )));
+    }
+    let branch =
+        require_checked_out_area_branch(root, &area).map_err(|error| blocked(error.to_string()))?;
+    let base = effective_base(root, &config, &area).map_err(|error| blocked(error.to_string()))?;
     if branch == base {
-        return Ok(());
+        return Ok(TaskWorkBranchState {
+            branch_status,
+            advisory: None,
+        });
     }
-    require_existing_branch(root, &branch, "area")?;
-    require_existing_branch(root, &base, "effective-base")?;
-    let anchor = require_base_anchor(&area)?;
-    if base_is_ancestor(root, &base, &branch) == Some(true) {
-        let base_tip = branch_tip(root, &base)?.unwrap();
-        require_linear_child_history(root, &base_tip, &branch)?;
-        if anchor != base_tip {
-            return Err(ZdevError::new(format!(
-                "Area {tag} needs its current base recorded. Run `zdev area rebase {tag}`"
-            )));
-        }
-        return Ok(());
-    }
+    require_existing_branch(root, &branch, "area").map_err(|error| blocked(error.to_string()))?;
+    require_existing_branch(root, &base, "effective-base")
+        .map_err(|error| blocked(error.to_string()))?;
+    let anchor = require_base_anchor(&area).map_err(|error| blocked(error.to_string()))?;
     if !commit_exists(root, anchor)
         || commit_is_ancestor(root, anchor, &format!("refs/heads/{branch}")) != Some(true)
     {
-        return Err(ZdevError::new(format!(
+        return Err(blocked(format!(
             "Cannot verify area {tag}'s base on branch {branch}. Rebind the area with `zdev area bind {tag} <branch>`"
         )));
     }
-    require_linear_child_history(root, anchor, &branch)?;
-    Err(ZdevError::new(format!(
-        "Area {tag} is stale. Run `zdev area rebase {tag}` to rebase {branch} onto {base}"
-    )))
+    require_linear_child_history(root, anchor, &branch)
+        .map_err(|error| blocked(error.to_string()))?;
+    match base_is_ancestor(root, &base, &branch) {
+        Some(true) => {
+            let base_tip = branch_tip(root, &base)
+            .map_err(|error| blocked(error.to_string()))?
+            .ok_or_else(|| {
+                blocked(format!(
+                    "Cannot inspect the effective-base tip for {base}. Restore the local branch, then retry"
+                ))
+            })?;
+            if anchor != base_tip {
+                return Err(blocked(format!(
+                    "Area {tag} needs its current base recorded. Run `zdev area rebase {tag}`"
+                )));
+            }
+            Ok(TaskWorkBranchState {
+                branch_status,
+                advisory: None,
+            })
+        }
+        Some(false) => Ok(TaskWorkBranchState {
+            branch_status,
+            advisory: Some(rebase_advisory(tag)),
+        }),
+        None => Err(blocked(format!(
+            "Cannot inspect ancestry between area branch {branch} and effective base {base}. Restore inspectable local branches, then retry"
+        ))),
+    }
 }
 
 fn require_clean_worktree(root: &Path) -> Result<(), ZdevError> {
@@ -1033,6 +1084,16 @@ pub(super) fn area_branch_status(
     checked_out: Option<&str>,
 ) -> Value {
     let mut diagnostics = Vec::new();
+    let (operation, git_state_inspectable) = match git_operation(root) {
+        Ok(operation) => (operation, true),
+        Err(_) => {
+            diagnostics.push("git-state-unavailable");
+            (None, false)
+        }
+    };
+    if operation.is_some() {
+        diagnostics.push("git-operation-in-progress");
+    }
     let branch_matches = checked_out.map(|checked_out| area.branch == checked_out);
     if branch_matches == Some(false) {
         diagnostics.push("wrong-branch");
@@ -1062,6 +1123,7 @@ pub(super) fn area_branch_status(
             "effective-base-unbound"
         });
     }
+    let branch_exists = local_branch_exists(root, &area.branch);
     if area.base_commit.is_none() {
         diagnostics.push("base-anchor-unbound");
     } else if area
@@ -1073,22 +1135,36 @@ pub(super) fn area_branch_status(
     }
 
     let anchor_valid = match area.base_commit.as_deref() {
-        Some(anchor) if local_branch_exists(root, &area.branch) => Some(
-            commit_exists(root, anchor)
-                && commit_is_ancestor(root, anchor, &format!("refs/heads/{}", area.branch))
-                    == Some(true),
-        ),
+        Some(anchor) if branch_exists && commit_exists(root, anchor) => {
+            commit_is_ancestor(root, anchor, &format!("refs/heads/{}", area.branch))
+        }
         _ => None,
     };
     if anchor_valid == Some(false) {
         diagnostics.push("base-anchor-not-contained");
     }
+    let linear_history = match area.base_commit.as_deref() {
+        Some(anchor) if branch_exists && commit_exists(root, anchor) => {
+            match child_side_has_merges(root, anchor, &area.branch) {
+                Ok(has_merges) => {
+                    if has_merges {
+                        diagnostics.push("merge-history");
+                    }
+                    Some(!has_merges)
+                }
+                Err(_) => {
+                    diagnostics.push("history-unavailable");
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
     let mut finalized = None;
     let fresh = match effective_base {
         Some(base) => {
             let branch = area.branch.as_str();
             let base_exists = local_branch_exists(root, base);
-            let branch_exists = local_branch_exists(root, branch);
             if !base_exists {
                 diagnostics.push("effective-base-missing");
             }
@@ -1096,11 +1172,6 @@ pub(super) fn area_branch_status(
                 diagnostics.push("area-branch-missing");
             }
             if base_exists && branch_exists {
-                if area.base_commit.as_deref().is_some_and(|anchor| {
-                    child_side_has_merges(root, anchor, branch).unwrap_or(false)
-                }) {
-                    diagnostics.push("merge-history");
-                }
                 let fresh = base_is_ancestor(root, base, branch);
                 finalized = branch_tip(root, base).ok().flatten().map(|base_tip| {
                     fresh == Some(true) && area.base_commit.as_deref() == Some(base_tip.as_str())
@@ -1122,6 +1193,25 @@ pub(super) fn area_branch_status(
         }
         None => None,
     };
+    let same_branch = effective_base == Some(area.branch.as_str());
+    let stale_advisory = branch_matches == Some(true)
+        && git_state_inspectable
+        && operation.is_none()
+        && anchor_valid == Some(true)
+        && linear_history == Some(true)
+        && fresh == Some(false);
+    let task_work_safe = (same_branch
+        && branch_matches == Some(true)
+        && git_state_inspectable
+        && operation.is_none())
+        || stale_advisory
+        || (branch_matches == Some(true)
+            && git_state_inspectable
+            && operation.is_none()
+            && anchor_valid == Some(true)
+            && linear_history == Some(true)
+            && fresh == Some(true)
+            && finalized == Some(true));
 
     json!({
         "branch": area.branch,
@@ -1137,6 +1227,12 @@ pub(super) fn area_branch_status(
         "fresh": fresh,
         "anchor_valid": anchor_valid,
         "finalized": finalized,
+        "linear_history": linear_history,
+        "task_work": {
+            "safe": task_work_safe,
+            "stale_advisory": stale_advisory,
+            "git_operation": operation,
+        },
         "diagnostics": diagnostics,
     })
 }

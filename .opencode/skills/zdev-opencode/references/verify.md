@@ -11,9 +11,12 @@ making intentional edits.
 
 Require the verifier to:
 
-1. Run `zdev status <area> --format json` and require all four gates: the recorded
-   area branch is checked out, the effective-base link is fresh, its anchor is
-   valid, and base finalization is complete. A failed gate is `BLOCKER`.
+1. Run `zdev status <area> --format json` and require
+   `branch_status.task_work.safe` to be true. When `stale_advisory` is true,
+   report the single rebase advisory once and continue verification; staleness
+   alone is not a blocker and does not require rebase consent. A false `safe`
+   value is `BLOCKER`; use the structured diagnostics to report the unsafe
+   branch, anchor, ancestry, history, or Git-operation state.
 2. Read `brief.md` first and confirm that it has a concrete `Testing` section
    covering the task. Then read the task and only its relevant linked
    background documents; do not load an area's entire `background/` corpus by

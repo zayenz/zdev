@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-014"
 key = "orchestration-contract-research"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-011", "improvements-013"]
 +++
 # Define common orchestration across supported harnesses
@@ -24,13 +24,26 @@ Research current native orchestration for Codex, Claude Code JavaScript workflow
 
 ## Done when
 
-- [ ] A dated, versioned capability matrix cites primary sources and identifies each harness's native agent and workflow mechanisms.
-- [ ] The contract settles common names for implement, verify/rework, and audit workflows plus the installed artifact form for every harness.
-- [ ] It specifies worker-role selection, deterministic goal interaction, delegation boundaries, failure reporting, retry or rework behavior, and fallback behavior.
-- [ ] It identifies which current Claude Code JavaScript workflows are portable concepts and which behavior remains Claude-specific.
-- [ ] It ends with narrow per-harness implementation seams and acceptance criteria that do not require another shared product decision.
+- [x] A dated, versioned capability matrix cites primary sources and identifies each harness's native agent and workflow mechanisms.
+- [x] The contract settles common names for implement, verify/rework, and audit workflows plus the installed artifact form for every harness.
+- [x] It specifies worker-role selection, deterministic goal interaction, delegation boundaries, failure reporting, retry or rework behavior, and fallback behavior.
+- [x] It identifies which current Claude Code JavaScript workflows are portable concepts and which behavior remains Claude-specific.
+- [x] It ends with narrow per-harness implementation seams and acceptance criteria that do not require another shared product decision.
 
 ## Validation
 
 - Check every capability claim against current primary documentation or source code.
 - Run `git diff --check`.
+
+## Result
+
+Defined three common zdev workflows with native per-harness artifacts, deterministic goal handoffs, independent verification, and evidence-driven rework without new runtime state.
+
+Validation:
+
+- Independent verification passed against 30 primary links and pinned harness revisions, including current Claude Code plugin workflow distribution and existing zdev retry semantics.
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (78 passed)
+- cargo build --locked
+- git diff --check

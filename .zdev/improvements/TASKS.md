@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 15
-- Ready: 2
+- Ready: 1
 - Blocked: 0
-- Done: 13
+- Done: 14
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -22,5 +22,5 @@
 | [improvements-011](tasks/011-define-editable-worker-profile-recommendations.md) | Define editable worker-profile recommendations | done | — |
 | [improvements-012](tasks/012-audit-poteto-s-noodle-skills-for-useful-zdev-adaptations.md) | Audit Poteto's Noodle skills for useful zdev adaptations | done | — |
 | [improvements-013](tasks/013-define-deterministic-goals-across-supported-harnesses.md) | Define deterministic goals across supported harnesses | done | — |
-| [improvements-014](tasks/014-define-common-orchestration-across-supported-harnesses.md) | Define common orchestration across supported harnesses | ready | improvements-011, improvements-013 |
+| [improvements-014](tasks/014-define-common-orchestration-across-supported-harnesses.md) | Define common orchestration across supported harnesses | done | improvements-011, improvements-013 |
 | [improvements-015](tasks/015-design-a-coherent-layered-config-command.md) | Design a coherent layered config command | ready | improvements-011 |

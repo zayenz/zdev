@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-002"
 key = "tasks-module"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Isolate the durable task-record workflow
@@ -26,12 +26,21 @@ The task models and workflow currently occupy a large central region of `src/lib
 
 ## Done when
 
-- [ ] The durable task-record lifecycle has one clear home in `src/tasks.rs`.
-- [ ] Its interface to area and project state and shared repository operations is narrow and explicit.
-- [ ] Existing task behavior and file formats remain unchanged.
-- [ ] Existing black-box task tests pass without coverage expansion for the move itself.
+- [x] The durable task-record lifecycle has one clear home in `src/tasks.rs`.
+- [x] Its interface to area and project state and shared repository operations is narrow and explicit.
+- [x] Existing task behavior and file formats remain unchanged.
+- [x] Existing black-box task tests pass without coverage expansion for the move itself.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the full validation set in `brief.md`.
+
+## Result
+
+Isolated the durable task-record workflow in a cohesive internal module and independently verified behavioral preservation.
+
+Validation:
+
+- Focused lean integration suite passed: 65 tests.
+- Full repository validation passed: format, Clippy, 66 tests, build, and diff check.

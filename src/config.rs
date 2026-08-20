@@ -5,7 +5,25 @@ use std::path::{Component, Path, PathBuf};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{SCHEMA_VERSION, ZdevError};
+use super::project::{Config, read_config};
+use super::{CommandOutput, SCHEMA_VERSION, ZdevError};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ConfigReadScope {
+    Effective,
+    Local,
+    Global,
+}
+
+impl ConfigReadScope {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Effective => "effective",
+            Self::Local => "local",
+            Self::Global => "global",
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum WorkerHarness {
@@ -56,6 +74,34 @@ impl Effort {
 struct WorkerProfile {
     model: Option<String>,
     effort: Option<Effort>,
+}
+
+impl WorkerProfile {
+    fn value(&self) -> Value {
+        match (&self.model, &self.effort) {
+            (None, None) => json!({"inherit": true}),
+            (Some(model), Some(effort)) => {
+                json!({"model": model, "effort": effort.as_str()})
+            }
+            (Some(model), None) => json!({"model": model, "effort": "inherit"}),
+            (None, Some(_)) => unreachable!("validated profiles never contain effort alone"),
+        }
+    }
+
+    fn text(&self) -> String {
+        match (&self.model, &self.effort) {
+            (None, None) => "{ inherit = true }".to_owned(),
+            (Some(model), Some(effort)) => format!(
+                "{{ model = {}, effort = {} }}",
+                quote(model),
+                quote(effort.as_str())
+            ),
+            (Some(model), None) => {
+                format!("{{ model = {}, effort = \"inherit\" }}", quote(model))
+            }
+            (None, Some(_)) => unreachable!("validated profiles never contain effort alone"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -114,10 +160,18 @@ impl WorkerLayer {
             WorkerHarness::Omp => &self.omp,
         }
     }
+
+    fn profile(&self, key: WorkerKey) -> Option<&WorkerProfile> {
+        let roles = self.roles(key.harness);
+        match key.role {
+            WorkerRole::Implementer => roles.implementer.as_ref(),
+            WorkerRole::Verifier => roles.verifier.as_ref(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
-struct WorkerOrigin {
+struct Origin {
     scope: &'static str,
     path: Option<String>,
 }
@@ -125,7 +179,7 @@ struct WorkerOrigin {
 #[derive(Clone, Debug)]
 pub(super) struct ResolvedWorkerProfile {
     profile: WorkerProfile,
-    origin: WorkerOrigin,
+    origin: Origin,
 }
 
 impl ResolvedWorkerProfile {
@@ -154,21 +208,448 @@ impl ResolvedWorkerProfile {
     }
 
     fn value(&self) -> Value {
-        let value = match (&self.profile.model, &self.profile.effort) {
-            (None, None) => json!({"inherit": true}),
-            (Some(model), Some(effort)) => {
-                json!({"model": model, "effort": effort.as_str()})
-            }
-            (Some(model), None) => json!({"model": model, "effort": "inherit"}),
-            (None, Some(_)) => unreachable!("validated profiles never contain effort alone"),
-        };
         json!({
-            "value": value,
+            "value": self.profile.value(),
             "origin": {
                 "scope": self.origin.scope,
                 "path": self.origin.path,
             }
         })
+    }
+}
+
+#[derive(Clone, Copy)]
+enum WorkerRole {
+    Implementer,
+    Verifier,
+}
+
+#[derive(Clone, Copy)]
+struct WorkerKey {
+    name: &'static str,
+    harness: WorkerHarness,
+    role: WorkerRole,
+}
+
+const WORKER_KEYS: [WorkerKey; 10] = [
+    WorkerKey {
+        name: "worker.codex.implementer",
+        harness: WorkerHarness::Codex,
+        role: WorkerRole::Implementer,
+    },
+    WorkerKey {
+        name: "worker.codex.verifier",
+        harness: WorkerHarness::Codex,
+        role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.claude.implementer",
+        harness: WorkerHarness::Claude,
+        role: WorkerRole::Implementer,
+    },
+    WorkerKey {
+        name: "worker.claude.verifier",
+        harness: WorkerHarness::Claude,
+        role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.opencode.implementer",
+        harness: WorkerHarness::Opencode,
+        role: WorkerRole::Implementer,
+    },
+    WorkerKey {
+        name: "worker.opencode.verifier",
+        harness: WorkerHarness::Opencode,
+        role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.pi.implementer",
+        harness: WorkerHarness::Pi,
+        role: WorkerRole::Implementer,
+    },
+    WorkerKey {
+        name: "worker.pi.verifier",
+        harness: WorkerHarness::Pi,
+        role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.omp.implementer",
+        harness: WorkerHarness::Omp,
+        role: WorkerRole::Implementer,
+    },
+    WorkerKey {
+        name: "worker.omp.verifier",
+        harness: WorkerHarness::Omp,
+        role: WorkerRole::Verifier,
+    },
+];
+
+impl Origin {
+    fn value(&self) -> Value {
+        json!({"path": self.path, "scope": self.scope})
+    }
+
+    fn text(&self) -> String {
+        match &self.path {
+            Some(path) => format!("{} {path}", self.scope),
+            None => self.scope.to_owned(),
+        }
+    }
+}
+
+struct Candidate {
+    value: Value,
+    text: String,
+    origin: Origin,
+}
+
+impl Candidate {
+    fn from_profile(profile: &WorkerProfile, origin: Origin) -> Self {
+        Self {
+            value: profile.value(),
+            text: profile.text(),
+            origin,
+        }
+    }
+
+    fn value(&self) -> Value {
+        json!({"origin": self.origin.value(), "value": self.value})
+    }
+}
+
+struct ConfigValue {
+    key: &'static str,
+    value: Value,
+    text: String,
+    origin: Origin,
+    shadowed: Vec<Candidate>,
+}
+
+impl ConfigValue {
+    fn value(&self) -> Value {
+        json!({
+            "key": self.key,
+            "origin": self.origin.value(),
+            "shadowed": self.shadowed.iter().map(Candidate::value).collect::<Vec<_>>(),
+            "value": self.value,
+        })
+    }
+
+    fn text(&self) -> String {
+        let mut text = format!("{} = {}  [{}]", self.key, self.text, self.origin.text());
+        for shadowed in &self.shadowed {
+            text.push_str(&format!(
+                "\n  shadows {}  [{}]",
+                shadowed.text,
+                shadowed.origin.text()
+            ));
+        }
+        text
+    }
+}
+
+pub(super) fn show(
+    root: Option<&Path>,
+    scope: ConfigReadScope,
+) -> Result<CommandOutput, ZdevError> {
+    let values = read_values(root, scope)?;
+    let text = values
+        .iter()
+        .map(ConfigValue::text)
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(CommandOutput::new(
+        text,
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "scope": scope.as_str(),
+            "values": values.iter().map(ConfigValue::value).collect::<Vec<_>>(),
+        }),
+    ))
+}
+
+pub(super) fn get(
+    root: Option<&Path>,
+    scope: ConfigReadScope,
+    key: &str,
+) -> Result<CommandOutput, ZdevError> {
+    require_known_key(key)?;
+    if scope == ConfigReadScope::Global && key.starts_with("project.") {
+        return Err(ZdevError::new(format!(
+            "Configuration key {key} is not available in global scope"
+        )));
+    }
+    let entry = read_values(root, scope)?
+        .into_iter()
+        .find(|entry| entry.key == key)
+        .ok_or_else(|| {
+            ZdevError::new(format!(
+                "Configuration key {key} is not set in {} scope",
+                scope.as_str()
+            ))
+        })?;
+    let text = entry.text();
+    let mut value = entry.value();
+    value["schema_version"] = json!(SCHEMA_VERSION);
+    Ok(CommandOutput::new(text, value))
+}
+
+fn require_known_key(key: &str) -> Result<(), ZdevError> {
+    if matches!(
+        key,
+        "project.name"
+            | "project.record"
+            | "project.trunk"
+            | "project.default-area"
+            | "project.guidance"
+    ) || WORKER_KEYS.iter().any(|worker| worker.name == key)
+    {
+        return Ok(());
+    }
+    Err(ZdevError::new(format!("Unknown configuration key {key}")))
+}
+
+fn read_values(root: Option<&Path>, scope: ConfigReadScope) -> Result<Vec<ConfigValue>, ZdevError> {
+    let project = if scope == ConfigReadScope::Global {
+        None
+    } else {
+        let root =
+            root.ok_or_else(|| ZdevError::new("A local configuration read requires a project"))?;
+        Some(read_config(root)?)
+    };
+    let local_path = root.map(|root| root.join(".zdev/workers.toml"));
+    let local = if scope == ConfigReadScope::Global {
+        None
+    } else {
+        local_path
+            .as_deref()
+            .map(read_worker_file)
+            .transpose()?
+            .flatten()
+    };
+    let global_path = if scope == ConfigReadScope::Local {
+        None
+    } else {
+        Some(global_worker_path()?)
+    };
+    let global = global_path
+        .as_deref()
+        .map(read_worker_file)
+        .transpose()?
+        .flatten();
+
+    let mut values = Vec::with_capacity(15);
+    if let Some(project) = project.as_ref() {
+        append_project_values(&mut values, project, scope);
+    }
+    for key in WORKER_KEYS {
+        match scope {
+            ConfigReadScope::Effective => values.push(effective_worker_value(
+                key,
+                local.as_ref(),
+                global.as_ref(),
+                global_path
+                    .as_deref()
+                    .expect("effective reads have a global path"),
+            )),
+            ConfigReadScope::Local => {
+                if let Some(profile) = local.as_ref().and_then(|layer| layer.profile(key)) {
+                    values.push(ConfigValue {
+                        key: key.name,
+                        value: profile.value(),
+                        text: profile.text(),
+                        origin: local_origin_value(),
+                        shadowed: Vec::new(),
+                    });
+                }
+            }
+            ConfigReadScope::Global => {
+                if let Some(profile) = global.as_ref().and_then(|layer| layer.profile(key)) {
+                    values.push(ConfigValue {
+                        key: key.name,
+                        value: profile.value(),
+                        text: profile.text(),
+                        origin: global_origin_value(
+                            global_path
+                                .as_deref()
+                                .expect("global reads have a global path"),
+                        ),
+                        shadowed: Vec::new(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(values)
+}
+
+fn append_project_values(values: &mut Vec<ConfigValue>, config: &Config, scope: ConfigReadScope) {
+    let local = Origin {
+        scope: "local",
+        path: Some(".zdev/config.toml".to_owned()),
+    };
+    values.push(scalar_value(
+        "project.name",
+        json!(config.project.name),
+        local.clone(),
+        Vec::new(),
+    ));
+    values.push(scalar_value(
+        "project.record",
+        json!(config.project.record.as_str()),
+        local.clone(),
+        Vec::new(),
+    ));
+    append_optional_project_value(
+        values,
+        "project.trunk",
+        config.project.trunk.as_deref(),
+        Value::Null,
+        scope,
+        &local,
+    );
+    append_optional_project_value(
+        values,
+        "project.default-area",
+        config.project.default_area.as_deref(),
+        Value::Null,
+        scope,
+        &local,
+    );
+    append_optional_project_value(
+        values,
+        "project.guidance",
+        config.project.guidance.as_deref(),
+        json!("auto"),
+        scope,
+        &local,
+    );
+}
+
+fn append_optional_project_value(
+    values: &mut Vec<ConfigValue>,
+    key: &'static str,
+    stored: Option<&str>,
+    default: Value,
+    scope: ConfigReadScope,
+    local: &Origin,
+) {
+    match (stored, scope) {
+        (Some(value), ConfigReadScope::Effective) => values.push(scalar_value(
+            key,
+            json!(value),
+            local.clone(),
+            vec![scalar_candidate(default, default_origin())],
+        )),
+        (Some(value), ConfigReadScope::Local) => {
+            values.push(scalar_value(key, json!(value), local.clone(), Vec::new()))
+        }
+        (None, ConfigReadScope::Effective) => {
+            values.push(scalar_value(key, default, default_origin(), Vec::new()))
+        }
+        (None, ConfigReadScope::Local) => {}
+        (_, ConfigReadScope::Global) => unreachable!("global views omit project keys"),
+    }
+}
+
+fn effective_worker_value(
+    key: WorkerKey,
+    local: Option<&WorkerLayer>,
+    global: Option<&WorkerLayer>,
+    global_path: &Path,
+) -> ConfigValue {
+    let local_profile = local.and_then(|layer| layer.profile(key));
+    let global_profile = global.and_then(|layer| layer.profile(key));
+    let built_in = built_in_profile(key);
+    let (profile, origin) = if let Some(profile) = local_profile {
+        (profile, local_origin_value())
+    } else if let Some(profile) = global_profile {
+        (profile, global_origin_value(global_path))
+    } else {
+        (&built_in, default_origin())
+    };
+    let mut shadowed = Vec::new();
+    if local_profile.is_some() {
+        if let Some(global) = global_profile {
+            shadowed.push(Candidate::from_profile(
+                global,
+                global_origin_value(global_path),
+            ));
+        }
+        shadowed.push(Candidate::from_profile(&built_in, default_origin()));
+    } else if global_profile.is_some() {
+        shadowed.push(Candidate::from_profile(&built_in, default_origin()));
+    }
+    ConfigValue {
+        key: key.name,
+        value: profile.value(),
+        text: profile.text(),
+        origin,
+        shadowed,
+    }
+}
+
+fn scalar_value(
+    key: &'static str,
+    value: Value,
+    origin: Origin,
+    shadowed: Vec<Candidate>,
+) -> ConfigValue {
+    ConfigValue {
+        key,
+        text: scalar_text(&value),
+        value,
+        origin,
+        shadowed,
+    }
+}
+
+fn scalar_candidate(value: Value, origin: Origin) -> Candidate {
+    Candidate {
+        text: scalar_text(&value),
+        value,
+        origin,
+    }
+}
+
+fn scalar_text(value: &Value) -> String {
+    match value {
+        Value::Null => "null".to_owned(),
+        Value::String(value) => quote(value),
+        _ => unreachable!("configuration scalars are strings or null"),
+    }
+}
+
+fn quote(value: &str) -> String {
+    toml::Value::String(value.to_owned()).to_string()
+}
+
+fn default_origin() -> Origin {
+    Origin {
+        scope: "default",
+        path: None,
+    }
+}
+
+fn local_origin_value() -> Origin {
+    Origin {
+        scope: "local",
+        path: Some(".zdev/workers.toml".to_owned()),
+    }
+}
+
+fn global_origin_value(path: &Path) -> Origin {
+    Origin {
+        scope: "global",
+        path: Some(path.to_string_lossy().replace('\\', "/")),
+    }
+}
+
+fn built_in_profile(key: WorkerKey) -> WorkerProfile {
+    let profiles = built_in_profiles(key.harness);
+    match key.role {
+        WorkerRole::Implementer => profiles.0,
+        WorkerRole::Verifier => profiles.1,
     }
 }
 
@@ -224,7 +705,7 @@ pub(super) fn resolve_worker_profiles(
 #[cfg(test)]
 pub(super) fn built_in_worker_profiles(harness: WorkerHarness) -> ResolvedWorkers {
     let (implementer, verifier) = built_in_profiles(harness);
-    let origin = WorkerOrigin {
+    let origin = Origin {
         scope: "default",
         path: None,
     };
@@ -250,7 +731,7 @@ fn resolve_role(
     if let (Some(profile), Some(path)) = (local, local_path) {
         return ResolvedWorkerProfile {
             profile: profile.clone(),
-            origin: WorkerOrigin {
+            origin: Origin {
                 scope: "local",
                 path: Some(local_origin(path)),
             },
@@ -259,7 +740,7 @@ fn resolve_role(
     if let Some(profile) = global {
         return ResolvedWorkerProfile {
             profile: profile.clone(),
-            origin: WorkerOrigin {
+            origin: Origin {
                 scope: "global",
                 path: Some(global_path.to_string_lossy().replace('\\', "/")),
             },
@@ -267,7 +748,7 @@ fn resolve_role(
     }
     ResolvedWorkerProfile {
         profile: built_in.clone(),
-        origin: WorkerOrigin {
+        origin: Origin {
             scope: "default",
             path: None,
         },

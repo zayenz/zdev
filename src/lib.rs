@@ -106,7 +106,7 @@ enum Command {
         #[command(subcommand)]
         command: CleanupCommand,
     },
-    /// Configure repository-wide zdev settings
+    /// Inspect layered configuration or set the project trunk
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -200,6 +200,26 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum ConfigCommand {
+    /// Show effective configuration or values stored in one scope
+    Show {
+        /// Show only values stored in the global worker-profile file
+        #[arg(long, conflicts_with = "local")]
+        global: bool,
+        /// Show only values stored in this repository
+        #[arg(long, conflicts_with = "global")]
+        local: bool,
+    },
+    /// Show one effective or scoped configuration value
+    Get {
+        /// Configuration key from the fixed project and worker registry
+        key: String,
+        /// Read only the global worker-profile file
+        #[arg(long, conflicts_with = "local")]
+        global: bool,
+        /// Read only values stored in this repository
+        #[arg(long, conflicts_with = "global")]
+        local: bool,
+    },
     /// Set the branch that areas use as their default base
     Trunk {
         /// Trunk branch name; omit to use the checked-out branch
@@ -475,6 +495,17 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
     if let Command::Skill { command } = &cli.command {
         return run_skill_command(cli.root.as_deref(), command);
     }
+    if let Command::Config { command } = &cli.command {
+        match command {
+            ConfigCommand::Show { global: true, .. } => {
+                return config::show(None, config::ConfigReadScope::Global);
+            }
+            ConfigCommand::Get {
+                key, global: true, ..
+            } => return config::get(None, config::ConfigReadScope::Global, key),
+            _ => {}
+        }
+    }
     let root = resolve_root(cli.root.as_deref())?;
     match &cli.command {
         Command::Instructions => unreachable!(),
@@ -483,6 +514,23 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             CleanupCommand::Squash => project::cleanup_squash(&root),
         },
         Command::Config { command } => match command {
+            ConfigCommand::Show { local, .. } => config::show(
+                Some(&root),
+                if *local {
+                    config::ConfigReadScope::Local
+                } else {
+                    config::ConfigReadScope::Effective
+                },
+            ),
+            ConfigCommand::Get { key, local, .. } => config::get(
+                Some(&root),
+                if *local {
+                    config::ConfigReadScope::Local
+                } else {
+                    config::ConfigReadScope::Effective
+                },
+                key,
+            ),
             ConfigCommand::Trunk { branch } => project::configure_trunk(&root, branch.as_deref()),
         },
         Command::Area { command } => match command {

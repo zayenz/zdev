@@ -2534,7 +2534,23 @@ fn every_help_page_explains_its_command_and_inputs() {
         ),
         (
             &["config", "--help"],
-            &["Configure repository-wide zdev settings"],
+            &["Inspect layered configuration or set the project trunk"],
+        ),
+        (
+            &["config", "show", "--help"],
+            &[
+                "Show effective configuration or values stored in one scope",
+                "global worker-profile file",
+                "only values stored in this repository",
+            ],
+        ),
+        (
+            &["config", "get", "--help"],
+            &[
+                "Show one effective or scoped configuration value",
+                "fixed project and worker registry",
+                "Read only the global worker-profile file",
+            ],
         ),
         (
             &["config", "trunk", "--help"],
@@ -3186,6 +3202,216 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
             "realization changed canonical source {path}"
         );
     }
+}
+
+#[test]
+fn config_show_and_get_render_effective_and_scoped_layers() {
+    let repository = repository();
+    let root = repository.path();
+    fs::create_dir(root.join(".zdev")).expect("zdev directory");
+    fs::write(
+        root.join(".zdev/config.toml"),
+        "schema_version = 1\n\n[project]\nname = \"checkout\"\nrecord = \"project\"\ndefault_area = \"payments\"\n",
+    )
+    .expect("project config");
+    fs::write(
+        root.join(".zdev/workers.toml"),
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.6-sol\"\neffort = \"high\"\n\n[claude.verifier]\ninherit = true\n",
+    )
+    .expect("local workers");
+    let home = root.join("home");
+    let global_path = home.join(".config/zdev/workers.toml");
+    fs::create_dir_all(global_path.parent().expect("global worker parent"))
+        .expect("global worker directory");
+    fs::write(
+        &global_path,
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.5\"\neffort = \"xhigh\"\n\n[codex.verifier]\nmodel = \"gpt-5.5\"\neffort = \"high\"\n\n[claude.verifier]\nmodel = \"claude-opus-5\"\neffort = \"medium\"\n\n[pi.implementer]\nmodel = \"openai/gpt-5.5\"\neffort = \"high\"\n",
+    )
+    .expect("global workers");
+    let relative_xdg = Path::new("relative-config-home");
+    let environment = [("XDG_CONFIG_HOME", relative_xdg), ("HOME", home.as_path())];
+    let global = global_path.to_string_lossy().replace('\\', "/");
+
+    let shown = run_zdev_with_env(root, &["config", "show"], &environment);
+    assert!(shown.status.success());
+    let expected = format!(
+        "project.name = \"checkout\"  [local .zdev/config.toml]\n\
+project.record = \"project\"  [local .zdev/config.toml]\n\
+project.trunk = null  [default]\n\
+project.default-area = \"payments\"  [local .zdev/config.toml]\n\
+  shadows null  [default]\n\
+project.guidance = \"auto\"  [default]\n\
+worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n\
+  shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n\
+  shadows {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.codex.verifier = {{ model = \"gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
+  shadows {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.claude.implementer = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
+worker.claude.verifier = {{ inherit = true }}  [local .zdev/workers.toml]\n\
+  shadows {{ model = \"claude-opus-5\", effort = \"medium\" }}  [global {global}]\n\
+  shadows {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
+worker.opencode.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.opencode.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"inherit\" }}  [default]\n\
+worker.pi.implementer = {{ model = \"openai/gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
+  shadows {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.pi.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"high\" }}  [default]\n\
+worker.omp.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"high\" }}  [default]\n"
+    )
+    .replace("\nshadows", "\n  shadows");
+    assert_eq!(
+        String::from_utf8(shown.stdout).expect("human output"),
+        expected
+    );
+
+    let effective = json_output_with_env(root, &["config", "show"], &environment);
+    assert_eq!(effective["scope"], "effective");
+    let values = effective["values"].as_array().expect("effective values");
+    assert_eq!(values.len(), 15);
+    assert_eq!(
+        values
+            .iter()
+            .map(|entry| entry["key"].as_str().expect("configuration key"))
+            .collect::<Vec<_>>(),
+        [
+            "project.name",
+            "project.record",
+            "project.trunk",
+            "project.default-area",
+            "project.guidance",
+            "worker.codex.implementer",
+            "worker.codex.verifier",
+            "worker.claude.implementer",
+            "worker.claude.verifier",
+            "worker.opencode.implementer",
+            "worker.opencode.verifier",
+            "worker.pi.implementer",
+            "worker.pi.verifier",
+            "worker.omp.implementer",
+            "worker.omp.verifier",
+        ]
+    );
+    assert_eq!(values[2]["value"], Value::Null);
+    assert_eq!(values[3]["shadowed"][0]["value"], Value::Null);
+    assert_eq!(values[5]["origin"]["scope"], "local");
+    assert_eq!(values[5]["shadowed"][0]["origin"]["path"], global);
+    assert_eq!(values[8]["value"], json!({"inherit": true}));
+    assert_eq!(
+        values[10]["value"],
+        json!({"model": "anthropic/claude-opus-5", "effort": "inherit"})
+    );
+
+    let got = run_zdev_with_env(
+        root,
+        &["config", "get", "worker.codex.implementer"],
+        &environment,
+    );
+    assert!(got.status.success());
+    assert_eq!(
+        String::from_utf8(got.stdout).expect("get output"),
+        format!(
+            "worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n  shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n  shadows {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n"
+        )
+    );
+    let got_json = json_output_with_env(
+        root,
+        &["config", "get", "worker.codex.implementer"],
+        &environment,
+    );
+    assert_eq!(got_json["key"], "worker.codex.implementer");
+    assert_eq!(got_json["origin"]["scope"], "local");
+    assert_eq!(got_json["shadowed"].as_array().expect("shadows").len(), 2);
+
+    fs::write(
+        &global_path,
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.5\"\neffort = \"xhigh\"\n\n[codex.verifier]\ninherit = true\n",
+    )
+    .expect("scoped global workers");
+    let scoped = run_zdev_with_env(root, &["config", "show", "--global"], &environment);
+    assert!(scoped.status.success());
+    assert_eq!(
+        String::from_utf8(scoped.stdout).expect("scoped output"),
+        format!(
+            "worker.codex.implementer = {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\nworker.codex.verifier = {{ inherit = true }}  [global {global}]\n"
+        )
+    );
+    let scoped_json = json_output_with_env(root, &["config", "show", "--global"], &environment);
+    assert_eq!(scoped_json["scope"], "global");
+    assert_eq!(scoped_json["values"].as_array().expect("values").len(), 2);
+    assert_eq!(scoped_json["values"][1]["shadowed"], json!([]));
+    assert_eq!(scoped_json["values"][1]["value"], json!({"inherit": true}));
+}
+
+#[test]
+fn config_reads_reject_strict_or_absent_values_without_mutation() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    let local_path = root.join(".zdev/workers.toml");
+    fs::write(
+        &local_path,
+        "schema_version = 1\n\n[codex.implementer]\ninherit = true\n",
+    )
+    .expect("local workers");
+    let config_home = root.join("config-home/parent/../resolved");
+    let global_path = root.join("config-home/resolved/zdev/workers.toml");
+    fs::create_dir_all(global_path.parent().expect("global worker parent"))
+        .expect("global worker directory");
+    fs::write(
+        &global_path,
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt\"\neffort = \"high\"\nunknown = true\n",
+    )
+    .expect("malformed global workers");
+    let project_path = root.join(".zdev/config.toml");
+    let before = [
+        fs::read(&project_path).expect("project bytes"),
+        fs::read(&local_path).expect("local bytes"),
+        fs::read(&global_path).expect("global bytes"),
+    ];
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    let failed = run_zdev_with_env(root, &["config", "show", "--format", "json"], &environment);
+    assert_eq!(failed.status.code(), Some(2));
+    assert!(failed.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&failed.stderr).expect("JSON error");
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("error")
+            .contains(global_path.to_string_lossy().as_ref())
+    );
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("error")
+            .contains("unknown field")
+    );
+
+    let local = json_output_with_env(root, &["config", "show", "--local"], &environment);
+    assert_eq!(local["scope"], "local");
+    assert!(
+        local["values"]
+            .as_array()
+            .expect("local values")
+            .iter()
+            .any(|entry| entry["key"] == "worker.codex.implementer")
+    );
+
+    for arguments in [
+        vec!["config", "get", "worker.pi.verifier", "--local"],
+        vec!["config", "get", "project.name", "--global"],
+        vec!["config", "get", "unknown.key"],
+    ] {
+        let failed = run_zdev_with_env(root, &arguments, &environment);
+        assert_eq!(failed.status.code(), Some(2));
+        assert!(failed.stdout.is_empty());
+    }
+    assert_eq!(
+        fs::read(&project_path).expect("project preserved"),
+        before[0]
+    );
+    assert_eq!(fs::read(&local_path).expect("local preserved"), before[1]);
+    assert_eq!(fs::read(&global_path).expect("global preserved"), before[2]);
 }
 
 #[test]

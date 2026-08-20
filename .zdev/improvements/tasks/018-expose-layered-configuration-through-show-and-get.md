@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-018"
 key = "layered-config-inspection"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-016"]
 +++
 # Expose layered configuration through show and get
@@ -26,15 +26,29 @@ Implement the read-only half of docs/config-command.md using the worker registry
 
 ## Done when
 
-- [ ] Effective show renders all fifteen keys with correct local, global, default, null, origin, and shadowed values in the documented human and JSON forms.
-- [ ] Global and local show omit unstored keys and preserve fixed registry order.
-- [ ] Get returns the same effective or scoped value contract for one key and fails cleanly for an absent scoped value.
-- [ ] Global-path resolution ignores empty or relative candidates and reports the first absolute normalized origin.
-- [ ] Malformed consulted files, unknown keys, unsupported scopes, and unavailable homes fail without output or mutation.
-- [ ] Existing config trunk behavior and existing project records remain unchanged.
+- [x] Effective show renders all fifteen keys with correct local, global, default, null, origin, and shadowed values in the documented human and JSON forms.
+- [x] Global and local show omit unstored keys and preserve fixed registry order.
+- [x] Get returns the same effective or scoped value contract for one key and fails cleanly for an absent scoped value.
+- [x] Global-path resolution ignores empty or relative candidates and reports the first absolute normalized origin.
+- [x] Malformed consulted files, unknown keys, unsupported scopes, and unavailable homes fail without output or mutation.
+- [x] Existing config trunk behavior and existing project records remain unchanged.
 
 ## Validation
 
 - Run focused black-box tests for the complete effective fixture, one scoped view, one get, and one strict read failure.
 - Run cargo test --locked --test lean.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Added read-only layered config show and get for fifteen typed keys with stable origins, shadowed profiles, defaults, and scoped views.
+
+Validation:
+
+- Independent verification confirmed exact effective and scoped output, strict consulted-layer validation, global reads outside repositories, normalized paths, and non-mutation.
+- cargo test --locked --test lean (83 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked
+- cargo build --locked
+- git diff --check

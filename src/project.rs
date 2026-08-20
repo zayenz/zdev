@@ -25,7 +25,7 @@ pub(super) enum RecordPolicy {
 }
 
 impl RecordPolicy {
-    fn as_str(self) -> &'static str {
+    pub(super) fn as_str(self) -> &'static str {
         match self {
             Self::Personal => "personal",
             Self::Project => "project",

@@ -4,8 +4,8 @@
 
 - Total: 21
 - Ready: 2
-- Blocked: 2
-- Done: 17
+- Blocked: 1
+- Done: 18
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -26,7 +26,7 @@
 | [improvements-015](tasks/015-design-a-coherent-layered-config-command.md) | Design a coherent layered config command | done | improvements-011 |
 | [improvements-016](tasks/016-apply-layered-worker-profiles-to-harness-integrations.md) | Apply layered worker profiles to harness integrations | done | — |
 | [improvements-017](tasks/017-add-the-deterministic-area-goal-command.md) | Add the deterministic area goal command | done | — |
-| [improvements-018](tasks/018-expose-layered-configuration-through-show-and-get.md) | Expose layered configuration through show and get | ready | improvements-016 |
-| [improvements-019](tasks/019-add-atomic-layered-config-set-and-unset.md) | Add atomic layered config set and unset | blocked | improvements-018 |
+| [improvements-018](tasks/018-expose-layered-configuration-through-show-and-get.md) | Expose layered configuration through show and get | done | improvements-016 |
+| [improvements-019](tasks/019-add-atomic-layered-config-set-and-unset.md) | Add atomic layered config set and unset | ready | improvements-018 |
 | [improvements-020](tasks/020-install-the-common-zdev-audit-workflow.md) | Install the common zdev audit workflow | ready | improvements-016 |
 | [improvements-021](tasks/021-install-common-implement-and-verify-workflows.md) | Install common implement and verify workflows | blocked | improvements-017, improvements-020 |

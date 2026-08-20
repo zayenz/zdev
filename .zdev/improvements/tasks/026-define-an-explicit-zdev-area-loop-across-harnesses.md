@@ -44,9 +44,9 @@ zdev goal intentionally projects one task. Codex, Claude Code, and Oh My Pi expo
 
 ## Result
 
-Defined explicit zdev goal and loop routes with safe native continuation and honest bounded fallbacks across all five harnesses.
+Defined goal and loop as synonymous continuing-area routes, including a native Claude workflow with replay-safe verified commit boundaries.
 
 Validation:
 
-- Independent design and source review passed after correcting unsupported Claude native-goal claims and the existing documentation authority gap.
-- Current primary-source link checks, documentation contract, relative-link, whitespace, and git diff checks passed.
+- Independent verification passed after adding restart-safe preflight, branch-independent closed handling, unconditional completion reconciliation, and byte-level commit authorization.
+- Documentation contract, source links, command-seam probes, whitespace, and git diff checks passed.

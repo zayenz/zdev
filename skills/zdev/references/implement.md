@@ -2,7 +2,9 @@
 
 ## When
 
-Use this method for each task returned by `zdev next`.
+Use this method for each task returned by `zdev next`. Use `zdev next --any`
+only when the user explicitly asks for any ready or unblocked task across
+areas; do not infer project-wide selection from an omitted area.
 
 ## Do
 

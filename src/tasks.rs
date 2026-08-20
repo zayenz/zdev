@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::project::{
-    list_areas, load_area, read_config, require_checked_out_area_branch,
-    require_task_work_area_link, slice_briefs,
+    area_branch_status, current_branch, list_areas, load_area, read_config,
+    require_checked_out_area_branch, require_task_work_area_link, slice_briefs,
 };
 use super::{
     CHANGE_ID_TRAILER, CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, generate_change_id,
@@ -1025,6 +1025,147 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         text,
         json!({"schema_version": SCHEMA_VERSION, "area": area, "status": "ready", "task": view, "branch_status": branch.branch_status, "advisory": branch.advisory}),
     ))
+}
+
+pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
+    let config = read_config(root)?;
+    let areas = list_areas(root)?;
+    let by_tag = areas
+        .iter()
+        .map(|area| (area.tag.as_str(), area))
+        .collect::<BTreeMap<_, _>>();
+    let checked_out = current_branch(root)?;
+    let mut candidates = Vec::new();
+    let mut skipped = Vec::new();
+    let mut unsafe_open_work = false;
+
+    for area in &areas {
+        let tasks = load_tasks(root, &area.tag)?;
+        let branch_status =
+            area_branch_status(root, &config, area, &by_tag, checked_out.as_deref());
+        let structurally_safe = branch_status["task_work"]["structurally_safe"]
+            .as_bool()
+            .unwrap_or(false);
+        let open = tasks
+            .iter()
+            .any(|task| task.header.status == TaskStatus::Open);
+
+        if !structurally_safe {
+            unsafe_open_work |= open;
+            skipped.push(json!({
+                "area": area.tag,
+                "branch": area.branch,
+                "branch_matches": branch_status["branch_matches"],
+                "diagnostics": branch_status["diagnostics"],
+                "branch_status": branch_status,
+            }));
+            continue;
+        }
+
+        if let Some(task) = next_task(&tasks) {
+            candidates.push((area, task.clone(), branch_status));
+        }
+    }
+
+    candidates.sort_by(|left, right| {
+        let left_matches = left.2["branch_matches"] == Value::Bool(true);
+        let right_matches = right.2["branch_matches"] == Value::Bool(true);
+        right_matches
+            .cmp(&left_matches)
+            .then_with(|| left.0.tag.cmp(&right.0.tag))
+    });
+
+    let Some((area, task, branch_status)) = candidates.into_iter().next() else {
+        let status = if unsafe_open_work {
+            "unsafe"
+        } else {
+            "complete"
+        };
+        let text = match status {
+            "unsafe" => format!(
+                "No safe task is ready. Unsafe areas: {}",
+                skipped_areas_text(&skipped)
+            ),
+            _ => "All tasks across areas are done".to_owned(),
+        };
+        return Ok(CommandOutput::new(
+            text,
+            json!({
+                "schema_version": SCHEMA_VERSION,
+                "mode": "any",
+                "status": status,
+                "task": Value::Null,
+                "skipped": skipped,
+            }),
+        ));
+    };
+
+    let branch_matches = branch_status["branch_matches"] == Value::Bool(true);
+    let branch_note = if branch_matches {
+        " (checked out)".to_owned()
+    } else if let Some(checked_out) = &checked_out {
+        format!(" (not checked out; current branch: {checked_out})")
+    } else {
+        " (not checked out; HEAD is detached)".to_owned()
+    };
+    let view = TaskView {
+        id: &task.header.id,
+        title: &task.title,
+        status: task.header.status.as_str(),
+        state: "ready",
+        blocked_by: &task.header.blocked_by,
+        slice: task.header.slice.as_deref(),
+        slice_brief: task_slice_brief_path(root, &task),
+        path: relative(root, &task.path),
+    };
+    let mut text = format!(
+        "{}  {}\nArea: {}\nRequired branch: {}{}\nTask: {}",
+        task.header.id, task.title, area.tag, area.branch, branch_note, view.path
+    );
+    if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
+        text.push_str(&format!("\nSlice: {slice}\nSlice brief: {path}"));
+    }
+    if !skipped.is_empty() {
+        text.push_str(&format!(
+            "\nSkipped unsafe areas: {}",
+            skipped_areas_text(&skipped)
+        ));
+    }
+    Ok(CommandOutput::new(
+        text,
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "mode": "any",
+            "status": "ready",
+            "area": area.tag,
+            "branch": area.branch,
+            "branch_matches": branch_matches,
+            "task": view,
+            "branch_status": branch_status,
+            "skipped": skipped,
+        }),
+    ))
+}
+
+fn skipped_areas_text(skipped: &[Value]) -> String {
+    skipped
+        .iter()
+        .map(|area| {
+            let tag = area["area"].as_str().unwrap_or("unknown");
+            let diagnostics = area["diagnostics"]
+                .as_array()
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            format!("{tag} [{diagnostics}]")
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, ZdevError> {

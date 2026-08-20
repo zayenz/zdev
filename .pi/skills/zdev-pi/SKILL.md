@@ -22,6 +22,11 @@ they do not activate zdev alone.
 | **Implement** — continue with the next ready task | [references/implement.md](references/implement.md) |
 | **Verify** — independently review an implementation | [references/verify.md](references/verify.md) |
 
+Use `zdev next --any --format json` only when the user explicitly asks for any
+ready or unblocked task across areas. A generic request to continue, select the
+next task, or work without naming an area keeps the ordinary area-specific
+selection rules.
+
 Read every selected reference completely before starting its interaction. Run
 the interactions the user requested, in their requested order. After the last
 one, report the result and wait. If an approved artifact changes, show the

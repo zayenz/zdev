@@ -139,6 +139,9 @@ enum Command {
     Next {
         /// Area tag; omit to let zdev select an unambiguous active area
         area: Option<String>,
+        /// Select ready work across all structurally safe areas
+        #[arg(long, conflicts_with = "area")]
+        any: bool,
     },
     /// Show task counts and branch health
     ///
@@ -517,7 +520,13 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             } => tasks::complete(&root, area, task, summary, validation),
             TaskCommand::Reopen { area, task } => tasks::reopen(&root, area, task),
         },
-        Command::Next { area } => tasks::next(&root, area.as_deref()),
+        Command::Next { area, any } => {
+            if *any {
+                tasks::next_any(&root)
+            } else {
+                tasks::next(&root, area.as_deref())
+            }
+        }
         Command::Status { area } => status_output(&root, area.as_deref()),
         Command::Check { area } => check_output(&root, area.as_deref()),
         Command::Skill { .. } => unreachable!(),

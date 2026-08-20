@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-008"
 key = "project-wide-next"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-004"]
 +++
 # Select any ready task across areas explicitly
@@ -26,14 +26,28 @@ Bare `zdev next` currently uses an explicit area, `default_area`, or an unambigu
 
 ## Done when
 
-- [ ] `zdev next --any` returns the selected task, area, branch, branch-match flag, and task path in stable human and JSON output.
-- [ ] JSON includes a structured skipped list with area diagnostics, and human output names a required branch and summarizes unsafe skipped areas without silently discarding them.
-- [ ] When no task is selectable, the command distinguishes complete work from blocked or unsafe work with observable diagnostics.
-- [ ] Existing `zdev next [area]` and bare-next default-area behavior remain unchanged.
-- [ ] Canonical skills route only explicit any-ready or any-unblocked intent through `--any`, and checked-in integrations match generated sources.
-- [ ] Focused multi-area tests cover candidate order, off-branch selection, skipped unsafe areas, default-area bypass, option conflict, and no-candidate results.
+- [x] `zdev next --any` returns the selected task, area, branch, branch-match flag, and task path in stable human and JSON output.
+- [x] JSON includes a structured skipped list with area diagnostics, and human output names a required branch and summarizes unsafe skipped areas without silently discarding them.
+- [x] When no task is selectable, the command distinguishes complete work from unsafe work with observable diagnostics; malformed or cyclic dependency graphs fail validation before selection.
+- [x] Existing `zdev next [area]` and bare-next default-area behavior remain unchanged.
+- [x] Canonical skills route only explicit any-ready or any-unblocked intent through `--any`, and checked-in integrations match generated sources.
+- [x] Focused multi-area tests cover candidate order, off-branch selection, skipped unsafe areas, default-area bypass, option conflict, and no-candidate results.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Added explicit deterministic project-wide ready-task selection with branch requirements and visible unsafe-area diagnostics, without checkout mutation.
+
+Validation:
+
+- Independent verification passed after adding explicit off-branch human output and removing an impossible blocked result; malformed dependency graphs remain validation errors.
+- cargo test --locked --test lean (73 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (75 passed)
+- cargo build --locked
+- git diff --check

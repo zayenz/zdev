@@ -1472,24 +1472,22 @@ pub(super) fn area_branch_status(
         None => None,
     };
     let same_branch = effective_base == Some(area.branch.as_str());
-    let stale_advisory = branch_matches == Some(true)
-        && git_state_inspectable
+    let stale_structure_safe = git_state_inspectable
         && operation.is_none()
         && anchor_valid == Some(true)
         && linear_history == Some(true)
         && fresh == Some(false);
-    let task_work_safe = (same_branch
-        && branch_matches == Some(true)
-        && git_state_inspectable
-        && operation.is_none())
-        || stale_advisory
-        || (branch_matches == Some(true)
-            && git_state_inspectable
-            && operation.is_none()
-            && anchor_valid == Some(true)
-            && linear_history == Some(true)
-            && fresh == Some(true)
-            && finalized == Some(true));
+    let structurally_safe =
+        (same_branch && branch_exists && git_state_inspectable && operation.is_none())
+            || stale_structure_safe
+            || (git_state_inspectable
+                && operation.is_none()
+                && anchor_valid == Some(true)
+                && linear_history == Some(true)
+                && fresh == Some(true)
+                && finalized == Some(true));
+    let stale_advisory = branch_matches == Some(true) && stale_structure_safe;
+    let task_work_safe = branch_matches == Some(true) && structurally_safe;
 
     json!({
         "branch": area.branch,
@@ -1508,6 +1506,7 @@ pub(super) fn area_branch_status(
         "linear_history": linear_history,
         "task_work": {
             "safe": task_work_safe,
+            "structurally_safe": structurally_safe,
             "stale_advisory": stale_advisory,
             "git_operation": operation,
         },

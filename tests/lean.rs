@@ -219,6 +219,96 @@ fn import_one_task(root: &Path, area: &str) {
 }
 
 #[test]
+fn next_any_selects_ready_work_across_areas_without_changing_git_state() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "alpha", "alpha");
+    create_area(root, "zeta", "zeta");
+    create_area(root, "unsafe", "missing-branch");
+    import_one_task(root, "alpha");
+    import_one_task(root, "zeta");
+    import_one_task(root, "unsafe");
+    commit_all(root, "configure areas");
+    git(root, &["branch", "alpha"]);
+    git(root, &["branch", "zeta"]);
+    commit_file(root, "main.txt", "advance\n", "advance main");
+
+    git(root, &["switch", "-q", "zeta"]);
+    let on_area = json_output(root, &["next", "--any"]);
+    assert_eq!(on_area["area"], "zeta");
+    assert_eq!(on_area["branch"], "zeta");
+    assert_eq!(on_area["branch_matches"], true);
+    assert_eq!(on_area["task"]["id"], "zeta-001");
+    assert_eq!(
+        on_area["task"]["path"],
+        ".zdev/zeta/tasks/001-complete-one-task.md"
+    );
+    assert_eq!(on_area["skipped"][0]["area"], "unsafe");
+    assert!(
+        on_area["skipped"][0]["diagnostics"]
+            .as_array()
+            .expect("unsafe diagnostics")
+            .contains(&json!("area-branch-missing"))
+    );
+
+    git(root, &["switch", "-q", "main"]);
+    let config_path = root.join(".zdev/config.toml");
+    let config = fs::read_to_string(&config_path).expect("project config");
+    fs::write(&config_path, format!("{config}default_area = \"zeta\"\n"))
+        .expect("configure default area");
+    let bare = run_zdev(root, &["next", "--format", "json"]);
+    assert!(!bare.status.success());
+    let bare: Value = serde_json::from_slice(&bare.stderr).expect("bare-next error");
+    assert_eq!(bare["details"]["branch_status"]["branch"], "zeta");
+    let head_before = git(root, &["rev-parse", "HEAD"]);
+    let status_before = git(root, &["status", "--porcelain"]);
+    let off_branch = json_output(root, &["next", "--any"]);
+    assert_eq!(off_branch["area"], "alpha");
+    assert_eq!(off_branch["branch"], "alpha");
+    assert_eq!(off_branch["branch_matches"], false);
+    let text = run_zdev(root, &["next", "--any"]);
+    assert!(
+        String::from_utf8_lossy(&text.stdout)
+            .contains("Required branch: alpha (not checked out; current branch: main)")
+    );
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), head_before);
+    assert_eq!(git(root, &["status", "--porcelain"]), status_before);
+
+    let conflict = run_zdev(root, &["next", "alpha", "--any"]);
+    assert_eq!(conflict.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&conflict.stderr).contains("cannot be used with"));
+}
+
+#[test]
+fn next_any_distinguishes_complete_work_from_unsafe_open_work() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "complete", "main");
+
+    let complete = json_output(root, &["next", "--any"]);
+    assert_eq!(complete["status"], "complete");
+    assert_eq!(complete["task"], Value::Null);
+
+    create_area(root, "unsafe", "missing-branch");
+    import_one_task(root, "unsafe");
+    let unsafe_work = json_output(root, &["next", "--any"]);
+    assert_eq!(unsafe_work["status"], "unsafe");
+    assert_eq!(unsafe_work["skipped"][0]["area"], "unsafe");
+    assert!(
+        unsafe_work["skipped"][0]["diagnostics"]
+            .as_array()
+            .expect("unsafe diagnostics")
+            .contains(&json!("area-branch-missing"))
+    );
+}
+
+#[test]
 fn stale_independent_base_is_advisory_for_task_work() {
     let repository = repository();
     let root = repository.path();

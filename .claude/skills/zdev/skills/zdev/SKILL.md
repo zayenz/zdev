@@ -149,9 +149,10 @@ and verify the correction with a different agent. Continue until `PASS` or
 named agents are unavailable, use ordinary Claude Code subagents with the same
 boundaries.
 
-When the packaged workflows are available, `/zdev:zdev-task` runs this task
-cycle and `/zdev:zdev-audit` runs a read-only audit. The ordinary subagent loop
-also works. The coordinating agent runs `zdev task done` and `zdev commit`.
+When the packaged workflows are available, `/zdev:zdev-implement` runs a full
+task cycle, `/zdev:zdev-verify` verifies an explicit current ready task without
+mutation, and `/zdev:zdev-audit` runs a read-only audit. The ordinary subagent
+loop also works.
 
 Inspect `/goal` before explicit native-goal use, then apply `/goal <native_goal>`
 only when no unfinished goal exists. Otherwise follow the shared ordinary-prompt

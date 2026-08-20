@@ -17,6 +17,8 @@ include = [
   "/docs/**",
   "/skills/zdev/**",
   "/skills/zdev-audit/**",
+  "/skills/zdev-implement/**",
+  "/skills/zdev-verify/**",
   "/src/**",
   "/templates/**",
   "/tests/documentation_contract.rs",

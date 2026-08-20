@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 21
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 20
+- Done: 21
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -29,4 +29,4 @@
 | [improvements-018](tasks/018-expose-layered-configuration-through-show-and-get.md) | Expose layered configuration through show and get | done | improvements-016 |
 | [improvements-019](tasks/019-add-atomic-layered-config-set-and-unset.md) | Add atomic layered config set and unset | done | improvements-018 |
 | [improvements-020](tasks/020-install-the-common-zdev-audit-workflow.md) | Install the common zdev audit workflow | done | improvements-016 |
-| [improvements-021](tasks/021-install-common-implement-and-verify-workflows.md) | Install common implement and verify workflows | ready | improvements-017, improvements-020 |
+| [improvements-021](tasks/021-install-common-implement-and-verify-workflows.md) | Install common implement and verify workflows | done | improvements-017, improvements-020 |

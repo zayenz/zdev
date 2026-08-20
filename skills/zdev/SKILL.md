@@ -141,7 +141,8 @@ mention commands only when they help the user continue or recover.
 
 ## Codex orchestration
 
-Use `$zdev-audit` for the installed read-only audit workflow.
+Use `$zdev-implement` for one complete task cycle, `$zdev-verify` for explicit
+read-only task verification, and `$zdev-audit` for a read-only audit.
 
 Use one Codex collaboration agent to implement a task and a different agent to
 verify it. The coordinating agent owns zdev state, user decisions, task

@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-021"
 key = "workflow-task-entrypoints"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-017", "improvements-020"]
 +++
 # Install common implement and verify workflows
@@ -27,14 +27,14 @@ Complete docs/harness-orchestration.md after the goal command and audit entrypoi
 
 ## Done when
 
-- [ ] All five harnesses install exactly one discoverable zdev-implement and zdev-verify entrypoint under the common public names.
-- [ ] Implement preflight requires the four area gates, captures complete Git evidence, selects the ready goal task, and rechecks the same task before verification and every rework handoff.
-- [ ] Implement uses the configured implementer and a fresh configured verifier, routes every concrete REWORK through implementation and full fresh verification, and completes and commits only after PASS.
-- [ ] Verify requires its explicit task ID to match the current ready goal and returns only PASS zdev-verify, REWORK zdev-verify, or BLOCKER zdev-verify without lifecycle mutation.
-- [ ] Empty and complete goals return no-work success without delegation; invalid, changed, or unsafe state fails before a worker starts.
-- [ ] Claude exposes three namespaced plugin workflows and preserves native JavaScript rework behavior; other harnesses use their documented native workers and fallback rules.
-- [ ] Install and check are deterministic, obsolete zdev-task files are removed safely, and unrelated harness files remain untouched.
-- [ ] Focused contract tests cover artifact discovery, role selection, pass, rework, invalid envelope, no-work, pre-publication failure, and generated-fixture consistency without adding a harness simulator.
+- [x] All five harnesses install exactly one discoverable zdev-implement and zdev-verify entrypoint under the common public names.
+- [x] Implement preflight requires the four area gates, captures complete Git evidence, selects the ready goal task, and rechecks the same task before verification and every rework handoff.
+- [x] Implement uses the configured implementer and a fresh configured verifier, routes every concrete REWORK through implementation and full fresh verification, and completes and commits only after PASS.
+- [x] Verify requires its explicit task ID to match the current ready goal and returns only PASS zdev-verify, REWORK zdev-verify, or BLOCKER zdev-verify without lifecycle mutation.
+- [x] Empty and complete goals return no-work success without delegation; invalid, changed, or unsafe state fails before a worker starts.
+- [x] Claude exposes three namespaced plugin workflows and preserves native JavaScript rework behavior; other harnesses use their documented native workers and fallback rules.
+- [x] Install and check are deterministic, obsolete zdev-task files are removed safely, and unrelated harness files remain untouched.
+- [x] Focused contract tests cover artifact discovery, role selection, pass, rework, invalid envelope, no-work, pre-publication failure, and generated-fixture consistency without adding a harness simulator.
 
 ## Validation
 
@@ -43,3 +43,19 @@ Complete docs/harness-orchestration.md after the goal command and audit entrypoi
 - Run the all-harness install/check release smoke.
 - Run cargo package --locked --allow-dirty.
 - Run the repository's standard full validation from the area brief.
+
+## Result
+
+Installed common zdev-implement and zdev-verify entrypoints for all five harnesses with deterministic goal handoffs, configured workers, strict envelopes, independent verification, and safe legacy migration.
+
+Validation:
+
+- Independent verification passed after restoring stale-safe continuation and tightening Claude ready, no-work, status, task, area, Git evidence, advisory, verifier, and final envelope validation.
+- cargo test --locked --test lean (91 passed)
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked
+- cargo build --locked
+- all-harness release smoke
+- cargo package --locked --allow-dirty
+- git diff --check

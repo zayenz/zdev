@@ -62,9 +62,9 @@ API](https://code.claude.com/docs/en/workflows) and [plugin subagent
 configuration](https://code.claude.com/docs/en/sub-agents) (accessed
 2026-08-20).
 
-The current zdev `zdev-task.js` and `zdev-audit.js` files therefore use the
-right native mechanism. They need common names, explicit worker-role routing,
-and the settled goal and envelope behavior; they do not need replacement with
+The previous zdev `zdev-task.js` and current `zdev-audit.js` files therefore use
+the right native mechanism. The task workflow is renamed and adapted to the
+settled goal, role, and envelope behavior; neither needs replacement with
 skills or an Agent SDK wrapper.
 
 ### OpenCode
@@ -155,29 +155,29 @@ These are renderable files, not a new runtime. Install and check must render the
 same bytes through the existing integration renderer. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 
-The audit rollout installs the `zdev-audit` entry point first; the
-`zdev-implement` and `zdev-verify` artifacts remain a separate implementation
-step. Codex installation now targets the shared `skills/` root so the existing
-`zdev/` skill and the sibling workflow skills form one managed bundle while
-unrelated skills remain untouched.
+The installed bundle includes all three entry points. Codex installation
+targets the shared `skills/` root so the existing `zdev/` skill and the three
+sibling workflow skills form one managed bundle while unrelated skills remain
+untouched.
 
-Forced audit migration has one hard-coded removal in this step:
-`command/zdev-audit.md` under an OpenCode shared root. It is the previous
-zdev-owned singular-directory path, replaced by
-`commands/zdev-audit.md`. No other shared-root file is removed. In particular,
-the legacy task entry points remain until the implement-and-verify rollout owns
-their replacement.
+Forced migration has three hard-coded removals: `command/zdev-audit.md` and
+`command/zdev-task.md` under an OpenCode shared root, and
+`prompts/zdev-task.md` under a Pi shared root. They are previous zdev-owned
+entry points replaced by the common names. A non-forced install and readiness
+check fail closed while any of them remains, so old and new commands cannot be
+reported as one ready installation. No other shared-root file is removed.
 
 ## Common execution contract
 
 ### Deterministic task selection
 
 `zdev-implement` runs `zdev status <area> --format json` and
-`zdev goal <area> --format json` in the coordinating session. It validates the
-area gates, records status with untracked files plus staged and unstaged diffs,
-and uses only the `ready` goal's task as its subject. The complete JSON goal is
-passed unchanged to every worker together with the brief, repository guidance,
-baseline, and task-owned paths.
+`zdev goal <area> --format json` in the coordinating session. It requires
+`branch_status.task_work.safe`, reports `stale_advisory` once while continuing,
+records status with untracked files plus staged and unstaged diffs, and uses
+only the `ready` goal's task as its subject. Structurally unsafe branch state
+still blocks. The complete JSON goal is passed unchanged to every worker
+together with the brief, repository guidance, baseline, and task-owned paths.
 
 An `empty` or `complete` goal is a successful no-work result. No worker is
 started, and no state changes. A malformed graph, unsafe branch, changed focus
@@ -236,8 +236,8 @@ but must render this public form.
 
 | Workflow | Allowed first line | Required body |
 | --- | --- | --- |
-| `zdev-implement` | `PASS zdev-implement` or `BLOCKER zdev-implement` | Subject area/task, summary, changed files, validation, verifier evidence, and commit ID on pass; stage, reason, and preserved state on blocker. |
-| `zdev-verify` | `PASS zdev-verify`, `REWORK zdev-verify`, or `BLOCKER zdev-verify` | Subject area/task, summary, validation, and located evidence. `REWORK` lists only concrete task-owned corrections. |
+| `zdev-implement` | `PASS zdev-implement <area> <task-id>` or `BLOCKER zdev-implement <area> <task-id>` | Exact repeated area/task fields, summary, changed files, validation, verifier evidence, and commit ID on pass; stage, reason, and preserved state on blocker. |
+| `zdev-verify` | `PASS zdev-verify <area> <task-id>`, `REWORK zdev-verify <area> <task-id>`, or `BLOCKER zdev-verify <area> <task-id>` | Exact repeated area/task fields, summary, validation, and located evidence. `REWORK` lists only concrete task-owned corrections. |
 | `zdev-audit` | `PASS zdev-audit`, `FINDINGS zdev-audit`, or `BLOCKER zdev-audit` | Boundary, what was inspected and omitted, and checked findings with location, impact, and confidence. |
 
 An implementer handoff begins `DONE implementer` or `BLOCKER implementer` and

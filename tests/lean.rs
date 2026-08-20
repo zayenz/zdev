@@ -2345,7 +2345,7 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
         &["skill", "install", "codex", "--to", destination_text],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 13);
+    assert_eq!(installed["files"], 15);
     let rendered = fs::read_to_string(destination.join("zdev/SKILL.md")).expect("installed skill");
     assert_eq!(rendered, packaged_skill);
     assert_eq!(
@@ -2892,7 +2892,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
     assert_eq!(installed["harness"], harness);
     assert_eq!(installed["scope"], "explicit");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 16);
+    assert_eq!(installed["files"], 17);
 
     let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
     assert_eq!(checked["status"], "ok");
@@ -2993,6 +2993,8 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
         file_inventory(&codex),
         [
             "zdev-audit/SKILL.md",
+            "zdev-implement/SKILL.md",
+            "zdev-verify/SKILL.md",
             "zdev/SKILL.md",
             "zdev/agents/openai.yaml",
             "zdev/references/discuss.md",
@@ -3030,7 +3032,8 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/to-tasks.md",
             "skills/zdev/references/verify.md",
             "workflows/zdev-audit.js",
-            "workflows/zdev-task.js",
+            "workflows/zdev-implement.js",
+            "workflows/zdev-verify.js",
         ]
     );
 
@@ -3046,22 +3049,85 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert!(!verifier.contains("tools: Read, Write"));
 
     let task_workflow =
-        fs::read_to_string(claude.join("workflows/zdev-task.js")).expect("task workflow");
-    assert!(task_workflow.contains("while (/^REWORK\\b/.test(verdict))"));
-    assert!(task_workflow.contains("/^(PASS|REWORK|BLOCKER)\\b/"));
-    assert_eq!(task_workflow.matches("label: 'zdev rework'").count(), 1);
-    assert_eq!(
-        task_workflow
-            .matches("verdict = await review(implementation)")
-            .count(),
-        2,
-        "Claude workflow must freshly verify the initial implementation and every rework"
-    );
+        fs::read_to_string(claude.join("workflows/zdev-implement.js")).expect("implement workflow");
+    assert!(task_workflow.contains("while (verdict.split"));
+    assert!(task_workflow.contains("agentType: 'zdev:zdev-implementer'"));
+    assert!(task_workflow.contains("agentType: 'zdev:zdev-verifier'"));
+    assert!(task_workflow.contains("zdev task done"));
+    assert!(task_workflow.contains("zdev commit"));
+    assert!(task_workflow.contains("NO-WORK zdev-implement"));
+    assert!(task_workflow.contains("parseReady"));
+    assert!(task_workflow.contains("expectedTask && match[2] !== expectedTask"));
+    assert!(task_workflow.contains("const validPass"));
+    let verify_workflow =
+        fs::read_to_string(claude.join("workflows/zdev-verify.js")).expect("verify workflow");
+    assert!(verify_workflow.contains("require ready task ${taskId} exactly"));
+    assert!(verify_workflow.contains("agentType: 'zdev:zdev-verifier'"));
+    assert!(verify_workflow.contains("never invokes an implementer, changes lifecycle state"));
 
     let audit_workflow =
         fs::read_to_string(claude.join("workflows/zdev-audit.js")).expect("audit workflow");
     assert!(audit_workflow.contains("Array.isArray(input.lenses)"));
     assert_eq!(audit_workflow.matches("audit evidence vetter").count(), 1);
+}
+
+#[test]
+fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() {
+    let implement = include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
+    let verify = include_str!("../templates/zdev/claude/workflows/zdev-verify.js");
+
+    for workflow in [implement, verify] {
+        for required in [
+            "Object.keys(payload).sort()",
+            "typeof payload[key] !== 'string'",
+            "!payload.status_json || !payload.goal_json",
+            "taskWork?.safe !== true",
+            "typeof taskWork.stale_advisory !== 'boolean'",
+            "goal?.state !== 'ready'",
+            "goal?.area?.tag !==",
+            "goal?.task?.id !==",
+            "status?.area?.tag !==",
+            "status?.next !==",
+            "git_status",
+            "git_diff_cached",
+            "git_diff",
+        ] {
+            assert!(
+                workflow.contains(required),
+                "missing fail-closed check: {required}"
+            );
+        }
+    }
+    assert!(implement.contains("first === `PASS zdev-implement ${area} ${taskId}`"));
+    assert!(implement.contains("field(result ?? '', 'Area') === area"));
+    assert!(implement.contains("field(result ?? '', 'Task') === taskId"));
+    assert!(verify.contains("first === `${verdict} zdev-verify ${area} ${taskId}`"));
+    assert!(verify.contains("field(result, 'Area') === area"));
+    assert!(verify.contains("field(result, 'Task') === taskId"));
+    assert!(implement.contains("taskWork.stale_advisory"));
+    assert!(implement.contains("managed rebase remains optional"));
+    assert!(implement.contains("const parseNoWork"));
+    assert!(implement.contains("goal?.state !== match[1]"));
+    assert!(implement.contains("goal?.task !== null"));
+    assert!(!implement.contains("goal?.task != null"));
+    assert!(implement.contains("status?.next !== null"));
+    assert!(implement.contains("missing or invalid ready/no-work goal"));
+    for later_failure in [
+        "'implementation', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
+        "'goal refresh', `expected ready task ${taskId} with complete status, goal, and Git evidence.`, 'lifecycle and commit were not changed.', staleAdvisory",
+        "'rework', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
+        "'verification', 'independent verification did not pass.', 'lifecycle and commit were not changed.', staleAdvisory",
+        "'completion and commit', 'coordinator returned an invalid or mismatched envelope.', 'inspect the checkout and zdev task record before continuing.', staleAdvisory",
+    ] {
+        assert!(
+            implement.contains(later_failure),
+            "advisory lost on {later_failure}"
+        );
+    }
+    assert!(implement.contains("staleAdvisory ? `Advisory: ${advisoryText}\\n` : ''"));
+    assert!(implement.contains("field(result, 'Advisory') === advisory"));
+    assert!(verify.contains("prepared.staleAdvisory"));
+    assert!(verify.contains("field(result, 'Advisory') === advisory"));
 }
 
 #[test]
@@ -3169,6 +3235,185 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
 }
 
 #[test]
+fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries() {
+    let repository = repository();
+    let root = repository.path();
+    let config_home = root.join("workflow-worker-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    for (harness, implement_path, verify_path) in [
+        ("codex", "zdev-implement/SKILL.md", "zdev-verify/SKILL.md"),
+        (
+            "claude",
+            "workflows/zdev-implement.js",
+            "workflows/zdev-verify.js",
+        ),
+        (
+            "opencode",
+            "commands/zdev-implement.md",
+            "commands/zdev-verify.md",
+        ),
+        ("pi", "prompts/zdev-implement.md", "prompts/zdev-verify.md"),
+        ("omp", "prompts/zdev-implement.md", "prompts/zdev-verify.md"),
+    ] {
+        let destination = root.join(format!("workflows-{harness}"));
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("workflow destination"),
+            ],
+            &environment,
+        );
+        let entrypoints = file_inventory(&destination)
+            .into_iter()
+            .filter(|path| path.contains("zdev-implement") || path.contains("zdev-verify"))
+            .filter(|path| !path.contains("agents/"))
+            .collect::<Vec<_>>();
+        assert_eq!(entrypoints, [implement_path, verify_path], "{harness}");
+
+        let implement =
+            fs::read_to_string(destination.join(implement_path)).expect("implement entrypoint");
+        let verify = fs::read_to_string(destination.join(verify_path)).expect("verify entrypoint");
+        for required in [
+            "zdev status <area> --format json",
+            "branch_status.task_work.safe",
+            "stale_advisory` is true",
+            "git status --short --untracked-files=all",
+            "git diff --cached",
+            "zdev goal <area> --format json",
+            "PASS zdev-verify",
+            "REWORK zdev-verify",
+            "BLOCKER zdev-verify",
+            "no fixed rework count",
+        ] {
+            assert!(implement.contains(required), "{harness} missing {required}");
+        }
+        assert!(implement.contains("zdev task done"));
+        assert!(implement.contains("zdev commit"));
+        assert!(!implement.contains("effective-base\nlink is fresh"));
+        assert!(!verify.contains("effective-base\nlink is fresh"));
+        assert!(verify.contains("explicit ID"));
+        assert!(verify.contains("never invokes an implementer"));
+        assert_eq!(
+            json_output_with_env(
+                root,
+                &[
+                    "skill",
+                    "check",
+                    harness,
+                    "--to",
+                    destination.to_str().expect("workflow destination"),
+                ],
+                &environment,
+            )["status"],
+            "ok"
+        );
+    }
+}
+
+#[test]
+fn legacy_task_entrypoints_require_forced_allowlisted_migration() {
+    use std::os::unix::fs::symlink;
+
+    let repository = repository();
+    let root = repository.path();
+    for (harness, legacy_path, new_path, legacy_is_symlink) in [
+        (
+            "opencode",
+            "command/zdev-task.md",
+            "commands/zdev-implement.md",
+            false,
+        ),
+        (
+            "pi",
+            "prompts/zdev-task.md",
+            "prompts/zdev-implement.md",
+            true,
+        ),
+    ] {
+        let destination = root.join(format!("legacy-task-{harness}"));
+        let legacy = destination.join(legacy_path);
+        let unrelated = destination.join("unrelated/team-workflow.md");
+        fs::create_dir_all(legacy.parent().expect("legacy parent")).expect("legacy parent");
+        fs::create_dir_all(unrelated.parent().expect("unrelated parent"))
+            .expect("unrelated parent");
+        fs::write(&unrelated, "team workflow\n").expect("unrelated file");
+        if legacy_is_symlink {
+            symlink(&unrelated, &legacy).expect("legacy symlink");
+        } else {
+            fs::write(&legacy, "legacy task\n").expect("legacy file");
+        }
+        let before = file_inventory(&destination);
+
+        let refused = run_zdev(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("migration destination"),
+            ],
+        );
+        assert!(!refused.status.success());
+        let error = String::from_utf8_lossy(&refused.stderr);
+        assert!(error.contains("legacy zdev entrypoint"));
+        assert!(error.contains("--force"));
+        assert_eq!(file_inventory(&destination), before);
+        assert!(!destination.join(new_path).exists());
+
+        let check = run_zdev(
+            root,
+            &[
+                "skill",
+                "check",
+                harness,
+                "--to",
+                destination.to_str().expect("migration destination"),
+            ],
+        );
+        assert_eq!(check.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&check.stdout).contains("--force"));
+
+        let migrated = json_output(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("migration destination"),
+                "--force",
+            ],
+        );
+        assert_eq!(migrated["status"], "replaced");
+        assert!(destination.join(new_path).is_file());
+        assert!(fs::symlink_metadata(&legacy).is_err());
+        assert_eq!(
+            fs::read_to_string(&unrelated).expect("preserved unrelated"),
+            "team workflow\n"
+        );
+        assert_eq!(
+            json_output(
+                root,
+                &[
+                    "skill",
+                    "check",
+                    harness,
+                    "--to",
+                    destination.to_str().expect("migration destination"),
+                ],
+            )["status"],
+            "ok"
+        );
+    }
+}
+
+#[test]
 fn audit_migration_is_allowlisted_and_invalid_profiles_fail_before_publication() {
     let repository = repository();
     let root = repository.path();
@@ -3198,7 +3443,7 @@ fn audit_migration_is_allowlisted_and_invalid_profiles_fail_before_publication()
     );
     assert!(!refused.status.success());
     let refusal = String::from_utf8_lossy(&refused.stderr);
-    assert!(refusal.contains("legacy zdev audit entrypoint"));
+    assert!(refusal.contains("legacy zdev entrypoint"));
     assert!(refusal.contains("--force"));
     assert_eq!(file_inventory(&destination), before);
     assert!(!destination.join("commands/zdev-audit.md").exists());
@@ -3370,6 +3615,7 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
             for expression in [
                 "{{shared_contract}}",
                 "{{audit_contract}}",
+                "{{task_workflow_contract}}",
                 "{{repository_guidance}}",
                 "{{question_tool_guidance}}",
                 "{{version}}",
@@ -4134,7 +4380,7 @@ fn codex_skill_check_and_force_install_manage_ui_metadata() {
         root,
         &["skill", "install", "codex", "--to", destination_text],
     );
-    assert_eq!(installed["files"], 13);
+    assert_eq!(installed["files"], 15);
 
     let metadata = destination.join("zdev/agents/openai.yaml");
     fs::remove_file(&metadata).expect("remove Codex UI metadata");
@@ -4231,7 +4477,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 15);
+    assert_eq!(installed["files"], 16);
     assert_eq!(
         fs::read_to_string(destination.join("opencode.json")).expect("preserved config"),
         "{\"theme\":\"system\"}\n"
@@ -4240,7 +4486,8 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         "skills/zdev-opencode/SKILL.md",
         "agents/zdev-implementer.md",
         "agents/zdev-verifier.md",
-        "command/zdev-task.md",
+        "commands/zdev-implement.md",
+        "commands/zdev-verify.md",
         "commands/zdev-audit.md",
     ] {
         assert!(destination.join(path).is_file(), "missing {path}");
@@ -4351,13 +4598,14 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 14);
+    assert_eq!(installed["files"], 15);
     assert_eq!(
         file_inventory(&destination),
         [
             "extensions/zdev-subagent.ts",
             "prompts/zdev-audit.md",
-            "prompts/zdev-task.md",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev-pi/SKILL.md",
             "skills/zdev-pi/references/discuss.md",
@@ -4378,7 +4626,8 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     );
     for path in [
         "skills/zdev-pi/SKILL.md",
-        "prompts/zdev-task.md",
+        "prompts/zdev-implement.md",
+        "prompts/zdev-verify.md",
         "prompts/zdev-audit.md",
         "extensions/zdev-subagent.ts",
     ] {
@@ -4491,13 +4740,15 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     );
     assert_eq!(installed["harness"], "omp");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 14);
+    assert_eq!(installed["files"], 16);
     assert_eq!(
         file_inventory(&destination),
         [
             "agents/zdev-implementer.md",
             "agents/zdev-verifier.md",
             "prompts/zdev-audit.md",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev/SKILL.md",
             "skills/zdev/references/discuss.md",
@@ -4517,9 +4768,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         "{\"theme\":\"dark\"}\n"
     );
 
-    for pi_only_asset in ["extensions/zdev-subagent.ts", "prompts/zdev-task.md"] {
-        assert!(!destination.join(pi_only_asset).exists());
-    }
+    assert!(!destination.join("extensions/zdev-subagent.ts").exists());
 
     let implementer = fs::read_to_string(destination.join("agents/zdev-implementer.md"))
         .expect("Oh My Pi implementer");

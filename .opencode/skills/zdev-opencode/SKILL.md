@@ -148,9 +148,8 @@ Return each task-owned `REWORK` finding to an implementer and verify the
 correction with a different agent. Continue until `PASS` or `BLOCKER`. Include
 the rendered repository guidance and applicable instructions in every prompt.
 
-Use `/zdev-task` for one implementation and verification cycle. Use
-`/zdev-audit` for a read-only audit. The coordinating agent completes tasks and
-commits.
+Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
+read-only task verification, and `/zdev-audit` for a read-only audit.
 
 OpenCode has no required native goal surface. Use the rendered zdev goal as an
 ordinary prompt, including when a native feature was requested but is

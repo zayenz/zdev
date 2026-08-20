@@ -339,14 +339,14 @@ integration lives under `.codex/skills/zdev`.
 
 Start Claude Code from the repository root and accept workspace trust for a
 project installation. The integration provides scoped implementer and verifier
-agents. Claude Code 2.1.154 or later can also use `/zdev:zdev-task` and
-`/zdev:zdev-audit`.
+agents. Claude Code 2.1.154 or later can also use `/zdev:zdev-implement`,
+`/zdev:zdev-verify`, and `/zdev:zdev-audit`.
 
 ### OpenCode
 
-OpenCode installs its skill, agents, and `/zdev-task` and `/zdev-audit`
-commands under `.opencode`. It discovers project skills when started from a
-subdirectory in the worktree.
+OpenCode installs its skill, agents, and `/zdev-implement`, `/zdev-verify`, and
+`/zdev-audit` commands under `.opencode`. It discovers project skills when
+started from a subdirectory in the worktree.
 
 ### Pi
 

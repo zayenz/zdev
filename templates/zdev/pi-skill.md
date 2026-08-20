@@ -16,9 +16,9 @@ to check the task requirements, touched code, and validation. Return each
 task-owned `REWORK` finding to an implementer and verify the correction with a
 different agent. Continue until `PASS` or `BLOCKER`.
 
-Use `/zdev-task` for one task cycle and `/zdev-audit` for a read-only audit.
-Child Pi processes cannot load extensions or delegate. The coordinating agent
-runs `zdev task done` and `zdev commit`.
+Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
+read-only task verification, and `/zdev-audit` for a read-only audit. Child Pi
+processes cannot load extensions or delegate.
 
 Stock Pi has no native goal surface. Use the rendered zdev goal as an ordinary
 prompt, including when a native feature was requested but is unavailable, and

@@ -110,6 +110,8 @@ jobs:
             src/main.rs \
             skills/zdev/SKILL.md \
             skills/zdev-audit/SKILL.md \
+            skills/zdev-implement/SKILL.md \
+            skills/zdev-verify/SKILL.md \
             skills/zdev/agents/openai.yaml \
             skills/zdev/references/discuss.md \
             skills/zdev/references/implement.md \
@@ -121,27 +123,35 @@ jobs:
             skills/zdev/references/verify.md \
             templates/zdev/shared-contract.md \
             templates/zdev/audit.md \
+            templates/zdev/task-workflows.md \
             templates/zdev/codex-skill.md \
             templates/zdev/codex-audit-skill.md \
+            templates/zdev/codex-implement-skill.md \
+            templates/zdev/codex-verify-skill.md \
             templates/zdev/claude-skill.md \
             templates/zdev/claude/plugin.json \
             templates/zdev/claude/agents/zdev-implementer.md \
             templates/zdev/claude/agents/zdev-verifier.md \
-            templates/zdev/claude/workflows/zdev-task.js \
+            templates/zdev/claude/workflows/zdev-implement.js \
+            templates/zdev/claude/workflows/zdev-verify.js \
             templates/zdev/claude/workflows/zdev-audit.js \
             templates/zdev/opencode-skill.md \
             templates/zdev/opencode/agents/zdev-implementer.md \
             templates/zdev/opencode/agents/zdev-verifier.md \
-            templates/zdev/opencode/command/zdev-task.md \
+            templates/zdev/opencode/commands/zdev-implement.md \
+            templates/zdev/opencode/commands/zdev-verify.md \
             templates/zdev/opencode/commands/zdev-audit.md \
             templates/zdev/pi-skill.md \
-            templates/zdev/pi/prompts/zdev-task.md \
+            templates/zdev/pi/prompts/zdev-implement.md \
+            templates/zdev/pi/prompts/zdev-verify.md \
             templates/zdev/pi/prompts/zdev-audit.md \
             templates/zdev/pi/extensions/zdev-subagent.ts \
             templates/zdev/omp-skill.md \
             templates/zdev/omp/agents/zdev-implementer.md \
             templates/zdev/omp/agents/zdev-verifier.md \
             templates/zdev/omp/prompts/zdev-audit.md \
+            templates/zdev/omp/prompts/zdev-implement.md \
+            templates/zdev/omp/prompts/zdev-verify.md \
             docs/adapted-methods.md \
             docs/user-guide.md \
             docs/workflow.md \

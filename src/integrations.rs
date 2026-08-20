@@ -61,26 +61,37 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
 ];
 const SHARED_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/shared-contract.md");
 const AUDIT_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/audit.md");
+const TASK_WORKFLOW_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/task-workflows.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
 const CODEX_AUDIT_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-audit-skill.md");
+const CODEX_IMPLEMENT_SKILL_TEMPLATE: &str =
+    include_str!("../templates/zdev/codex-implement-skill.md");
+const CODEX_VERIFY_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-verify-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
 const CLAUDE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/claude/agents/zdev-implementer.md");
 const CLAUDE_VERIFIER: &str = include_str!("../templates/zdev/claude/agents/zdev-verifier.md");
-const CLAUDE_TASK_WORKFLOW: &str = include_str!("../templates/zdev/claude/workflows/zdev-task.js");
+const CLAUDE_IMPLEMENT_WORKFLOW: &str =
+    include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
+const CLAUDE_VERIFY_WORKFLOW: &str =
+    include_str!("../templates/zdev/claude/workflows/zdev-verify.js");
 const CLAUDE_AUDIT_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-audit.js");
 const OPENCODE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/opencode-skill.md");
 const OPENCODE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/opencode/agents/zdev-implementer.md");
 const OPENCODE_VERIFIER: &str = include_str!("../templates/zdev/opencode/agents/zdev-verifier.md");
-const OPENCODE_TASK_COMMAND: &str = include_str!("../templates/zdev/opencode/command/zdev-task.md");
+const OPENCODE_IMPLEMENT_COMMAND: &str =
+    include_str!("../templates/zdev/opencode/commands/zdev-implement.md");
+const OPENCODE_VERIFY_COMMAND: &str =
+    include_str!("../templates/zdev/opencode/commands/zdev-verify.md");
 const OPENCODE_AUDIT_COMMAND: &str =
     include_str!("../templates/zdev/opencode/commands/zdev-audit.md");
 const PI_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/pi-skill.md");
-const PI_TASK_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-task.md");
+const PI_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-implement.md");
+const PI_VERIFY_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-verify.md");
 const PI_AUDIT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-audit.md");
 const PI_SUBAGENT_EXTENSION: &str =
     include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts");
@@ -88,7 +99,10 @@ const OMP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/omp-skill.md");
 const OMP_IMPLEMENTER: &str = include_str!("../templates/zdev/omp/agents/zdev-implementer.md");
 const OMP_VERIFIER: &str = include_str!("../templates/zdev/omp/agents/zdev-verifier.md");
 const OMP_AUDIT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-audit.md");
-const OPENCODE_LEGACY_AUDIT_FILES: &[&str] = &["command/zdev-audit.md"];
+const OMP_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-implement.md");
+const OMP_VERIFY_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-verify.md");
+const OPENCODE_LEGACY_FILES: &[&str] = &["command/zdev-audit.md", "command/zdev-task.md"];
+const PI_LEGACY_FILES: &[&str] = &["prompts/zdev-task.md"];
 const OMP_RELOCATED_USER_WARNING: &str = "Oh My Pi 17.2.15 discovers the zdev skill at this PI_CODING_AGENT_DIR location but may not discover its user task agents. Unset PI_CODING_AGENT_DIR to use ~/.omp/agent, or install with --scope project under .omp, until upstream task-agent discovery is fixed.";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -176,6 +190,14 @@ impl Harness {
                     path: "zdev-audit/SKILL.md".to_owned(),
                     content: CODEX_AUDIT_SKILL_TEMPLATE.to_owned(),
                 });
+                files.push(IntegrationFile {
+                    path: "zdev-implement/SKILL.md".to_owned(),
+                    content: CODEX_IMPLEMENT_SKILL_TEMPLATE.to_owned(),
+                });
+                files.push(IntegrationFile {
+                    path: "zdev-verify/SKILL.md".to_owned(),
+                    content: CODEX_VERIFY_SKILL_TEMPLATE.to_owned(),
+                });
             }
             Self::Claude => {
                 files.push(IntegrationFile {
@@ -202,8 +224,12 @@ impl Harness {
                         content: CLAUDE_VERIFIER.to_owned(),
                     },
                     IntegrationFile {
-                        path: "workflows/zdev-task.js".to_owned(),
-                        content: CLAUDE_TASK_WORKFLOW.to_owned(),
+                        path: "workflows/zdev-implement.js".to_owned(),
+                        content: CLAUDE_IMPLEMENT_WORKFLOW.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "workflows/zdev-verify.js".to_owned(),
+                        content: CLAUDE_VERIFY_WORKFLOW.to_owned(),
                     },
                     IntegrationFile {
                         path: "workflows/zdev-audit.js".to_owned(),
@@ -232,8 +258,12 @@ impl Harness {
                         content: OPENCODE_VERIFIER.to_owned(),
                     },
                     IntegrationFile {
-                        path: "command/zdev-task.md".to_owned(),
-                        content: OPENCODE_TASK_COMMAND.to_owned(),
+                        path: "commands/zdev-implement.md".to_owned(),
+                        content: OPENCODE_IMPLEMENT_COMMAND.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "commands/zdev-verify.md".to_owned(),
+                        content: OPENCODE_VERIFY_COMMAND.to_owned(),
                     },
                     IntegrationFile {
                         path: "commands/zdev-audit.md".to_owned(),
@@ -254,8 +284,12 @@ impl Harness {
                 }));
                 files.extend([
                     IntegrationFile {
-                        path: "prompts/zdev-task.md".to_owned(),
-                        content: PI_TASK_PROMPT.to_owned(),
+                        path: "prompts/zdev-implement.md".to_owned(),
+                        content: PI_IMPLEMENT_PROMPT.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-verify.md".to_owned(),
+                        content: PI_VERIFY_PROMPT.to_owned(),
                     },
                     IntegrationFile {
                         path: "prompts/zdev-audit.md".to_owned(),
@@ -291,6 +325,14 @@ impl Harness {
                         path: "prompts/zdev-audit.md".to_owned(),
                         content: OMP_AUDIT_PROMPT.to_owned(),
                     },
+                    IntegrationFile {
+                        path: "prompts/zdev-implement.md".to_owned(),
+                        content: OMP_IMPLEMENT_PROMPT.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-verify.md".to_owned(),
+                        content: OMP_VERIFY_PROMPT.to_owned(),
+                    },
                 ]);
             }
         }
@@ -303,10 +345,10 @@ impl Harness {
             } else {
                 IntegrationLayout::ExactTree
             },
-            legacy_files: if self == Self::Opencode {
-                OPENCODE_LEGACY_AUDIT_FILES
-            } else {
-                &[]
+            legacy_files: match self {
+                Self::Opencode => OPENCODE_LEGACY_FILES,
+                Self::Pi => PI_LEGACY_FILES,
+                _ => &[],
             },
             files,
             workers,
@@ -334,7 +376,7 @@ fn template_environment() -> Environment<'static> {
 fn render_template(
     name: &str,
     source: &str,
-    contracts: (&str, &str),
+    contracts: (&str, &str, &str),
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
@@ -352,6 +394,7 @@ fn render_template(
         .render(context! {
             shared_contract => contracts.0,
             audit_contract => contracts.1,
+            task_workflow_contract => contracts.2,
             repository_guidance,
             question_tool_guidance,
             version,
@@ -398,7 +441,7 @@ fn realize_templates(
     let audit_contract = render_template(
         "audit.md",
         AUDIT_CONTRACT_TEMPLATE,
-        ("", ""),
+        ("", "", ""),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -407,7 +450,16 @@ fn realize_templates(
     let shared_contract = render_template(
         "shared-contract.md",
         SHARED_CONTRACT_TEMPLATE,
-        ("", ""),
+        ("", "", ""),
+        &repository_guidance,
+        harness.question_tool_guidance(),
+        version,
+        workers,
+    )?;
+    let task_workflow_contract = render_template(
+        "task-workflows.md",
+        TASK_WORKFLOW_CONTRACT_TEMPLATE,
+        ("", "", ""),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -418,6 +470,8 @@ fn realize_templates(
         let is_json = file.path.ends_with(".json");
         let shared_contract = prepare_template_value(&file.path, shared_contract.trim_end())?;
         let audit_contract = prepare_template_value(&file.path, audit_contract.trim_end())?;
+        let task_workflow_contract =
+            prepare_template_value(&file.path, task_workflow_contract.trim_end())?;
         let repository_guidance = prepare_template_value(&file.path, &repository_guidance)?;
         let question_tool_guidance =
             prepare_template_value(&file.path, harness.question_tool_guidance())?;
@@ -425,7 +479,7 @@ fn realize_templates(
         file.content = render_template(
             &file.path,
             &file.content,
-            (&shared_contract, &audit_contract),
+            (&shared_contract, &audit_contract, &task_workflow_contract),
             &repository_guidance,
             &question_tool_guidance,
             &version,
@@ -1322,7 +1376,7 @@ fn publish_shared_root_integration(
             .find(|path| fs::symlink_metadata(path).is_ok())
             .expect("legacy path was found");
         return Err(ZdevError::new(format!(
-            "A legacy zdev audit entrypoint exists at {}; rerun this `zdev skill install {}` command with `--force`",
+            "A legacy zdev entrypoint exists at {}; rerun this `zdev skill install {}` command with `--force`",
             legacy.display(),
             integration.harness.as_str()
         )));
@@ -1411,7 +1465,7 @@ mod tests {
             ("unknown.md", "{{unknown}}", "Cannot render"),
             ("invalid.md", "{{", "Cannot parse"),
         ] {
-            let error = render_template(name, source, ("", ""), "", "", "", &workers)
+            let error = render_template(name, source, ("", "", ""), "", "", "", &workers)
                 .expect_err("invalid template must fail");
             assert!(error.to_string().contains(expected));
             assert!(error.to_string().contains(name));

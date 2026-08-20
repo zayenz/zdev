@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-013"
 key = "goal-contract-research"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Define deterministic goals across supported harnesses
@@ -24,13 +24,26 @@ Research current official goal, prompt, command, and session mechanisms in Codex
 
 ## Done when
 
-- [ ] A dated capability matrix cites official or primary sources for every supported harness.
-- [ ] The contract defines the common goal vocabulary, exact record inputs, deterministic ordering, omission rules, and stable human and JSON examples for `zdev goal <area>`.
-- [ ] It settles how generated output is applied to native goal mechanisms, skills, prompts, or explicit fallbacks in each harness.
-- [ ] It defines precedence when a session already has a native goal and specifies failure behavior without hidden mutation.
-- [ ] It ends with implementation acceptance criteria requiring no further product decision.
+- [x] A dated capability matrix cites official or primary sources for every supported harness.
+- [x] The contract defines the common goal vocabulary, exact record inputs, deterministic ordering, omission rules, and stable human and JSON examples for `zdev goal <area>`.
+- [x] It settles how generated output is applied to native goal mechanisms, skills, prompts, or explicit fallbacks in each harness.
+- [x] It defines precedence when a session already has a native goal and specifies failure behavior without hidden mutation.
+- [x] It ends with implementation acceptance criteria requiring no further product decision.
 
 ## Validation
 
 - Check every capability claim and example against current primary documentation.
 - Run `git diff --check`.
+
+## Result
+
+Defined deterministic area-goal projection from existing records, with three reachable states and documented native or fallback behavior across all five harnesses.
+
+Validation:
+
+- Independent source and contract verification passed against 13 primary links; ready, empty, and complete outputs are byte-specified, while invalid dependency graphs remain non-mutating validation errors.
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (78 passed)
+- cargo build --locked
+- git diff --check

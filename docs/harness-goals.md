@@ -1,0 +1,403 @@
+# Deterministic goals across harnesses
+
+Research checked on 2026-08-20. This document separates current harness
+behavior from the proposed zdev contract. Harness features can change; the
+`zdev goal` output must not.
+
+## What the harnesses provide today
+
+| Harness | Observed capability | zdev integration point |
+| --- | --- | --- |
+| Codex | Codex has a session goal command. `/goal <objective>` sets a goal, `/goal` shows it, and `edit`, `pause`, `resume`, and `clear` manage it. The objective is limited to 4,000 characters. The feature can be disabled, so it is not universally available. Codex also loads reusable `SKILL.md` workflows. [Codex developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli), [goal use case](https://learn.chatgpt.com/use-cases/follow-goals), and [skill documentation](https://learn.chatgpt.com/docs/build-skills) (accessed 2026-08-20). | The installed zdev skill can obtain the goal text. It may apply the short native condition when the user explicitly asks for a continuing goal; otherwise it uses the rendered output as ordinary task context. |
+| Claude Code | `/goal` keeps a session running until a model judges a completion condition satisfied. One goal can be active; setting another replaces it. An active goal is restored on session resume, and conditions are limited to 4,000 characters. The evaluator reads the transcript but does not run tools. Plugin skills are namespaced, invocable workflows. [Claude Code goal documentation](https://code.claude.com/docs/en/goal) and [skill documentation](https://code.claude.com/docs/en/slash-commands) (accessed 2026-08-20). | The zdev plugin skill or `/zdev:zdev-task` workflow obtains the goal text. Native `/goal` is optional and only receives the short condition. |
+| OpenCode | The documented extension is a custom command whose Markdown body becomes a prompt. Command templates accept arguments, shell output, and file references. The official command guide documents built-ins such as `/init`, `/undo`, and `/share`, but no native session-goal lifecycle. OpenCode separately persists and resumes sessions. [OpenCode commands](https://opencode.ai/docs/commands/) and [OpenCode CLI sessions](https://dev.opencode.ai/docs/cli) (accessed 2026-08-20). | The packaged `/zdev-task <area>` command, or the zdev skill directly, runs `zdev goal` and supplies its human output as an ordinary prompt. No goal emulation or extra state is needed. |
+| Pi | Pi prompt templates are Markdown expanded into ordinary prompts and invoked as `/name`; project templates live under `.pi/prompts/`. Skills are loaded on demand and can be invoked as `/skill:<name>`. Sessions are persisted as JSONL and can be resumed, but the documented built-in and extension surfaces do not define a native goal lifecycle. [Pi prompt templates](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md), [Pi skills](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md), and [Pi sessions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sessions.md) (accessed 2026-08-20). | The packaged `/zdev-task <area>` prompt or zdev skill runs `zdev goal` and uses the human output as ordinary prompt context. |
+| Oh My Pi | Oh My Pi has a persistent goal runtime. Its create operation refuses to overwrite an unfinished session goal; the runtime supports pause, resume, drop, completion, accounting, and autonomous continuation. Interactive `/goal set <objective>` creates a goal, while `/goal show`, `pause`, `resume`, and `drop` manage it. [Oh My Pi goal runtime](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/goals/runtime.ts), [interactive goal command](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/modes/interactive-mode.ts), and [goal continuation prompt](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/prompts/goals/goal-continuation.md) (accessed 2026-08-20). | The zdev skill obtains the goal text. When explicitly requested and no unfinished native goal exists, it may use `/goal set` with the short condition. Otherwise it uses an ordinary prompt. |
+
+The absence statements above are deliberately narrow: they say what the
+current official documentation exposes, not what a plugin could build. Skills,
+commands, and prompt templates are enough for the zdev behavior, so zdev does
+not need to emulate a native goal.
+
+## Proposed zdev meaning of “goal”
+
+A zdev goal is a read-only, deterministic projection of the next ready task in
+an area. It is not a new lifecycle object.
+
+The common vocabulary is:
+
+- **Area objective**: the durable reason for the area.
+- **Focus task**: the first ready task in the area's existing numeric task
+  order, using the same readiness rule as `zdev next`.
+- **Slice context**: the focus task's optional slice objective and boundaries.
+- **Outcome**: the behavior or artifact the focus task must produce.
+- **Context**: optional recorded background for that task.
+- **Boundaries**: limits recorded on the slice and task. These remain separate
+  so their authority is visible.
+- **Done when**: the task's recorded proof conditions.
+- **Validation**: the task's recorded checks.
+- **Native goal**: a short session condition that points back to the durable
+  records. It is a transport value, not durable zdev state.
+
+This definition intentionally selects one task. It fits zdev's approval,
+independent-verification, and per-task commit boundaries, and it remains useful
+for standing areas such as `general` that are not expected to close. Completing
+the focus task completes this rendered goal; the next goal is obtained by
+running the command again.
+
+### Command
+
+```text
+zdev goal <area>
+zdev goal <area> --format json
+```
+
+`<area>` is required. Unlike `zdev next`, this command does not infer a default
+area and does not require a clean branch or a task-work branch. It reads and
+validates records but never changes files, Git state, or a harness session.
+
+### Exact inputs
+
+The projection reads only current `.zdev` records:
+
+1. `area.toml`: `tag`, `title`, and `objective`.
+2. Every task header in the area: `id`, `key`, `status`, `slice`, and
+   `blocked_by`, plus the task title and the `Outcome`, optional `Context`,
+   optional `Boundaries`, `Done when`, and `Validation` sections.
+3. If the selected task names a slice, that slice's `key`, `title`, `Objective`,
+   and `Boundaries`.
+
+The area `branch`, `parent`, and `base_commit` fields describe workspace
+topology rather than intent and are excluded. Free-form area-brief sections are
+also excluded: the area metadata objective is the structured source for this
+projection. The full area brief remains mandatory reading before
+implementation, as it is today. Task result text and done-task details are not
+goal inputs.
+
+The command uses the existing record parsers and validators. It must not accept
+malformed input merely to produce a partial goal.
+
+### State and ordering
+
+The top-level `state` is one of:
+
+- `ready`: at least one open task has no unfinished blocker. `task` is the
+  first such task.
+- `empty`: the area has no tasks. `task` is `null`.
+- `complete`: tasks exist and all are done. `task` is `null`.
+
+Tasks use the current numeric-ID order, with the full ID as the tie-breaker.
+Each `blocked_by` array retains its authored order. The associated slice is
+read by key. No filesystem enumeration order, clock, current branch, harness,
+model, or Git status enters the output.
+
+A validated acyclic graph with an open task always has at least one ready task:
+the open subgraph has a task whose dependencies are already done. Missing
+blockers, cycles, and malformed graphs fail existing validation before this
+state is projected. There is no successful `blocked` goal state.
+
+The counts are always present and ordered `total`, `open`, `ready`, `blocked`,
+`done`. They describe all tasks, not just the selected task.
+
+### Omission rules
+
+- `task` is always present and is `null` unless `state` is `ready`.
+- `native_goal` is present only for `ready`.
+- `slice` is omitted from the task when the task has no slice.
+- `context` and task `boundaries` are omitted when their Markdown sections are
+  absent. A present validated section is emitted even if another section has
+  the same text.
+- Slice files that are not attached to the selected task are omitted. A slice
+  is context, not executable work; an area containing slices but no tasks is
+  still `empty`.
+- Human output follows the same omissions: it does not print empty headings,
+  `null`, or placeholder slice text.
+
+Markdown section values are trimmed exactly as the existing task and slice
+parsers trim them. Bullet and checklist markers are preserved. This avoids a
+second interpretation of proof conditions.
+
+## Stable output
+
+For the same validated records and zdev version, both formats must be
+byte-for-byte stable and end with one newline. JSON key order follows the
+examples below; pretty printing uses two-space indentation.
+
+Assume `checkout` contains three tasks. `checkout-001` is done,
+`checkout-002` is ready and belongs to the `payments` slice, and
+`checkout-003` is blocked by `checkout-002`.
+
+### Human form
+
+```text
+Area: checkout — Checkout reliability
+State: ready
+Objective:
+Make checkout failures safe and understandable.
+Counts: 3 total; 2 open; 1 ready; 1 blocked; 1 done
+
+Task: checkout-002 — Reject duplicate payment submission
+Task source: .zdev/checkout/tasks/002-reject-duplicate-payment.md
+Outcome:
+A repeated submission returns the original payment result without charging again.
+
+Context:
+The provider can retry after losing our first response.
+
+Slice: payments — Payment submission
+Slice source: .zdev/checkout/slices/payments.md
+Slice objective:
+Make payment submission safe to retry.
+Slice boundaries:
+- Do not change provider selection.
+
+Boundaries:
+- Keep the public response schema unchanged.
+
+Done when:
+- [ ] Duplicate provider calls are prevented.
+- [ ] The original result is returned.
+
+Validation:
+- Run the focused payment integration test.
+
+Native goal:
+Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.
+```
+
+The native condition is rendered from a fixed sentence template. For an
+unsliced task, the slice path and its preceding comma are omitted. Paths are
+repository-relative and use `/` separators.
+
+### JSON form
+
+```json
+{
+  "schema_version": 1,
+  "area": {
+    "tag": "checkout",
+    "title": "Checkout reliability",
+    "objective": "Make checkout failures safe and understandable.",
+    "path": ".zdev/checkout"
+  },
+  "state": "ready",
+  "counts": {
+    "total": 3,
+    "open": 2,
+    "ready": 1,
+    "blocked": 1,
+    "done": 1
+  },
+  "task": {
+    "id": "checkout-002",
+    "key": "reject-duplicate-payment",
+    "title": "Reject duplicate payment submission",
+    "path": ".zdev/checkout/tasks/002-reject-duplicate-payment.md",
+    "outcome": "A repeated submission returns the original payment result without charging again.",
+    "context": "The provider can retry after losing our first response.",
+    "boundaries": "- Keep the public response schema unchanged.",
+    "done_when": "- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.",
+    "validation": "- Run the focused payment integration test.",
+    "blocked_by": [],
+    "slice": {
+      "key": "payments",
+      "title": "Payment submission",
+      "path": ".zdev/checkout/slices/payments.md",
+      "objective": "Make payment submission safe to retry.",
+      "boundaries": "- Do not change provider selection."
+    }
+  },
+  "native_goal": "Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision."
+}
+```
+
+### No executable work
+
+These are successful observations with exit code 0, not errors:
+
+- `empty` means that no tasks are recorded.
+- `complete` means that tasks exist and all are done.
+
+The following fixtures define their complete byte-level output, including the
+area header, objective, counts, blank lines, key order, and final newline.
+
+#### Empty human form
+
+```text
+Area: general — General improvements
+State: empty
+Objective:
+Capture small approved improvements without inventing a product roadmap.
+Counts: 0 total; 0 open; 0 ready; 0 blocked; 0 done
+
+No tasks are recorded. Create and approve a task before applying a harness goal.
+```
+
+#### Empty JSON form
+
+```json
+{
+  "schema_version": 1,
+  "area": {
+    "tag": "general",
+    "title": "General improvements",
+    "objective": "Capture small approved improvements without inventing a product roadmap.",
+    "path": ".zdev/general"
+  },
+  "state": "empty",
+  "counts": {
+    "total": 0,
+    "open": 0,
+    "ready": 0,
+    "blocked": 0,
+    "done": 0
+  },
+  "task": null
+}
+```
+
+#### Complete human form
+
+```text
+Area: release-notes — Release notes
+State: complete
+Objective:
+Keep shipped behavior documented for users.
+Counts: 2 total; 0 open; 0 ready; 0 blocked; 2 done
+
+No open tasks remain.
+```
+
+#### Complete JSON form
+
+```json
+{
+  "schema_version": 1,
+  "area": {
+    "tag": "release-notes",
+    "title": "Release notes",
+    "objective": "Keep shipped behavior documented for users.",
+    "path": ".zdev/release-notes"
+  },
+  "state": "complete",
+  "counts": {
+    "total": 2,
+    "open": 0,
+    "ready": 0,
+    "blocked": 0,
+    "done": 2
+  },
+  "task": null
+}
+```
+
+No native condition is generated for these two states. An adapter must report
+the state and stop rather than inventing work from an area objective or an
+unattached slice.
+
+## Applying the output in a harness
+
+The portable behavior is an ordinary prompt. Native goal mode is an optional
+execution aid and is used only when the user explicitly asks to set or apply a
+continuing goal.
+
+Every adapter follows this order:
+
+1. Run `zdev goal <area> --format json` and check the command result.
+2. If the state is `empty` or `complete`, report it and do not start a native
+   goal.
+3. On a harness with native goals, inspect the current native goal before
+   applying any generated context. An active, paused, budget-limited, or
+   otherwise unfinished native goal wins. Do not edit, clear, replace, or layer
+   an ordinary task prompt over it. Report the conflict and ask the user to keep
+   it or explicitly clear/replace it.
+4. If ordinary task work was requested and no native-goal conflict exists,
+   run `zdev goal <area>` and pass that human rendering to the zdev workflow as
+   current context. The adapter does not reproduce the text renderer.
+5. If a native goal was explicitly requested and none exists, apply the exact
+   `native_goal` string. If the feature is absent, disabled, or unavailable in
+   that surface, fall back to the ordinary prompt and say that no native
+   continuation was started.
+
+The harness-specific application is:
+
+- **Codex:** inspect `/goal`; if clear and a native goal was requested, run
+  `/goal <native_goal>`. When native mode is not requested or is unavailable,
+  use the zdev skill as an ordinary prompt. Codex's own guidance says goals
+  suit substantial work with a clear stopping condition and validation loop,
+  which is why zdev sends the task-sized condition rather than the whole area
+  backlog.
+- **Claude Code:** inspect `/goal`; if clear and a native goal was requested,
+  run `/goal <native_goal>`. This check is load-bearing because Claude Code
+  replaces an active goal when a new condition is supplied. The plugin skill or
+  `/zdev:zdev-task <area>` remains the ordinary-prompt path.
+- **OpenCode:** use the zdev skill or `/zdev-task <area>` command to run the
+  binary and place the human output in the normal prompt. Do not create a
+  project file or plugin-owned goal to imitate a native feature.
+- **Pi:** use the zdev skill or `/zdev-task <area>` prompt template to run the
+  binary and place the human output in the normal prompt. The persisted session
+  transcript carries that prompt; no separate goal record is written.
+- **Oh My Pi:** inspect `/goal show`; if clear and a native goal was requested,
+  run `/goal set <native_goal>`. When native mode is not requested or is
+  unavailable and no conflict exists, use the zdev skill with an ordinary
+  prompt. Do not call the runtime's replacement or drop operation implicitly.
+
+Native goal completion never marks a zdev task done and never commits. The
+coordinator still performs current-state validation, independent verification,
+`zdev task done`, and `zdev commit` under the existing workflow. Conversely,
+changing a zdev record does not silently rewrite a session goal. Rerun
+`zdev goal`; replacing an already-applied native goal requires an explicit user
+decision.
+
+## Failure behavior
+
+Missing repositories or areas, unreadable files, invalid schemas, malformed
+Markdown sections, invalid dependencies, and missing referenced slices are
+command errors. Text mode writes the normal `error: ...` form to standard error.
+JSON mode uses zdev's existing error envelope with `schema_version`, `command`,
+`ok: false`, and `error`. Both return nonzero and write no successful payload.
+
+In particular, a missing blocker or dependency cycle fails the existing graph
+validator. If open tasks somehow remain with no ready task after validation,
+that is a malformed internal projection and also fails; it is not rendered as
+a fourth state.
+
+Failure is non-mutating. `zdev goal` does not acquire a write lock, repair an
+index, create a task, update status, touch Git, or call a harness. An adapter
+must parse a successful complete JSON document before sending any prompt or
+native-goal command. On command or parse failure it leaves the current session
+goal unchanged and reports the error.
+
+## Narrow implementation seam
+
+Add one read-only `Goal` CLI variant routed from `src/lib.rs` to a small goal
+projection/rendering module. Reuse the existing area, slice, task, Markdown,
+dependency, and ordering logic through narrow internal read views; do not parse
+the files a second way. The module should return the ordinary `CommandOutput`
+with typed serializable fields and render the fixed native condition. It needs
+no storage, lifecycle service, model call, Git operation, or harness detector.
+
+Update the five canonical integration templates only to teach them the adapter
+order above, then regenerate checked-in integrations with the existing
+generator. A native goal API is not part of the binary seam.
+
+Implementation is accepted when:
+
+1. `zdev goal <area>` and JSON mode match the fields, ordering, omissions,
+   state rules, and canonical bytes shown for the three reachable states in
+   this document.
+2. Selection is identical to `zdev next` for the same valid task graph, without
+   enforcing branch-work gates.
+3. Ready goals include the exact structured area, optional slice, and task
+   content plus the bounded native condition; no-work states never invent one.
+4. Repeated runs over unchanged records produce identical bytes.
+5. Invalid input returns the existing text or JSON error contract and leaves
+   files, Git, and session state unchanged.
+6. Each generated harness integration uses ordinary prompts everywhere and the
+   documented native mechanism only when available and explicitly requested.
+7. Each native adapter preserves an unfinished session goal and reports the
+   conflict instead of replacing it.
+8. Focused black-box coverage proves ready output, an unsliced omission, the
+   empty and complete states, deterministic reruns, and representative
+   non-mutating malformed-dependency failure. Existing full validation remains
+   green.

@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-029"
 key = "design-derived-work-handoffs"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Define safe derived tasks without repeated approval ceremony
@@ -26,14 +26,14 @@ Task-bundle approval is optional in the binary but workflow guidance treats revi
 
 ## Done when
 
-- [ ] The contract defines when investigation success may add follow-up tasks automatically and when explicit approval remains mandatory.
-- [ ] It defines a structured worker-to-coordinator proposal envelope and fail-closed parsing.
-- [ ] It settles implementation splitting semantics: original-task status, child dependencies, ready ordering, completion eligibility, and whether new metadata is necessary.
-- [ ] It defines duplicate detection and how derived tasks relate to existing slices and task keys.
-- [ ] It defines atomic validation, import, and commit behavior plus exact rollback on proposal, graph, publication, or commit failure.
-- [ ] It defines what the user sees before and after automatic derivation without requiring a redundant confirmation turn.
-- [ ] It defines limits on task count, recursive splitting, repeated derivation, and scope growth.
-- [ ] It maps the smallest changes to workflow guidance and existing import and commit seams, with follow-up implementation tasks.
+- [x] The contract defines when investigation success may add follow-up tasks automatically and when explicit approval remains mandatory.
+- [x] It defines a structured worker-to-coordinator proposal envelope and fail-closed parsing.
+- [x] It settles implementation splitting semantics: original-task status, child dependencies, ready ordering, completion eligibility, and whether new metadata is necessary.
+- [x] It defines duplicate detection and how derived tasks relate to existing slices and task keys.
+- [x] It defines atomic validation, import, and commit behavior plus exact rollback on proposal, graph, publication, or commit failure.
+- [x] It defines what the user sees before and after automatic derivation without requiring a redundant confirmation turn.
+- [x] It defines limits on task count, recursive splitting, repeated derivation, and scope growth.
+- [x] It maps the smallest changes to workflow guidance and existing import and commit seams, with follow-up implementation tasks.
 
 ## Validation
 
@@ -41,3 +41,13 @@ Task-bundle approval is optional in the binary but workflow guidance treats revi
 - Compare against the current bundle fingerprint, state lock, managed import, rollback, and coordinator ownership contracts.
 - Confirm that existing manually reviewed import remains available.
 - Run documentation validation only.
+
+## Result
+
+Defined a fail-closed derived-work handoff that lets the coordinator atomically publish in-scope investigation follow-ups and implementation splits without a redundant approval turn.
+
+Validation:
+
+- Independent verifier PASS after checking authority limits, split ownership, task semantics, atomicity, rollback, all required scenarios, and implementation seams.
+- cargo test --locked --test documentation-contract passed.
+- cargo fmt and git diff --check passed.

@@ -93,6 +93,25 @@ stops implementation, verification, completion, and commit preparation.
 Keep existing Git changes in place. Establish ownership before touching an
 overlapping path or changing the index.
 
+## Write human-facing prose plainly
+
+When composing or revising human-facing prose written for zdev, preserve the
+meaning and match the intended tone. Prefer specific facts and plain words.
+Remove puffery, promotional claims, vague attribution, canned chatbot phrases,
+excessive hedging, forced parallel structure, synonym cycling, and decorative
+formatting. Keep a natural sentence rhythm, repeat stable repository terms, and
+use emphasis only when it helps. Reread the draft for formulaic AI phrasing and
+fix any remaining tells.
+
+This editorial pass does not apply to user quotations or source text. Never use
+it to rewrite code, commands, paths, literals, JSON, TOML, YAML, frontmatter,
+generated records, or approved task content. Semantic accuracy, repository
+terminology, explicit user instructions, and the area, slice, and task contracts
+take priority over style preferences.
+
+This guidance adapts Lauren Tan's MIT-licensed Poteto Noodle `unslop` method at
+commit `82d2921c52370f23f29086de81ccfb600939c037`.
+
 ## State and reporting
 
 Store only metadata, `brief.md`, optional slice briefs, task files, and generated

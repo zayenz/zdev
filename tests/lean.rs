@@ -2891,8 +2891,14 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                 second.to_str().expect("second integration destination"),
             ],
         );
-        assert_eq!(file_inventory(&destination), file_inventory(&second));
-        for path in file_inventory(&destination) {
+        let inventory = file_inventory(&destination);
+        assert_eq!(inventory, file_inventory(&second));
+        assert!(
+            inventory.iter().all(|path| !path.contains("unslop")),
+            "{harness} must not install a separate unslop artifact"
+        );
+        let mut prose_guidance_occurrences = 0;
+        for path in inventory {
             let rendered = fs::read(destination.join(&path)).expect("rendered integration file");
             assert_eq!(
                 rendered,
@@ -2911,6 +2917,12 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                     "{harness} integration file {path} retained {expression}"
                 );
             }
+            prose_guidance_occurrences +=
+                text.matches("## Write human-facing prose plainly").count();
+            assert!(
+                !text.contains("name: unslop"),
+                "{harness} must not advertise a separate unslop skill"
+            );
             if let Some(checked_in_root) = checked_in_root {
                 assert_eq!(
                     rendered,
@@ -2920,6 +2932,10 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                 );
             }
         }
+        assert_eq!(
+            prose_guidance_occurrences, 1,
+            "{harness} must contain the shared prose guidance exactly once"
+        );
     }
 
     for (path, bytes) in canonical {
@@ -2927,6 +2943,38 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
             fs::read(source.join(path)).expect("canonical template after realization"),
             bytes,
             "realization changed canonical source {path}"
+        );
+    }
+}
+
+#[test]
+fn adapted_prose_guidance_records_its_scope_and_attribution() {
+    let guidance = include_str!("../templates/zdev/shared-contract.md");
+    for required in [
+        "human-facing prose written for zdev",
+        "user quotations or source text",
+        "code, commands, paths, literals, JSON, TOML, YAML, frontmatter",
+        "generated records, or approved task content",
+        "Semantic accuracy, repository",
+        "82d2921c52370f23f29086de81ccfb600939c037",
+    ] {
+        assert!(
+            guidance.contains(required),
+            "missing scope rule: {required}"
+        );
+    }
+
+    let attribution = include_str!("../docs/adapted-methods.md");
+    for required in [
+        "https://github.com/poteto/noodle/blob/82d2921c52370f23f29086de81ccfb600939c037/.agents/skills/unslop/SKILL.md",
+        "MIT license",
+        "Copyright (c) 2026 Lauren Tan",
+        "remain original zdev guidance",
+        "manual review against a newly pinned revision",
+    ] {
+        assert!(
+            attribution.contains(required),
+            "missing attribution: {required}"
         );
     }
 }

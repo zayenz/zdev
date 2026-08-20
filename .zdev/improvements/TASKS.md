@@ -3,12 +3,12 @@
 # Tasks: improvements
 
 - Total: 3
-- Ready: 3
+- Ready: 2
 - Blocked: 0
-- Done: 0
+- Done: 1
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
-| [improvements-001](tasks/001-isolate-harness-integration-behavior.md) | Isolate harness integration behavior | ready | — |
+| [improvements-001](tasks/001-isolate-harness-integration-behavior.md) | Isolate harness integration behavior | done | — |
 | [improvements-002](tasks/002-isolate-the-durable-task-record-workflow.md) | Isolate the durable task-record workflow | ready | — |
 | [improvements-003](tasks/003-isolate-project-and-area-lifecycle-behavior.md) | Isolate project and area lifecycle behavior | ready | — |

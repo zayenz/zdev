@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-001"
 key = "integrations-module"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Isolate harness integration behavior
@@ -25,12 +25,21 @@ Harness code is currently split between embedded template and inventory construc
 
 ## Done when
 
-- [ ] Harness integration implementation has one clear home in `src/integrations.rs`.
-- [ ] The CLI shell reaches harness behavior through a small command-level interface rather than integration internals spread through `src/lib.rs`.
-- [ ] Existing harness and guidance behavior remains unchanged.
-- [ ] No tests are added solely because code moved.
+- [x] Harness integration implementation has one clear home in `src/integrations.rs`.
+- [x] The CLI shell reaches harness behavior through a small command-level interface rather than integration internals spread through `src/lib.rs`.
+- [x] Existing harness and guidance behavior remains unchanged.
+- [x] No tests are added solely because code moved.
 
 ## Validation
 
 - Run `cargo test --locked --test lean`.
 - Run the full validation set in `brief.md`.
+
+## Result
+
+Isolated harness integration behavior in a cohesive internal module and independently verified behavioral preservation.
+
+Validation:
+
+- Focused lean integration suite passed: 65 tests.
+- Full repository validation passed: format, Clippy, 66 tests, build, and diff check.

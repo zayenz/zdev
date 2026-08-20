@@ -77,14 +77,18 @@ goal inputs.
 The command uses the existing record parsers and validators. It must not accept
 malformed input merely to produce a partial goal.
 
-### State and ordering
+### Lifecycle, queue, and ordering
 
-The top-level `state` is one of:
+The top-level `lifecycle` is the durable area value, `open` or `closed`. The
+derived `queue` is one of:
 
 - `ready`: at least one open task has no unfinished blocker. `task` is the
   first such task.
 - `empty`: the area has no tasks. `task` is `null`.
-- `complete`: tasks exist and all are done. `task` is `null`.
+- `exhausted`: tasks exist and all are done. `task` is `null`.
+
+A closed area reports `queue: empty` or `queue: exhausted`, according to its
+records, and never selects a task.
 
 Tasks use the current numeric-ID order, with the full ID as the tie-breaker.
 Each `blocked_by` array retains its authored order. The associated slice is
@@ -94,14 +98,15 @@ model, or Git status enters the output.
 A validated acyclic graph with an open task always has at least one ready task:
 the open subgraph has a task whose dependencies are already done. Missing
 blockers, cycles, and malformed graphs fail existing validation before this
-state is projected. There is no successful `blocked` goal state.
+queue is projected. There is no successful `blocked` goal queue.
 
 The counts are always present and ordered `total`, `open`, `ready`, `blocked`,
 `done`. They describe all tasks, not just the selected task.
 
 ### Omission rules
 
-- `task` is always present and is `null` unless `state` is `ready`.
+- `task` is always present and is `null` unless `lifecycle` is `open` and
+  `queue` is `ready`.
 - `native_goal` is present only for `ready`.
 - `slice` is omitted from the task when the task has no slice.
 - `context` and task `boundaries` are omitted when their Markdown sections are
@@ -131,7 +136,8 @@ Assume `checkout` contains three tasks. `checkout-001` is done,
 
 ```text
 Area: checkout — Checkout reliability
-State: ready
+Lifecycle: open
+Queue: ready
 Objective:
 Make checkout failures safe and understandable.
 Counts: 3 total; 2 open; 1 ready; 1 blocked; 1 done
@@ -180,7 +186,8 @@ repository-relative and use `/` separators.
     "objective": "Make checkout failures safe and understandable.",
     "path": ".zdev/checkout"
   },
-  "state": "ready",
+  "lifecycle": "open",
+  "queue": "ready",
   "counts": {
     "total": 3,
     "open": 2,
@@ -215,8 +222,12 @@ repository-relative and use `/` separators.
 
 These are successful observations with exit code 0, not errors:
 
-- `empty` means that no tasks are recorded.
-- `complete` means that tasks exist and all are done.
+- `open` / `empty` means that no tasks are recorded and the objective remains
+  open.
+- `open` / `exhausted` means that tasks exist and all are done, but the area
+  has not been explicitly closed.
+- `closed` is an explicit lifecycle decision, not a synonym for queue
+  exhaustion.
 
 The following fixtures define their complete byte-level output, including the
 area header, objective, counts, blank lines, key order, and final newline.
@@ -225,12 +236,13 @@ area header, objective, counts, blank lines, key order, and final newline.
 
 ```text
 Area: general — General improvements
-State: empty
+Lifecycle: open
+Queue: empty
 Objective:
 Capture small approved improvements without inventing a product roadmap.
 Counts: 0 total; 0 open; 0 ready; 0 blocked; 0 done
 
-No tasks are recorded. Create and approve a task before applying a harness goal.
+The open area has no tasks. Create and approve a task, or close the area.
 ```
 
 #### Empty JSON form
@@ -244,7 +256,8 @@ No tasks are recorded. Create and approve a task before applying a harness goal.
     "objective": "Capture small approved improvements without inventing a product roadmap.",
     "path": ".zdev/general"
   },
-  "state": "empty",
+  "lifecycle": "open",
+  "queue": "empty",
   "counts": {
     "total": 0,
     "open": 0,
@@ -256,19 +269,20 @@ No tasks are recorded. Create and approve a task before applying a harness goal.
 }
 ```
 
-#### Complete human form
+#### Exhausted human form
 
 ```text
 Area: release-notes — Release notes
-State: complete
+Lifecycle: open
+Queue: exhausted
 Objective:
 Keep shipped behavior documented for users.
 Counts: 2 total; 0 open; 0 ready; 0 blocked; 2 done
 
-No open tasks remain.
+The open area's task queue is exhausted. Add approved work, reopen a task, or close the area.
 ```
 
-#### Complete JSON form
+#### Exhausted JSON form
 
 ```json
 {
@@ -279,7 +293,8 @@ No open tasks remain.
     "objective": "Keep shipped behavior documented for users.",
     "path": ".zdev/release-notes"
   },
-  "state": "complete",
+  "lifecycle": "open",
+  "queue": "exhausted",
   "counts": {
     "total": 2,
     "open": 0,
@@ -291,9 +306,46 @@ No open tasks remain.
 }
 ```
 
-No native condition is generated for these two states. An adapter must report
-the state and stop rather than inventing work from an area objective or an
-unattached slice.
+#### Closed human form
+
+```text
+Area: release-notes — Release notes
+Lifecycle: closed
+Queue: exhausted
+Objective:
+Keep shipped behavior documented for users.
+Counts: 2 total; 0 open; 0 ready; 0 blocked; 2 done
+
+The area is closed. Reopen it before adding or selecting work.
+```
+
+#### Closed JSON form
+
+```json
+{
+  "schema_version": 1,
+  "area": {
+    "tag": "release-notes",
+    "title": "Release notes",
+    "objective": "Keep shipped behavior documented for users.",
+    "path": ".zdev/release-notes"
+  },
+  "lifecycle": "closed",
+  "queue": "exhausted",
+  "counts": {
+    "total": 2,
+    "open": 0,
+    "ready": 0,
+    "blocked": 0,
+    "done": 2
+  },
+  "task": null
+}
+```
+
+No native condition is generated for no-work states. An adapter must report
+the lifecycle and queue and stop rather than inventing work from an area
+objective or an unattached slice.
 
 ## Applying the output in a harness
 
@@ -304,7 +356,7 @@ continuing goal.
 Every adapter follows this order:
 
 1. Run `zdev goal <area> --format json` and check the command result.
-2. If the state is `empty` or `complete`, report it and do not start a native
+2. Unless lifecycle is `open` and queue is `ready`, report the result and do not start a native
    goal.
 3. On a harness with native goals, inspect the current native goal before
    applying any generated context. An active, paused, budget-limited, or
@@ -384,7 +436,8 @@ generator. A native goal API is not part of the binary seam.
 Implementation is accepted when:
 
 1. `zdev goal <area>` and JSON mode match the fields, ordering, omissions,
-   state rules, and canonical bytes shown for the three reachable states in
+   lifecycle and queue rules, and canonical bytes shown for the reachable
+   projections in
    this document.
 2. Selection is identical to `zdev next` for the same valid task graph, without
    enforcing branch-work gates.
@@ -398,6 +451,6 @@ Implementation is accepted when:
 7. Each native adapter preserves an unfinished session goal and reports the
    conflict instead of replacing it.
 8. Focused black-box coverage proves ready output, an unsliced omission, the
-   empty and complete states, deterministic reruns, and representative
+   open-empty, open-exhausted, and closed states, deterministic reruns, and representative
    non-mutating malformed-dependency failure. Existing full validation remains
    green.

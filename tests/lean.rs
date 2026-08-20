@@ -27,6 +27,17 @@ fn json_output(root: &Path, arguments: &[&str]) -> Value {
     serde_json::from_slice(&output.stdout).expect("JSON output")
 }
 
+fn assert_pretty_json(output: &Output, expected: Value) {
+    assert!(
+        output.status.success(),
+        "zdev failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let mut bytes = serde_json::to_vec_pretty(&expected).expect("expected JSON");
+    bytes.push(b'\n');
+    assert_eq!(output.stdout, bytes);
+}
+
 fn json_output_with_stdin(root: &Path, arguments: &[&str], input: &[u8]) -> Value {
     let output = json_output_with_stdin_status(root, arguments, input);
     assert!(
@@ -277,7 +288,7 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
     assert_eq!(first.stdout, second.stdout);
     let native_goal = "Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.";
     let expected_text = format!(
-        "Area: checkout — Checkout reliability\nState: ready\nObjective:\nMake checkout failures safe and understandable.\nCounts: 3 total; 2 open; 1 ready; 1 blocked; 1 done\n\nTask: checkout-002 — Reject duplicate payment submission\nTask source: .zdev/checkout/tasks/002-reject-duplicate-payment.md\nOutcome:\nA repeated submission returns the original payment result without charging again.\n\nContext:\nThe provider can retry after losing our first response.\n\nSlice: payments — Payment submission\nSlice source: .zdev/checkout/slices/payments.md\nSlice objective:\nMake payment submission safe to retry.\nSlice boundaries:\n- Do not change provider selection.\n\nBoundaries:\n- Keep the public response schema unchanged.\n\nDone when:\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\nValidation:\n- Run the focused payment integration test.\n\nNative goal:\n{native_goal}\n"
+        "Area: checkout — Checkout reliability\nLifecycle: open\nQueue: ready\nObjective:\nMake checkout failures safe and understandable.\nCounts: 3 total; 2 open; 1 ready; 1 blocked; 1 done\n\nTask: checkout-002 — Reject duplicate payment submission\nTask source: .zdev/checkout/tasks/002-reject-duplicate-payment.md\nOutcome:\nA repeated submission returns the original payment result without charging again.\n\nContext:\nThe provider can retry after losing our first response.\n\nSlice: payments — Payment submission\nSlice source: .zdev/checkout/slices/payments.md\nSlice objective:\nMake payment submission safe to retry.\nSlice boundaries:\n- Do not change provider selection.\n\nBoundaries:\n- Keep the public response schema unchanged.\n\nDone when:\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\nValidation:\n- Run the focused payment integration test.\n\nNative goal:\n{native_goal}\n"
     );
     assert_eq!(first.stdout, expected_text.as_bytes());
 
@@ -285,13 +296,13 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
     let json_second = run_zdev(root, &["goal", "checkout", "--format", "json"]);
     assert_eq!(json_first.stdout, json_second.stdout);
     let expected_json = format!(
-        "{{\n  \"schema_version\": 1,\n  \"area\": {{\n    \"tag\": \"checkout\",\n    \"title\": \"Checkout reliability\",\n    \"objective\": \"Make checkout failures safe and understandable.\",\n    \"path\": \".zdev/checkout\"\n  }},\n  \"state\": \"ready\",\n  \"counts\": {{\n    \"total\": 3,\n    \"open\": 2,\n    \"ready\": 1,\n    \"blocked\": 1,\n    \"done\": 1\n  }},\n  \"task\": {{\n    \"id\": \"checkout-002\",\n    \"key\": \"reject-duplicate-payment\",\n    \"title\": \"Reject duplicate payment submission\",\n    \"path\": \".zdev/checkout/tasks/002-reject-duplicate-payment.md\",\n    \"outcome\": \"A repeated submission returns the original payment result without charging again.\",\n    \"context\": \"The provider can retry after losing our first response.\",\n    \"boundaries\": \"- Keep the public response schema unchanged.\",\n    \"done_when\": \"- [ ] Duplicate provider calls are prevented.\\n- [ ] The original result is returned.\",\n    \"validation\": \"- Run the focused payment integration test.\",\n    \"blocked_by\": [],\n    \"slice\": {{\n      \"key\": \"payments\",\n      \"title\": \"Payment submission\",\n      \"path\": \".zdev/checkout/slices/payments.md\",\n      \"objective\": \"Make payment submission safe to retry.\",\n      \"boundaries\": \"- Do not change provider selection.\"\n    }}\n  }},\n  \"native_goal\": \"{native_goal}\"\n}}\n"
+        "{{\n  \"schema_version\": 1,\n  \"area\": {{\n    \"tag\": \"checkout\",\n    \"title\": \"Checkout reliability\",\n    \"objective\": \"Make checkout failures safe and understandable.\",\n    \"path\": \".zdev/checkout\"\n  }},\n  \"lifecycle\": \"open\",\n  \"queue\": \"ready\",\n  \"counts\": {{\n    \"total\": 3,\n    \"open\": 2,\n    \"ready\": 1,\n    \"blocked\": 1,\n    \"done\": 1\n  }},\n  \"task\": {{\n    \"id\": \"checkout-002\",\n    \"key\": \"reject-duplicate-payment\",\n    \"title\": \"Reject duplicate payment submission\",\n    \"path\": \".zdev/checkout/tasks/002-reject-duplicate-payment.md\",\n    \"outcome\": \"A repeated submission returns the original payment result without charging again.\",\n    \"context\": \"The provider can retry after losing our first response.\",\n    \"boundaries\": \"- Keep the public response schema unchanged.\",\n    \"done_when\": \"- [ ] Duplicate provider calls are prevented.\\n- [ ] The original result is returned.\",\n    \"validation\": \"- Run the focused payment integration test.\",\n    \"blocked_by\": [],\n    \"slice\": {{\n      \"key\": \"payments\",\n      \"title\": \"Payment submission\",\n      \"path\": \".zdev/checkout/slices/payments.md\",\n      \"objective\": \"Make payment submission safe to retry.\",\n      \"boundaries\": \"- Do not change provider selection.\"\n    }}\n  }},\n  \"native_goal\": \"{native_goal}\"\n}}\n"
     );
     assert_eq!(json_first.stdout, expected_json.as_bytes());
 }
 
 #[test]
-fn goal_handles_empty_unsliced_and_complete_states() {
+fn goal_handles_empty_unsliced_and_exhausted_states() {
     let repository = repository();
     let root = repository.path();
     json_output(root, &["init", "--record", "project"]);
@@ -310,15 +321,16 @@ fn goal_handles_empty_unsliced_and_complete_states() {
     let empty = run_zdev(root, &["goal", "general"]);
     assert_eq!(
         String::from_utf8(empty.stdout).expect("empty goal"),
-        "Area: general — General improvements\nState: empty\nObjective:\nCapture small approved improvements without inventing a product roadmap.\nCounts: 0 total; 0 open; 0 ready; 0 blocked; 0 done\n\nNo tasks are recorded. Create and approve a task before applying a harness goal.\n"
+        "Area: general — General improvements\nLifecycle: open\nQueue: empty\nObjective:\nCapture small approved improvements without inventing a product roadmap.\nCounts: 0 total; 0 open; 0 ready; 0 blocked; 0 done\n\nThe open area has no tasks. Create and approve a task, or close the area.\n"
     );
     let empty_output = run_zdev(root, &["goal", "general", "--format", "json"]);
     assert_eq!(
         empty_output.stdout,
-        b"{\n  \"schema_version\": 1,\n  \"area\": {\n    \"tag\": \"general\",\n    \"title\": \"General improvements\",\n    \"objective\": \"Capture small approved improvements without inventing a product roadmap.\",\n    \"path\": \".zdev/general\"\n  },\n  \"state\": \"empty\",\n  \"counts\": {\n    \"total\": 0,\n    \"open\": 0,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"done\": 0\n  },\n  \"task\": null\n}\n"
+        b"{\n  \"schema_version\": 1,\n  \"area\": {\n    \"tag\": \"general\",\n    \"title\": \"General improvements\",\n    \"objective\": \"Capture small approved improvements without inventing a product roadmap.\",\n    \"path\": \".zdev/general\"\n  },\n  \"lifecycle\": \"open\",\n  \"queue\": \"empty\",\n  \"counts\": {\n    \"total\": 0,\n    \"open\": 0,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"done\": 0\n  },\n  \"task\": null\n}\n"
     );
     let empty_json: Value = serde_json::from_slice(&empty_output.stdout).expect("empty JSON");
-    assert_eq!(empty_json["state"], "empty");
+    assert_eq!(empty_json["lifecycle"], "open");
+    assert_eq!(empty_json["queue"], "empty");
     assert_eq!(empty_json["task"], Value::Null);
     assert!(empty_json.get("native_goal").is_none());
 
@@ -349,16 +361,17 @@ fn goal_handles_empty_unsliced_and_complete_states() {
     let complete = run_zdev(root, &["goal", "general"]);
     assert_eq!(
         String::from_utf8(complete.stdout).expect("complete goal"),
-        "Area: general — General improvements\nState: complete\nObjective:\nCapture small approved improvements without inventing a product roadmap.\nCounts: 1 total; 0 open; 0 ready; 0 blocked; 1 done\n\nNo open tasks remain.\n"
+        "Area: general — General improvements\nLifecycle: open\nQueue: exhausted\nObjective:\nCapture small approved improvements without inventing a product roadmap.\nCounts: 1 total; 0 open; 0 ready; 0 blocked; 1 done\n\nThe open area's task queue is exhausted. Add approved work, reopen a task, or close the area.\n"
     );
     let complete_output = run_zdev(root, &["goal", "general", "--format", "json"]);
     assert_eq!(
         complete_output.stdout,
-        b"{\n  \"schema_version\": 1,\n  \"area\": {\n    \"tag\": \"general\",\n    \"title\": \"General improvements\",\n    \"objective\": \"Capture small approved improvements without inventing a product roadmap.\",\n    \"path\": \".zdev/general\"\n  },\n  \"state\": \"complete\",\n  \"counts\": {\n    \"total\": 1,\n    \"open\": 0,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"done\": 1\n  },\n  \"task\": null\n}\n"
+        b"{\n  \"schema_version\": 1,\n  \"area\": {\n    \"tag\": \"general\",\n    \"title\": \"General improvements\",\n    \"objective\": \"Capture small approved improvements without inventing a product roadmap.\",\n    \"path\": \".zdev/general\"\n  },\n  \"lifecycle\": \"open\",\n  \"queue\": \"exhausted\",\n  \"counts\": {\n    \"total\": 1,\n    \"open\": 0,\n    \"ready\": 0,\n    \"blocked\": 0,\n    \"done\": 1\n  },\n  \"task\": null\n}\n"
     );
     let complete_json: Value =
         serde_json::from_slice(&complete_output.stdout).expect("complete JSON");
-    assert_eq!(complete_json["state"], "complete");
+    assert_eq!(complete_json["lifecycle"], "open");
+    assert_eq!(complete_json["queue"], "exhausted");
     assert_eq!(complete_json["task"], Value::Null);
     assert!(complete_json.get("native_goal").is_none());
 }
@@ -474,7 +487,7 @@ fn next_any_selects_ready_work_across_areas_without_changing_git_state() {
 }
 
 #[test]
-fn next_any_distinguishes_complete_work_from_unsafe_open_work() {
+fn next_any_distinguishes_exhausted_work_from_unsafe_open_work() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -483,13 +496,14 @@ fn next_any_distinguishes_complete_work_from_unsafe_open_work() {
     create_area(root, "complete", "main");
 
     let complete = json_output(root, &["next", "--any"]);
-    assert_eq!(complete["status"], "complete");
+    assert_eq!(complete["selection"], "none");
+    assert_eq!(complete["reason"], "no-ready-open-area");
     assert_eq!(complete["task"], Value::Null);
 
     create_area(root, "unsafe", "missing-branch");
     import_one_task(root, "unsafe");
     let unsafe_work = json_output(root, &["next", "--any"]);
-    assert_eq!(unsafe_work["status"], "unsafe");
+    assert_eq!(unsafe_work["selection"], "unsafe");
     assert_eq!(unsafe_work["skipped"][0]["area"], "unsafe");
     assert!(
         unsafe_work["skipped"][0]["diagnostics"]
@@ -497,6 +511,247 @@ fn next_any_distinguishes_complete_work_from_unsafe_open_work() {
             .expect("unsafe diagnostics")
             .contains(&json!("area-branch-missing"))
     );
+}
+
+#[test]
+fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+
+    let metadata_path = root.join(".zdev/general/area.toml");
+    let metadata = fs::read_to_string(&metadata_path).expect("area metadata");
+    assert!(metadata.contains("lifecycle = \"open\""));
+    let legacy = metadata
+        .lines()
+        .filter(|line| !line.starts_with("lifecycle = "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&metadata_path, format!("{legacy}\n")).expect("legacy area metadata");
+    assert_eq!(
+        json_output(root, &["status", "general"])["lifecycle"],
+        "open"
+    );
+
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["area", "close", "general"]).stdout)
+            .expect("close text"),
+        "Closed area general\n"
+    );
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["area", "reopen", "general"]).stdout)
+            .expect("reopen text"),
+        "Reopened area general\n"
+    );
+    let close_output = run_zdev(root, &["area", "close", "general", "--format", "json"]);
+    let closed: Value = serde_json::from_slice(&close_output.stdout).expect("close JSON");
+    assert_pretty_json(
+        &close_output,
+        json!({"advisory":Value::Null,"area":"general","branch_status":closed["branch_status"].clone(),"lifecycle":"closed","schema_version":1,"status":"closed"}),
+    );
+    assert_eq!(closed["status"], "closed");
+    assert_eq!(closed["lifecycle"], "closed");
+    let selected_status = run_zdev(root, &["status", "general", "--format", "json"]);
+    let selected: Value =
+        serde_json::from_slice(&selected_status.stdout).expect("selected status JSON");
+    assert_pretty_json(
+        &selected_status,
+        json!({
+            "advisory": Value::Null,
+            "area": {"base_commit":selected["area"]["base_commit"].clone(),"branch":"main","lifecycle":"closed","objective":"Exercise managed area branches.","schema_version":1,"tag":"general","title":"general"},
+            "branch_status": selected["branch_status"].clone(),
+            "counts": {"blocked":0,"done":0,"ready":0,"total":0},
+            "lifecycle":"closed","next":Value::Null,"project":selected["project"].clone(),"queue":"empty","schema_version":1,"slices":[],"trunk":"main"
+        }),
+    );
+    let status_text = String::from_utf8(run_zdev(root, &["status", "general"]).stdout)
+        .expect("selected status text");
+    assert_eq!(
+        status_text,
+        "general\nLifecycle: closed\nQueue: empty\nCounts: 0 total; 0 ready; 0 blocked; 0 done\ngeneral: main -> trunk main [fresh]\n"
+    );
+    let project_status = run_zdev(root, &["status", "--format", "json"]);
+    let project: Value =
+        serde_json::from_slice(&project_status.stdout).expect("project status JSON");
+    assert_pretty_json(
+        &project_status,
+        json!({
+            "areas":[{"blocked":0,"branch_status":project["areas"][0]["branch_status"].clone(),"done":0,"lifecycle":"closed","queue":"empty","ready":0,"tag":"general","title":"general","total":0}],
+            "checked_out_branch":"main","project":project["project"].clone(),"schema_version":1,"trunk":"main"
+        }),
+    );
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["status"]).stdout).expect("project status text"),
+        format!(
+            "{}: 1 areas (trunk: main)\ngeneral: closed, empty; main -> trunk main [fresh]\n",
+            project["project"].as_str().expect("project name")
+        )
+    );
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["next", "general"]).stdout).expect("closed next"),
+        "Area general is closed. Run `zdev area reopen general` before adding or selecting work\n"
+    );
+    let closed_next = json_output(root, &["next", "general"]);
+    assert_eq!(
+        closed_next,
+        json!({"area":"general","lifecycle":"closed","queue":"empty","schema_version":1,"task":Value::Null})
+    );
+    let closed_goal = json_output(root, &["goal", "general"]);
+    assert_eq!(closed_goal["lifecycle"], "closed");
+    assert_eq!(closed_goal["queue"], "empty");
+    assert_eq!(closed_goal["task"], Value::Null);
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["area", "close", "general"]).stdout)
+            .expect("unchanged close text"),
+        "Area general is already closed\n"
+    );
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["next", "--any"]).stdout).expect("all-closed next-any"),
+        "No area is open. Run `zdev area reopen <area>` before selecting work\nExcluded closed areas: general\n"
+    );
+    assert_eq!(
+        json_output(root, &["next", "--any"]),
+        json!({"closed_areas":["general"],"mode":"any","reason":"no-open-area","schema_version":1,"selection":"none","skipped":[],"task":Value::Null})
+    );
+
+    git(root, &["switch", "-q", "-c", "other"]);
+    assert_eq!(
+        json_output(root, &["next", "general"])["lifecycle"],
+        "closed"
+    );
+    let wrong_branch = run_zdev(root, &["area", "reopen", "general"]);
+    assert!(!wrong_branch.status.success());
+    git(root, &["switch", "-q", "main"]);
+    let reopen_output = run_zdev(root, &["area", "reopen", "general", "--format", "json"]);
+    let reopened: Value = serde_json::from_slice(&reopen_output.stdout).expect("reopen JSON");
+    assert_pretty_json(
+        &reopen_output,
+        json!({"advisory":Value::Null,"area":"general","branch_status":reopened["branch_status"].clone(),"lifecycle":"open","schema_version":1,"status":"open"}),
+    );
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["area", "reopen", "general"]).stdout)
+            .expect("unchanged reopen text"),
+        "Area general is already open\n"
+    );
+    let unchanged_reopen = run_zdev(root, &["area", "reopen", "general", "--format", "json"]);
+    let unchanged: Value =
+        serde_json::from_slice(&unchanged_reopen.stdout).expect("unchanged reopen JSON");
+    assert_pretty_json(
+        &unchanged_reopen,
+        json!({"advisory":Value::Null,"area":"general","branch_status":unchanged["branch_status"].clone(),"lifecycle":"open","schema_version":1,"status":"unchanged"}),
+    );
+    assert_eq!(json_output(root, &["goal", "general"])["queue"], "empty");
+
+    import_one_task(root, "general");
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["next", "general"]).stdout).expect("ready next"),
+        format!(
+            "Area: general\nLifecycle: open\nQueue: ready\n\ngeneral-001  Complete one task\n{}\n",
+            fs::canonicalize(root)
+                .expect("canonical repository")
+                .join(".zdev/general/tasks/001-complete-one-task.md")
+                .display()
+        )
+    );
+    let ready_next = run_zdev(root, &["next", "general", "--format", "json"]);
+    let ready: Value = serde_json::from_slice(&ready_next.stdout).expect("ready next JSON");
+    assert_pretty_json(
+        &ready_next,
+        json!({"advisory":Value::Null,"area":"general","branch_status":ready["branch_status"].clone(),"lifecycle":"open","queue":"ready","schema_version":1,"task":{"blocked_by":[],"id":"general-001","path":".zdev/general/tasks/001-complete-one-task.md","slice":Value::Null,"slice_brief":Value::Null,"state":"ready","status":"open","title":"Complete one task"}}),
+    );
+    let rejected_close = run_zdev(root, &["area", "close", "general"]);
+    assert!(!rejected_close.status.success());
+    assert!(String::from_utf8_lossy(&rejected_close.stderr).contains("1 tasks are open"));
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "general",
+            "general-001",
+            "--summary",
+            "Done.",
+            "--validation",
+            "Checked.",
+        ],
+    );
+    assert_eq!(
+        json_output(root, &["goal", "general"])["queue"],
+        "exhausted"
+    );
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["next", "general"]).stdout).expect("exhausted next"),
+        "The task queue is exhausted in open area general. Add approved tasks, reopen a task, or run `zdev area close general`\n"
+    );
+    let exhausted_next = run_zdev(root, &["next", "general", "--format", "json"]);
+    let exhausted: Value =
+        serde_json::from_slice(&exhausted_next.stdout).expect("exhausted next JSON");
+    assert_pretty_json(
+        &exhausted_next,
+        json!({"advisory":Value::Null,"area":"general","branch_status":exhausted["branch_status"].clone(),"lifecycle":"open","queue":"exhausted","schema_version":1,"task":Value::Null}),
+    );
+    json_output(root, &["area", "close", "general"]);
+    let reopen_task = run_zdev(root, &["task", "reopen", "general", "general-001"]);
+    assert!(!reopen_task.status.success());
+    assert!(String::from_utf8_lossy(&reopen_task.stderr).contains("closed area general"));
+    let bundle = root.join("closed-task.json");
+    fs::write(
+        &bundle,
+        serde_json::to_vec(&json!({
+            "schema_version": 1,
+            "area": "general",
+            "tasks": [{
+                "key": "two",
+                "title": "Another task",
+                "outcome": "Another outcome.",
+                "done_when": ["It is done."],
+                "validation": ["Check it."],
+                "blocked_by": []
+            }]
+        }))
+        .expect("closed bundle"),
+    )
+    .expect("write closed bundle");
+    let import = run_zdev(
+        root,
+        &[
+            "tasks",
+            "import",
+            "general",
+            "--from",
+            bundle.to_str().expect("bundle path"),
+        ],
+    );
+    assert!(!import.status.success());
+    assert!(String::from_utf8_lossy(&import.stderr).contains("closed area general"));
+
+    let task_path = root.join(".zdev/general/tasks/001-complete-one-task.md");
+    let done_task = fs::read_to_string(&task_path).expect("done task");
+    fs::write(
+        &task_path,
+        done_task.replace("status = \"done\"", "status = \"open\""),
+    )
+    .expect("malformed closed area");
+    json_output(root, &["tasks", "index", "general"]);
+    let malformed = run_zdev(root, &["check"]);
+    assert!(!malformed.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&malformed.stderr).trim(),
+        "error: Closed area general has 1 open tasks"
+    );
+    fs::write(&task_path, done_task).expect("restore done task");
+    json_output(root, &["tasks", "index", "general"]);
+
+    let invalid = fs::read_to_string(&metadata_path)
+        .expect("closed metadata")
+        .replace("lifecycle = \"closed\"", "lifecycle = \"retired\"");
+    fs::write(&metadata_path, invalid).expect("invalid lifecycle");
+    let rejected = run_zdev(root, &["status", "general"]);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("unknown variant"));
 }
 
 #[test]
@@ -549,6 +804,11 @@ fn stale_independent_base_is_advisory_for_task_work() {
             .count(),
         1
     );
+    assert_eq!(
+        String::from_utf8(run_zdev(root, &["area", "reopen", "feature"]).stdout)
+            .expect("stale reopen text"),
+        "Area feature is already open\nAdvisory: run `zdev area rebase feature` when you need current base changes\n"
+    );
     let stale_next = json_output(root, &["next", "feature"]);
     assert_eq!(stale_next["task"]["id"], "feature-001");
     assert_eq!(stale_next["branch_status"]["task_work"]["safe"], true);
@@ -589,8 +849,8 @@ fn stale_independent_base_is_advisory_for_task_work() {
         true
     );
     assert_eq!(
-        json_output(root, &["next", "feature"])["status"],
-        "complete"
+        json_output(root, &["next", "feature"])["queue"],
+        "exhausted"
     );
     commit_all(root, "record rebased base anchor");
     let no_op = json_output(root, &["area", "rebase", "feature"]);
@@ -610,6 +870,11 @@ fn managed_rebase_uses_a_parent_area_as_the_effective_base() {
     commit_all(root, "configure dependent areas");
     git(root, &["switch", "-q", "-c", "root-area"]);
     commit_file(root, "root.txt", "one\n", "root work");
+    json_output(root, &["area", "rebase", "root-area"]);
+    assert_eq!(
+        json_output(root, &["area", "close", "root-area"])["lifecycle"],
+        "closed"
+    );
     git(root, &["switch", "-q", "-c", "child-area"]);
     json_output(root, &["area", "parent", "child-area", "root-area"]);
     fs::write(root.join("child.txt"), "child\n").expect("child work");
@@ -3224,7 +3489,8 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
             "!payload.status_json || !payload.goal_json",
             "taskWork?.safe !== true",
             "typeof taskWork.stale_advisory !== 'boolean'",
-            "goal?.state !== 'ready'",
+            "goal?.lifecycle !== 'open'",
+            "goal?.queue !== 'ready'",
             "goal?.area?.tag !==",
             "goal?.task?.id !==",
             "status?.area?.tag !==",
@@ -3248,7 +3514,10 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(implement.contains("taskWork.stale_advisory"));
     assert!(implement.contains("managed rebase remains optional"));
     assert!(implement.contains("const parseNoWork"));
-    assert!(implement.contains("goal?.state !== match[1]"));
+    assert!(implement.contains("goal?.lifecycle !== match[1]"));
+    assert!(implement.contains("goal?.queue !== match[2]"));
+    assert!(implement.contains("status?.lifecycle !== match[1]"));
+    assert!(implement.contains("status?.queue !== match[2]"));
     assert!(implement.contains("goal?.task !== null"));
     assert!(!implement.contains("goal?.task != null"));
     assert!(implement.contains("status?.next !== null"));
@@ -3269,6 +3538,32 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(implement.contains("field(result, 'Advisory') === advisory"));
     assert!(verify.contains("prepared.staleAdvisory"));
     assert!(verify.contains("field(result, 'Advisory') === advisory"));
+
+    let parser_start = implement.find("const expectedKeys").expect("parser start");
+    let parser_end = implement
+        .find("const exactWorkerEnvelope")
+        .expect("parser end");
+    let probe = format!(
+        r#"const area = 'general'
+{}
+const status = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'empty', next: null, branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }} }}
+const goal = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'empty', task: null }}
+const envelope = (statusValue, goalValue) => `NO-WORK zdev-implement general open empty\n${{JSON.stringify({{ area, lifecycle: 'open', queue: 'empty', status_json: JSON.stringify(statusValue), goal_json: JSON.stringify(goalValue), git_status: '', git_diff_cached: '', git_diff: '' }})}}`
+if (!parseNoWork(envelope(status, goal))) throw new Error('valid no-work rejected')
+if (parseNoWork(envelope({{ ...status, lifecycle: 'closed' }}, goal))) throw new Error('status lifecycle mismatch accepted')
+if (parseNoWork(envelope({{ ...status, queue: 'exhausted' }}, goal))) throw new Error('status queue mismatch accepted')
+"#,
+        &implement[parser_start..parser_end]
+    );
+    let parser_probe = Command::new("node")
+        .args(["--input-type=commonjs", "--eval", &probe])
+        .output()
+        .expect("run Claude no-work parser probe");
+    assert!(
+        parser_probe.status.success(),
+        "Claude no-work parser probe failed: {}",
+        String::from_utf8_lossy(&parser_probe.stderr)
+    );
 }
 
 #[test]

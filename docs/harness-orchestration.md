@@ -179,7 +179,8 @@ only the `ready` goal's task as its subject. Structurally unsafe branch state
 still blocks. The complete JSON goal is passed unchanged to every worker
 together with the brief, repository guidance, baseline, and task-owned paths.
 
-An `empty` or `complete` goal is a successful no-work result. No worker is
+An implement goal that is `open` / `empty`, `open` / `exhausted`, or `closed`
+is a successful no-work result. No worker is
 started, and no state changes. A malformed graph, unsafe branch, changed focus
 task, or other validation error is a blocker. Before verification and before
 each rework handoff, the coordinator reruns the status and goal reads and
@@ -187,8 +188,9 @@ requires the same task ID. This makes a stale long-running conversation fail
 closed instead of implementing a newly selected task.
 
 `zdev-verify` requires the explicit task ID to equal the current ready focus
-task. It uses the same preflight and baseline comparison but does not invoke an
-implementer. `zdev-audit` has no area selection and does not call `zdev goal`.
+task. Any no-work goal is a blocker and starts no worker. It uses the same
+preflight and baseline comparison but does not invoke an implementer.
+`zdev-audit` has no area selection and does not call `zdev goal`.
 
 The native goal behavior described in [Deterministic goals across
 harnesses](harness-goals.md) remains optional. A workflow applies the short
@@ -343,8 +345,9 @@ The work is complete when:
 - `zdev-implement` selects the deterministic ready focus, preserves its task ID
   across every handoff, uses the configured implementer and fresh verifier,
   and completes and commits only after `PASS`;
-- empty and complete areas return a no-work pass without delegation or
-  mutation, while invalid or unsafe state fails before a worker starts;
+- open empty, open exhausted, and closed areas return an implementation
+  no-work pass without delegation or mutation; explicit verification returns
+  a blocker for those states; invalid or unsafe state fails before a worker starts;
 - every harness accepts and rejects the same result first lines and routes
   concrete task-owned `REWORK` findings through implementation and fresh
   verification with no fixed correction count;

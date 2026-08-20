@@ -31,7 +31,8 @@ const expectedNoWorkKeys = [
   'git_diff_cached',
   'git_status',
   'goal_json',
-  'state',
+  'lifecycle',
+  'queue',
   'status_json',
 ]
 const parseReady = (raw, workflow, expectedArea, expectedTask = null) => {
@@ -65,14 +66,14 @@ const parseReady = (raw, workflow, expectedArea, expectedTask = null) => {
   const taskWork = status?.branch_status?.task_work
   if (taskWork?.safe !== true || typeof taskWork.stale_advisory !== 'boolean') return null
   if (status?.area?.tag !== match[1] || status?.next !== match[2]) return null
-  if (goal?.state !== 'ready' || goal?.area?.tag !== match[1] || goal?.task?.id !== match[2]) return null
+  if (goal?.lifecycle !== 'open' || goal?.queue !== 'ready' || goal?.area?.tag !== match[1] || goal?.task?.id !== match[2]) return null
   return { raw, taskId: match[2], staleAdvisory: taskWork.stale_advisory }
 }
 const parseNoWork = raw => {
   if (typeof raw !== 'string') return null
   const newline = raw.indexOf('\n')
   if (newline < 0) return null
-  const match = raw.slice(0, newline).match(new RegExp(`^NO-WORK zdev-implement ${area} (empty|complete)$`))
+  const match = raw.slice(0, newline).match(new RegExp(`^NO-WORK zdev-implement ${area} (open|closed) (empty|exhausted)$`))
   if (!match) return null
   let payload
   try {
@@ -82,7 +83,7 @@ const parseNoWork = raw => {
   }
   if (!payload || Array.isArray(payload) || typeof payload !== 'object') return null
   if (JSON.stringify(Object.keys(payload).sort()) !== JSON.stringify(expectedNoWorkKeys)) return null
-  if (payload.area !== area || payload.state !== match[1]) return null
+  if (payload.area !== area || payload.lifecycle !== match[1] || payload.queue !== match[2]) return null
   for (const key of ['status_json', 'goal_json', 'git_status', 'git_diff_cached', 'git_diff']) {
     if (typeof payload[key] !== 'string') return null
   }
@@ -98,8 +99,9 @@ const parseNoWork = raw => {
   const taskWork = status?.branch_status?.task_work
   if (taskWork?.safe !== true || typeof taskWork.stale_advisory !== 'boolean') return null
   if (status?.area?.tag !== area || status?.next !== null) return null
-  if (goal?.state !== match[1] || goal?.area?.tag !== area || goal?.task !== null) return null
-  return { state: match[1], staleAdvisory: taskWork.stale_advisory }
+  if (status?.lifecycle !== match[1] || status?.queue !== match[2]) return null
+  if (goal?.lifecycle !== match[1] || goal?.queue !== match[2] || goal?.area?.tag !== area || goal?.task !== null) return null
+  return { lifecycle: match[1], queue: match[2], staleAdvisory: taskWork.stale_advisory }
 }
 const exactWorkerEnvelope = (text, verdicts, workflow, expectedArea, expectedTask) => {
   if (typeof text !== 'string') return false
@@ -115,14 +117,14 @@ if (!/^[a-z0-9][a-z0-9-]*$/.test(area)) {
 }
 
 const preflight = async label => agent(
-  `${workflowContract}\n\nAct only as the coordinating preflight for area ${area}. Run zdev status ${area} --format json and require branch_status.task_work.safe to be true. If stale_advisory is true, retain it and continue. Capture git status --short --untracked-files=all, git diff --cached, and git diff as explicit strings, including empty results. Run zdev goal ${area} --format json. Do not change files or start another worker. For ready work return exactly:\nREADY zdev-implement ${area} <task-id>\n<one JSON object with exactly area, task_id, status_json, goal_json, git_status, git_diff_cached, and git_diff; status_json and goal_json are the complete command JSON bytes encoded as strings>.\nFor no work return exactly:\nNO-WORK zdev-implement ${area} <empty-or-complete>\n<one JSON object with exactly area, state, status_json, goal_json, git_status, git_diff_cached, and git_diff, with complete command JSON bytes encoded as strings>.\nOtherwise return a blocker explanation.`,
+  `${workflowContract}\n\nAct only as the coordinating preflight for area ${area}. Run zdev status ${area} --format json and require branch_status.task_work.safe to be true. If stale_advisory is true, retain it and continue. Capture git status --short --untracked-files=all, git diff --cached, and git diff as explicit strings, including empty results. Run zdev goal ${area} --format json. Do not change files or start another worker. For ready work require lifecycle open and queue ready, then return exactly:\nREADY zdev-implement ${area} <task-id>\n<one JSON object with exactly area, task_id, status_json, goal_json, git_status, git_diff_cached, and git_diff; status_json and goal_json are the complete command JSON bytes encoded as strings>.\nFor no work return exactly:\nNO-WORK zdev-implement ${area} <open-or-closed> <empty-or-exhausted>\n<one JSON object with exactly area, lifecycle, queue, status_json, goal_json, git_status, git_diff_cached, and git_diff, with complete command JSON bytes encoded as strings>.\nOtherwise return a blocker explanation.`,
   { label },
 )
 
 const preparedRaw = (await preflight('zdev implement preflight'))?.trim()
 const noWork = parseNoWork(preparedRaw)
 if (noWork) {
-  return `PASS zdev-implement ${area} none\n\nArea: ${area}\nTask: none\n${noWork.staleAdvisory ? `Advisory: ${advisoryText}\n` : ''}Summary: no ready work; ${noWork.state} goal.\nChanged files: none.\nValidation: preflight only.\nVerifier evidence: no implementer or verifier was started.\nCommit ID: none.`
+  return `PASS zdev-implement ${area} none\n\nArea: ${area}\nTask: none\n${noWork.staleAdvisory ? `Advisory: ${advisoryText}\n` : ''}Summary: no ready work; ${noWork.lifecycle}/${noWork.queue} goal.\nChanged files: none.\nValidation: preflight only.\nVerifier evidence: no implementer or verifier was started.\nCommit ID: none.`
 }
 const prepared = parseReady(preparedRaw, 'zdev-implement', area)
 if (!prepared) {

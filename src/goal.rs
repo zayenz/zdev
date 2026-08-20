@@ -53,7 +53,8 @@ struct GoalTask {
 struct GoalProjection {
     schema_version: u64,
     area: GoalArea,
-    state: &'static str,
+    lifecycle: &'static str,
+    queue: &'static str,
     counts: GoalCounts,
     task: Option<GoalTask>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -63,17 +64,10 @@ struct GoalProjection {
 pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
     let (metadata, area_path) = project::load_area(root, area)?;
     let read = tasks::goal_tasks(root, area)?;
-    let state = if read.total == 0 {
-        "empty"
-    } else if read.open == 0 {
-        "complete"
-    } else if read.focus.is_some() {
-        "ready"
-    } else {
-        return Err(ZdevError::new(
-            "Validated task graph has open work but no ready task",
-        ));
-    };
+    let summary = tasks::summary(root, area)?;
+    tasks::validate_area_lifecycle(&metadata, &summary)?;
+    let lifecycle = metadata.lifecycle.as_str();
+    let queue = summary.queue().as_str();
     let counts = GoalCounts {
         total: read.total,
         open: read.open,
@@ -82,7 +76,7 @@ pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
         done: read.done,
     };
     let mut text = format!(
-        "Area: {} — {}\nState: {state}\nObjective:\n{}\nCounts: {} total; {} open; {} ready; {} blocked; {} done",
+        "Area: {} — {}\nLifecycle: {lifecycle}\nQueue: {queue}\nObjective:\n{}\nCounts: {} total; {} open; {} ready; {} blocked; {} done",
         metadata.tag,
         metadata.title,
         metadata.objective,
@@ -92,7 +86,9 @@ pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
         counts.blocked,
         counts.done,
     );
-    let (task, native_goal) = if let Some(task) = read.focus {
+    let (task, native_goal) = if metadata.lifecycle == project::AreaLifecycle::Open
+        && let Some(task) = read.focus
+    {
         let slice = task
             .slice
             .as_deref()
@@ -153,10 +149,12 @@ pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
             Some(native_goal),
         )
     } else {
-        text.push_str(if state == "empty" {
-            "\n\nNo tasks are recorded. Create and approve a task before applying a harness goal."
+        text.push_str(if lifecycle == "closed" {
+            "\n\nThe area is closed. Reopen it before adding or selecting work."
+        } else if queue == "empty" {
+            "\n\nThe open area has no tasks. Create and approve a task, or close the area."
         } else {
-            "\n\nNo open tasks remain."
+            "\n\nThe open area's task queue is exhausted. Add approved work, reopen a task, or close the area."
         });
         (None, None)
     };
@@ -168,7 +166,8 @@ pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
             objective: metadata.objective,
             path: relative(root, &area_path),
         },
-        state,
+        lifecycle,
+        queue,
         counts,
         task,
         native_goal,

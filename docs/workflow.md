@@ -158,8 +158,8 @@ agent-ready implementation work enters the task queue.
 ### General one-off work
 
 Use `general` as a conventional standing area when small, unrelated
-improvements do not justify a new area each time. It has no special metadata or
-lifecycle. Create or switch to its ordinary persistent branch, then use the
+improvements do not justify a new area each time. It has no special lifecycle
+rules. Create or switch to its ordinary persistent branch, then use the
 existing command:
 
 ```sh
@@ -173,6 +173,11 @@ testing level, and repository validation. Put each one-off outcome, context,
 boundaries, done proof, and validation in its task. Unsliced tasks are the
 default; optional slices help only when several tasks share one narrower
 objective.
+
+Every area starts open. An empty or exhausted queue leaves its objective open;
+after reviewing the outcome, close it explicitly with `zdev area close <area>`.
+Use `zdev area reopen <area>` before importing or reopening tasks. Both
+mutations use the area's ordinary task-work branch-safety gate.
 
 Discussion may proceed directly to exact task-bundle review when the request
 settles the product and testing choices. This route skips unnecessary research

@@ -11,7 +11,8 @@ use serde_json::{Value, json};
 
 use super::{
     CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, git_operation, git_output,
-    git_output_bytes, relative, tasks, validate_nonempty_line, validate_segment, write_atomic,
+    git_output_bytes, relative, tasks, validate_brief, validate_nonempty_line, validate_segment,
+    write_atomic,
 };
 
 const CLEANUP_SQUASH_COMMIT_MESSAGE: &str = "chore: remove zdev development record";
@@ -62,10 +63,29 @@ pub(super) struct AreaMetadata {
     pub(super) title: String,
     pub(super) objective: String,
     pub(super) branch: String,
+    #[serde(default)]
+    pub(super) lifecycle: AreaLifecycle,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) parent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) base_commit: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum AreaLifecycle {
+    #[default]
+    Open,
+    Closed,
+}
+
+impl AreaLifecycle {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Closed => "closed",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -412,6 +432,7 @@ pub(super) fn create_area(
         title: title.to_owned(),
         objective: objective.to_owned(),
         branch,
+        lifecycle: AreaLifecycle::Open,
         parent: None,
         base_commit,
     };
@@ -741,6 +762,57 @@ pub(super) fn validate_slices(root: &Path, area: &str) -> Result<(), ZdevError> 
 fn write_area_metadata(root: &Path, area: &AreaMetadata) -> Result<(), ZdevError> {
     let path = area_path(root, &area.tag)?.join("area.toml");
     write_atomic(&path, toml::to_string_pretty(area).unwrap().as_bytes())
+}
+
+fn set_area_lifecycle(
+    root: &Path,
+    tag: &str,
+    lifecycle: AreaLifecycle,
+) -> Result<CommandOutput, ZdevError> {
+    let _lock = ZdevStateLock::acquire(root)?;
+    validate_area_relationships(&list_areas(root)?)?;
+    let (mut area, area_dir) = load_area(root, tag)?;
+    validate_brief(&area_dir.join("brief.md"))?;
+    validate_slices(root, tag)?;
+    tasks::validate_index(root, tag)?;
+    let summary = tasks::summary(root, tag)?;
+    tasks::validate_area_lifecycle(&area, &summary)?;
+    let branch = require_task_work_area_link(root, tag)?;
+    if lifecycle == AreaLifecycle::Closed && summary.open > 0 {
+        return Err(ZdevError::new(format!(
+            "Cannot close area {tag}: {} tasks are open. Complete them or keep the area open",
+            summary.open
+        )));
+    }
+    let unchanged = area.lifecycle == lifecycle;
+    if !unchanged {
+        area.lifecycle = lifecycle;
+        write_area_metadata(root, &area)?;
+    }
+    let action = lifecycle.as_str();
+    let mut text = if unchanged {
+        format!("Area {tag} is already {action}")
+    } else if lifecycle == AreaLifecycle::Closed {
+        format!("Closed area {tag}")
+    } else {
+        format!("Reopened area {tag}")
+    };
+    if let Some(advisory) = &branch.advisory {
+        text.push('\n');
+        text.push_str(advisory);
+    }
+    Ok(CommandOutput::new(
+        text,
+        json!({"schema_version": SCHEMA_VERSION, "status": if unchanged { "unchanged" } else { action }, "area": tag, "lifecycle": action, "branch_status": branch.branch_status, "advisory": branch.advisory}),
+    ))
+}
+
+pub(super) fn close_area(root: &Path, tag: &str) -> Result<CommandOutput, ZdevError> {
+    set_area_lifecycle(root, tag, AreaLifecycle::Closed)
+}
+
+pub(super) fn reopen_area(root: &Path, tag: &str) -> Result<CommandOutput, ZdevError> {
+    set_area_lifecycle(root, tag, AreaLifecycle::Open)
 }
 
 fn ensure_branch_available(

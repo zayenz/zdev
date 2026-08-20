@@ -96,9 +96,10 @@ overlapping path or changing the index.
 
 ## Deterministic task context
 
-For work in a named area, run `zdev goal <area> --format json` first. An `empty`
-or `complete` result means there is no executable task; report it without
-starting a worker or native goal. For `ready`, use `zdev goal <area>` as
+For work in a named area, run `zdev goal <area> --format json` first. An open
+`empty` or `exhausted` queue, or a `closed` lifecycle, means there is no
+executable task; report it without starting a worker or native goal. For an
+open `ready` queue, use `zdev goal <area>` as
 ordinary prompt context unless the user explicitly asks to apply a continuing
 native goal. Do not reproduce the goal renderer in the harness.
 

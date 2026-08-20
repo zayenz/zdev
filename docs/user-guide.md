@@ -294,8 +294,17 @@ git add <changed-files> .zdev/scheduling
 zdev commit -m "feat: add scheduling model"
 ```
 
-`zdev commit` adds a stable `Zdev-Change-Id` trailer. Repeat `zdev next` until the
-area is complete. Inspect or find a logical change after a rebase with:
+`zdev commit` adds a stable `Zdev-Change-Id` trailer. Repeat `zdev next` until
+the open queue is exhausted. Queue exhaustion does not close the objective;
+close it explicitly after reviewing the result:
+
+```sh
+zdev area close scheduling
+# If more approved work appears later:
+zdev area reopen scheduling
+```
+
+Inspect or find a logical change after a rebase with:
 
 ```sh
 zdev change inspect HEAD

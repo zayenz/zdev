@@ -18,11 +18,14 @@ Keep explicit evidence for all three results, including empty results, and
 inspect relevant untracked files. Stop on unexplained or overlapping changes
 or any user-owned decision.
 
-Run `zdev goal <area> --format json`. `empty` and `complete` are successful
-no-work results and start no worker. Invalid records, task graphs, or goal
-output are blockers. For `ready`, retain the complete goal JSON unchanged and
-its task ID as the subject. Before verification and every rework handoff, rerun
-status, the complete Git evidence, and goal; require the same ready task ID.
+Run `zdev goal <area> --format json`. For implement, open/empty,
+open/exhausted, and closed are successful no-work results and start no worker.
+Explicit verify requires open/ready and returns `BLOCKER zdev-verify` without
+starting a verifier for every no-work result. Invalid records, task graphs, or
+goal output are blockers. For open/ready, retain the complete goal JSON
+unchanged and its task ID as the subject. Before verification and every rework
+handoff, rerun status, the complete Git evidence, and goal; require the same
+ready task ID.
 
 `zdev-implement <area>` gives the goal JSON, brief, task, repository guidance,
 baseline, and task-owned paths to the configured `implementer`. Its internal
@@ -59,9 +62,9 @@ no stale advisory was observed.
 `zdev-verify <area> <task-id>` performs the same read-only preflight and requires
 the explicit ID to equal the current ready goal task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,
-stages, or commits. Its public result is the verifier envelope above. Empty or
-complete goals, a different ready task, unsafe state, unavailable independent
-verification, or an invalid worker envelope returns `BLOCKER zdev-verify`
+stages, or commits. Its public result is the verifier envelope above. Empty,
+exhausted, or closed goals, a different ready task, unsafe state, unavailable
+independent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`
 without mutation.
 
 Parse `$ARGUMENTS` as `<area> <task-id>`. The current Pi session performs

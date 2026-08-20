@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::project::{
-    area_branch_status, current_branch, list_areas, load_area, read_config,
-    require_checked_out_area_branch, require_task_work_area_link, slice_briefs,
+    AreaLifecycle, AreaMetadata, area_branch_status, current_branch, list_areas, load_area,
+    read_config, require_checked_out_area_branch, require_task_work_area_link, slice_briefs,
 };
 use super::{
     CHANGE_ID_TRAILER, CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, generate_change_id,
@@ -257,6 +257,11 @@ pub(super) fn import(
     }
     let _lock = ZdevStateLock::acquire(root)?;
     let (metadata, area_dir) = load_area(root, area)?;
+    if metadata.lifecycle == AreaLifecycle::Closed {
+        return Err(ZdevError::new(format!(
+            "Cannot add tasks to closed area {area}. Run `zdev area reopen {area}` first"
+        )));
+    }
     let committable_brief = if commit_changes {
         require_checked_out_area_branch(root, &metadata)?;
         require_committable_task_import(root, area)?
@@ -976,6 +981,26 @@ fn next_task(tasks: &[Task]) -> Option<&Task> {
     tasks.iter().find(|task| task_state(task, tasks) == "ready")
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum QueueState {
+    Empty,
+    Ready,
+    Blocked,
+    Exhausted,
+}
+
+impl QueueState {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::Empty => "empty",
+            Self::Ready => "ready",
+            Self::Blocked => "blocked",
+            Self::Exhausted => "exhausted",
+        }
+    }
+}
+
 fn select_area(root: &Path, requested: Option<&str>) -> Result<String, ZdevError> {
     if let Some(area) = requested {
         load_area(root, area)?;
@@ -988,19 +1013,14 @@ fn select_area(root: &Path, requested: Option<&str>) -> Result<String, ZdevError
     }
     let mut active = Vec::new();
     for area in list_areas(root)? {
-        let tasks = load_tasks(root, &area.tag)?;
-        if tasks.is_empty()
-            || tasks
-                .iter()
-                .any(|task| task.header.status == TaskStatus::Open)
-        {
+        if area.lifecycle == AreaLifecycle::Open {
             active.push(area.tag);
         }
     }
     match active.as_slice() {
         [only] => Ok(only.clone()),
         [] => Err(ZdevError::new(
-            "No area has open work. Create tasks or reopen a completed task first",
+            "No area is open. Run `zdev area reopen <area>` before selecting work",
         )),
         _ => Err(ZdevError::new(format!(
             "Specify an area with `zdev next <area>`. Open areas: {}",
@@ -1011,19 +1031,40 @@ fn select_area(root: &Path, requested: Option<&str>) -> Result<String, ZdevError
 
 pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput, ZdevError> {
     let area = select_area(root, requested)?;
+    let metadata = load_area(root, &area)?.0;
+    if metadata.lifecycle == AreaLifecycle::Closed {
+        validate_brief(&root.join(".zdev").join(&area).join("brief.md"))?;
+        super::project::validate_area_relationships(&list_areas(root)?)?;
+        super::project::validate_slices(root, &area)?;
+        validate_index(root, &area)?;
+        let summary = summary(root, &area)?;
+        validate_area_lifecycle(&metadata, &summary)?;
+        let queue = summary.queue().as_str();
+        return Ok(CommandOutput::new(
+            format!(
+                "Area {area} is closed. Run `zdev area reopen {area}` before adding or selecting work"
+            ),
+            json!({"schema_version": SCHEMA_VERSION, "area": area, "lifecycle": "closed", "queue": queue, "task": Value::Null}),
+        ));
+    }
     let branch = require_task_work_area_link(root, &area)?;
     let tasks = load_tasks(root, &area)?;
     let Some(task) = next_task(&tasks) else {
-        let open = tasks
-            .iter()
-            .any(|task| task.header.status == TaskStatus::Open);
-        let status = if open { "blocked" } else { "complete" };
-        let mut text = if open {
+        let summary = summary(root, &area)?;
+        validate_area_lifecycle(&metadata, &summary)?;
+        let queue = summary.queue().as_str();
+        let mut text = if queue == "empty" {
             format!(
-                "No task is ready in {area}. Complete a blocking task or update the dependencies"
+                "No tasks are recorded in open area {area}. Add approved tasks or run `zdev area close {area}`"
+            )
+        } else if queue == "exhausted" {
+            format!(
+                "The task queue is exhausted in open area {area}. Add approved tasks, reopen a task, or run `zdev area close {area}`"
             )
         } else {
-            format!("All tasks in {area} are done")
+            return Err(ZdevError::new(
+                "Validated task graph has open work but no ready task",
+            ));
         };
         if let Some(advisory) = &branch.advisory {
             text.push('\n');
@@ -1031,7 +1072,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         }
         return Ok(CommandOutput::new(
             text,
-            json!({"schema_version": SCHEMA_VERSION, "area": area, "status": status, "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory}),
+            json!({"schema_version": SCHEMA_VERSION, "area": area, "lifecycle": "open", "queue": queue, "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory}),
         ));
     };
     let view = TaskView {
@@ -1045,7 +1086,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         path: relative(root, &task.path),
     };
     let mut text = format!(
-        "{}  {}\n{}",
+        "Area: {area}\nLifecycle: open\nQueue: ready\n\n{}  {}\n{}",
         task.header.id,
         task.title,
         task.path.display()
@@ -1059,7 +1100,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
     }
     Ok(CommandOutput::new(
         text,
-        json!({"schema_version": SCHEMA_VERSION, "area": area, "status": "ready", "task": view, "branch_status": branch.branch_status, "advisory": branch.advisory}),
+        json!({"schema_version": SCHEMA_VERSION, "area": area, "lifecycle": "open", "queue": "ready", "task": view, "branch_status": branch.branch_status, "advisory": branch.advisory}),
     ))
 }
 
@@ -1070,12 +1111,26 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         .iter()
         .map(|area| (area.tag.as_str(), area))
         .collect::<BTreeMap<_, _>>();
-    let checked_out = current_branch(root)?;
     let mut candidates = Vec::new();
     let mut skipped = Vec::new();
     let mut unsafe_open_work = false;
+    let closed_areas = areas
+        .iter()
+        .filter(|area| area.lifecycle == AreaLifecycle::Closed)
+        .map(|area| area.tag.clone())
+        .collect::<Vec<_>>();
+    let checked_out = if closed_areas.len() == areas.len() {
+        None
+    } else {
+        current_branch(root)?
+    };
 
     for area in &areas {
+        if area.lifecycle == AreaLifecycle::Closed {
+            let summary = summary(root, &area.tag)?;
+            validate_area_lifecycle(area, &summary)?;
+            continue;
+        }
         let tasks = load_tasks(root, &area.tag)?;
         let branch_status =
             area_branch_status(root, &config, area, &by_tag, checked_out.as_deref());
@@ -1112,28 +1167,48 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
     });
 
     let Some((area, task, branch_status)) = candidates.into_iter().next() else {
-        let status = if unsafe_open_work {
-            "unsafe"
-        } else {
-            "complete"
-        };
-        let text = match status {
+        let selection = if unsafe_open_work { "unsafe" } else { "none" };
+        let mut text = match selection {
             "unsafe" => format!(
                 "No safe task is ready. Unsafe areas: {}",
                 skipped_areas_text(&skipped)
             ),
-            _ => "All tasks across areas are done".to_owned(),
+            _ if closed_areas.len() == areas.len() => {
+                "No area is open. Run `zdev area reopen <area>` before selecting work".to_owned()
+            }
+            _ => "No open area has ready work. Open task queues are empty or exhausted".to_owned(),
         };
-        return Ok(CommandOutput::new(
-            text,
+        append_closed_areas(&mut text, &closed_areas);
+        let reason = if selection == "none" {
+            Some(if closed_areas.len() == areas.len() {
+                "no-open-area"
+            } else {
+                "no-ready-open-area"
+            })
+        } else {
+            None
+        };
+        let value = if let Some(reason) = reason {
             json!({
                 "schema_version": SCHEMA_VERSION,
                 "mode": "any",
-                "status": status,
+                "selection": selection,
+                "reason": reason,
                 "task": Value::Null,
                 "skipped": skipped,
-            }),
-        ));
+                "closed_areas": closed_areas,
+            })
+        } else {
+            json!({
+                "schema_version": SCHEMA_VERSION,
+                "mode": "any",
+                "selection": selection,
+                "task": Value::Null,
+                "skipped": skipped,
+                "closed_areas": closed_areas,
+            })
+        };
+        return Ok(CommandOutput::new(text, value));
     };
 
     let branch_matches = branch_status["branch_matches"] == Value::Bool(true);
@@ -1155,7 +1230,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         path: relative(root, &task.path),
     };
     let mut text = format!(
-        "{}  {}\nArea: {}\nRequired branch: {}{}\nTask: {}",
+        "Selection: ready\n\n{}  {}\nArea: {}\nRequired branch: {}{}\nTask: {}",
         task.header.id, task.title, area.tag, area.branch, branch_note, view.path
     );
     if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
@@ -1167,20 +1242,31 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             skipped_areas_text(&skipped)
         ));
     }
+    append_closed_areas(&mut text, &closed_areas);
     Ok(CommandOutput::new(
         text,
         json!({
             "schema_version": SCHEMA_VERSION,
             "mode": "any",
-            "status": "ready",
+            "selection": "ready",
             "area": area.tag,
+            "lifecycle": "open",
+            "queue": "ready",
             "branch": area.branch,
             "branch_matches": branch_matches,
             "task": view,
             "branch_status": branch_status,
             "skipped": skipped,
+            "closed_areas": closed_areas,
         }),
     ))
+}
+
+fn append_closed_areas(text: &mut String, closed_areas: &[String]) {
+    if !closed_areas.is_empty() {
+        text.push_str("\nExcluded closed areas: ");
+        text.push_str(&closed_areas.join(", "));
+    }
 }
 
 fn skipped_areas_text(skipped: &[Value]) -> String {
@@ -1307,6 +1393,12 @@ pub(super) fn complete(
 
 pub(super) fn reopen(root: &Path, area: &str, id: &str) -> Result<CommandOutput, ZdevError> {
     let _lock = ZdevStateLock::acquire(root)?;
+    let metadata = load_area(root, area)?.0;
+    if metadata.lifecycle == AreaLifecycle::Closed {
+        return Err(ZdevError::new(format!(
+            "Cannot reopen task {id} in closed area {area}. Run `zdev area reopen {area}` first"
+        )));
+    }
     let tasks = load_tasks(root, area)?;
     let task = find_task(&tasks, id)?;
     if task.header.status == TaskStatus::Open {
@@ -1532,6 +1624,38 @@ pub(super) struct AreaTaskSummary {
     pub open: usize,
     pub next: Option<String>,
     pub slices: Vec<SliceTaskSummary>,
+}
+
+impl AreaTaskSummary {
+    pub(super) fn queue(&self) -> QueueState {
+        if self.total == 0 {
+            QueueState::Empty
+        } else if self.ready > 0 {
+            QueueState::Ready
+        } else if self.open > 0 {
+            QueueState::Blocked
+        } else {
+            QueueState::Exhausted
+        }
+    }
+}
+
+pub(super) fn validate_area_lifecycle(
+    area: &AreaMetadata,
+    summary: &AreaTaskSummary,
+) -> Result<(), ZdevError> {
+    if area.lifecycle == AreaLifecycle::Closed && summary.open > 0 {
+        return Err(ZdevError::new(format!(
+            "Closed area {} has {} open tasks",
+            area.tag, summary.open
+        )));
+    }
+    if matches!(summary.queue(), QueueState::Blocked) {
+        return Err(ZdevError::new(
+            "Validated task graph has open work but no ready task",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Serialize)]

@@ -277,6 +277,16 @@ enum AreaCommand {
         #[arg(long)]
         branch: Option<String>,
     },
+    /// Close an area whose task queue is empty or exhausted
+    Close {
+        /// Area tag to close
+        area: String,
+    },
+    /// Reopen a closed area without changing its tasks
+    Reopen {
+        /// Area tag to reopen
+        area: String,
+    },
     /// Set the branch for an existing area
     Bind {
         /// Area tag to update
@@ -582,6 +592,8 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 objective,
                 branch,
             } => project::create_area(&root, tag, title, objective, branch.as_deref()),
+            AreaCommand::Close { area } => project::close_area(&root, area),
+            AreaCommand::Reopen { area } => project::reopen_area(&root, area),
             AreaCommand::Bind { area, branch } => {
                 project::bind_area(&root, area, branch.as_deref())
             }
@@ -833,6 +845,9 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
     if let Some(area) = selected {
         let metadata = project::load_area(root, &area)?.0;
         let tasks = tasks::summary(root, &area)?;
+        tasks::validate_area_lifecycle(&metadata, &tasks)?;
+        let lifecycle = metadata.lifecycle.as_str();
+        let queue = tasks.queue().as_str();
         let branch_status =
             project::area_branch_status(root, &config, &metadata, &by_tag, checked_out.as_deref());
         let branch_line = render_area_branch_line(&metadata, &branch_status);
@@ -841,8 +856,8 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
             .unwrap_or(false)
             .then(|| project::rebase_advisory(&area));
         let mut text = format!(
-            "{}: {} ready, {} blocked, {} done",
-            metadata.title, tasks.ready, tasks.blocked, tasks.done,
+            "{}\nLifecycle: {lifecycle}\nQueue: {queue}\nCounts: {} total; {} ready; {} blocked; {} done",
+            metadata.title, tasks.total, tasks.ready, tasks.blocked, tasks.done,
         );
         for slice in &tasks.slices {
             text.push_str(&format!(
@@ -858,23 +873,36 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
         }
         return Ok(CommandOutput::new(
             text,
-            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "advisory": advisory}),
+            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "advisory": advisory}),
         ));
     }
     let mut summaries = Vec::new();
     let mut branch_lines = Vec::new();
     for area in &all_areas {
         let tasks = tasks::summary(root, &area.tag)?;
+        tasks::validate_area_lifecycle(area, &tasks)?;
+        let lifecycle = area.lifecycle.as_str();
+        let queue = tasks.queue().as_str();
         let branch_status =
             project::area_branch_status(root, &config, area, &by_tag, checked_out.as_deref());
-        branch_lines.push(render_area_branch_line(area, &branch_status));
+        let branch_line = render_area_branch_line(area, &branch_status);
+        let branch_detail = branch_line
+            .strip_prefix(&format!("{}: ", area.tag))
+            .unwrap_or(&branch_line);
+        branch_lines.push(format!(
+            "{}: {lifecycle}, {queue}; {branch_detail}",
+            area.tag
+        ));
         summaries.push(json!({
             "tag": area.tag,
             "title": area.title,
+            "lifecycle": lifecycle,
+            "queue": queue,
             "branch_status": branch_status,
-            "open": tasks.open,
+            "total": tasks.total,
+            "ready": tasks.ready,
+            "blocked": tasks.blocked,
             "done": tasks.done,
-            "slices": tasks.slices,
         }));
     }
     let trunk = config.project.trunk.as_deref().unwrap_or("unbound");
@@ -906,6 +934,8 @@ fn check_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, Z
         validate_brief(&root.join(".zdev").join(&area.tag).join("brief.md"))?;
         project::validate_slices(root, &area.tag)?;
         tasks::validate_index(root, &area.tag)?;
+        let summary = tasks::summary(root, &area.tag)?;
+        tasks::validate_area_lifecycle(&area, &summary)?;
         checked.push(area.tag);
     }
     Ok(CommandOutput::new(
@@ -914,7 +944,7 @@ fn check_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, Z
     ))
 }
 
-fn validate_brief(path: &Path) -> Result<(), ZdevError> {
+pub(crate) fn validate_brief(path: &Path) -> Result<(), ZdevError> {
     let content = fs::read_to_string(path)
         .map_err(|error| ZdevError::io(format!("Cannot read {}", path.display()), error))?;
     required_brief_section(&content, "Objective", path)?;

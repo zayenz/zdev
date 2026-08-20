@@ -53,7 +53,7 @@ const parseReady = raw => {
   const taskWork = status?.branch_status?.task_work
   if (taskWork?.safe !== true || typeof taskWork.stale_advisory !== 'boolean') return null
   if (status?.area?.tag !== area || status?.next !== taskId) return null
-  if (goal?.state !== 'ready' || goal?.area?.tag !== area || goal?.task?.id !== taskId) return null
+  if (goal?.lifecycle !== 'open' || goal?.queue !== 'ready' || goal?.area?.tag !== area || goal?.task?.id !== taskId) return null
   return { raw, staleAdvisory: taskWork.stale_advisory }
 }
 

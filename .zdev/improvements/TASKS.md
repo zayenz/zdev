@@ -2,9 +2,9 @@
 
 # Tasks: improvements
 
-- Total: 14
+- Total: 15
 - Ready: 3
-- Blocked: 1
+- Blocked: 2
 - Done: 10
 
 | ID | Task | State | Blocked by |
@@ -23,3 +23,4 @@
 | [improvements-012](tasks/012-audit-poteto-s-noodle-skills-for-useful-zdev-adaptations.md) | Audit Poteto's Noodle skills for useful zdev adaptations | ready | — |
 | [improvements-013](tasks/013-define-deterministic-goals-across-supported-harnesses.md) | Define deterministic goals across supported harnesses | ready | — |
 | [improvements-014](tasks/014-define-common-orchestration-across-supported-harnesses.md) | Define common orchestration across supported harnesses | blocked | improvements-011, improvements-013 |
+| [improvements-015](tasks/015-design-a-coherent-layered-config-command.md) | Design a coherent layered config command | blocked | improvements-011 |

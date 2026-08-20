@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-015"
 key = "config-command-research"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-011"]
 +++
 # Design a coherent layered config command
@@ -25,13 +25,26 @@ The current `zdev config` surface only sets the project trunk, while project sta
 
 ## Done when
 
-- [ ] The document inventories every existing and proposed zdev setting, including worker profiles, and settles which values may be global, repository-local, or repository-only.
-- [ ] It defines exact show, get, set, and unset behavior in stable human and JSON forms, including effective values, winning origins, shadowed global values, defaults, and sensitive-value handling.
-- [ ] It settles global and local file locations, precedence, key names, atomic writes, validation, unknown or unsupported values, missing files, and fallback behavior.
-- [ ] It records the useful Git config ideas adopted or rejected and explains the zdev-specific differences without claiming Git compatibility.
-- [ ] It covers backward compatibility for existing `.zdev/config.toml` and the worker-profile contract, then ends with a narrow implementation seam and acceptance criteria requiring no further product decision.
+- [x] The document inventories every existing and proposed zdev setting, including worker profiles, and settles which values may be global, repository-local, or repository-only.
+- [x] It defines exact show, get, set, and unset behavior in stable human and JSON forms, including effective values, winning origins, shadowed global values, defaults, and sensitive-value handling.
+- [x] It settles global and local file locations, precedence, key names, atomic writes, validation, unknown or unsupported values, missing files, and fallback behavior.
+- [x] It records the useful Git config ideas adopted or rejected and explains the zdev-specific differences without claiming Git compatibility.
+- [x] It covers backward compatibility for existing `.zdev/config.toml` and the worker-profile contract, then ends with a narrow implementation seam and acceptance criteria requiring no further product decision.
 
 ## Validation
 
 - Check current Git config behavior against official Git documentation and inspect every current zdev configuration read and write path.
 - Run `git diff --check`.
+
+## Result
+
+Defined a layered typed config command with effective-origin reporting, local and global worker-profile overrides, and exact show/get/set/unset contracts.
+
+Validation:
+
+- Independent verification passed against current zdev configuration seams, official Git configuration behavior, five ordered JSON fixtures, and deterministic global path and atomic-write rules.
+- cargo fmt --all -- --check
+- cargo clippy --locked --all-targets --all-features -- -D warnings
+- cargo test --locked (78 passed)
+- cargo build --locked
+- git diff --check

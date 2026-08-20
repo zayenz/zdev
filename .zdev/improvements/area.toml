@@ -1,0 +1,6 @@
+schema_version = 1
+tag = "improvements"
+title = "General improvements"
+objective = "Improve zdev through useful, well-engineered changes that remain clear, maintainable, appropriately tested, and demonstrably valuable."
+branch = "improvements"
+base_commit = "327e099f4a2876376a9f2df43a1502633b3351b0"

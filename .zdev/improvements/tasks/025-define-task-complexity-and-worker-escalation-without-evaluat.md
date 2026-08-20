@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-025"
 key = "design-task-complexity-routing"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Define task complexity and worker escalation without evaluation machinery
@@ -27,13 +27,13 @@ Tasks currently have identity, slice, status, and dependency metadata. Worker co
 
 ## Done when
 
-- [ ] The contract settles whether complexity is authored durable metadata, its exact values and default, and backward compatibility.
-- [ ] It defines cheap and strong worker-profile vocabulary without partially merging profiles or needlessly expanding the fixed config registry.
-- [ ] It defines when planning runs, what artifact it produces, and when it may be skipped.
-- [ ] It defines a verifier recommendation separately from PASS, REWORK, and BLOCKER, including envelope compatibility and escalation limits.
-- [ ] It defines coordinator routing for first attempt, rework, stronger replacement, and user-decision stops.
-- [ ] It maps the smallest changes to task parsing, config, worker resolution, templates, and harness adapters.
-- [ ] It produces narrow follow-up implementation tasks and rejects unnecessary variants.
+- [x] The contract settles whether complexity is authored durable metadata, its exact values and default, and backward compatibility.
+- [x] It defines cheap and strong worker-profile vocabulary without partially merging profiles or needlessly expanding the fixed config registry.
+- [x] It defines when planning runs, what artifact it produces, and when it may be skipped.
+- [x] It defines a verifier recommendation separately from PASS, REWORK, and BLOCKER, including envelope compatibility and escalation limits.
+- [x] It defines coordinator routing for first attempt, rework, stronger replacement, and user-decision stops.
+- [x] It maps the smallest changes to task parsing, config, worker resolution, templates, and harness adapters.
+- [x] It produces narrow follow-up implementation tasks and rejects unnecessary variants.
 
 ## Validation
 
@@ -41,3 +41,13 @@ Tasks currently have identity, slice, status, and dependency metadata. Worker co
 - Check compatibility with existing task files and worker configuration.
 - Review current official harness model-control documentation.
 - Run documentation validation only; do not run broad model experiments.
+
+## Result
+
+Defined task complexity, cost-conscious default workers, strong planning and implementation, and verifier-recommended escalation across all harnesses.
+
+Validation:
+
+- Independent design and repository-feasibility review passed with no material findings.
+- Current official harness model and agent-control documentation supports the proposed routing and defaults.
+- Documentation contract, local-link, trailing-whitespace, and git diff checks passed.

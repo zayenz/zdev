@@ -2553,6 +2553,21 @@ fn every_help_page_explains_its_command_and_inputs() {
             ],
         ),
         (
+            &["config", "set", "--help"],
+            &[
+                "Set one typed project or worker configuration value",
+                "Value, or model and effort for a worker profile",
+                "Write the global worker-profile file",
+            ],
+        ),
+        (
+            &["config", "unset", "--help"],
+            &[
+                "Remove one value from its selected scope",
+                "Write the global worker-profile file",
+            ],
+        ),
+        (
             &["config", "trunk", "--help"],
             &[
                 "Set the branch that areas use as their default base",
@@ -3412,6 +3427,224 @@ fn config_reads_reject_strict_or_absent_values_without_mutation() {
     );
     assert_eq!(fs::read(&local_path).expect("local preserved"), before[1]);
     assert_eq!(fs::read(&global_path).expect("global preserved"), before[2]);
+}
+
+#[test]
+fn config_set_validates_typed_project_values_and_preserves_trunk_alias() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "improvements",
+            "--title",
+            "Improvements",
+            "--objective",
+            "Improve configuration.",
+            "--branch",
+            "improvements",
+        ],
+    );
+
+    let set = json_output(
+        root,
+        &["config", "set", "project.default-area", "improvements"],
+    );
+    assert_eq!(set["status"], "set");
+    assert_eq!(set["key"], "project.default-area");
+    assert_eq!(set["value"], "improvements");
+    assert_eq!(
+        set["origin"],
+        json!({"path": ".zdev/config.toml", "scope": "local"})
+    );
+    let config_path = root.join(".zdev/config.toml");
+    let valid = fs::read(&config_path).expect("valid project config");
+
+    for arguments in [
+        vec!["config", "set", "project.default-area", "missing"],
+        vec!["config", "set", "project.guidance", "../outside.md"],
+        vec!["config", "set", "project.trunk", "one", "two"],
+        vec!["config", "set", "project.name", "replacement"],
+        vec!["config", "set", "--global", "project.trunk", "main"],
+    ] {
+        let failed = run_zdev(root, &arguments);
+        assert_eq!(failed.status.code(), Some(2));
+        assert!(failed.stdout.is_empty());
+        assert_eq!(fs::read(&config_path).expect("preserved config"), valid);
+    }
+
+    json_output(root, &["config", "set", "project.trunk", "feature"]);
+    assert!(
+        fs::read_to_string(&config_path)
+            .expect("generic trunk")
+            .contains("trunk = \"feature\"")
+    );
+    let alias = json_output(root, &["config", "trunk", "main"]);
+    assert_eq!(alias["trunk"], "main");
+    assert!(
+        fs::read_to_string(&config_path)
+            .expect("trunk alias")
+            .contains("trunk = \"main\"")
+    );
+
+    let unset = json_output(root, &["config", "unset", "project.default-area"]);
+    assert_eq!(unset["status"], "unset");
+    assert_eq!(unset["effective"]["value"], Value::Null);
+    assert_eq!(unset["effective"]["origin"]["scope"], "default");
+}
+
+#[test]
+fn config_worker_mutations_are_atomic_and_unset_exposes_the_next_layer() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    let config_home = root.join("global-config");
+    let global_path = config_home.join("zdev/workers.toml");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    let global = json_output_with_env(
+        root,
+        &[
+            "config",
+            "set",
+            "--global",
+            "worker.codex.implementer",
+            "gpt-5.5",
+            "xhigh",
+        ],
+        &environment,
+    );
+    assert_eq!(global["status"], "set");
+    assert_eq!(
+        global["value"],
+        json!({"model": "gpt-5.5", "effort": "xhigh"})
+    );
+    assert_eq!(global["origin"]["path"], json!(global_path));
+    assert_eq!(
+        fs::read_to_string(&global_path).expect("global workers"),
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.5\"\neffort = \"xhigh\"\n"
+    );
+
+    json_output_with_env(
+        root,
+        &[
+            "config",
+            "set",
+            "worker.codex.implementer",
+            "gpt-local",
+            "high",
+        ],
+        &environment,
+    );
+    let unset_local = json_output_with_env(
+        root,
+        &["config", "unset", "worker.codex.implementer"],
+        &environment,
+    );
+    assert_eq!(unset_local["effective"]["origin"]["scope"], "global");
+    assert_eq!(
+        unset_local["effective"]["value"],
+        json!({"model": "gpt-5.5", "effort": "xhigh"})
+    );
+    assert_eq!(
+        fs::read_to_string(root.join(".zdev/workers.toml")).expect("empty local workers"),
+        "schema_version = 1\n"
+    );
+
+    let unset_global = json_output_with_env(
+        root,
+        &["config", "unset", "--global", "worker.codex.implementer"],
+        &environment,
+    );
+    assert_eq!(unset_global["effective"]["origin"]["scope"], "default");
+    assert_eq!(
+        fs::read_to_string(&global_path).expect("empty global workers"),
+        "schema_version = 1\n"
+    );
+    let before = fs::read(&global_path).expect("global bytes");
+    for arguments in [
+        vec![
+            "config",
+            "set",
+            "--global",
+            "worker.codex.implementer",
+            "model-only",
+        ],
+        vec![
+            "config",
+            "set",
+            "--global",
+            "worker.opencode.verifier",
+            "anthropic/custom",
+            "high",
+        ],
+        vec!["config", "unset", "--global", "worker.codex.implementer"],
+    ] {
+        let failed = run_zdev_with_env(root, &arguments, &environment);
+        assert_eq!(failed.status.code(), Some(2));
+        assert!(failed.stdout.is_empty());
+        assert_eq!(fs::read(&global_path).expect("preserved workers"), before);
+    }
+}
+
+#[test]
+fn config_global_lock_failure_preserves_worker_bytes() {
+    let repository = tempfile::tempdir().expect("outside repository");
+    let root = repository.path();
+    let config_home = root.join("locked-global-config");
+    let global_path = config_home.join("zdev/workers.toml");
+    let lock_path = config_home.join("zdev/workers.lock");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    let created = run_zdev_with_env(
+        root,
+        &[
+            "config",
+            "set",
+            "--global",
+            "worker.codex.implementer",
+            "gpt-before",
+            "high",
+        ],
+        &environment,
+    );
+    assert!(created.status.success());
+    assert_eq!(
+        String::from_utf8(created.stdout).expect("set output"),
+        format!(
+            "Set worker.codex.implementer in global {}.\n",
+            global_path.display()
+        )
+    );
+    let before = fs::read(&global_path).expect("worker bytes");
+    fs::remove_file(&lock_path).expect("remove unlocked lock file");
+    fs::create_dir(&lock_path).expect("blocking lock directory");
+
+    let failed = run_zdev_with_env(
+        root,
+        &[
+            "config",
+            "set",
+            "--global",
+            "worker.codex.verifier",
+            "inherit",
+            "--format",
+            "json",
+        ],
+        &environment,
+    );
+    assert_eq!(failed.status.code(), Some(2));
+    assert!(failed.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&failed.stderr).expect("JSON error");
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("error")
+            .contains("workers.lock")
+    );
+    assert_eq!(fs::read(&global_path).expect("preserved workers"), before);
 }
 
 #[test]

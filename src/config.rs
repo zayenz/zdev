@@ -1,16 +1,23 @@
 use std::env;
-use std::fs;
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::project::{Config, read_config};
-use super::{CommandOutput, SCHEMA_VERSION, ZdevError};
+use super::project::{Config, read_config, write_config};
+use super::{CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, write_atomic};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ConfigReadScope {
     Effective,
+    Local,
+    Global,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ConfigWriteScope {
     Local,
     Global,
 }
@@ -46,7 +53,7 @@ impl WorkerHarness {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum Effort {
     Inherit,
@@ -66,6 +73,20 @@ impl Effort {
             Self::High => "high",
             Self::Xhigh => "xhigh",
             Self::Max => "max",
+        }
+    }
+
+    fn parse(value: &str) -> Result<Self, ZdevError> {
+        match value {
+            "inherit" => Ok(Self::Inherit),
+            "low" => Ok(Self::Low),
+            "medium" => Ok(Self::Medium),
+            "high" => Ok(Self::High),
+            "xhigh" => Ok(Self::Xhigh),
+            "max" => Ok(Self::Max),
+            _ => Err(ZdevError::new(format!(
+                "Unknown worker effort {value}; expected inherit, low, medium, high, xhigh, or max"
+            ))),
         }
     }
 }
@@ -104,35 +125,82 @@ impl WorkerProfile {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct RawWorkerProfile {
+    #[serde(skip_serializing_if = "Option::is_none")]
     inherit: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     effort: Option<Effort>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct HarnessProfiles {
+    #[serde(skip_serializing_if = "Option::is_none")]
     implementer: Option<RawWorkerProfile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     verifier: Option<RawWorkerProfile>,
 }
 
-#[derive(Debug, Deserialize)]
+impl HarnessProfiles {
+    fn is_empty(&self) -> bool {
+        self.implementer.is_none() && self.verifier.is_none()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct WorkerFile {
     schema_version: u64,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     codex: HarnessProfiles,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     claude: HarnessProfiles,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     opencode: HarnessProfiles,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     pi: HarnessProfiles,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     omp: HarnessProfiles,
+}
+
+impl Default for WorkerFile {
+    fn default() -> Self {
+        Self {
+            schema_version: SCHEMA_VERSION,
+            codex: HarnessProfiles::default(),
+            claude: HarnessProfiles::default(),
+            opencode: HarnessProfiles::default(),
+            pi: HarnessProfiles::default(),
+            omp: HarnessProfiles::default(),
+        }
+    }
+}
+
+impl WorkerFile {
+    fn profiles_mut(&mut self, harness: WorkerHarness) -> &mut HarnessProfiles {
+        match harness {
+            WorkerHarness::Codex => &mut self.codex,
+            WorkerHarness::Claude => &mut self.claude,
+            WorkerHarness::Opencode => &mut self.opencode,
+            WorkerHarness::Pi => &mut self.pi,
+            WorkerHarness::Omp => &mut self.omp,
+        }
+    }
+
+    fn set(&mut self, key: WorkerKey, value: Option<RawWorkerProfile>) -> bool {
+        let profiles = self.profiles_mut(key.harness);
+        let target = match key.role {
+            WorkerRole::Implementer => &mut profiles.implementer,
+            WorkerRole::Verifier => &mut profiles.verifier,
+        };
+        let existed = target.is_some();
+        *target = value;
+        existed
+    }
 }
 
 #[derive(Default)]
@@ -373,8 +441,8 @@ pub(super) fn get(
     scope: ConfigReadScope,
     key: &str,
 ) -> Result<CommandOutput, ZdevError> {
-    require_known_key(key)?;
-    if scope == ConfigReadScope::Global && key.starts_with("project.") {
+    let kind = config_key(key)?;
+    if scope == ConfigReadScope::Global && matches!(kind, ConfigKey::Project(_)) {
         return Err(ZdevError::new(format!(
             "Configuration key {key} is not available in global scope"
         )));
@@ -394,19 +462,377 @@ pub(super) fn get(
     Ok(CommandOutput::new(text, value))
 }
 
-fn require_known_key(key: &str) -> Result<(), ZdevError> {
-    if matches!(
-        key,
-        "project.name"
-            | "project.record"
-            | "project.trunk"
-            | "project.default-area"
-            | "project.guidance"
-    ) || WORKER_KEYS.iter().any(|worker| worker.name == key)
-    {
-        return Ok(());
+#[derive(Clone, Copy)]
+enum ProjectKey {
+    Name,
+    Record,
+    Trunk,
+    DefaultArea,
+    Guidance,
+}
+
+#[derive(Clone, Copy)]
+enum ConfigKey {
+    Project(ProjectKey),
+    Worker(WorkerKey),
+}
+
+fn config_key(key: &str) -> Result<ConfigKey, ZdevError> {
+    let project = match key {
+        "project.name" => Some(ProjectKey::Name),
+        "project.record" => Some(ProjectKey::Record),
+        "project.trunk" => Some(ProjectKey::Trunk),
+        "project.default-area" => Some(ProjectKey::DefaultArea),
+        "project.guidance" => Some(ProjectKey::Guidance),
+        _ => None,
+    };
+    if let Some(project) = project {
+        return Ok(ConfigKey::Project(project));
+    }
+    if let Some(worker) = WORKER_KEYS.iter().find(|worker| worker.name == key) {
+        return Ok(ConfigKey::Worker(*worker));
     }
     Err(ZdevError::new(format!("Unknown configuration key {key}")))
+}
+
+pub(super) fn set(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    key: &str,
+    values: &[String],
+) -> Result<CommandOutput, ZdevError> {
+    let kind = writable_key(scope, key)?;
+    match kind {
+        ConfigKey::Project(project) => set_project(
+            root.ok_or_else(|| ZdevError::new("A local configuration write requires a project"))?,
+            project,
+            key,
+            values,
+        ),
+        ConfigKey::Worker(worker) => set_worker(root, scope, worker, values),
+    }
+}
+
+pub(super) fn unset(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    key: &str,
+) -> Result<CommandOutput, ZdevError> {
+    let kind = writable_key(scope, key)?;
+    match kind {
+        ConfigKey::Project(project) => unset_project(
+            root.ok_or_else(|| ZdevError::new("A local configuration write requires a project"))?,
+            project,
+            key,
+        ),
+        ConfigKey::Worker(worker) => unset_worker(root, scope, worker),
+    }
+}
+
+fn writable_key(scope: ConfigWriteScope, key: &str) -> Result<ConfigKey, ZdevError> {
+    let kind = config_key(key)?;
+    if matches!(
+        kind,
+        ConfigKey::Project(ProjectKey::Name | ProjectKey::Record)
+    ) {
+        return Err(ZdevError::new(format!(
+            "Configuration key {key} is read-only; choose project identity and record policy with `zdev init --record <personal|project|pull-request>` (see docs/user-guide.md)"
+        )));
+    }
+    if scope == ConfigWriteScope::Global && matches!(kind, ConfigKey::Project(_)) {
+        return Err(ZdevError::new(format!(
+            "Configuration key {key} is not available in global scope"
+        )));
+    }
+    Ok(kind)
+}
+
+fn require_one_value<'a>(key: &str, values: &'a [String]) -> Result<&'a str, ZdevError> {
+    match values {
+        [value] => Ok(value),
+        _ => Err(ZdevError::new(format!(
+            "Configuration key {key} requires exactly one value"
+        ))),
+    }
+}
+
+fn set_project(
+    root: &Path,
+    project: ProjectKey,
+    key: &str,
+    values: &[String],
+) -> Result<CommandOutput, ZdevError> {
+    let requested = require_one_value(key, values)?;
+    let value = match project {
+        ProjectKey::Trunk => super::project::canonical_branch(root, requested)?,
+        ProjectKey::DefaultArea => {
+            super::project::validate_default_area(root, requested)?;
+            requested.to_owned()
+        }
+        ProjectKey::Guidance => {
+            super::integrations::validate_guidance_selection(root, requested)?;
+            requested.to_owned()
+        }
+        ProjectKey::Name | ProjectKey::Record => unreachable!("read-only keys were rejected"),
+    };
+    let _lock = ZdevStateLock::acquire(root)?;
+    let mut config = read_config(root)?;
+    validate_local_workers(root)?;
+    match project {
+        ProjectKey::Trunk => config.project.trunk = Some(value.clone()),
+        ProjectKey::DefaultArea => config.project.default_area = Some(value.clone()),
+        ProjectKey::Guidance => config.project.guidance = Some(value.clone()),
+        ProjectKey::Name | ProjectKey::Record => unreachable!("read-only keys were rejected"),
+    }
+    write_config(root, &config)?;
+    Ok(set_output(key, json!(value), local_project_origin()))
+}
+
+fn unset_project(root: &Path, project: ProjectKey, key: &str) -> Result<CommandOutput, ZdevError> {
+    let _lock = ZdevStateLock::acquire(root)?;
+    let mut config = read_config(root)?;
+    validate_local_workers(root)?;
+    let removed = match project {
+        ProjectKey::Trunk => config.project.trunk.take(),
+        ProjectKey::DefaultArea => config.project.default_area.take(),
+        ProjectKey::Guidance => config.project.guidance.take(),
+        ProjectKey::Name | ProjectKey::Record => unreachable!("read-only keys were rejected"),
+    };
+    if removed.is_none() {
+        return Err(not_set_error(key, "local"));
+    }
+    let effective = match project {
+        ProjectKey::Trunk | ProjectKey::DefaultArea => {
+            scalar_candidate(Value::Null, default_origin())
+        }
+        ProjectKey::Guidance => scalar_candidate(json!("auto"), default_origin()),
+        ProjectKey::Name | ProjectKey::Record => unreachable!("read-only keys were rejected"),
+    };
+    write_config(root, &config)?;
+    Ok(unset_output(key, local_project_origin(), effective))
+}
+
+fn set_worker(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    key: WorkerKey,
+    values: &[String],
+) -> Result<CommandOutput, ZdevError> {
+    let path = worker_target(root, scope)?;
+    let raw = parse_worker_value(key.name, values)?;
+    let profile = validate_profile(&path, key.harness, worker_role_name(key.role), &raw)?;
+    let origin = worker_target_origin(scope, &path);
+    match scope {
+        ConfigWriteScope::Local => {
+            let root = root.expect("local worker writes have a project");
+            let _lock = ZdevStateLock::acquire(root)?;
+            read_config(root)?;
+            write_worker_value(&path, key, Some(raw), false, "local")?;
+        }
+        ConfigWriteScope::Global => {
+            let _lock = GlobalWorkerLock::acquire(&path)?;
+            write_worker_value(&path, key, Some(raw), false, "global")?;
+        }
+    }
+    Ok(set_output(key.name, profile.value(), origin))
+}
+
+fn unset_worker(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    key: WorkerKey,
+) -> Result<CommandOutput, ZdevError> {
+    let path = worker_target(root, scope)?;
+    let fallback = match scope {
+        ConfigWriteScope::Local => {
+            let global_path = global_worker_path()?;
+            let global = read_worker_file(&global_path)?;
+            global
+                .as_ref()
+                .and_then(|layer| layer.profile(key))
+                .map(|profile| Candidate::from_profile(profile, global_origin_value(&global_path)))
+                .unwrap_or_else(|| {
+                    Candidate::from_profile(&built_in_profile(key), default_origin())
+                })
+        }
+        ConfigWriteScope::Global => {
+            Candidate::from_profile(&built_in_profile(key), default_origin())
+        }
+    };
+    let origin = worker_target_origin(scope, &path);
+    match scope {
+        ConfigWriteScope::Local => {
+            let root = root.expect("local worker writes have a project");
+            let _lock = ZdevStateLock::acquire(root)?;
+            read_config(root)?;
+            write_worker_value(&path, key, None, true, "local")?;
+        }
+        ConfigWriteScope::Global => {
+            let _lock = GlobalWorkerLock::acquire(&path)?;
+            write_worker_value(&path, key, None, true, "global")?;
+        }
+    }
+    Ok(unset_output(key.name, origin, fallback))
+}
+
+fn worker_target(root: Option<&Path>, scope: ConfigWriteScope) -> Result<PathBuf, ZdevError> {
+    match scope {
+        ConfigWriteScope::Local => root
+            .map(|root| root.join(".zdev/workers.toml"))
+            .ok_or_else(|| ZdevError::new("A local configuration write requires a project")),
+        ConfigWriteScope::Global => global_worker_path(),
+    }
+}
+
+fn parse_worker_value(key: &str, values: &[String]) -> Result<RawWorkerProfile, ZdevError> {
+    match values {
+        [inherit] if inherit == "inherit" => Ok(RawWorkerProfile {
+            inherit: Some(true),
+            model: None,
+            effort: None,
+        }),
+        [model, effort] => Ok(RawWorkerProfile {
+            inherit: None,
+            model: Some(model.clone()),
+            effort: Some(Effort::parse(effort)?),
+        }),
+        _ => Err(ZdevError::new(format!(
+            "Configuration key {key} requires `inherit` or exactly two values: model and effort"
+        ))),
+    }
+}
+
+fn worker_role_name(role: WorkerRole) -> &'static str {
+    match role {
+        WorkerRole::Implementer => "implementer",
+        WorkerRole::Verifier => "verifier",
+    }
+}
+
+fn validate_local_workers(root: &Path) -> Result<(), ZdevError> {
+    read_worker_file(&root.join(".zdev/workers.toml")).map(|_| ())
+}
+
+fn write_worker_value(
+    path: &Path,
+    key: WorkerKey,
+    value: Option<RawWorkerProfile>,
+    require_existing: bool,
+    scope: &str,
+) -> Result<(), ZdevError> {
+    let mut document = read_worker_document(path)?.unwrap_or_default();
+    validate_worker_file(path, &document)?;
+    let existed = document.set(key, value);
+    if require_existing && !existed {
+        return Err(not_set_error(key.name, scope));
+    }
+    validate_worker_file(path, &document)?;
+    let rendered = toml::to_string_pretty(&document)
+        .map_err(|error| ZdevError::new(format!("Cannot render {}: {error}", path.display())))?;
+    write_atomic(path, rendered.as_bytes())
+}
+
+fn set_output(key: &str, value: Value, origin: Origin) -> CommandOutput {
+    CommandOutput::new(
+        format!("Set {key} in {}.", origin.text()),
+        json!({
+            "key": key,
+            "origin": origin.value(),
+            "schema_version": SCHEMA_VERSION,
+            "status": "set",
+            "value": value,
+        }),
+    )
+}
+
+fn unset_output(key: &str, origin: Origin, effective: Candidate) -> CommandOutput {
+    CommandOutput::new(
+        format!(
+            "Unset {key} from {}.\nEffective value: {}  [{}]",
+            origin.text(),
+            effective.text,
+            effective.origin.text()
+        ),
+        json!({
+            "effective": effective.value(),
+            "key": key,
+            "origin": origin.value(),
+            "schema_version": SCHEMA_VERSION,
+            "status": "unset",
+        }),
+    )
+}
+
+fn not_set_error(key: &str, scope: &str) -> ZdevError {
+    ZdevError::new(format!(
+        "Configuration key {key} is not set in {scope} scope"
+    ))
+}
+
+fn local_project_origin() -> Origin {
+    Origin {
+        scope: "local",
+        path: Some(".zdev/config.toml".to_owned()),
+    }
+}
+
+fn worker_target_origin(scope: ConfigWriteScope, path: &Path) -> Origin {
+    match scope {
+        ConfigWriteScope::Local => local_origin_value(),
+        ConfigWriteScope::Global => global_origin_value(path),
+    }
+}
+
+struct GlobalWorkerLock {
+    _file: File,
+}
+
+impl GlobalWorkerLock {
+    fn acquire(worker_path: &Path) -> Result<Self, ZdevError> {
+        let parent = worker_path.parent().ok_or_else(|| {
+            ZdevError::new(format!("Path has no parent: {}", worker_path.display()))
+        })?;
+        fs::create_dir_all(parent)
+            .map_err(|error| ZdevError::io(format!("Cannot create {}", parent.display()), error))?;
+        let path = parent.join("workers.lock");
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(|error| {
+                ZdevError::io(format!("Cannot open worker lock {}", path.display()), error)
+            })?;
+        for _ in 0..100 {
+            match file.try_lock() {
+                Ok(()) => {
+                    file.set_len(0)
+                        .and_then(|()| writeln!(file, "{}", std::process::id()))
+                        .map_err(|error| {
+                            ZdevError::io(
+                                format!("Cannot write worker lock {}", path.display()),
+                                error,
+                            )
+                        })?;
+                    return Ok(Self { _file: file });
+                }
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(ZdevError::io(
+                        format!("Cannot acquire worker lock {}", path.display()),
+                        error,
+                    ));
+                }
+            }
+        }
+        Err(ZdevError::new(format!(
+            "Another worker configuration update is running. Retry when it finishes. Lock: {}",
+            path.display()
+        )))
+    }
 }
 
 fn read_values(root: Option<&Path>, scope: ConfigReadScope) -> Result<Vec<ConfigValue>, ZdevError> {
@@ -760,6 +1186,12 @@ fn local_origin(_path: &Path) -> String {
 }
 
 fn read_worker_file(path: &Path) -> Result<Option<WorkerLayer>, ZdevError> {
+    read_worker_document(path)?
+        .map(|file| validate_worker_file(path, &file))
+        .transpose()
+}
+
+fn read_worker_document(path: &Path) -> Result<Option<WorkerFile>, ZdevError> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -790,27 +1222,33 @@ fn read_worker_file(path: &Path) -> Result<Option<WorkerLayer>, ZdevError> {
         )));
     }
 
-    Ok(Some(WorkerLayer {
-        codex: validate_roles(path, WorkerHarness::Codex, file.codex)?,
-        claude: validate_roles(path, WorkerHarness::Claude, file.claude)?,
-        opencode: validate_roles(path, WorkerHarness::Opencode, file.opencode)?,
-        pi: validate_roles(path, WorkerHarness::Pi, file.pi)?,
-        omp: validate_roles(path, WorkerHarness::Omp, file.omp)?,
-    }))
+    Ok(Some(file))
+}
+
+fn validate_worker_file(path: &Path, file: &WorkerFile) -> Result<WorkerLayer, ZdevError> {
+    Ok(WorkerLayer {
+        codex: validate_roles(path, WorkerHarness::Codex, &file.codex)?,
+        claude: validate_roles(path, WorkerHarness::Claude, &file.claude)?,
+        opencode: validate_roles(path, WorkerHarness::Opencode, &file.opencode)?,
+        pi: validate_roles(path, WorkerHarness::Pi, &file.pi)?,
+        omp: validate_roles(path, WorkerHarness::Omp, &file.omp)?,
+    })
 }
 
 fn validate_roles(
     path: &Path,
     harness: WorkerHarness,
-    profiles: HarnessProfiles,
+    profiles: &HarnessProfiles,
 ) -> Result<RoleProfiles, ZdevError> {
     Ok(RoleProfiles {
         implementer: profiles
             .implementer
+            .as_ref()
             .map(|profile| validate_profile(path, harness, "implementer", profile))
             .transpose()?,
         verifier: profiles
             .verifier
+            .as_ref()
             .map(|profile| validate_profile(path, harness, "verifier", profile))
             .transpose()?,
     })
@@ -820,7 +1258,7 @@ fn validate_profile(
     path: &Path,
     harness: WorkerHarness,
     role: &str,
-    raw: RawWorkerProfile,
+    raw: &RawWorkerProfile,
 ) -> Result<WorkerProfile, ZdevError> {
     let table = format!("{}.{}", harness.as_str(), role);
     if raw.inherit == Some(true) && raw.model.is_none() && raw.effort.is_none() {
@@ -838,11 +1276,12 @@ fn validate_profile(
     }
     let model = raw
         .model
+        .as_ref()
         .ok_or_else(|| profile_error(path, &table, "expected either inherit = true or a model"))?;
     if model.trim().is_empty() {
         return Err(profile_error(path, &table, "model must not be empty"));
     }
-    let effort = raw.effort.ok_or_else(|| {
+    let effort = raw.effort.as_ref().ok_or_else(|| {
         profile_error(path, &table, "a model profile must include an effort value")
     })?;
     if harness == WorkerHarness::Opencode
@@ -860,8 +1299,8 @@ fn validate_profile(
         ));
     }
     Ok(WorkerProfile {
-        model: Some(model),
-        effort: (!matches!(effort, Effort::Inherit)).then_some(effort),
+        model: Some(model.clone()),
+        effort: (!matches!(effort, Effort::Inherit)).then_some(effort.clone()),
     })
 }
 

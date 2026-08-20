@@ -220,6 +220,31 @@ enum ConfigCommand {
         #[arg(long, conflicts_with = "global")]
         local: bool,
     },
+    /// Set one typed project or worker configuration value
+    Set {
+        /// Configuration key from the fixed project and worker registry
+        key: String,
+        /// Value, or model and effort for a worker profile
+        #[arg(value_name = "VALUE", num_args = 1..)]
+        values: Vec<String>,
+        /// Write the global worker-profile file
+        #[arg(long, conflicts_with = "local")]
+        global: bool,
+        /// Write this repository's configuration
+        #[arg(long, conflicts_with = "global")]
+        local: bool,
+    },
+    /// Remove one value from its selected scope
+    Unset {
+        /// Configuration key from the fixed project and worker registry
+        key: String,
+        /// Write the global worker-profile file
+        #[arg(long, conflicts_with = "local")]
+        global: bool,
+        /// Write this repository's configuration
+        #[arg(long, conflicts_with = "global")]
+        local: bool,
+    },
     /// Set the branch that areas use as their default base
     Trunk {
         /// Trunk branch name; omit to use the checked-out branch
@@ -503,6 +528,17 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             ConfigCommand::Get {
                 key, global: true, ..
             } => return config::get(None, config::ConfigReadScope::Global, key),
+            ConfigCommand::Set {
+                key,
+                values,
+                global: true,
+                ..
+            } => {
+                return config::set(None, config::ConfigWriteScope::Global, key, values);
+            }
+            ConfigCommand::Unset {
+                key, global: true, ..
+            } => return config::unset(None, config::ConfigWriteScope::Global, key),
             _ => {}
         }
     }
@@ -531,6 +567,12 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 },
                 key,
             ),
+            ConfigCommand::Set { key, values, .. } => {
+                config::set(Some(&root), config::ConfigWriteScope::Local, key, values)
+            }
+            ConfigCommand::Unset { key, .. } => {
+                config::unset(Some(&root), config::ConfigWriteScope::Local, key)
+            }
             ConfigCommand::Trunk { branch } => project::configure_trunk(&root, branch.as_deref()),
         },
         Command::Area { command } => match command {

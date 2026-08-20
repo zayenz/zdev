@@ -903,6 +903,13 @@ fn resolve_custom_guidance_path(root: &Path, selection: &str) -> Result<PathBuf,
     Ok(path)
 }
 
+pub(super) fn validate_guidance_selection(root: &Path, selection: &str) -> Result<(), ZdevError> {
+    match selection {
+        "auto" | "agents" | "zdev" => Ok(()),
+        custom => resolve_custom_guidance_path(root, custom).map(|_| ()),
+    }
+}
+
 fn normalize_path(path: &Path) -> PathBuf {
     let mut normalized = PathBuf::new();
     for component in path.components() {

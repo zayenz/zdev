@@ -322,7 +322,7 @@ pub(super) fn current_branch(root: &Path) -> Result<Option<String>, ZdevError> {
     Ok(None)
 }
 
-fn canonical_branch(root: &Path, branch: &str) -> Result<String, ZdevError> {
+pub(super) fn canonical_branch(root: &Path, branch: &str) -> Result<String, ZdevError> {
     validate_nonempty_line(branch, "Branch")?;
     let output = ProcessCommand::new("git")
         .args(["check-ref-format", "--branch", branch])
@@ -371,6 +371,10 @@ pub(super) fn configure_trunk(
 fn area_path(root: &Path, tag: &str) -> Result<PathBuf, ZdevError> {
     validate_segment(tag, "Area tag")?;
     Ok(root.join(".zdev").join(tag))
+}
+
+pub(super) fn validate_default_area(root: &Path, tag: &str) -> Result<(), ZdevError> {
+    load_area(root, tag).map(|_| ())
 }
 
 pub(super) fn create_area(

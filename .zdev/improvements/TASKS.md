@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 30
-- Ready: 3
+- Ready: 2
 - Blocked: 0
-- Done: 27
+- Done: 28
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -36,6 +36,6 @@
 | [improvements-025](tasks/025-define-task-complexity-and-worker-escalation-without-evaluat.md) | Define task complexity and worker escalation without evaluation machinery | done | — |
 | [improvements-026](tasks/026-define-an-explicit-zdev-area-loop-across-harnesses.md) | Define an explicit zdev area loop across harnesses | done | — |
 | [improvements-027](tasks/027-reduce-zdev-workflow-round-trips-without-weakening-evidence.md) | Reduce zdev workflow round trips without weakening evidence | done | — |
-| [improvements-028](tasks/028-assess-gpt-5-6-luna-for-zdev-coordination.md) | Assess gpt-5.6-luna for zdev coordination | ready | — |
+| [improvements-028](tasks/028-assess-gpt-5-6-luna-for-zdev-coordination.md) | Assess gpt-5.6-luna for zdev coordination | done | — |
 | [improvements-029](tasks/029-define-safe-derived-tasks-without-repeated-approval-ceremony.md) | Define safe derived tasks without repeated approval ceremony | ready | — |
 | [improvements-030](tasks/030-define-first-class-trunk-based-area-work.md) | Define first-class trunk-based area work | ready | — |

@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-028"
 key = "assess-luna-coordinator"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Assess gpt-5.6-luna for zdev coordination
@@ -26,16 +26,26 @@ The coordinator is intentionally not a worker profile. It owns user decisions, t
 
 ## Done when
 
-- [ ] The investigation enumerates the coordinator's reasoning and mechanical duties and identifies the safety-critical ones.
-- [ ] It maps whether and how each harness can select a coordinator model independently of workers.
-- [ ] It defines a small representative prototype covering clean dispatch, unexplained Git state, a mismatched worker envelope, REWORK routing, and a product decision.
-- [ ] It records dated evidence, observed failures, limitations, and confidence.
-- [ ] It gives a clear go, no-go, or bounded-use recommendation.
-- [ ] If viable, it defines the smallest editable selection and fallback contract; if not, it creates no implementation task.
-- [ ] It explains how deterministic tooling can reduce intelligence requirements without moving judgment into unsafe heuristics.
+- [x] The investigation enumerates the coordinator's reasoning and mechanical duties and identifies the safety-critical ones.
+- [x] It maps whether and how each harness can select a coordinator model independently of workers.
+- [x] It defines a small representative prototype covering clean dispatch, unexplained Git state, a mismatched worker envelope, REWORK routing, and a product decision.
+- [x] It records dated evidence, observed failures, limitations, and confidence.
+- [x] It gives a clear go, no-go, or bounded-use recommendation.
+- [x] If viable, it defines the smallest editable selection and fallback contract; if not, it creates no implementation task.
+- [x] It explains how deterministic tooling can reduce intelligence requirements without moving judgment into unsafe heuristics.
 
 ## Validation
 
 - Use current official OpenAI and harness documentation.
 - Use reproducible bounded traces with exact inputs and expected coordinator decisions.
 - Do not run a broad benchmark; report unavailable model access as a limitation rather than substituting another model.
+
+## Result
+
+Assessed Luna for bounded zdev coordination across supported harnesses, documenting safety-critical duties, a five-case probe, limitations, and an explicit fallback contract without adding a coordinator profile.
+
+Validation:
+
+- Independent verifier PASS after checking all task conditions, official harness controls, probe evidence, recommendation, and Git state.
+- cargo test --locked completed successfully: 3 unit tests, 1 documentation contract, and 93 lean tests.
+- cargo fmt, clippy with warnings denied, cargo build, link checks, and git diff --check passed.

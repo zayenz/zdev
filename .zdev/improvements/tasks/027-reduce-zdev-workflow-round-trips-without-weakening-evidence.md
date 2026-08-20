@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-027"
 key = "audit-workflow-round-trips"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Reduce zdev workflow round trips without weakening evidence
@@ -26,12 +26,12 @@ Current workflows repeatedly collect status, goal, three-part Git evidence, work
 
 ## Done when
 
-- [ ] The audit provides a per-harness baseline trace from invocation through commit, with calls and turns grouped by purpose.
-- [ ] It marks every repeated check as required, safely reusable, combinable, or redundant.
-- [ ] It ranks proposals by saved calls, implementation size, risk, and affected harnesses.
-- [ ] It gives exact before and after traces for each recommended reduction.
-- [ ] It explicitly rejects optimizations that weaken freshness, worker independence, ownership attribution, or recovery.
-- [ ] It produces small follow-up implementation tasks only for worthwhile reductions.
+- [x] The audit provides a per-harness baseline trace from invocation through commit, with calls and turns grouped by purpose.
+- [x] It marks every repeated check as required, safely reusable, combinable, or redundant.
+- [x] It ranks proposals by saved calls, implementation size, risk, and affected harnesses.
+- [x] It gives exact before and after traces for each recommended reduction.
+- [x] It explicitly rejects optimizations that weaken freshness, worker independence, ownership attribution, or recovery.
+- [x] It produces small follow-up implementation tasks only for worthwhile reductions.
 
 ## Validation
 
@@ -39,3 +39,12 @@ Current workflows repeatedly collect status, goal, three-part Git evidence, work
 - Exercise representative clean, stale-advisory, REWORK, invalid-envelope, and commit-failure paths.
 - Confirm counts against actual command and tool boundaries where locally observable.
 - Make no synthetic latency claims and run no provider-wide benchmark.
+
+## Result
+
+Measured current zdev workflow boundaries and defined three concrete reductions without weakening freshness, verification, attribution, or rollback.
+
+Validation:
+
+- Independent trace review confirmed actual per-harness counts, proposed savings, and normative integration gaps.
+- Focused workflow, parser, audit, import, and rollback tests plus full formatting, Clippy, test, build, documentation, and diff checks passed.

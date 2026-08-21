@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 10
-- Blocked: 14
-- Done: 30
+- Ready: 11
+- Blocked: 12
+- Done: 31
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -39,8 +39,8 @@
 | [improvements-028](tasks/028-assess-gpt-5-6-luna-for-zdev-coordination.md) | Assess gpt-5.6-luna for zdev coordination | done | — |
 | [improvements-029](tasks/029-define-safe-derived-tasks-without-repeated-approval-ceremony.md) | Define safe derived tasks without repeated approval ceremony | done | — |
 | [improvements-030](tasks/030-define-first-class-trunk-based-area-work.md) | Define first-class trunk-based area work | done | — |
-| [improvements-031](tasks/031-repair-release-safety-and-current-status-guidance.md) | Repair release safety and current-status guidance | ready | — |
-| [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | blocked | improvements-031 |
+| [improvements-031](tasks/031-repair-release-safety-and-current-status-guidance.md) | Repair release safety and current-status guidance | done | — |
+| [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | ready | improvements-031 |
 | [improvements-033](tasks/033-simplify-worker-results-to-one-typed-envelope.md) | Simplify worker results to one typed envelope | ready | — |
 | [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | blocked | improvements-032 |
 | [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | ready | — |
@@ -48,7 +48,7 @@
 | [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | ready | — |
 | [improvements-038](tasks/038-query-the-next-task-only-when-work-will-continue.md) | Query the next task only when work will continue | ready | — |
 | [improvements-039](tasks/039-make-the-review-fingerprint-an-opaque-machine-handoff.md) | Make the review fingerprint an opaque machine handoff | ready | — |
-| [improvements-040](tasks/040-clarify-root-skill-routing-and-disclosure.md) | Clarify root skill routing and disclosure | blocked | improvements-031 |
+| [improvements-040](tasks/040-clarify-root-skill-routing-and-disclosure.md) | Clarify root skill routing and disclosure | ready | improvements-031 |
 | [improvements-041](tasks/041-add-routine-standard-and-advanced-worker-profiles.md) | Add routine, standard, and advanced worker profiles | ready | — |
 | [improvements-042](tasks/042-persist-routine-standard-and-advanced-task-complexity.md) | Persist routine, standard, and advanced task complexity | ready | — |
 | [improvements-043](tasks/043-route-task-complexity-through-planning-and-escalation.md) | Route task complexity through planning and escalation | blocked | improvements-041, improvements-042, improvements-033 |

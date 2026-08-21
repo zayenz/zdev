@@ -1,8 +1,8 @@
 # Layered zdev configuration
 
-This document settles the contract for a small `zdev config` command. It is a
-design record, not an implementation. The code and external behavior described
-here were checked on 2026-08-20.
+> **Status: current behavior.** The `zdev config` command described here is
+> implemented. Research and external behavior were checked on 2026-08-20;
+> implementation-seam sections preserve the decision record that led to it.
 
 ## What is configuration
 

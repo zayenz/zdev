@@ -35,6 +35,12 @@ const expectedNoWorkKeys = [
   'queue',
   'status_json',
 ]
+const expectedClosedNoWorkKeys = [
+  'area',
+  'goal_json',
+  'lifecycle',
+  'queue',
+]
 const parseReady = (raw, workflow, expectedArea, expectedTask = null) => {
   if (typeof raw !== 'string') return null
   const newline = raw.indexOf('\n')
@@ -82,8 +88,20 @@ const parseNoWork = raw => {
     return null
   }
   if (!payload || Array.isArray(payload) || typeof payload !== 'object') return null
-  if (JSON.stringify(Object.keys(payload).sort()) !== JSON.stringify(expectedNoWorkKeys)) return null
   if (payload.area !== area || payload.lifecycle !== match[1] || payload.queue !== match[2]) return null
+  if (match[1] === 'closed') {
+    if (JSON.stringify(Object.keys(payload).sort()) !== JSON.stringify(expectedClosedNoWorkKeys)) return null
+    if (typeof payload.goal_json !== 'string' || !payload.goal_json) return null
+    let goal
+    try {
+      goal = JSON.parse(payload.goal_json)
+    } catch {
+      return null
+    }
+    if (goal?.lifecycle !== 'closed' || goal?.queue !== match[2] || goal?.area?.tag !== area || goal?.task !== null) return null
+    return { lifecycle: 'closed', queue: match[2], staleAdvisory: false }
+  }
+  if (JSON.stringify(Object.keys(payload).sort()) !== JSON.stringify(expectedNoWorkKeys)) return null
   for (const key of ['status_json', 'goal_json', 'git_status', 'git_diff_cached', 'git_diff']) {
     if (typeof payload[key] !== 'string') return null
   }
@@ -117,7 +135,7 @@ if (!/^[a-z0-9][a-z0-9-]*$/.test(area)) {
 }
 
 const preflight = async label => agent(
-  `${workflowContract}\n\nAct only as the coordinating preflight for area ${area}. Run zdev status ${area} --format json and require branch_status.task_work.safe to be true. If stale_advisory is true, retain it and continue. Capture git status --short --untracked-files=all, git diff --cached, and git diff as explicit strings, including empty results. Run zdev goal ${area} --format json. Do not change files or start another worker. For ready work require lifecycle open and queue ready, then return exactly:\nREADY zdev-implement ${area} <task-id>\n<one JSON object with exactly area, task_id, status_json, goal_json, git_status, git_diff_cached, and git_diff; status_json and goal_json are the complete command JSON bytes encoded as strings>.\nFor no work return exactly:\nNO-WORK zdev-implement ${area} <open-or-closed> <empty-or-exhausted>\n<one JSON object with exactly area, lifecycle, queue, status_json, goal_json, git_status, git_diff_cached, and git_diff, with complete command JSON bytes encoded as strings>.\nOtherwise return a blocker explanation.`,
+  `${workflowContract}\n\nAct only as the coordinating preflight for area ${area}. Run zdev goal ${area} --format json first. For a validated closed goal return exactly, without inspecting Git or task-work status:\nNO-WORK zdev-implement ${area} closed <empty-or-exhausted>\n<one JSON object with exactly area, lifecycle, queue, and goal_json; goal_json is the complete command JSON bytes encoded as a string>.\nFor an open goal, run zdev status ${area} --format json and require branch_status.task_work.safe to be true. If stale_advisory is true, retain it and continue. Capture git status --short --untracked-files=all, git diff --cached, and git diff as explicit strings, including empty results. Do not change files or start another worker. For ready work return exactly:\nREADY zdev-implement ${area} <task-id>\n<one JSON object with exactly area, task_id, status_json, goal_json, git_status, git_diff_cached, and git_diff; status_json and goal_json are the complete command JSON bytes encoded as strings>.\nFor open no-work return exactly:\nNO-WORK zdev-implement ${area} open <empty-or-exhausted>\n<one JSON object with exactly area, lifecycle, queue, status_json, goal_json, git_status, git_diff_cached, and git_diff, with complete command JSON bytes encoded as strings>.\nOtherwise return a blocker explanation.`,
   { label },
 )
 

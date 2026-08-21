@@ -1,5 +1,7 @@
 # Trunk-based area work
 
+> **Status: design only.** Zdev does not implement trunk-based area mode.
+
 This design adds an explicit way to run several areas on the configured project
 trunk. It leaves branch-isolated areas as the default. It is a design record,
 not an implementation.

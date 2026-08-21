@@ -1,5 +1,8 @@
 # Explicit area continuation across harnesses
 
+> **Status: design only.** Zdev does not install or run this continuation
+> contract.
+
 This record defines an explicit zdev route that completes approved work one
 task at a time while an area remains open and ready. Research was checked on
 2026-08-20. Observed harness behavior and proposed zdev behavior are kept
@@ -71,25 +74,17 @@ Both dedicated names always activate zdev. Codex skills set
 namespaced invocation. Shared skill guidance carries the active-context rule
 for natural-language synonyms.
 
-## Existing Claude guidance correction
+## Existing guidance used by this design
 
-Current guidance in `docs/harness-goals.md`,
-`templates/zdev/shared-contract.md`, `templates/zdev/claude-skill.md`, and the
-generated `.claude/skills/zdev/skills/zdev/SKILL.md` tells a Claude skill to
-inspect or apply `/goal`. The documented skill and workflow APIs cannot do
-that, and the new workflow does not need it. The implementation follow-up must
-remove those Claude claims from canonical sources and regenerate the managed
-copy. It must retain Codex and Oh My Pi's supported native-goal conflict
-behavior. This design record does not itself correct installed guidance.
+Current Claude guidance uses `zdev goal` as ordinary workflow context and does
+not inspect or apply Claude Code's separate `/goal`. Codex and Oh My Pi retain
+their supported native-goal conflict behavior. The continuation design keeps
+that division.
 
-The current `templates/zdev/task-workflows.md` preflight orders status and
-`task_work.safe` before goal classification, and
-`templates/zdev/claude/workflows/zdev-implement.js` uses one no-work parser
-that requires task-work safety and complete Git evidence for closed as well as
-open. Their generated copies carry the same rule. This record supersedes that
-rule only for validated closed no-work. The follow-up must correct the common
-contract, Claude parser, related documentation, and generated artifacts while
-retaining full safety and Git evidence for every open state.
+The current task workflow classifies a validated closed goal before status,
+Git, and task-work checks. Open work still requires task-work safety and
+complete Git evidence. The continuation implementation must preserve those
+rules.
 
 ## One-task iteration
 

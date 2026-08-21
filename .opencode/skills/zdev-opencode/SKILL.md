@@ -18,6 +18,7 @@ they do not activate zdev alone.
 | **Explore an objective** — start or revise an area and its brief; aliases: “wayfind,” “shape” | [references/shape-work.md](references/shape-work.md) |
 | **Discuss the brief** — challenge or sharpen an existing brief; alias: “grill” | [references/discuss.md](references/discuss.md) |
 | **Improve** — broadly audit or review and propose candidate work | [references/improve.md](references/improve.md) |
+| **Audit** — inspect a named boundary and return only independently checked findings | Use the installed `zdev-audit` entrypoint and its dedicated audit contract |
 | **Investigate** — answer one named checkable uncertainty through research, diagnosis, or a prototype | [references/investigate.md](references/investigate.md) |
 | **Create tasks** — draft an approved task split | Read [references/to-tasks.md](references/to-tasks.md) and the authoritative [references/task-format.md](references/task-format.md) |
 | **Implement** — continue with the next ready task | [references/implement.md](references/implement.md) |

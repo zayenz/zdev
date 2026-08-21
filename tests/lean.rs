@@ -3538,6 +3538,8 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(implement.contains("field(result, 'Advisory') === advisory"));
     assert!(verify.contains("prepared.staleAdvisory"));
     assert!(verify.contains("field(result, 'Advisory') === advisory"));
+    assert!(verify.contains("Run zdev goal ${area} --format json first"));
+    assert!(verify.contains("without inspecting Git or task-work status"));
 
     let parser_start = implement.find("const expectedKeys").expect("parser start");
     let parser_end = implement
@@ -3552,6 +3554,11 @@ const envelope = (statusValue, goalValue) => `NO-WORK zdev-implement general ope
 if (!parseNoWork(envelope(status, goal))) throw new Error('valid no-work rejected')
 if (parseNoWork(envelope({{ ...status, lifecycle: 'closed' }}, goal))) throw new Error('status lifecycle mismatch accepted')
 if (parseNoWork(envelope({{ ...status, queue: 'exhausted' }}, goal))) throw new Error('status queue mismatch accepted')
+const closedGoal = {{ area: {{ tag: area }}, lifecycle: 'closed', queue: 'empty', task: null }}
+const closedEnvelope = goalValue => `NO-WORK zdev-implement general closed empty\n${{JSON.stringify({{ area, lifecycle: 'closed', queue: 'empty', goal_json: JSON.stringify(goalValue) }})}}`
+if (!parseNoWork(closedEnvelope(closedGoal))) throw new Error('branch-independent closed no-work rejected')
+if (parseNoWork(closedEnvelope({{ ...closedGoal, task: undefined }}))) throw new Error('closed goal without explicit null task accepted')
+if (parseNoWork(`NO-WORK zdev-implement general closed empty\n${{JSON.stringify({{ area, lifecycle: 'closed', queue: 'empty', goal_json: JSON.stringify(closedGoal), git_status: '' }})}}`)) throw new Error('closed goal with Git evidence accepted')
 "#,
         &implement[parser_start..parser_end]
     );
@@ -3573,12 +3580,16 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
     let config_home = root.join("audit-worker-config");
     let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
 
-    for (harness, entrypoint) in [
-        ("codex", "zdev-audit/SKILL.md"),
-        ("claude", "workflows/zdev-audit.js"),
-        ("opencode", "commands/zdev-audit.md"),
-        ("pi", "prompts/zdev-audit.md"),
-        ("omp", "prompts/zdev-audit.md"),
+    for (harness, entrypoint, main_skill) in [
+        ("codex", "zdev-audit/SKILL.md", "zdev/SKILL.md"),
+        ("claude", "workflows/zdev-audit.js", "skills/zdev/SKILL.md"),
+        (
+            "opencode",
+            "commands/zdev-audit.md",
+            "skills/zdev-opencode/SKILL.md",
+        ),
+        ("pi", "prompts/zdev-audit.md", "skills/zdev-pi/SKILL.md"),
+        ("omp", "prompts/zdev-audit.md", "skills/zdev/SKILL.md"),
     ] {
         let destination = root.join(format!("audit-{harness}"));
         json_output_with_env(
@@ -3599,6 +3610,13 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
         assert_eq!(audit_paths, [entrypoint], "{harness} audit discovery");
         let audit =
             fs::read_to_string(destination.join(entrypoint)).expect("audit entrypoint content");
+        let main = fs::read_to_string(destination.join(main_skill)).expect("main skill content");
+        assert!(
+            main.contains(
+                "Use the installed `zdev-audit` entrypoint and its dedicated audit contract"
+            ),
+            "{harness} missing active-zdev audit route"
+        );
         for required in [
             "PASS zdev-audit",
             "FINDINGS zdev-audit",
@@ -3715,6 +3733,8 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             fs::read_to_string(destination.join(implement_path)).expect("implement entrypoint");
         let verify = fs::read_to_string(destination.join(verify_path)).expect("verify entrypoint");
         for required in [
+            "validated closed goal is classified before",
+            "Git or task-work gates",
             "zdev status <area> --format json",
             "branch_status.task_work.safe",
             "stale_advisory` is true",

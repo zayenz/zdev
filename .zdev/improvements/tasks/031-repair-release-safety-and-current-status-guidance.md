@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-031"
 key = "coherent-workflow-contracts"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Repair release safety and current-status guidance
@@ -25,15 +25,24 @@ The release review found four concrete contradictions in canonical templates and
 
 ## Done when
 
-- [ ] Closed areas produce successful no-work off-branch and from detached HEAD in every applicable workflow contract.
-- [ ] Claude guidance no longer claims programmatic inspection or application of `/goal`.
-- [ ] Active-zdev audit intent has one explicit route to the dedicated audit behavior.
-- [ ] README and user guide stage only the completed task file, TASKS.md, and explicitly named implementation paths.
-- [ ] Packaged design records clearly distinguish already shipped behavior from the future work represented by this bundle.
-- [ ] Affected checked-in harness artifacts match regenerated canonical templates.
+- [x] Closed areas produce successful no-work off-branch and from detached HEAD in every applicable workflow contract.
+- [x] Claude guidance no longer claims programmatic inspection or application of `/goal`.
+- [x] Active-zdev audit intent has one explicit route to the dedicated audit behavior.
+- [x] README and user guide stage only the completed task file, TASKS.md, and explicitly named implementation paths.
+- [x] Packaged design records clearly distinguish already shipped behavior from the future work represented by this bundle.
+- [x] Affected checked-in harness artifacts match regenerated canonical templates.
 
 ## Validation
 
 - Run focused closed-area and harness contract tests.
 - Run the canonical template/fixture consistency test.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Repaired closed-area workflow ordering, Claude goal guidance, audit routing, staging examples, and documentation status labels across canonical and generated integrations.
+
+Validation:
+
+- Focused lifecycle, Claude envelope, audit routing, workflow, and template consistency tests passed.
+- cargo fmt, strict clippy, all 97 tests, cargo build, package inventory, and git diff checks passed.

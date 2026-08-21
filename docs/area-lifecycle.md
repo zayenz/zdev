@@ -284,7 +284,8 @@ Status includes closed areas and diagnoses their branches normally.
   successful no-work result for open/empty, open/exhausted, or closed and starts
   no worker. Explicit verify always requires an open/ready goal matching its
   requested task ID. For every no-work goal it starts no verifier and returns
-  `BLOCKER zdev-verify`, never a successful verification. Both paths preserve
+  `BLOCKER zdev-verify`, never a successful verification. A validated closed
+  goal is classified before status, Git, and task-work gates; open states retain
   their complete status, goal, and Git-baseline evidence requirements.
 
 ## Narrow implementation task

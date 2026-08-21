@@ -1,5 +1,8 @@
 # Derived work handoffs
 
+> **Status: design only.** Zdev does not implement automatic derived-work
+> handoffs.
+
 Zdev may publish a small follow-up bundle without asking the user to approve
 work they have already approved. This exception applies only to direct work
 inside the current task's area brief, outcome, boundaries, and testing policy.

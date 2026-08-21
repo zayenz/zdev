@@ -22,10 +22,8 @@ task cycle, `/zdev:zdev-verify` verifies an explicit current ready task without
 mutation, and `/zdev:zdev-audit` runs a read-only audit. The ordinary subagent
 loop also works.
 
-Inspect `/goal` before explicit native-goal use, then apply `/goal <native_goal>`
-only when no unfinished goal exists. Otherwise follow the shared ordinary-prompt
-or unavailable-feature fallback; never replace an existing Claude Code goal
-implicitly.
+Use `zdev goal` output as ordinary workflow context. The integration does not
+inspect or apply Claude Code's separate `/goal` command.
 
 {{repository_guidance}}
 

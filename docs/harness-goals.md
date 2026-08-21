@@ -1,15 +1,15 @@
 # Deterministic goals across harnesses
 
-Research checked on 2026-08-20. This document separates current harness
-behavior from the proposed zdev contract. Harness features can change; the
-`zdev goal` output must not.
+> **Status: current behavior.** The `zdev goal` command and installed prompt
+> integration described here are implemented. Harness research was checked on
+> 2026-08-20; harness features can change, but `zdev goal` output is stable.
 
 ## What the harnesses provide today
 
 | Harness | Observed capability | zdev integration point |
 | --- | --- | --- |
 | Codex | Codex has a session goal command. `/goal <objective>` sets a goal, `/goal` shows it, and `edit`, `pause`, `resume`, and `clear` manage it. The objective is limited to 4,000 characters. The feature can be disabled, so it is not universally available. Codex also loads reusable `SKILL.md` workflows. [Codex developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli), [goal use case](https://learn.chatgpt.com/use-cases/follow-goals), and [skill documentation](https://learn.chatgpt.com/docs/build-skills) (accessed 2026-08-20). | The installed zdev skill can obtain the goal text. It may apply the short native condition when the user explicitly asks for a continuing goal; otherwise it uses the rendered output as ordinary task context. |
-| Claude Code | `/goal` keeps a session running until a model judges a completion condition satisfied. One goal can be active; setting another replaces it. An active goal is restored on session resume, and conditions are limited to 4,000 characters. The evaluator reads the transcript but does not run tools. Plugin skills are namespaced, invocable workflows. [Claude Code goal documentation](https://code.claude.com/docs/en/goal) and [skill documentation](https://code.claude.com/docs/en/slash-commands) (accessed 2026-08-20). | The zdev plugin skill or `/zdev:zdev-implement` workflow obtains the goal text. Native `/goal` is optional and only receives the short condition. |
+| Claude Code | `/goal` keeps a session running until a model judges a completion condition satisfied. One goal can be active; setting another replaces it. An active goal is restored on session resume, and conditions are limited to 4,000 characters. The evaluator reads the transcript but does not run tools. Plugin skills are namespaced, invocable workflows. [Claude Code goal documentation](https://code.claude.com/docs/en/goal) and [skill documentation](https://code.claude.com/docs/en/slash-commands) (accessed 2026-08-20). | The zdev plugin skill and `/zdev:zdev-implement` use `zdev goal` as ordinary workflow context. They do not inspect or apply Claude Code's separate `/goal` command. |
 | OpenCode | The documented extension is a custom command whose Markdown body becomes a prompt. Command templates accept arguments, shell output, and file references. The official command guide documents built-ins such as `/init`, `/undo`, and `/share`, but no native session-goal lifecycle. OpenCode separately persists and resumes sessions. [OpenCode commands](https://opencode.ai/docs/commands/) and [OpenCode CLI sessions](https://dev.opencode.ai/docs/cli) (accessed 2026-08-20). | The packaged `/zdev-implement <area>` command, or the zdev skill directly, runs `zdev goal` and supplies its human output as an ordinary prompt. No goal emulation or extra state is needed. |
 | Pi | Pi prompt templates are Markdown expanded into ordinary prompts and invoked as `/name`; project templates live under `.pi/prompts/`. Skills are loaded on demand and can be invoked as `/skill:<name>`. Sessions are persisted as JSONL and can be resumed, but the documented built-in and extension surfaces do not define a native goal lifecycle. [Pi prompt templates](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md), [Pi skills](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md), and [Pi sessions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sessions.md) (accessed 2026-08-20). | The packaged `/zdev-implement <area>` prompt or zdev skill runs `zdev goal` and uses the human output as ordinary prompt context. |
 | Oh My Pi | Oh My Pi has a persistent goal runtime. Its create operation refuses to overwrite an unfinished session goal; the runtime supports pause, resume, drop, completion, accounting, and autonomous continuation. Interactive `/goal set <objective>` creates a goal, while `/goal show`, `pause`, `resume`, and `drop` manage it. [Oh My Pi goal runtime](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/goals/runtime.ts), [interactive goal command](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/modes/interactive-mode.ts), and [goal continuation prompt](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/prompts/goals/goal-continuation.md) (accessed 2026-08-20). | The zdev skill obtains the goal text. When explicitly requested and no unfinished native goal exists, it may use `/goal set` with the short condition. Otherwise it uses an ordinary prompt. |
@@ -19,7 +19,7 @@ current official documentation exposes, not what a plugin could build. Skills,
 commands, and prompt templates are enough for the zdev behavior, so zdev does
 not need to emulate a native goal.
 
-## Proposed zdev meaning of “goal”
+## Zdev meaning of “goal”
 
 A zdev goal is a read-only, deterministic projection of the next ready task in
 an area. It is not a new lifecycle object.
@@ -353,7 +353,9 @@ The portable behavior is an ordinary prompt. Native goal mode is an optional
 execution aid and is used only when the user explicitly asks to set or apply a
 continuing goal.
 
-Every adapter follows this order:
+Every adapter follows the applicable steps in this order. Only Codex and Oh My
+Pi use steps 3 and 5; Claude Code, OpenCode, and Pi proceed from step 2 to the
+ordinary-prompt path in step 4.
 
 1. Run `zdev goal <area> --format json` and check the command result.
 2. Unless lifecycle is `open` and queue is `ready`, report the result and do not start a native
@@ -379,10 +381,9 @@ The harness-specific application is:
   suit substantial work with a clear stopping condition and validation loop,
   which is why zdev sends the task-sized condition rather than the whole area
   backlog.
-- **Claude Code:** inspect `/goal`; if clear and a native goal was requested,
-  run `/goal <native_goal>`. This check is load-bearing because Claude Code
-  replaces an active goal when a new condition is supplied. The plugin skill or
-  `/zdev:zdev-implement <area>` remains the ordinary-prompt path.
+- **Claude Code:** use the plugin skill or `/zdev:zdev-implement <area>` with
+  `zdev goal` as ordinary workflow context. The integration neither inspects
+  nor applies Claude Code's separate `/goal` command.
 - **OpenCode:** use the zdev skill or `/zdev-implement <area>` command to run the
   binary and place the human output in the normal prompt. Do not create a
   project file or plugin-owned goal to imitate a native feature.

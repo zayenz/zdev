@@ -1,8 +1,8 @@
 # Harness orchestration
 
-This note defines a zdev workflow contract across the five supported coding
-harnesses. It records research checked on 2026-08-20. Harness behavior is
-versioned evidence; the proposed zdev behavior is a design decision.
+> **Status: current behavior.** The three workflows and installed artifacts
+> described here are implemented. Harness research was checked on 2026-08-20;
+> implementation-seam sections preserve the decision record that led to them.
 
 ## Versions inspected
 
@@ -121,7 +121,7 @@ supervision, and session artifacts. None is required for the ordinary zdev
 cycle. The adapter should use blocking named workers in the current checkout;
 zdev, not Oh My Pi's job system, remains the workflow owner.
 
-## Proposed public workflows
+## Public workflows
 
 Zdev should use one stable name for each user intent:
 
@@ -143,7 +143,7 @@ Code's workflow namespace produces `/zdev:zdev-implement`,
 
 ### Installed artifacts
 
-| Harness | Exact proposed entry points | Native workers |
+| Harness | Installed entry points | Native workers |
 | --- | --- | --- |
 | Codex | `skills/zdev-implement/SKILL.md`, `skills/zdev-verify/SKILL.md`, `skills/zdev-audit/SKILL.md` under the selected Codex scope | Each skill uses native Codex subagents with the resolved `implementer` or `verifier` profile passed at spawn. No durable child ID is installed. |
 | Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, and `workflows/zdev-audit.js` with matching `meta.name` values | `agents/zdev-implementer.md` and `agents/zdev-verifier.md`. Each `agent()` call selects the scoped `zdev:zdev-implementer` or `zdev:zdev-verifier` agent type; the existing zdev skill remains shared guidance and an ordinary-agent fallback. |
@@ -171,8 +171,9 @@ reported as one ready installation. No other shared-root file is removed.
 
 ### Deterministic task selection
 
-`zdev-implement` runs `zdev status <area> --format json` and
-`zdev goal <area> --format json` in the coordinating session. It requires
+`zdev-implement` runs `zdev goal <area> --format json` first. A validated closed
+goal returns no work before Git or task-work gates. For an open goal it runs
+`zdev status <area> --format json` in the coordinating session and requires
 `branch_status.task_work.safe`, reports `stale_advisory` once while continuing,
 records status with untracked files plus staged and unstaged diffs, and uses
 only the `ready` goal's task as its subject. Structurally unsafe branch state
@@ -180,8 +181,9 @@ still blocks. The complete JSON goal is passed unchanged to every worker
 together with the brief, repository guidance, baseline, and task-owned paths.
 
 An implement goal that is `open` / `empty`, `open` / `exhausted`, or `closed`
-is a successful no-work result. No worker is
-started, and no state changes. A malformed graph, unsafe branch, changed focus
+is a successful no-work result. Closed requires no branch or Git evidence;
+open no-work retains the open-work gates. No worker is started, and no state
+changes. A malformed graph, unsafe open branch, changed focus
 task, or other validation error is a blocker. Before verification and before
 each rework handoff, the coordinator reruns the status and goal reads and
 requires the same task ID. This makes a stale long-running conversation fail
@@ -193,10 +195,11 @@ preflight and baseline comparison but does not invoke an implementer.
 `zdev-audit` has no area selection and does not call `zdev goal`.
 
 The native goal behavior described in [Deterministic goals across
-harnesses](harness-goals.md) remains optional. A workflow applies the short
-native condition only when the user explicitly asks for a continuing harness
-goal and no conflicting native goal exists. Otherwise the deterministic zdev
-goal is ordinary prompt context. Native goal support is never a prerequisite.
+harnesses](harness-goals.md) remains optional. Codex and Oh My Pi apply the
+short native condition only when the user explicitly asks for a continuing
+harness goal and no conflicting native goal exists. Claude Code, OpenCode, and
+Pi always use the deterministic zdev goal as ordinary prompt context. Native
+goal support is never a prerequisite.
 
 ### Ownership and delegation
 

@@ -107,7 +107,9 @@ commit the staged changes:
 zdev task done scheduling scheduling-001 \
   --summary "Implemented and independently verified the scheduling model." \
   --validation "Focused model tests passed."
-git add <changed-files> .zdev/scheduling
+git add <explicit-implementation-path>... \
+  .zdev/scheduling/tasks/001-add-the-scheduling-model.md \
+  .zdev/scheduling/TASKS.md
 zdev commit -m "feat: add scheduling model"
 ```
 

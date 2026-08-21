@@ -7,7 +7,10 @@ lifecycle changes, and commits. Workers never edit `.zdev`, complete tasks,
 commit, delegate, or change the selected task.
 
 Before starting an implementer or verifier, run
-`zdev status <area> --format json` and require
+`zdev goal <area> --format json`. A validated closed goal is classified before
+Git or task-work gates: implement returns successful no-work, while explicit
+verify returns `BLOCKER zdev-verify`; neither starts a worker. For every open
+goal, run `zdev status <area> --format json` and require
 `branch_status.task_work.safe` to be true. When
 `branch_status.task_work.stale_advisory` is true, report the advisory once and
 continue without requesting a rebase. Staleness alone is not a blocker. A
@@ -18,11 +21,11 @@ Keep explicit evidence for all three results, including empty results, and
 inspect relevant untracked files. Stop on unexplained or overlapping changes
 or any user-owned decision.
 
-Run `zdev goal <area> --format json`. For implement, open/empty,
-open/exhausted, and closed are successful no-work results and start no worker.
-Explicit verify requires open/ready and returns `BLOCKER zdev-verify` without
-starting a verifier for every no-work result. Invalid records, task graphs, or
-goal output are blockers. For open/ready, retain the complete goal JSON
+For implement, open/empty and open/exhausted are successful no-work results
+after the open-work gates above and start no worker. Explicit verify requires
+open/ready and returns `BLOCKER zdev-verify` without starting a verifier for
+every no-work result. Invalid records, task graphs, or goal output are
+blockers. For open/ready, retain the complete goal JSON
 unchanged and its task ID as the subject. Before verification and every rework
 handoff, rerun status, the complete Git evidence, and goal; require the same
 ready task ID.

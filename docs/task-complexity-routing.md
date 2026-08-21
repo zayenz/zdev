@@ -1,5 +1,7 @@
 # Task complexity and worker escalation
 
+> **Status: design only.** Zdev does not implement this routing contract.
+
 This record defines a small routing policy for zdev task work. It keeps task
 complexity explicit, makes ordinary work cheaper, and reserves a stronger
 implementer for planned complex work or a verifier-requested repair. It adds no

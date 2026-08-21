@@ -3786,7 +3786,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
 
     let task_workflow =
         fs::read_to_string(claude.join("workflows/zdev-implement.js")).expect("implement workflow");
-    assert!(task_workflow.contains("while (verdict.split"));
+    assert!(task_workflow.contains("while (verdict.result.verdict === 'rework')"));
     assert!(task_workflow.contains("agentType: 'zdev:zdev-implementer'"));
     assert!(task_workflow.contains("agentType: 'zdev:zdev-verifier'"));
     assert!(task_workflow.contains("zdev task done"));
@@ -3836,11 +3836,23 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
         }
     }
     assert!(implement.contains("first === `PASS zdev-implement ${area} ${taskId}`"));
+    assert!(implement.contains("const implementationHistory = []"));
+    assert_eq!(implement.matches("implementationHistory.push(").count(), 2);
+    assert_eq!(
+        implement
+            .matches("Validated implementer history:\\n${JSON.stringify(implementationHistory)}")
+            .count(),
+        2
+    );
+    assert!(implement.contains(
+        "Evidence: ${implementation.evidence.join('; ') || 'none.'} Findings: ${implementation.findings.join('; ') || 'none.'}"
+    ));
+    assert!(implement.contains(
+        "Evidence: ${rework.evidence.join('; ') || 'none.'} Findings: ${rework.findings.join('; ') || 'none.'}"
+    ));
     assert!(implement.contains("field(result ?? '', 'Area') === area"));
     assert!(implement.contains("field(result ?? '', 'Task') === taskId"));
-    assert!(verify.contains("first === `${verdict} zdev-verify ${area} ${taskId}`"));
-    assert!(verify.contains("field(result, 'Area') === area"));
-    assert!(verify.contains("field(result, 'Task') === taskId"));
+    assert!(verify.contains("parseWorkerResult(result, 'verifier', area, taskId)"));
     assert!(implement.contains("taskWork.stale_advisory"));
     assert!(implement.contains("managed rebase remains optional"));
     assert!(implement.contains("const parseNoWork"));
@@ -3856,7 +3868,6 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
         "'implementation', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
         "'goal refresh', `expected ready task ${taskId} with complete status, goal, and Git evidence.`, 'lifecycle and commit were not changed.', staleAdvisory",
         "'rework', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
-        "'verification', 'independent verification did not pass.', 'lifecycle and commit were not changed.', staleAdvisory",
         "'completion and commit', 'coordinator returned an invalid or mismatched envelope.', 'inspect the checkout and zdev task record before continuing.', staleAdvisory",
     ] {
         assert!(
@@ -3867,13 +3878,13 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(implement.contains("staleAdvisory ? `Advisory: ${advisoryText}\\n` : ''"));
     assert!(implement.contains("field(result, 'Advisory') === advisory"));
     assert!(verify.contains("prepared.staleAdvisory"));
-    assert!(verify.contains("field(result, 'Advisory') === advisory"));
+    assert!(verify.contains("advisoryCount === (advisory ? 1 : 0)"));
     assert!(verify.contains("Run zdev goal ${area} --format json first"));
     assert!(verify.contains("without inspecting Git or task-work status"));
 
     let parser_start = implement.find("const expectedKeys").expect("parser start");
     let parser_end = implement
-        .find("const exactWorkerEnvelope")
+        .find("const workerResultKeys")
         .expect("parser end");
     let probe = format!(
         r#"const area = 'general'
@@ -3901,6 +3912,62 @@ if (parseNoWork(`NO-WORK zdev-implement general closed empty\n${{JSON.stringify(
         "Claude no-work parser probe failed: {}",
         String::from_utf8_lossy(&parser_probe.stderr)
     );
+
+    for workflow in [implement, verify] {
+        let worker_start = workflow
+            .find("const workerResultKeys")
+            .expect("worker parser start");
+        let worker_end = workflow[worker_start..]
+            .find("\nif (!/^[a-z0-9]")
+            .map(|offset| worker_start + offset)
+            .expect("worker parser end");
+        let worker_probe = format!(
+            r#"{}
+const base = {{ schema_version: 1, kind: 'verifier', area: 'general', task_id: 'general-001', verdict: 'pass', summary: 'Verified.', evidence: ['cargo test passed'], findings: [], escalation: 'none' }}
+if (!parseWorkerResult(JSON.stringify(base), 'verifier', 'general', 'general-001')) throw new Error('PASS rejected')
+const rework = {{ ...base, verdict: 'rework', summary: 'Correction needed.', findings: ['src/lib.rs:1 is wrong'], escalation: 'advanced-implementer' }}
+if (!parseWorkerResult(JSON.stringify(rework), 'verifier', 'general', 'general-001')) throw new Error('REWORK escalation rejected')
+const blocker = {{ ...base, kind: 'implementer', verdict: 'blocker', summary: 'Cannot edit safely.', evidence: [], findings: ['overlapping change'] }}
+if (!parseWorkerResult(JSON.stringify(blocker), 'implementer', 'general', 'general-001')) throw new Error('BLOCKER rejected')
+if (parseWorkerResult(JSON.stringify({{ ...base, extra: true }}), 'verifier', 'general', 'general-001')) throw new Error('unknown key accepted')
+if (parseWorkerResult(JSON.stringify({{ ...base, task_id: 'general-002' }}), 'verifier', 'general', 'general-001')) throw new Error('identity mismatch accepted')
+if (parseWorkerResult(JSON.stringify({{ ...base, escalation: 'advanced-implementer' }}), 'verifier', 'general', 'general-001')) throw new Error('contradictory escalation accepted')
+if (parseWorkerResult(JSON.stringify({{ ...base, kind: 'implementer', verdict: 'pass' }}), 'implementer', 'general', 'general-001')) throw new Error('contradictory verdict accepted')
+if (parseWorkerResult(JSON.stringify({{ ...base, evidence: [''] }}), 'verifier', 'general', 'general-001')) throw new Error('empty evidence accepted')
+if (parseWorkerResult(`${{JSON.stringify(base)}} trailing`, 'verifier', 'general', 'general-001')) throw new Error('extra text accepted')
+const duplicate = '{{"schema_version":1,"kind":"verifier","area":"general","area":"general","task_id":"general-001","verdict":"pass","summary":"Verified.","evidence":[],"findings":[],"escalation":"none"}}'
+if (parseWorkerResult(duplicate, 'verifier', 'general', 'general-001')) throw new Error('duplicate key accepted')
+"#,
+            &workflow[worker_start..worker_end]
+        );
+        let output = Command::new("node")
+            .args(["--input-type=commonjs", "--eval", &worker_probe])
+            .output()
+            .expect("run Claude worker-result parser probe");
+        assert!(
+            output.status.success(),
+            "Claude worker-result parser probe failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn complexity_routing_uses_the_typed_escalation_vocabulary() {
+    let guidance = include_str!("../docs/task-complexity-routing.md");
+    let routing = guidance
+        .split("## Coordinator routing")
+        .nth(1)
+        .expect("coordinator routing")
+        .split("## Smallest implementation seam")
+        .next()
+        .expect("routing boundary");
+
+    assert!(routing.contains("verifier verdict `rework`"));
+    assert!(routing.contains("`advanced-implementer`"));
+    assert!(!routing.contains("`REWORK`"));
+    assert!(!routing.contains("`BLOCKER`"));
+    assert!(!routing.contains("Escalation: strong-implementer"));
 }
 
 #[test]
@@ -4071,12 +4138,28 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             "git status --short --untracked-files=all",
             "git diff --cached",
             "zdev goal <area> --format json",
-            "PASS zdev-verify",
-            "REWORK zdev-verify",
-            "BLOCKER zdev-verify",
+            "schema_version",
+            "kind",
+            "verifier verdict is `pass`, `rework`, or `blocker`",
+            "`advanced-implementer`",
             "no fixed rework count",
         ] {
             assert!(implement.contains(required), "{harness} missing {required}");
+        }
+        for entrypoint in [&implement, &verify] {
+            for required in [
+                "schema_version",
+                "`kind` is `implementer` or `verifier`",
+                "`evidence` and `findings` are always arrays",
+                "Reject duplicate or unknown keys",
+            ] {
+                assert!(
+                    entrypoint.contains(required),
+                    "{harness} missing typed worker contract {required}"
+                );
+            }
+            assert!(!entrypoint.contains("DONE implementer <area> <task-id>"));
+            assert!(!entrypoint.contains("PASS zdev-verify <area> <task-id>"));
         }
         assert!(implement.contains("zdev task done"));
         assert!(implement.contains("zdev commit"));

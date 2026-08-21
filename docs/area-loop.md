@@ -232,7 +232,7 @@ therefore adapt the existing strict one-task control flow inline:
 Both aliases use the current exact internal subjects:
 `READY zdev-implement <area> <task-id>` or
 `NO-WORK zdev-implement <area> <lifecycle> <queue>` from preflight,
-`DONE implementer`, `PASS|REWORK|BLOCKER zdev-verify`, and finally
+the strict typed implementer and verifier JSON objects, and finally
 `PASS|BLOCKER zdev-implement`. Post-completion reconciliation uses
 `PASS|BLOCKER zdev-reconcile`. Ready and open no-work payloads retain the
 current exact status, goal, and three Git evidence strings. Closed no-work has
@@ -240,9 +240,9 @@ exactly `area`, `goal_json`, `lifecycle`, and `queue`; nested goal must agree,
 have `task: null`, and omit `native_goal`. Status, Git evidence,
 `branch_status`, and `advisory` are absent, not null.
 
-All other existing exact area, task, field, JSON-key, and first-line validation
-continues. A missing field, extra key, suffixed first line, mismatched area or
-task, changed ready selection, or malformed nested status or goal is a loop
+All other existing exact area, task, field, JSON-key, and envelope validation
+continues. A missing field, extra or duplicate key, extra text, mismatched area
+or task, changed ready selection, or malformed nested status or goal is a loop
 blocker. `meta.name` never changes these subjects or the canonical public
 `zdev-loop` result.
 

@@ -145,25 +145,11 @@ but may not suppress planning for an approved complex task.
 
 ### Escalation is a recommendation, not a verdict
 
-Verifier first lines remain exactly `PASS zdev-verify <area> <task-id>`,
-`REWORK zdev-verify <area> <task-id>`, or
-`BLOCKER zdev-verify <area> <task-id>`. The verifier body may add one exact
-field:
-
-```text
-Escalation: none
-```
-
-or, only with `REWORK` after a default implementer attempt:
-
-```text
-Escalation: strong-implementer
-```
-
-Absence means `none`, preserving existing envelopes and adapters. An unknown
-value, a duplicate field, or `strong-implementer` with `PASS` or `BLOCKER`
-makes the result invalid and therefore blocking under the current fail-closed
-rule.
+The current strict verifier object always contains `escalation`. Its value is
+`none`, except that verifier `rework` may request `advanced-implementer`. This
+design would map that request to its proposed strong implementer role. An
+unknown value, duplicate key, or advanced escalation with `pass` or `blocker`
+is invalid and therefore blocking under the current fail-closed rule.
 
 The verifier recommends escalation only when its concrete findings show that
 the repair needs broader reasoning within the already approved scope. It does
@@ -172,7 +158,8 @@ evidence, unsafe scope, or a product decision; those are blockers. The
 coordinator may move only from `implementer` to `strong-implementer`, once per
 task run. There is no stronger tier, downgrade, retry count, model search, or
 automatic change to durable complexity. A strong implementation that receives
-`REWORK` returns to the strong implementer and then to a new verifier.
+verifier verdict `rework` returns to the strong implementer and then to a new
+verifier.
 
 ## Coordinator routing
 
@@ -183,14 +170,16 @@ user questions, envelope validation, lifecycle changes, and commits.
 2. For `standard`, start the resolved `implementer`. For `complex`, obtain the
    valid plan above, then start a fresh `strong-implementer` with that plan.
 3. Inspect the checkout and start a fresh resolved `verifier`.
-4. On ordinary `REWORK`, return findings to the same profile, resuming the
-   worker only where the harness safely supports it.
-5. On `REWORK` with `Escalation: strong-implementer`, start a replacement
-   strong implementer with the goal, baseline, current diff, and all findings.
+4. On ordinary verifier verdict `rework`, return findings to the same profile,
+   resuming the worker only where the harness safely supports it.
+5. On verifier verdict `rework` with envelope `escalation` set to
+   `advanced-implementer`, start a replacement worker using this design's
+   proposed `strong-implementer` profile, with the goal, baseline, current
+   diff, and all findings.
 6. After every repair, start another fresh verifier and check the whole task.
-7. Stop for `BLOCKER`, an unsafe or changed task/baseline, scope outside the
-   approved task, or any choice that belongs to the user. Only `PASS` permits
-   task completion and commit.
+7. Stop for verdict `blocker`, an unsafe or changed task/baseline, scope outside
+   the approved task, or any choice that belongs to the user. Only verifier
+   verdict `pass` permits task completion and commit.
 
 Independent verification remains mandatory in every route. A cheaper verifier
 may recommend a stronger implementer, but never verifies its own work or turns
@@ -202,11 +191,11 @@ The case policy is common:
 
 | Case | Route |
 | --- | --- |
-| Standard success | default implementer → fresh verifier → `PASS` → complete and commit |
-| Complex success | read-only strong planner → fresh strong implementer → fresh verifier → `PASS` |
-| Ordinary repair | default implementer → verifier `REWORK`/`none` → same-profile repair → fresh verifier |
-| Escalated repair | default implementer → verifier `REWORK`/`strong-implementer` → replacement strong implementer → fresh verifier |
-| Product decision | planner, implementer, or verifier returns `BLOCKER` → coordinator asks the user; no completion or commit |
+| Standard success | default implementer → fresh verifier verdict `pass` → complete and commit |
+| Complex success | read-only strong planner → fresh strong implementer → fresh verifier verdict `pass` |
+| Ordinary repair | default implementer → verifier verdict `rework`, escalation `none` → same-profile repair → fresh verifier |
+| Escalated repair | default implementer → verifier verdict `rework`, escalation `advanced-implementer` → replacement worker using the proposed strong profile → fresh verifier |
+| Product decision | planner blocks or a worker returns verdict `blocker` → coordinator asks the user; no completion or commit |
 
 Each harness realizes every row through these native seams:
 
@@ -258,8 +247,8 @@ not change the routing contract.
    render strong implementer and read-only planner artifacts from that profile;
    update exact config documentation and focused resolver/rendering coverage.
 3. **Route planning, repair, and escalation.** Update the common workflow and
-   five adapters, preserve the existing verdict first lines, validate the
-   optional escalation field, regenerate checked-in integrations, and trace the
+   five adapters, preserve the typed verifier verdicts, use the existing
+   constrained escalation field, regenerate checked-in integrations, and trace the
    five cases above through focused contract tests.
 
 Tasks 1 and 2 can proceed independently. Task 3 depends on both. None adds

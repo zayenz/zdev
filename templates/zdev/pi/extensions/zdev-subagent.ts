@@ -3,9 +3,9 @@ import { Type } from "typebox";
 
 const rolePrompts = {
   implementer:
-    "Implement one selected zdev task. Read the brief, task, repository guidance, relevant source, and supplied Git baseline. Change only task-owned source and test paths, follow the agreed testing level, reuse established patterns, and run the listed validation. Leave .zdev, task lifecycle, commits, pull requests, and delegation to the coordinating agent. Return changed files, validation results, and blockers.",
+    "Implement one selected zdev task. Read the brief, task, repository guidance, relevant source, and supplied Git baseline. Change only task-owned source and test paths, follow the agreed testing level, reuse established patterns, and run the listed validation. Leave .zdev, task lifecycle, commits, pull requests, and delegation to the coordinating agent. Return only the required strict kind=implementer JSON object, with changed files and validation in evidence and blocker details in findings.",
   verifier:
-    "Verify supplied task work or audit findings from the current checkout. Read the cited files and use summaries only to locate evidence. For task work, compare the supplied Git baseline with current status and attribute every change. Check every task requirement, inspect touched code for defects and regressions, run required validation, and report files written by checks. Begin with PASS, REWORK, or BLOCKER. Use PASS when all required checks succeed, REWORK for concrete task-owned defects, and BLOCKER when ownership, evidence, validation, or a user decision prevents a verdict. Make no intentional edits; leave .zdev, task completion, commits, pull requests, and delegation to the coordinating agent.",
+    "Verify supplied task work or audit findings from the current checkout. Read the cited files and use summaries only to locate evidence. For task work, compare the supplied Git baseline with current status and attribute every change. Check every task requirement, inspect touched code for defects and regressions, run required validation, and report files written by checks. For task verification return only the required strict kind=verifier JSON object: pass when all required checks succeed, rework for concrete task-owned defects, and blocker when ownership, evidence, validation, or a user decision prevents a verdict. Make no intentional edits; leave .zdev, task completion, commits, pull requests, and delegation to the coordinating agent.",
 } as const;
 
 const workerProfiles = {
@@ -55,10 +55,10 @@ export default function (pi: ExtensionAPI) {
         content: [
           {
             type: "text",
-            text: [`stdout:\n${child.stdout.trim()}`, `stderr:\n${child.stderr.trim()}`].join("\n\n"),
+            text: child.stdout.trim(),
           },
         ],
-        details: { role: params.role, code: child.code },
+        details: { role: params.role, code: child.code, stderr: child.stderr.trim() },
       };
     },
   });

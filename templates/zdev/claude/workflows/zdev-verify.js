@@ -9,10 +9,6 @@ const workflowContract = [taskContract, repositoryGuidance].join('\n\n')
 const input = args ?? {}
 const area = String(input.area ?? '').trim()
 const taskId = String(input.task_id ?? input.taskId ?? '').trim()
-const field = (text, name) => {
-  const matches = text.split('\n').filter(line => line.startsWith(`${name}: `))
-  return matches.length === 1 ? matches[0].slice(name.length + 2) : null
-}
 const advisoryText = 'stale effective-base link; managed rebase remains optional.'
 const blocker = (subjectArea, subjectTask, reason, staleAdvisory = false) =>
   `BLOCKER zdev-verify ${subjectArea} ${subjectTask}\n\nArea: ${subjectArea}\nTask: ${subjectTask}\n${staleAdvisory ? `Advisory: ${advisoryText}\n` : ''}Summary: ${reason}\nValidation: not accepted.\nLocated evidence: no verifier result was accepted.`
@@ -56,6 +52,119 @@ const parseReady = raw => {
   if (goal?.lifecycle !== 'open' || goal?.queue !== 'ready' || goal?.area?.tag !== area || goal?.task?.id !== taskId) return null
   return { raw, staleAdvisory: taskWork.stale_advisory }
 }
+const workerResultKeys = [
+  'area',
+  'escalation',
+  'evidence',
+  'findings',
+  'kind',
+  'schema_version',
+  'summary',
+  'task_id',
+  'verdict',
+]
+const topLevelKeys = raw => {
+  let index = 0
+  const keys = []
+  const skipWhitespace = () => {
+    while (/\s/.test(raw[index] ?? '')) index += 1
+  }
+  const scanString = () => {
+    if (raw[index] !== '"') return null
+    const start = index
+    index += 1
+    while (index < raw.length) {
+      if (raw[index] === '\\') {
+        index += 2
+      } else if (raw[index] === '"') {
+        index += 1
+        try {
+          return JSON.parse(raw.slice(start, index))
+        } catch {
+          return null
+        }
+      } else {
+        index += 1
+      }
+    }
+    return null
+  }
+  skipWhitespace()
+  if (raw[index] !== '{') return null
+  index += 1
+  while (true) {
+    skipWhitespace()
+    if (raw[index] === '}') {
+      index += 1
+      break
+    }
+    const key = scanString()
+    if (key === null) return null
+    keys.push(key)
+    skipWhitespace()
+    if (raw[index] !== ':') return null
+    index += 1
+    skipWhitespace()
+    const valueStart = index
+    let depth = 0
+    let inString = false
+    while (index < raw.length) {
+      const character = raw[index]
+      if (inString) {
+        if (character === '\\') index += 1
+        else if (character === '"') inString = false
+      } else if (character === '"') {
+        inString = true
+      } else if (character === '[' || character === '{') {
+        depth += 1
+      } else if (character === ']' || (character === '}' && depth > 0)) {
+        depth -= 1
+      } else if (depth === 0 && (character === ',' || character === '}')) {
+        break
+      }
+      index += 1
+    }
+    if (index === valueStart || inString || depth !== 0) return null
+    if (raw[index] === ',') {
+      index += 1
+      continue
+    }
+    if (raw[index] === '}') {
+      index += 1
+      break
+    }
+    return null
+  }
+  skipWhitespace()
+  return index === raw.length ? keys : null
+}
+const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
+  if (typeof raw !== 'string') return null
+  const keys = topLevelKeys(raw)
+  if (!keys || new Set(keys).size !== keys.length) return null
+  if (JSON.stringify([...keys].sort()) !== JSON.stringify(workerResultKeys)) return null
+  let result
+  try {
+    result = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!result || Array.isArray(result) || typeof result !== 'object') return null
+  if (result.schema_version !== 1 || result.kind !== expectedKind) return null
+  if (result.area !== expectedArea || result.task_id !== expectedTask) return null
+  if (typeof result.summary !== 'string' || !result.summary.trim()) return null
+  for (const name of ['evidence', 'findings']) {
+    if (!Array.isArray(result[name])) return null
+    if (!result[name].every(item => typeof item === 'string' && item.trim())) return null
+  }
+  const validVerdict = expectedKind === 'implementer'
+    ? ['ready', 'blocker'].includes(result.verdict)
+    : ['pass', 'rework', 'blocker'].includes(result.verdict)
+  if (!validVerdict) return null
+  const validEscalation = result.escalation === 'none'
+    || (expectedKind === 'verifier' && result.verdict === 'rework' && result.escalation === 'advanced-implementer')
+  return validEscalation ? result : null
+}
 
 if (!/^[a-z0-9][a-z0-9-]*$/.test(area) || !/^[a-z0-9][a-z0-9-]*$/.test(taskId)) {
   return blocker('unknown', 'unknown', 'a lowercase area and explicit task ID are required.')
@@ -72,18 +181,12 @@ if (!prepared) {
 const advisory = prepared.staleAdvisory ? advisoryText : null
 
 const verified = await agent(
-  `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Check the whole task, run required validation, compare Git state before and after, and return exactly PASS zdev-verify ${area} ${taskId}, REWORK zdev-verify ${area} ${taskId}, or BLOCKER zdev-verify ${area} ${taskId}. Repeat exact Area: ${area} and Task: ${taskId} fields and ${advisory ? `include Advisory: ${advisory} exactly once` : 'omit Advisory'}, plus Summary, Validation, and Located evidence. Make no intentional edits and never change lifecycle or Git state.\n\nCoordinator context:\n${prepared.raw}`,
+  `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Check the whole task, run required validation, compare Git state before and after, and return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${advisory ? `Include ${advisory} exactly once in evidence.` : `Do not include ${advisoryText} in evidence.`} Make no intentional edits and never change lifecycle or Git state.\n\nCoordinator context:\n${prepared.raw}`,
   { agentType: 'zdev:zdev-verifier', label: 'zdev fresh verification' },
 )
 const result = verified?.trim()
-const first = result?.split('\n', 1)[0]
-const validFirst = ['PASS', 'REWORK', 'BLOCKER']
-  .some(verdict => first === `${verdict} zdev-verify ${area} ${taskId}`)
-const valid = validFirst
-  && field(result, 'Area') === area
-  && field(result, 'Task') === taskId
-  && field(result, 'Advisory') === advisory
-  && ['Summary', 'Validation', 'Located evidence'].every(name => field(result, name) !== null)
-return valid
+const parsed = parseWorkerResult(result, 'verifier', area, taskId)
+const advisoryCount = parsed?.evidence.filter(item => item === advisoryText).length
+return parsed && advisoryCount === (advisory ? 1 : 0)
   ? result
-  : blocker(area, taskId, 'verifier returned an invalid, suffixed, or mismatched envelope.', prepared.staleAdvisory)
+  : blocker(area, taskId, 'verifier returned invalid, extra, contradictory, or mismatched JSON.', prepared.staleAdvisory)

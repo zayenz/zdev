@@ -61,19 +61,19 @@ areas; do not infer project-wide selection from an omitted area.
    change, including changes to an existing task, the selected task, `brief.md`,
    area metadata, lifecycle state, or source. Then apply the independent
    verification contract below with a fresh verifier.
-7. Return every concrete task-owned `REWORK` finding to the same implementer
+7. Return every concrete task-owned verifier `rework` finding to the same implementer
    when possible.
    Otherwise give a replacement implementer the task, current diff, and exact
    findings. After correction, use a fresh verifier for both passes again.
 8. Repeat implementation and fresh verification without a fixed retry count.
-   Stop only for `PASS`, a real blocker, unsafe scope expansion, or a user-owned
-   decision.
+   Stop only for verifier `pass`, a real blocker, unsafe scope expansion, or a
+   user-owned decision.
 
 For verification, give a different agent the brief, task, actual checkout diff,
 relevant source and tests, and repository verification instructions. It checks
 every task requirement, inspects the touched code, runs task-listed validation,
-and compares Git state before and after validation. The verifier returns
-`PASS`, `REWORK`, or `BLOCKER` as defined in [verify.md](verify.md). The
+and compares Git state before and after validation. The verifier returns the
+strict typed object defined in [verify.md](verify.md). The
 coordinating agent checks that the verdict covers the whole task.
 
 ## Finish

@@ -242,19 +242,19 @@ but must render this public form.
 | Workflow | Allowed first line | Required body |
 | --- | --- | --- |
 | `zdev-implement` | `PASS zdev-implement <area> <task-id>` or `BLOCKER zdev-implement <area> <task-id>` | Exact repeated area/task fields, summary, changed files, validation, verifier evidence, and commit ID on pass; stage, reason, and preserved state on blocker. |
-| `zdev-verify` | `PASS zdev-verify <area> <task-id>`, `REWORK zdev-verify <area> <task-id>`, or `BLOCKER zdev-verify <area> <task-id>` | Exact repeated area/task fields, summary, validation, and located evidence. `REWORK` lists only concrete task-owned corrections. |
+| `zdev-verify` | One strict verifier JSON object with verdict `pass`, `rework`, or `blocker` | Exact schema version, kind, area, task ID, summary, evidence, findings, and constrained escalation. |
 | `zdev-audit` | `PASS zdev-audit`, `FINDINGS zdev-audit`, or `BLOCKER zdev-audit` | Boundary, what was inspected and omitted, and checked findings with location, impact, and confidence. |
 
-An implementer handoff begins `DONE implementer` or `BLOCKER implementer` and
-then reports changed files, validation, and blockers. It is internal evidence,
-not the public `zdev-implement` result. Missing output, an unrecognized first
-line, a mismatched subject, or an unavailable required artifact becomes a
-coordinator-generated `BLOCKER` that includes the stage and the raw child
-result. It is never interpreted as success.
+Implementer and verifier handoffs are single strict JSON objects with the nine
+keys in the canonical task-workflow contract. They contain identity once and
+no sentinel line or free-form body. Missing output, malformed JSON, duplicate,
+unknown, or missing keys, mismatched identity, contradictory verdict or
+escalation, extra text, or an unavailable required artifact becomes a
+coordinator-generated `BLOCKER`. It is never interpreted as success.
 
 ### Rework, retry, and completion
 
-Each `REWORK zdev-verify` result returns the concrete findings to the same
+Each verifier `rework` result returns the concrete findings to the same
 implementer when the harness can preserve that worker context, or to a
 replacement implementer with the current goal, baseline, and full findings.
 Oh My Pi may message the existing implementer through `hub`; OpenCode may
@@ -264,13 +264,13 @@ whole task again, not only the repaired lines.
 
 There is no fixed retry or correction count. Concrete task-owned findings keep
 returning through implementation and fresh verification until the verifier
-reports `PASS`. The coordinator stops only for a genuine blocker, unsafe scope
+reports `pass`. The coordinator stops only for a genuine blocker, unsafe scope
 expansion, or a required user-owned decision. Transport errors, unavailable
 models, permission failures, timeouts, and invalid envelopes are blockers when
 they prevent safe progress; zdev does not hide them behind blind transport
 retries or turn the adapter into a scheduler.
 
-Only a verified `PASS` allows `zdev-implement` to complete the task and run
+Only a verified `pass` allows `zdev-implement` to complete the task and run
 `zdev commit`. A completion or commit failure changes the public result to
 `BLOCKER`; the report names the successful verification and exact remaining
 state. `zdev-verify` and `zdev-audit` never change lifecycle state or commit.

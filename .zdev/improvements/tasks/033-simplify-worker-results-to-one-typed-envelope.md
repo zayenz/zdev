@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-033"
 key = "typed-worker-results"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Simplify worker results to one typed envelope
@@ -26,13 +26,21 @@ Replace the current sentinel-plus-body protocol with one strict discriminated JS
 
 ## Done when
 
-- [ ] Canonical implement and verify guidance defines and uses the exact discriminated object without sentinel lines or repeated free-form identity fields.
-- [ ] All five harness adapters parse or instruct the same semantic envelope using their native facilities.
-- [ ] Fresh-verifier identity checks and PASS/REWORK/BLOCKER meaning are unchanged.
-- [ ] Malformed, mismatched, duplicate-key, extra-text, and contradictory results are rejected deterministically.
+- [x] Canonical implement and verify guidance defines and uses the exact discriminated object without sentinel lines or repeated free-form identity fields.
+- [x] All five harness adapters parse or instruct the same semantic envelope using their native facilities.
+- [x] Fresh-verifier identity checks and PASS/REWORK/BLOCKER meaning are unchanged.
+- [x] Malformed, mismatched, duplicate-key, extra-text, and contradictory results are rejected deterministically.
 
 ## Validation
 
 - Add focused parser/contract fixtures for PASS, REWORK, escalation, BLOCKER, unknown fields, and identity mismatch.
 - Regenerate and check all harness artifacts.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Replaced task-worker sentinel handoffs with one strict nine-key typed JSON result across all five harnesses, including Claude parsing and in-memory rework evidence.
+
+Validation:
+
+- Focused typed-envelope, history, escalation, harness, and generation tests passed; all five harness checks, full 104-test suite, formatting, strict Clippy, build, diff check, and fresh independent verification passed.

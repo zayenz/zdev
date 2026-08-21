@@ -160,7 +160,7 @@ S -> implementer -> S -> V(invalid subject or fields) -> BLOCKER
 
 It stops at `C3 Z4 G12 W2` in the prompt-driven harnesses and W4 in Claude.
 There is no completion, staging, retry, or interpretation as success. Claude's
-`parseReady`, `exactWorkerEnvelope`, and final field checks are exercised by
+`parseReady`, strict worker-result parser, and final field checks are exercised by
 `claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes`.
 
 A task-work commit failure follows the full PASS trace through the final

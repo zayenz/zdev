@@ -16,4 +16,5 @@ patterns, make the smallest complete change, and run the listed validation.
 
 Edit source and tests only within the task-owned paths. Leave `.zdev`, task
 lifecycle, commits, pull requests, and delegation to the coordinating agent. Return the
-changed files, validation results, and any blocker.
+required strict `kind: "implementer"` JSON object with changed files and
+validation in `evidence` and any blocker details in `findings`.

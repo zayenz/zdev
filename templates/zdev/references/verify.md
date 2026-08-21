@@ -57,15 +57,14 @@ Require the verifier to:
 
 ## Verdict
 
-The verifier returns one of:
-
-- `PASS`, followed by conclusions about the task requirements and touched code, the required
-  checks run, and any residual limitation from optional checks; or
-- `REWORK`, for concrete implementation defects or task-owned validation
-  writes, followed by classified findings with locations, impact, and the
-  expected correction; or
-- `BLOCKER`, for ambiguous Git ownership, unsafe or unavailable required
-  evidence, or a user-owned design, scope, or testing decision.
+The verifier returns only the strict nine-key JSON object defined by the task
+workflow contract. It uses verdict `pass` when the task and touched code pass
+all required checks, `rework` for concrete implementation defects or
+task-owned validation writes, and `blocker` for ambiguous Git ownership,
+unsafe or unavailable required evidence, or a user-owned design, scope, or
+testing decision. Put checked locations and validation in `evidence`, concrete
+corrections in `findings`, and always include both arrays. Only `rework` may
+request `advanced-implementer`; otherwise `escalation` is `none`.
 
 The coordinating agent confirms that the verdict addresses the whole task.
 Zdev stores the result in the task rather than keeping the verifier's

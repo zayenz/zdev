@@ -4,8 +4,8 @@
 
 - Total: 54
 - Ready: 11
-- Blocked: 11
-- Done: 32
+- Blocked: 10
+- Done: 33
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -41,7 +41,7 @@
 | [improvements-030](tasks/030-define-first-class-trunk-based-area-work.md) | Define first-class trunk-based area work | done | — |
 | [improvements-031](tasks/031-repair-release-safety-and-current-status-guidance.md) | Repair release safety and current-status guidance | done | — |
 | [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | done | improvements-031 |
-| [improvements-033](tasks/033-simplify-worker-results-to-one-typed-envelope.md) | Simplify worker results to one typed envelope | ready | — |
+| [improvements-033](tasks/033-simplify-worker-results-to-one-typed-envelope.md) | Simplify worker results to one typed envelope | done | — |
 | [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | ready | improvements-032 |
 | [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | ready | — |
 | [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | ready | — |
@@ -55,7 +55,7 @@
 | [improvements-044](tasks/044-add-common-goal-loop-routing-and-bounded-fallbacks.md) | Add common goal/loop routing and bounded fallbacks | blocked | improvements-034, improvements-043, improvements-040 |
 | [improvements-045](tasks/045-implement-claude-goal-and-loop-workflows.md) | Implement Claude goal and loop workflows | blocked | improvements-044 |
 | [improvements-046](tasks/046-implement-native-goal-loop-adapters-for-codex-and-omp.md) | Implement native goal/loop adapters for Codex and OMP | blocked | improvements-044 |
-| [improvements-047](tasks/047-parse-and-review-derived-task-proposals.md) | Parse and review derived task proposals | blocked | improvements-033 |
+| [improvements-047](tasks/047-parse-and-review-derived-task-proposals.md) | Parse and review derived task proposals | ready | improvements-033 |
 | [improvements-048](tasks/048-apply-derived-tasks-atomically.md) | Apply derived tasks atomically | blocked | improvements-047, improvements-036 |
 | [improvements-049](tasks/049-route-investigation-follow-ups-and-implementation-splits.md) | Route investigation follow-ups and implementation splits | blocked | improvements-048 |
 | [improvements-050](tasks/050-add-explicit-trunk-area-metadata.md) | Add explicit trunk area metadata | ready | — |

@@ -34,26 +34,44 @@ handoff, rerun status, the complete Git evidence, and goal; require the same
 ready task ID.
 
 `zdev-implement <area>` gives the goal JSON, brief, task, repository guidance,
-baseline, and task-owned paths to the configured `implementer`. Its internal
-first line is `DONE implementer <area> <task-id>` or
-`BLOCKER implementer <area> <task-id>`. Inspect the checkout,
-then use a fresh configured `verifier` for every verdict. A verifier returns
-exactly `PASS zdev-verify <area> <task-id>`,
-`REWORK zdev-verify <area> <task-id>`, or
-`BLOCKER zdev-verify <area> <task-id>` and includes exact `Area` and `Task`
-fields, the stale advisory once when present, summary, validation, and located
-evidence. Omit the advisory field when there is no stale advisory. Missing
-output, a mismatched subject, a suffixed first line, or any other first line is
-a blocker.
+baseline, and task-owned paths to the configured `implementer`. Every
+implementer and verifier returns only one JSON object, without a sentinel line,
+Markdown fence, or other text. The object has exactly these keys:
 
-Every concrete task-owned `REWORK` goes to the same implementer when the
+```json
+{
+  "schema_version": 1,
+  "kind": "implementer",
+  "area": "<area>",
+  "task_id": "<task-id>",
+  "verdict": "ready",
+  "summary": "<non-empty summary>",
+  "evidence": [],
+  "findings": [],
+  "escalation": "none"
+}
+```
+
+`kind` is `implementer` or `verifier`. Implementer verdict is `ready` or
+`blocker`; verifier verdict is `pass`, `rework`, or `blocker`. `summary` is a
+non-empty string. `evidence` and `findings` are always arrays of non-empty
+strings, including when empty. `escalation` is `none`, except that verifier
+`rework` may request `advanced-implementer`. Every other combination requires
+`none`. Schema version, kind, area, task ID, keys, types, and combinations must
+match exactly. Reject duplicate or unknown keys, missing keys, extra text, and
+malformed JSON. Inspect the checkout after an implementer result, then use a
+fresh configured `verifier` for every verdict. When the stale advisory applies,
+the verifier includes its exact text once in `evidence`; otherwise it omits it.
+
+Every concrete task-owned verifier `rework` goes to the same implementer when the
 harness can resume it, or a replacement implementer with the unchanged goal,
 baseline, current checkout, and full findings. There is no fixed rework count.
 After each correction, a fresh verifier checks the whole task again. Stop only
-on `PASS`, a genuine blocker, unsafe scope expansion, or a required user-owned
-decision.
+on verifier `pass`, a genuine blocker, unsafe scope expansion, or a required
+user-owned decision. Do not silently send an `advanced-implementer` escalation
+to an ordinary implementer; stop if that role is unavailable.
 
-Only after the exact matching `PASS zdev-verify` envelope, the coordinator runs
+Only after an exact matching verifier object with verdict `pass`, the coordinator runs
 `zdev task done`, stages only the attributed task-owned files and exact
 generated task records, inspects the staged diff, and runs `zdev commit`.
 Completion or commit failure is a blocker that preserves and reports the exact
@@ -68,7 +86,7 @@ no stale advisory was observed.
 `zdev-verify <area> <task-id>` performs the same read-only preflight and requires
 the explicit ID to equal the current ready goal task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,
-stages, or commits. Its public result is the verifier envelope above. Empty,
+stages, or commits. Its public result is the accepted verifier object above. Empty,
 exhausted, or closed goals, a different ready task, unsafe state, unavailable
 independent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`
 without mutation.

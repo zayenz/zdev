@@ -1040,6 +1040,12 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
             "{}\nLifecycle: {lifecycle}\nQueue: {queue}\nCounts: {} total; {} ready; {} blocked; {} done",
             metadata.title, tasks.total, tasks.ready, tasks.blocked, tasks.done,
         );
+        if let (Some(next), Some(complexity)) = (&tasks.next, tasks.next_complexity) {
+            text.push_str(&format!(
+                "\nNext: {next} (complexity: {})",
+                complexity.as_str()
+            ));
+        }
         for slice in &tasks.slices {
             text.push_str(&format!(
                 "\nSlice {}: {} ready, {} blocked, {} done",
@@ -1054,7 +1060,7 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
         }
         return Ok(CommandOutput::new(
             text,
-            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "advisory": advisory}),
+            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "next_complexity": tasks.next_complexity, "advisory": advisory}),
         ));
     }
     let mut summaries = Vec::new();
@@ -1070,9 +1076,15 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
         let branch_detail = branch_line
             .strip_prefix(&format!("{}: ", area.tag))
             .unwrap_or(&branch_line);
+        let next = match (&tasks.next, tasks.next_complexity) {
+            (Some(task), Some(complexity)) => {
+                format!("; next {task} (complexity: {})", complexity.as_str())
+            }
+            _ => String::new(),
+        };
         branch_lines.push(format!(
-            "{}: {lifecycle}, {queue}; {branch_detail}",
-            area.tag
+            "{}: {lifecycle}, {queue}{next}; {branch_detail}",
+            area.tag,
         ));
         summaries.push(json!({
             "tag": area.tag,
@@ -1084,6 +1096,8 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
             "ready": tasks.ready,
             "blocked": tasks.blocked,
             "done": tasks.done,
+            "next": tasks.next,
+            "next_complexity": tasks.next_complexity,
         }));
     }
     let trunk = config.project.trunk.as_deref().unwrap_or("unbound");

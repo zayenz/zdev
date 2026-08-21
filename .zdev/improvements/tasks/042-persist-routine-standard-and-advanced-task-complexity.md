@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-042"
 key = "task-complexity-levels"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Persist routine, standard, and advanced task complexity
@@ -25,12 +25,20 @@ Add optional task complexity using the same three names as worker tiers. Omitted
 
 ## Done when
 
-- [ ] Strict task parsing, review, import, show, list, status, check, and goal projection support the optional complexity field.
-- [ ] Invalid values and unknown fields fail with actionable errors.
-- [ ] Legacy tasks behave as standard without rewrite.
-- [ ] New explicit complexity survives review/import and is visible to routing.
+- [x] Strict task parsing, review, import, show, list, status, check, and goal projection support the optional complexity field.
+- [x] Invalid values and unknown fields fail with actionable errors.
+- [x] Legacy tasks behave as standard without rewrite.
+- [x] New explicit complexity survives review/import and is visible to routing.
 
 ## Validation
 
 - Add focused legacy compatibility, explicit round-trip, invalid-value, and approval-fingerprint tests.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added optional durable routine, standard, and advanced task complexity with legacy byte/fingerprint compatibility and effective routing projections.
+
+Validation:
+
+- Focused legacy fingerprint/byte, explicit round-trip, invalid-schema, projection, and lifecycle tests; five-harness checks; full 108-test suite; formatting; strict Clippy; build; diff check; and fresh independent verification passed.

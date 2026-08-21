@@ -36,6 +36,7 @@ struct GoalTask {
     id: String,
     key: String,
     title: String,
+    complexity: tasks::TaskComplexity,
     path: String,
     outcome: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,8 +104,11 @@ pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
             });
         let task_path = relative(root, &task.path);
         text.push_str(&format!(
-            "\n\nTask: {} — {}\nTask source: {task_path}\nOutcome:\n{}",
-            task.id, task.title, task.outcome
+            "\n\nTask: {} — {}\nComplexity: {}\nTask source: {task_path}\nOutcome:\n{}",
+            task.id,
+            task.title,
+            task.complexity.as_str(),
+            task.outcome
         ));
         if let Some(context) = &task.context {
             text.push_str(&format!("\n\nContext:\n{context}"));
@@ -137,6 +141,7 @@ pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
                 id: task.id,
                 key: task.key,
                 title: task.title,
+                complexity: task.complexity,
                 path: task_path,
                 outcome: task.outcome,
                 context: task.context,

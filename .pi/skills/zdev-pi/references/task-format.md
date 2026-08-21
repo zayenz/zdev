@@ -65,6 +65,7 @@ id = "scheduling-001"
 key = "model"
 area = "scheduling"
 status = "open"
+complexity = "advanced"
 slice = "api"
 blocked_by = []
 +++
@@ -101,9 +102,16 @@ The frontmatter contains only routing state:
 - `id` is stable and allocated by zdev;
 - `key` connects a temporary import bundle to the durable task;
 - `area` prevents tasks from being moved between objectives accidentally;
-- `status` is `open` or `done`; and
+- `status` is `open` or `done`;
+- optional `complexity` is `routine`, `standard`, or `advanced`;
 - optional `slice` names an existing slice brief in the same area; and
 - `blocked_by` contains stable task IDs.
+
+Omitted complexity resolves to `standard` without rewriting the task. Use
+`routine` only for tightly specified, low-risk mechanical work, `standard` for
+ordinary bounded implementation, and `advanced` when the approved task needs
+additional planning or reasoning. Complexity does not change readiness,
+lifecycle, or dependencies.
 
 An open task is ready when every blocker is done. Otherwise it is blocked.
 Zdev chooses the ready task with the lowest numeric ID.
@@ -131,6 +139,7 @@ never an authored source.
 
 - `key`;
 - `title`;
+- optional `complexity`; omitted means `standard`;
 - optional `slice`, naming an existing slice brief in the area;
 - `blocked_by`, using keys from the same bundle or existing task IDs;
 - `outcome`;

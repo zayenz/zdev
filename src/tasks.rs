@@ -36,6 +36,24 @@ impl TaskStatus {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum TaskComplexity {
+    Routine,
+    Standard,
+    Advanced,
+}
+
+impl TaskComplexity {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::Routine => "routine",
+            Self::Standard => "standard",
+            Self::Advanced => "advanced",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TaskHeader {
@@ -44,6 +62,8 @@ struct TaskHeader {
     key: String,
     area: String,
     status: TaskStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    complexity: Option<TaskComplexity>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     slice: Option<String>,
     #[serde(default)]
@@ -56,6 +76,12 @@ struct Task {
     title: String,
     body: String,
     path: PathBuf,
+}
+
+impl Task {
+    fn complexity(&self) -> TaskComplexity {
+        self.header.complexity.unwrap_or(TaskComplexity::Standard)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -71,6 +97,8 @@ struct TaskBundle {
 struct TaskDraft {
     key: String,
     title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    complexity: Option<TaskComplexity>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     slice: Option<String>,
     #[serde(default)]
@@ -90,6 +118,7 @@ struct TaskView<'a> {
     title: &'a str,
     status: &'static str,
     state: &'static str,
+    complexity: TaskComplexity,
     blocked_by: &'a [String],
     slice: Option<&'a str>,
     slice_brief: Option<String>,
@@ -203,10 +232,16 @@ fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
     );
     for (index, task) in bundle.tasks.iter().enumerate() {
         document.push_str(&format!(
-            "\n\n## Task {}\n\n### Key\n{}\n\n### Title\n{}\n\n### Slice\n{}\n\n### Outcome\n{}\n\n### Context\n{}\n\n### Boundaries\n{}\n\n### Blocked by\n{}\n\n### Done when / proof\n{}\n\n### Validation / Testing\n{}",
+            "\n\n## Task {}\n\n### Key\n{}\n\n### Title\n{}",
             index + 1,
             task.key,
             task.title,
+        ));
+        if let Some(complexity) = task.complexity {
+            document.push_str(&format!("\n\n### Complexity\n{}", complexity.as_str()));
+        }
+        document.push_str(&format!(
+            "\n\n### Slice\n{}\n\n### Outcome\n{}\n\n### Context\n{}\n\n### Boundaries\n{}\n\n### Blocked by\n{}\n\n### Done when / proof\n{}\n\n### Validation / Testing\n{}",
             approval_value(task.slice.as_deref()),
             task.outcome,
             approval_value(task.context.as_deref()),
@@ -320,6 +355,7 @@ pub(super) fn import(
             key: draft.key.clone(),
             area: area.to_owned(),
             status: TaskStatus::Open,
+            complexity: draft.complexity,
             slice: draft.slice.clone(),
             blocked_by: blockers,
         };
@@ -951,6 +987,7 @@ fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
             title: &task.title,
             status: task.header.status.as_str(),
             state: task_state(task, tasks),
+            complexity: task.complexity(),
             blocked_by: &task.header.blocked_by,
             slice: task.header.slice.as_deref(),
             slice_brief: task_slice_brief_path(root, task),
@@ -972,7 +1009,13 @@ pub(super) fn list(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
                     .slice
                     .map(|slice| format!("  slice:{slice}"))
                     .unwrap_or_default();
-                format!("{}  {:7}  {}{slice}", task.id, task.state, task.title)
+                format!(
+                    "{}  {:7}  {}  complexity:{}{slice}",
+                    task.id,
+                    task.state,
+                    task.title,
+                    task.complexity.as_str()
+                )
             })
             .collect::<Vec<_>>()
             .join("\n")
@@ -1086,15 +1129,17 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         title: &task.title,
         status: task.header.status.as_str(),
         state: "ready",
+        complexity: task.complexity(),
         blocked_by: &task.header.blocked_by,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, task),
         path: relative(root, &task.path),
     };
     let mut text = format!(
-        "Area: {area}\nLifecycle: open\nQueue: ready\n\n{}  {}\n{}",
+        "Area: {area}\nLifecycle: open\nQueue: ready\n\n{}  {}\nComplexity: {}\n{}",
         task.header.id,
         task.title,
+        task.complexity().as_str(),
         task.path.display()
     );
     if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
@@ -1230,14 +1275,21 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         title: &task.title,
         status: task.header.status.as_str(),
         state: "ready",
+        complexity: task.complexity(),
         blocked_by: &task.header.blocked_by,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, &task),
         path: relative(root, &task.path),
     };
     let mut text = format!(
-        "Selection: ready\n\n{}  {}\nArea: {}\nRequired branch: {}{}\nTask: {}",
-        task.header.id, task.title, area.tag, area.branch, branch_note, view.path
+        "Selection: ready\n\n{}  {}\nComplexity: {}\nArea: {}\nRequired branch: {}{}\nTask: {}",
+        task.header.id,
+        task.title,
+        task.complexity().as_str(),
+        area.tag,
+        area.branch,
+        branch_note,
+        view.path
     );
     if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
         text.push_str(&format!("\nSlice: {slice}\nSlice brief: {path}"));
@@ -1303,8 +1355,11 @@ pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, Z
         .map_err(|error| ZdevError::io(format!("Cannot read {}", task.path.display()), error))?;
     let slice_brief = task_slice_brief_path(root, task);
     let text = match (&task.header.slice, &slice_brief) {
-        (Some(slice), Some(path)) => format!("Slice: {slice}\nSlice brief: {path}\n\n{content}"),
-        _ => content,
+        (Some(slice), Some(path)) => format!(
+            "Complexity: {}\nSlice: {slice}\nSlice brief: {path}\n\n{content}",
+            task.complexity().as_str()
+        ),
+        _ => format!("Complexity: {}\n\n{content}", task.complexity().as_str()),
     };
     Ok(CommandOutput::new(
         text,
@@ -1315,6 +1370,7 @@ pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, Z
             "title": task.title,
             "status": task.header.status.as_str(),
             "state": task_state(task, &tasks),
+            "complexity": task.complexity(),
             "blocked_by": task.header.blocked_by,
             "slice": task.header.slice,
             "slice_brief": slice_brief,
@@ -1542,6 +1598,7 @@ pub(super) struct GoalTaskRead {
     pub id: String,
     pub key: String,
     pub title: String,
+    pub complexity: TaskComplexity,
     pub path: PathBuf,
     pub outcome: String,
     pub context: Option<String>,
@@ -1581,6 +1638,7 @@ pub(super) fn goal_tasks(root: &Path, area: &str) -> Result<GoalTasksRead, ZdevE
                 id: task.header.id.clone(),
                 key: task.header.key.clone(),
                 title: task.title.clone(),
+                complexity: task.complexity(),
                 path: task.path.clone(),
                 outcome: required_markdown_section(&task.body, "Outcome", &task.path)?.to_owned(),
                 context: markdown_section(&task.body, "Context", &task.path)?.map(str::to_owned),
@@ -1629,6 +1687,7 @@ pub(super) struct AreaTaskSummary {
     pub done: usize,
     pub open: usize,
     pub next: Option<String>,
+    pub next_complexity: Option<TaskComplexity>,
     pub slices: Vec<SliceTaskSummary>,
 }
 
@@ -1721,6 +1780,7 @@ pub(super) fn summary(root: &Path, area: &str) -> Result<AreaTaskSummary, ZdevEr
         done,
         open: tasks.len() - done,
         next: next_task(&tasks).map(|task| task.header.id.clone()),
+        next_complexity: next_task(&tasks).map(Task::complexity),
         slices,
     })
 }

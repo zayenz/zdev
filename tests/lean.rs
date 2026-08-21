@@ -305,7 +305,7 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
     assert_eq!(first.stdout, second.stdout);
     let native_goal = "Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.";
     let expected_text = format!(
-        "Area: checkout — Checkout reliability\nLifecycle: open\nQueue: ready\nObjective:\nMake checkout failures safe and understandable.\nCounts: 3 total; 2 open; 1 ready; 1 blocked; 1 done\n\nTask: checkout-002 — Reject duplicate payment submission\nTask source: .zdev/checkout/tasks/002-reject-duplicate-payment.md\nOutcome:\nA repeated submission returns the original payment result without charging again.\n\nContext:\nThe provider can retry after losing our first response.\n\nSlice: payments — Payment submission\nSlice source: .zdev/checkout/slices/payments.md\nSlice objective:\nMake payment submission safe to retry.\nSlice boundaries:\n- Do not change provider selection.\n\nBoundaries:\n- Keep the public response schema unchanged.\n\nDone when:\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\nValidation:\n- Run the focused payment integration test.\n\nNative goal:\n{native_goal}\n"
+        "Area: checkout — Checkout reliability\nLifecycle: open\nQueue: ready\nObjective:\nMake checkout failures safe and understandable.\nCounts: 3 total; 2 open; 1 ready; 1 blocked; 1 done\n\nTask: checkout-002 — Reject duplicate payment submission\nComplexity: standard\nTask source: .zdev/checkout/tasks/002-reject-duplicate-payment.md\nOutcome:\nA repeated submission returns the original payment result without charging again.\n\nContext:\nThe provider can retry after losing our first response.\n\nSlice: payments — Payment submission\nSlice source: .zdev/checkout/slices/payments.md\nSlice objective:\nMake payment submission safe to retry.\nSlice boundaries:\n- Do not change provider selection.\n\nBoundaries:\n- Keep the public response schema unchanged.\n\nDone when:\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\nValidation:\n- Run the focused payment integration test.\n\nNative goal:\n{native_goal}\n"
     );
     assert_eq!(first.stdout, expected_text.as_bytes());
 
@@ -313,7 +313,7 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
     let json_second = run_zdev(root, &["goal", "checkout", "--format", "json"]);
     assert_eq!(json_first.stdout, json_second.stdout);
     let expected_json = format!(
-        "{{\n  \"schema_version\": 1,\n  \"area\": {{\n    \"tag\": \"checkout\",\n    \"title\": \"Checkout reliability\",\n    \"objective\": \"Make checkout failures safe and understandable.\",\n    \"path\": \".zdev/checkout\"\n  }},\n  \"lifecycle\": \"open\",\n  \"queue\": \"ready\",\n  \"counts\": {{\n    \"total\": 3,\n    \"open\": 2,\n    \"ready\": 1,\n    \"blocked\": 1,\n    \"done\": 1\n  }},\n  \"task\": {{\n    \"id\": \"checkout-002\",\n    \"key\": \"reject-duplicate-payment\",\n    \"title\": \"Reject duplicate payment submission\",\n    \"path\": \".zdev/checkout/tasks/002-reject-duplicate-payment.md\",\n    \"outcome\": \"A repeated submission returns the original payment result without charging again.\",\n    \"context\": \"The provider can retry after losing our first response.\",\n    \"boundaries\": \"- Keep the public response schema unchanged.\",\n    \"done_when\": \"- [ ] Duplicate provider calls are prevented.\\n- [ ] The original result is returned.\",\n    \"validation\": \"- Run the focused payment integration test.\",\n    \"blocked_by\": [],\n    \"slice\": {{\n      \"key\": \"payments\",\n      \"title\": \"Payment submission\",\n      \"path\": \".zdev/checkout/slices/payments.md\",\n      \"objective\": \"Make payment submission safe to retry.\",\n      \"boundaries\": \"- Do not change provider selection.\"\n    }}\n  }},\n  \"native_goal\": \"{native_goal}\"\n}}\n"
+        "{{\n  \"schema_version\": 1,\n  \"area\": {{\n    \"tag\": \"checkout\",\n    \"title\": \"Checkout reliability\",\n    \"objective\": \"Make checkout failures safe and understandable.\",\n    \"path\": \".zdev/checkout\"\n  }},\n  \"lifecycle\": \"open\",\n  \"queue\": \"ready\",\n  \"counts\": {{\n    \"total\": 3,\n    \"open\": 2,\n    \"ready\": 1,\n    \"blocked\": 1,\n    \"done\": 1\n  }},\n  \"task\": {{\n    \"id\": \"checkout-002\",\n    \"key\": \"reject-duplicate-payment\",\n    \"title\": \"Reject duplicate payment submission\",\n    \"complexity\": \"standard\",\n    \"path\": \".zdev/checkout/tasks/002-reject-duplicate-payment.md\",\n    \"outcome\": \"A repeated submission returns the original payment result without charging again.\",\n    \"context\": \"The provider can retry after losing our first response.\",\n    \"boundaries\": \"- Keep the public response schema unchanged.\",\n    \"done_when\": \"- [ ] Duplicate provider calls are prevented.\\n- [ ] The original result is returned.\",\n    \"validation\": \"- Run the focused payment integration test.\",\n    \"blocked_by\": [],\n    \"slice\": {{\n      \"key\": \"payments\",\n      \"title\": \"Payment submission\",\n      \"path\": \".zdev/checkout/slices/payments.md\",\n      \"objective\": \"Make payment submission safe to retry.\",\n      \"boundaries\": \"- Do not change provider selection.\"\n    }}\n  }},\n  \"native_goal\": \"{native_goal}\"\n}}\n"
     );
     assert_eq!(json_first.stdout, expected_json.as_bytes());
 }
@@ -897,7 +897,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
             "area": {"base_commit":selected["area"]["base_commit"].clone(),"branch":"main","lifecycle":"closed","objective":"Exercise managed area branches.","schema_version":1,"tag":"general","title":"general"},
             "branch_status": selected["branch_status"].clone(),
             "counts": {"blocked":0,"done":0,"ready":0,"total":0},
-            "lifecycle":"closed","next":Value::Null,"project":selected["project"].clone(),"queue":"empty","schema_version":1,"slices":[],"trunk":"main"
+            "lifecycle":"closed","next":Value::Null,"next_complexity":Value::Null,"project":selected["project"].clone(),"queue":"empty","schema_version":1,"slices":[],"trunk":"main"
         }),
     );
     let status_text = String::from_utf8(run_zdev(root, &["status", "general"]).stdout)
@@ -912,7 +912,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
     assert_pretty_json(
         &project_status,
         json!({
-            "areas":[{"blocked":0,"branch_status":project["areas"][0]["branch_status"].clone(),"done":0,"lifecycle":"closed","queue":"empty","ready":0,"tag":"general","title":"general","total":0}],
+            "areas":[{"blocked":0,"branch_status":project["areas"][0]["branch_status"].clone(),"done":0,"lifecycle":"closed","next":Value::Null,"next_complexity":Value::Null,"queue":"empty","ready":0,"tag":"general","title":"general","total":0}],
             "checked_out_branch":"main","project":project["project"].clone(),"schema_version":1,"trunk":"main"
         }),
     );
@@ -982,7 +982,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
     assert_eq!(
         String::from_utf8(run_zdev(root, &["next", "general"]).stdout).expect("ready next"),
         format!(
-            "Area: general\nLifecycle: open\nQueue: ready\n\ngeneral-001  Complete one task\n{}\n",
+            "Area: general\nLifecycle: open\nQueue: ready\n\ngeneral-001  Complete one task\nComplexity: standard\n{}\n",
             fs::canonicalize(root)
                 .expect("canonical repository")
                 .join(".zdev/general/tasks/001-complete-one-task.md")
@@ -993,7 +993,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
     let ready: Value = serde_json::from_slice(&ready_next.stdout).expect("ready next JSON");
     assert_pretty_json(
         &ready_next,
-        json!({"advisory":Value::Null,"area":"general","branch_status":ready["branch_status"].clone(),"lifecycle":"open","queue":"ready","schema_version":1,"task":{"blocked_by":[],"id":"general-001","path":".zdev/general/tasks/001-complete-one-task.md","slice":Value::Null,"slice_brief":Value::Null,"state":"ready","status":"open","title":"Complete one task"}}),
+        json!({"advisory":Value::Null,"area":"general","branch_status":ready["branch_status"].clone(),"lifecycle":"open","queue":"ready","schema_version":1,"task":{"blocked_by":[],"complexity":"standard","id":"general-001","path":".zdev/general/tasks/001-complete-one-task.md","slice":Value::Null,"slice_brief":Value::Null,"state":"ready","status":"open","title":"Complete one task"}}),
     );
     let rejected_close = run_zdev(root, &["area", "close", "general"]);
     assert!(!rejected_close.status.success());
@@ -1935,6 +1935,10 @@ fn task_files_drive_selection_completion_and_generated_summary() {
     let first_task =
         fs::read_to_string(root.join(".zdev/lean-core/tasks/001-build-the-first-slice.md"))
             .expect("first task");
+    assert!(first_task.starts_with(
+        "+++\nschema_version = 1\nid = \"lean-core-001\"\nkey = \"first\"\narea = \"lean-core\"\nstatus = \"open\"\nblocked_by = []\n+++\n"
+    ));
+    assert!(!first_task.contains("complexity ="));
     assert!(first_task.contains(
         "## Context\n\nThe current command stops at the storage boundary. Extend `src/lib.rs` at \
          the task renderer and preserve the existing import behavior covered by this test."
@@ -1967,6 +1971,11 @@ fn task_files_drive_selection_completion_and_generated_summary() {
             ],
         )["status"],
         "done"
+    );
+    assert!(
+        !fs::read_to_string(root.join(".zdev/lean-core/tasks/001-build-the-first-slice.md"))
+            .expect("completed legacy task")
+            .contains("complexity =")
     );
 
     let next = json_output(root, &["next", "lean-core"]);
@@ -2141,6 +2150,7 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
     assert_eq!(reviewed["area"], "approval");
     let approval = reviewed["approval"].as_str().expect("approval ID");
     assert_eq!(approval.len(), 17);
+    assert_eq!(approval, "Ta8f4067d67f0ef2b");
     let markdown = reviewed["markdown"].as_str().expect("approval Markdown");
     for value in [
         "approval",
@@ -2161,6 +2171,22 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
         &pretty,
     );
     assert_eq!(reviewed_pretty["approval"], reviewed["approval"]);
+
+    let mut explicit_standard = bundle.clone();
+    explicit_standard["tasks"][0]["complexity"] = json!("standard");
+    let explicit_standard = serde_json::to_vec(&explicit_standard).expect("explicit standard");
+    let reviewed_standard = json_output_with_stdin(
+        root,
+        &["tasks", "review", "approval", "--from", "-"],
+        &explicit_standard,
+    );
+    assert_ne!(reviewed_standard["approval"], reviewed["approval"]);
+    assert!(
+        reviewed_standard["markdown"]
+            .as_str()
+            .expect("review markdown")
+            .contains("### Complexity\nstandard")
+    );
 
     let mut changed = bundle.clone();
     changed["tasks"][0]["title"] = json!("Changed after review");
@@ -2200,6 +2226,134 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
         &bytes,
     );
     assert_eq!(imported["tasks"], json!(["approval-001"]));
+}
+
+#[test]
+fn explicit_task_complexity_round_trips_and_invalid_values_fail_closed() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "complexity", "main");
+    commit_all(root, "record area");
+
+    let bundle = json!({
+        "schema_version": 1,
+        "area": "complexity",
+        "tasks": [{
+            "key": "advanced",
+            "title": "Implement advanced work",
+            "complexity": "advanced",
+            "blocked_by": [],
+            "outcome": "Advanced work retains its authored routing level.",
+            "done_when": ["Every task projection reports advanced."],
+            "validation": ["Exercise task projections."]
+        }]
+    });
+    let bytes = serde_json::to_vec(&bundle).expect("task bundle");
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "review", "complexity", "--from", "-"],
+        &bytes,
+    );
+    assert!(
+        reviewed["markdown"]
+            .as_str()
+            .expect("review markdown")
+            .contains("### Complexity\nadvanced")
+    );
+    let approval = reviewed["approval"].as_str().expect("review fingerprint");
+    json_output_with_stdin(
+        root,
+        &[
+            "tasks",
+            "import",
+            "complexity",
+            "--from",
+            "-",
+            "--approval",
+            approval,
+        ],
+        &bytes,
+    );
+
+    let task_path = root.join(".zdev/complexity/tasks/001-implement-advanced-work.md");
+    let authored = fs::read_to_string(&task_path).expect("advanced task");
+    assert!(authored.contains("complexity = \"advanced\""));
+    assert_eq!(
+        json_output(root, &["tasks", "list", "complexity"])["tasks"][0]["complexity"],
+        "advanced"
+    );
+    assert_eq!(
+        json_output(root, &["task", "show", "complexity", "complexity-001"])["complexity"],
+        "advanced"
+    );
+    assert_eq!(
+        json_output(root, &["next", "complexity"])["task"]["complexity"],
+        "advanced"
+    );
+    assert_eq!(
+        json_output(root, &["status", "complexity"])["next_complexity"],
+        "advanced"
+    );
+    let project_status = run_zdev(root, &["status"]);
+    let project_status = String::from_utf8_lossy(&project_status.stdout);
+    assert!(
+        project_status.contains(
+            "complexity: open, ready; next complexity-001 (complexity: advanced); main -> trunk main ["
+        ),
+        "{project_status}"
+    );
+    assert_eq!(
+        json_output(root, &["goal", "complexity"])["task"]["complexity"],
+        "advanced"
+    );
+    for (arguments, expected) in [
+        (vec!["tasks", "list", "complexity"], "complexity:advanced"),
+        (
+            vec!["task", "show", "complexity", "complexity-001"],
+            "Complexity: advanced",
+        ),
+        (vec!["next", "complexity"], "Complexity: advanced"),
+        (vec!["status", "complexity"], "complexity: advanced"),
+        (vec!["goal", "complexity"], "Complexity: advanced"),
+    ] {
+        let output = run_zdev(root, &arguments);
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(expected),
+            "missing {expected} from {arguments:?}"
+        );
+    }
+    assert_eq!(json_output(root, &["check", "complexity"])["status"], "ok");
+
+    let mut invalid = bundle.clone();
+    invalid["tasks"][0]["complexity"] = json!("complex");
+    let invalid = serde_json::to_vec(&invalid).expect("invalid bundle");
+    let rejected = json_output_with_stdin_status(
+        root,
+        &["tasks", "review", "complexity", "--from", "-"],
+        &invalid,
+    );
+    assert!(!rejected.status.success());
+    let error = String::from_utf8_lossy(&rejected.stderr);
+    assert!(error.contains("unknown variant `complex`"));
+    assert!(error.contains("`routine`, `standard`, `advanced`"));
+
+    let malformed = authored.replace("complexity = \"advanced\"", "complexity = \"complex\"");
+    fs::write(&task_path, malformed).expect("invalid task complexity");
+    let rejected = run_zdev(root, &["check", "complexity"]);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("unknown variant `complex`"));
+
+    fs::write(
+        &task_path,
+        authored.replace("status = \"open\"", "status = \"open\"\npoints = 3"),
+    )
+    .expect("unknown task field");
+    let rejected = run_zdev(root, &["check", "complexity"]);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("unknown field `points`"));
 }
 
 #[test]

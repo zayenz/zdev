@@ -4116,6 +4116,7 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
             "Checked evidence",
             "path:line",
             "verifier",
+            "more than four",
         ] {
             assert!(audit.contains(required), "{harness} missing {required}");
         }
@@ -4125,7 +4126,7 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
                 assert!(audit.contains("reasoning_effort=\"high\""));
             }
             "claude" => {
-                assert_eq!(audit.matches("agentType: 'zdev:zdev-verifier'").count(), 2);
+                assert_eq!(audit.matches("agentType: 'zdev:zdev-verifier'").count(), 3);
                 assert!(audit.contains("pipeline(reviewScopes"));
                 assert!(audit.contains("/^(PASS|FINDINGS|BLOCKER) zdev-audit"));
                 assert!(audit.contains("const completeBody"));
@@ -4175,6 +4176,62 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
             "ok"
         );
     }
+}
+
+#[test]
+fn claude_audit_uses_one_default_verifier_and_bounds_explicit_lenses() {
+    let source = include_str!("../templates/zdev/claude/workflows/zdev-audit.js")
+        .replacen("export const meta =", "const meta =", 1)
+        .replace(
+            "{{audit_contract}}",
+            &serde_json::to_string("audit contract").expect("audit contract JSON"),
+        );
+    let probe = format!(
+        r#"
+async function run(args, agent, pipeline) {{
+{source}
+}}
+const publicResult = 'PASS zdev-audit\n\nBoundary: src\nInspected: src\nOmitted: none\nChecked evidence: cargo test'
+const defaultCalls = []
+const defaultResult = await run(
+  {{ boundary: 'src' }},
+  async (_prompt, options) => {{ defaultCalls.push(options.label); return publicResult }},
+  async () => {{ throw new Error('default audit used pipeline') }},
+)
+if (defaultResult !== publicResult) throw new Error('default result changed')
+if (JSON.stringify(defaultCalls) !== JSON.stringify(['audit checking verifier'])) throw new Error(`default calls: ${{JSON.stringify(defaultCalls)}}`)
+
+const boundedCalls = []
+const boundedResult = await run(
+  {{ boundary: 'src', lenses: ['api', 'tests', 'safety', 'usability'] }},
+  async (_prompt, options) => {{
+    boundedCalls.push(options.label)
+    return options.label === 'audit evidence vetter' ? publicResult : `candidate from ${{options.label}}`
+  }},
+  async (scopes, dispatch) => Promise.all(scopes.map(dispatch)),
+)
+if (boundedResult !== publicResult) throw new Error('bounded result changed')
+if (boundedCalls.length !== 5 || boundedCalls.filter(label => label === 'audit evidence vetter').length !== 1) throw new Error(`bounded calls: ${{JSON.stringify(boundedCalls)}}`)
+
+let excessiveCalls = 0
+const excessiveResult = await run(
+  {{ boundary: 'src', lenses: ['one', 'two', 'three', 'four', 'five'] }},
+  async () => {{ excessiveCalls += 1; throw new Error('excessive audit started agent') }},
+  async () => {{ excessiveCalls += 1; throw new Error('excessive audit started pipeline') }},
+)
+if (excessiveCalls !== 0) throw new Error(`excessive calls: ${{excessiveCalls}}`)
+if (!excessiveResult.startsWith('BLOCKER zdev-audit\n') || !excessiveResult.includes('5 lenses exceed the maximum of 4')) throw new Error(`excessive result: ${{excessiveResult}}`)
+"#
+    );
+    let output = Command::new("node")
+        .args(["--input-type=module", "--eval", &probe])
+        .output()
+        .expect("run Claude audit workflow probe");
+    assert!(
+        output.status.success(),
+        "Claude audit workflow probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]

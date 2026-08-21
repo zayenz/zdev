@@ -6,8 +6,9 @@ description: Review a codebase and return checked findings
 
 Boundary: `$ARGUMENTS`
 
-Call `zdev_subagent` with role `verifier`, this contract, and the boundary. For
-warranted fan-out, use independent verifier calls and a different final
-verifier call to open, check, and deduplicate every candidate location.
-Validate the final first line and required body before returning it. The
-coordinating agent decides whether to record any work.
+With no explicit lenses, call `zdev_subagent` exactly once with role `verifier`,
+this contract, and the boundary. With one to four explicit lenses, use one
+independent verifier call per lens and a different final verifier call to open,
+check, and deduplicate every candidate location. Reject more than four before
+starting a subagent. Validate the final first line and required body before
+returning it. The coordinating agent decides whether to record any work.

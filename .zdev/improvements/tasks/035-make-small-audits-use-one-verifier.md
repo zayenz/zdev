@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-035"
 key = "small-audit-economy"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Make small audits use one verifier
@@ -25,12 +25,20 @@ Claude currently always dispatches a reviewer and then a vetter, unlike the shar
 
 ## Done when
 
-- [ ] A default Claude audit dispatches exactly one checking verifier.
-- [ ] Explicit multi-lens audit is bounded and still receives one independent final vetting pass.
-- [ ] Canonical and generated audit guidance agrees across harnesses.
+- [x] A default Claude audit dispatches exactly one checking verifier.
+- [x] Explicit multi-lens audit is bounded and still receives one independent final vetting pass.
+- [x] Canonical and generated audit guidance agrees across harnesses.
 
 ## Validation
 
 - Add focused workflow tests for default, bounded multi-lens, and excessive-lens cases.
 - Regenerate and check affected artifacts.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Made the default audit use one checking verifier and bounded explicit lens fan-out at four plus one final vetter.
+
+Validation:
+
+- Executable default/bounded/excessive workflow tests, all-harness generation checks, full 106-test suite, formatting, strict Clippy, build, diff check, and fresh independent verification passed.

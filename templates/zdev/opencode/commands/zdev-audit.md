@@ -7,7 +7,9 @@ agent: plan
 
 Boundary: `$ARGUMENTS`
 
-Use the task tool with the fresh `zdev-verifier` subagent. Supply this contract
-and the boundary. For warranted fan-out, use independent verifier calls and a
-different final verifier call to open, check, and deduplicate every candidate
-location. Validate the final first line and required body before returning it.
+With no explicit lenses, use the task tool exactly once with a fresh
+`zdev-verifier` subagent, this contract, and the boundary. With one to four
+explicit lenses, use one independent verifier call per lens and a different
+final verifier call to open, check, and deduplicate every candidate location.
+Reject more than four before starting a subagent. Validate the final first line
+and required body before returning it.

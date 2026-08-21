@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 10
+- Ready: 9
 - Blocked: 10
-- Done: 34
+- Done: 35
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -43,7 +43,7 @@
 | [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | done | improvements-031 |
 | [improvements-033](tasks/033-simplify-worker-results-to-one-typed-envelope.md) | Simplify worker results to one typed envelope | done | — |
 | [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | done | improvements-032 |
-| [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | ready | — |
+| [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | done | — |
 | [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | ready | — |
 | [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | ready | — |
 | [improvements-038](tasks/038-query-the-next-task-only-when-work-will-continue.md) | Query the next task only when work will continue | ready | — |

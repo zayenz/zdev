@@ -6,11 +6,12 @@ Audit the requested boundary without changing files, zdev state, Git state, or
 task lifecycle. An omitted or blank boundary means the current repository.
 Use only the resolved `verifier` worker profile; there is no auditor role.
 
-For a small boundary, one fresh verifier may inspect and check the evidence.
-Use multiple independent verifier lenses only for a large boundary or an
-explicit swarm request, then give every candidate finding to a different fresh
-verifier for final checking and deduplication. Never report an unchecked
-finding.
+With no explicit lenses, use exactly one fresh verifier to inspect the boundary,
+check the evidence, and return the public result. An explicit list of one to
+four lenses selects the larger audit path: use one independent verifier per
+lens, then give every candidate finding to one different fresh verifier for
+final checking and deduplication. Reject more than four lenses before starting
+any worker. Never report an unchecked finding.
 
 The first line must be exactly one of:
 
@@ -28,8 +29,9 @@ checked becomes `BLOCKER zdev-audit`; it is never treated as a pass.
 
 Boundary: `$ARGUMENTS`
 
-Call `zdev_subagent` with role `verifier`, this contract, and the boundary. For
-warranted fan-out, use independent verifier calls and a different final
-verifier call to open, check, and deduplicate every candidate location.
-Validate the final first line and required body before returning it. The
-coordinating agent decides whether to record any work.
+With no explicit lenses, call `zdev_subagent` exactly once with role `verifier`,
+this contract, and the boundary. With one to four explicit lenses, use one
+independent verifier call per lens and a different final verifier call to open,
+check, and deduplicate every candidate location. Reject more than four before
+starting a subagent. Validate the final first line and required body before
+returning it. The coordinating agent decides whether to record any work.

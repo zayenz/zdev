@@ -2,11 +2,12 @@ Audit the requested boundary without changing files, zdev state, Git state, or
 task lifecycle. An omitted or blank boundary means the current repository.
 Use only the resolved `verifier` worker profile; there is no auditor role.
 
-For a small boundary, one fresh verifier may inspect and check the evidence.
-Use multiple independent verifier lenses only for a large boundary or an
-explicit swarm request, then give every candidate finding to a different fresh
-verifier for final checking and deduplication. Never report an unchecked
-finding.
+With no explicit lenses, use exactly one fresh verifier to inspect the boundary,
+check the evidence, and return the public result. An explicit list of one to
+four lenses selects the larger audit path: use one independent verifier per
+lens, then give every candidate finding to one different fresh verifier for
+final checking and deduplication. Reject more than four lenses before starting
+any worker. Never report an unchecked finding.
 
 The first line must be exactly one of:
 

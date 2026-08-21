@@ -4,8 +4,8 @@
 
 - Total: 54
 - Ready: 11
-- Blocked: 12
-- Done: 31
+- Blocked: 11
+- Done: 32
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -40,9 +40,9 @@
 | [improvements-029](tasks/029-define-safe-derived-tasks-without-repeated-approval-ceremony.md) | Define safe derived tasks without repeated approval ceremony | done | — |
 | [improvements-030](tasks/030-define-first-class-trunk-based-area-work.md) | Define first-class trunk-based area work | done | — |
 | [improvements-031](tasks/031-repair-release-safety-and-current-status-guidance.md) | Repair release safety and current-status guidance | done | — |
-| [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | ready | improvements-031 |
+| [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | done | improvements-031 |
 | [improvements-033](tasks/033-simplify-worker-results-to-one-typed-envelope.md) | Simplify worker results to one typed envelope | ready | — |
-| [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | blocked | improvements-032 |
+| [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | ready | improvements-032 |
 | [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | ready | — |
 | [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | ready | — |
 | [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | ready | — |

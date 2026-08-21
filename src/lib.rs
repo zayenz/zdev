@@ -150,6 +150,15 @@ enum Command {
         /// Area tag whose next ready task to project
         area: String,
     },
+    /// Capture the validated task-work context for one area
+    ///
+    /// Closed areas return branch-independent goal context. Open areas also
+    /// include matching status and complete staged, unstaged, and untracked Git
+    /// evidence. This command does not change repository state.
+    WorkContext {
+        /// Area tag whose task-work context to capture
+        area: String,
+    },
     /// Show task counts and branch health
     ///
     /// With AREA, shows that area's ready, blocked, and completed task counts.
@@ -456,6 +465,7 @@ impl Cli {
             Command::Task { .. } => "task",
             Command::Next { .. } => "next",
             Command::Goal { .. } => "goal",
+            Command::WorkContext { .. } => "work-context",
             Command::Status { .. } => "status",
             Command::Check { .. } => "check",
             Command::Skill { .. } => "skill",
@@ -648,6 +658,7 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             }
         }
         Command::Goal { area } => goal::show(&root, area),
+        Command::WorkContext { area } => work_context_output(&root, area),
         Command::Status { area } => status_output(&root, area.as_deref()),
         Command::Check { area } => check_output(&root, area.as_deref()),
         Command::Skill { .. } => unreachable!(),
@@ -828,6 +839,164 @@ fn render_area_branch_line(area: &project::AreaMetadata, status: &Value) -> Stri
         .collect::<Vec<_>>()
         .join(", ");
     format!("{}: {branch} -> {relationship} [{diagnostics}]", area.tag)
+}
+
+fn required_json_string<'a>(
+    value: &'a Value,
+    pointer: &str,
+    context: &str,
+) -> Result<&'a str, ZdevError> {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_str)
+        .ok_or_else(|| ZdevError::new(format!("{context} lacks string field {pointer}")))
+}
+
+fn optional_task_id(
+    value: &Value,
+    pointer: &str,
+    context: &str,
+) -> Result<Option<String>, ZdevError> {
+    match value.pointer(pointer) {
+        Some(Value::Null) => Ok(None),
+        Some(Value::String(id)) => Ok(Some(id.clone())),
+        Some(Value::Object(task)) => task
+            .get("id")
+            .and_then(Value::as_str)
+            .map(|id| Some(id.to_owned()))
+            .ok_or_else(|| ZdevError::new(format!("{context} lacks string task ID"))),
+        Some(_) => Err(ZdevError::new(format!(
+            "{context} has invalid task field {pointer}"
+        ))),
+        None => Err(ZdevError::new(format!(
+            "{context} lacks task field {pointer}"
+        ))),
+    }
+}
+
+fn work_context_git_stdout(root: &Path, arguments: &[&str]) -> Result<String, ZdevError> {
+    let command = format!("git {}", arguments.join(" "));
+    let output = ProcessCommand::new("git")
+        .args(arguments)
+        .current_dir(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .map_err(|error| ZdevError::io(format!("Cannot run {command}"), error))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ZdevError::new(format!(
+            "{command} failed{}",
+            if stderr.trim().is_empty() {
+                String::new()
+            } else {
+                format!(": {}", stderr.trim())
+            }
+        )));
+    }
+    String::from_utf8(output.stdout)
+        .map_err(|_| ZdevError::new(format!("{command} returned invalid UTF-8")))
+}
+
+fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    let goal = goal::show(root, area)?.value;
+    let goal_area = required_json_string(&goal, "/area/tag", "Goal projection")?;
+    if goal_area != area {
+        return Err(ZdevError::new(format!(
+            "Goal projection identifies area {goal_area}, expected {area}"
+        )));
+    }
+    let lifecycle = required_json_string(&goal, "/lifecycle", "Goal projection")?;
+    let queue = required_json_string(&goal, "/queue", "Goal projection")?;
+    let goal_task = optional_task_id(&goal, "/task", "Goal projection")?;
+
+    if lifecycle == "closed" {
+        if goal_task.is_some() {
+            return Err(ZdevError::new(format!(
+                "Closed area {area} unexpectedly projects a task"
+            )));
+        }
+        let text = format!(
+            "Area: {area}\nLifecycle: closed\nQueue: {queue}\nTask: none\nNo branch or Git context is required for closed work."
+        );
+        return Ok(CommandOutput::new(
+            text,
+            json!({
+                "schema_version": SCHEMA_VERSION,
+                "area": area,
+                "lifecycle": lifecycle,
+                "queue": queue,
+                "task_id": Value::Null,
+                "goal": goal,
+            }),
+        ));
+    }
+    if lifecycle != "open" {
+        return Err(ZdevError::new(format!(
+            "Goal projection has unsupported lifecycle {lifecycle}"
+        )));
+    }
+
+    let status = status_output(root, Some(area))?.value;
+    let status_area = required_json_string(&status, "/area/tag", "Status projection")?;
+    let status_lifecycle = required_json_string(&status, "/lifecycle", "Status projection")?;
+    let status_queue = required_json_string(&status, "/queue", "Status projection")?;
+    let status_task = optional_task_id(&status, "/next", "Status projection")?;
+    if status_area != area
+        || status_lifecycle != lifecycle
+        || status_queue != queue
+        || status_task != goal_task
+    {
+        return Err(ZdevError::with_details(
+            format!("Status and goal disagree for area {area}; retry from fresh repository state"),
+            json!({"area": area, "status": status, "goal": goal}),
+        ));
+    }
+    let safe = status
+        .pointer("/branch_status/task_work/safe")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| ZdevError::new("Status projection lacks boolean task_work.safe"))?;
+    let stale_advisory = status
+        .pointer("/branch_status/task_work/stale_advisory")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            ZdevError::new("Status projection lacks boolean task_work.stale_advisory")
+        })?;
+    if !safe {
+        return Err(ZdevError::with_details(
+            format!(
+                "Cannot capture task-work context for area {area}: task work is unsafe. Resolve the reported branch state and retry"
+            ),
+            json!({"area": area, "status": status, "goal": goal}),
+        ));
+    }
+
+    let git_status =
+        work_context_git_stdout(root, &["status", "--short", "--untracked-files=all"])?;
+    let git_diff_cached = work_context_git_stdout(root, &["diff", "--cached"])?;
+    let git_diff = work_context_git_stdout(root, &["diff"])?;
+    let task_id = goal_task.as_deref().map(Value::from).unwrap_or(Value::Null);
+    let task_text = goal_task.as_deref().unwrap_or("none");
+    let text = format!(
+        "Area: {area}\nLifecycle: open\nQueue: {queue}\nTask: {task_text}\nStale advisory: {}\nCaptured status, goal, and complete Git evidence.",
+        if stale_advisory { "yes" } else { "no" }
+    );
+    Ok(CommandOutput::new(
+        text,
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "area": area,
+            "lifecycle": lifecycle,
+            "queue": queue,
+            "task_id": task_id,
+            "stale_advisory": stale_advisory,
+            "status": status,
+            "goal": goal,
+            "git_status": git_status,
+            "git_diff_cached": git_diff_cached,
+            "git_diff": git_diff,
+        }),
+    ))
 }
 
 fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, ZdevError> {

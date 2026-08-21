@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-032"
 key = "work-context-command"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-031"]
 +++
 # Add one read-only work-context command
@@ -25,12 +25,20 @@ Current harness flows separately invoke status, goal, and three Git inspections.
 
 ## Done when
 
-- [ ] One command returns a stable schema for closed no-work and for open ready, empty, exhausted, blocked, and unsafe states.
-- [ ] Open results require matching area, task, lifecycle, queue, safe task-work status, and the three Git evidence strings.
-- [ ] Closed results require no branch checkout or Git cleanliness evidence.
-- [ ] Human and JSON output give actionable errors without mutating the repository.
+- [x] One command returns a stable schema for closed no-work and for open ready, empty, exhausted, blocked, and unsafe states.
+- [x] Open results require matching area, task, lifecycle, queue, safe task-work status, and the three Git evidence strings.
+- [x] Closed results require no branch checkout or Git cleanliness evidence.
+- [x] Human and JSON output give actionable errors without mutating the repository.
 
 ## Validation
 
 - Add focused black-box tests for closed off-branch/detached behavior, ready work, each no-work class, mismatched state, and Git command failure.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added one read-only work-context command that returns nested goal/status projections and exact Git evidence while short-circuiting closed areas.
+
+Validation:
+
+- Six focused work-context tests, full 103-test suite, formatting, strict Clippy, build, zdev check, and diff check passed; fresh independent verification passed.

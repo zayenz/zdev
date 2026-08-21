@@ -177,33 +177,52 @@ exercises that recovery boundary.
 
 ### 1. Add one fresh work-context command
 
-Add a narrow read-only command, provisionally
-`zdev work-context <area> --format json`. Its JSON object has exactly these
-keys, in this stable order:
+Add the narrow read-only command
+`zdev work-context <area> --format json`. It classifies the complete goal
+projection first. A closed area returns this branch-independent object and
+does not collect status or Git evidence:
 
 ```json
 {
-  "schema_version": 1,
   "area": "<area>",
-  "lifecycle": "open|closed",
-  "queue": "empty|ready|exhausted",
-  "task_id": null,
-  "status_json": "<complete status JSON bytes>",
-  "goal_json": "<complete goal JSON bytes>",
-  "git_status": "<complete stdout, possibly empty>",
-  "git_diff_cached": "<complete stdout, possibly empty>",
-  "git_diff": "<complete stdout, possibly empty>"
+  "goal": {"<complete goal projection>": "<nested JSON value>"},
+  "lifecycle": "closed",
+  "queue": "empty|exhausted",
+  "schema_version": 1,
+  "task_id": null
 }
 ```
 
-`task_id` is a JSON string for `ready` and JSON null otherwise. The command
-must parse both embedded JSON strings and fail closed unless area, lifecycle,
-queue, task ID, and branch safety agree exactly. Ready work requires
-`task_work.safe == true`, `status.next == goal.task.id == task_id`, and a
-boolean `stale_advisory`. No-work also requires safe task work and both task
-projections to be null. Invalid task records or graphs remain errors.
+An open area then obtains status and returns exactly these keys in stable
+order:
 
-Collect status, goal, and the three Git results freshly and sequentially in
+```json
+{
+  "area": "<area>",
+  "git_diff": "<complete stdout, possibly empty>",
+  "git_diff_cached": "<complete stdout, possibly empty>",
+  "git_status": "<complete stdout, possibly empty>",
+  "goal": {"<complete goal projection>": "<nested JSON value>"},
+  "lifecycle": "open",
+  "queue": "empty|ready|exhausted",
+  "schema_version": 1,
+  "stale_advisory": false,
+  "status": {"<complete status projection>": "<nested JSON value>"},
+  "task_id": null
+}
+```
+
+`task_id` is a JSON string for `ready` and JSON null otherwise. The nested
+values are the existing projections, not JSON encoded inside strings. Open
+work fails closed unless area, lifecycle, queue, task ID, and branch safety
+agree exactly. Ready work requires `task_work.safe == true`,
+`status.next == goal.task.id == task_id`, and a boolean `stale_advisory`.
+Open no-work also requires safe task work and both task projections to be null.
+Invalid or blocked task graphs remain errors. Closed validation still checks
+the task records and lifecycle through goal, but deliberately does not require
+a checkout, branch status, or Git cleanliness.
+
+Collect goal, status, and the three Git results freshly and sequentially in
 one zdev process. This is not an atomic filesystem snapshot: its value is that
 one command owns a complete fail-closed collection, not that concurrent writes
 become impossible. It must not cache or persist any result. Run Git directly

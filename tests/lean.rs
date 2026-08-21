@@ -116,6 +116,23 @@ fn git(root: &Path, arguments: &[&str]) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_owned()
 }
 
+fn git_stdout(root: &Path, arguments: &[&str]) -> String {
+    let output = Command::new("git")
+        .args(arguments)
+        .current_dir(root)
+        .output()
+        .expect("run git");
+    assert!(output.status.success());
+    String::from_utf8(output.stdout).expect("Git UTF-8")
+}
+
+fn executable_on_path(name: &str) -> std::path::PathBuf {
+    std::env::split_paths(&std::env::var_os("PATH").expect("PATH"))
+        .map(|directory| directory.join(name))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| panic!("{name} on PATH"))
+}
+
 fn repository() -> TempDir {
     let directory = tempfile::tempdir().expect("temporary repository");
     git(directory.path(), &["init", "-q"]);
@@ -299,6 +316,319 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
         "{{\n  \"schema_version\": 1,\n  \"area\": {{\n    \"tag\": \"checkout\",\n    \"title\": \"Checkout reliability\",\n    \"objective\": \"Make checkout failures safe and understandable.\",\n    \"path\": \".zdev/checkout\"\n  }},\n  \"lifecycle\": \"open\",\n  \"queue\": \"ready\",\n  \"counts\": {{\n    \"total\": 3,\n    \"open\": 2,\n    \"ready\": 1,\n    \"blocked\": 1,\n    \"done\": 1\n  }},\n  \"task\": {{\n    \"id\": \"checkout-002\",\n    \"key\": \"reject-duplicate-payment\",\n    \"title\": \"Reject duplicate payment submission\",\n    \"path\": \".zdev/checkout/tasks/002-reject-duplicate-payment.md\",\n    \"outcome\": \"A repeated submission returns the original payment result without charging again.\",\n    \"context\": \"The provider can retry after losing our first response.\",\n    \"boundaries\": \"- Keep the public response schema unchanged.\",\n    \"done_when\": \"- [ ] Duplicate provider calls are prevented.\\n- [ ] The original result is returned.\",\n    \"validation\": \"- Run the focused payment integration test.\",\n    \"blocked_by\": [],\n    \"slice\": {{\n      \"key\": \"payments\",\n      \"title\": \"Payment submission\",\n      \"path\": \".zdev/checkout/slices/payments.md\",\n      \"objective\": \"Make payment submission safe to retry.\",\n      \"boundaries\": \"- Do not change provider selection.\"\n    }}\n  }},\n  \"native_goal\": \"{native_goal}\"\n}}\n"
     );
     assert_eq!(json_first.stdout, expected_json.as_bytes());
+}
+
+#[test]
+fn work_context_returns_nested_ready_context_and_untrimmed_git_stdout() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+    commit_all(root, "record area");
+    import_one_task(root, "general");
+    fs::write(root.join("notes.txt"), "untracked\n").expect("untracked file");
+
+    let output = run_zdev(root, &["work-context", "general", "--format", "json"]);
+    let context: Value = serde_json::from_slice(&output.stdout).expect("work context JSON");
+    let expected_git_status = git_stdout(root, &["status", "--short", "--untracked-files=all"]);
+    let expected_git_diff_cached = git_stdout(root, &["diff", "--cached"]);
+    let expected_git_diff = git_stdout(root, &["diff"]);
+    assert_pretty_json(
+        &output,
+        json!({
+            "schema_version": 1,
+            "area": "general",
+            "lifecycle": "open",
+            "queue": "ready",
+            "task_id": "general-001",
+            "stale_advisory": false,
+            "status": context["status"].clone(),
+            "goal": context["goal"].clone(),
+            "git_status": expected_git_status,
+            "git_diff_cached": expected_git_diff_cached,
+            "git_diff": expected_git_diff,
+        }),
+    );
+    assert_eq!(context["area"], "general");
+    assert_eq!(context["lifecycle"], "open");
+    assert_eq!(context["queue"], "ready");
+    assert_eq!(context["task_id"], "general-001");
+    assert_eq!(context["stale_advisory"], false);
+    assert_eq!(context["goal"]["task"]["id"], "general-001");
+    assert_eq!(context["status"]["next"], "general-001");
+    assert!(context["status"].is_object());
+    assert!(context["goal"].is_object());
+    assert_eq!(context["git_status"], expected_git_status);
+    assert_eq!(context["git_diff_cached"], expected_git_diff_cached);
+    assert_eq!(context["git_diff"], expected_git_diff);
+    assert!(
+        context["git_status"]
+            .as_str()
+            .expect("status string")
+            .ends_with('\n'),
+        "Git stdout must retain its trailing newline"
+    );
+}
+
+#[test]
+fn work_context_returns_open_empty_and_exhausted_contexts() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+
+    let empty = json_output(root, &["work-context", "general"]);
+    assert_eq!(empty["queue"], "empty");
+    assert_eq!(empty["task_id"], Value::Null);
+    assert_eq!(empty["status"]["next"], Value::Null);
+    assert_eq!(empty["goal"]["task"], Value::Null);
+
+    import_one_task(root, "general");
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "general",
+            "general-001",
+            "--summary",
+            "Completed the task.",
+            "--validation",
+            "Focused check passed.",
+        ],
+    );
+    let exhausted = json_output(root, &["work-context", "general"]);
+    assert_eq!(exhausted["queue"], "exhausted");
+    assert_eq!(exhausted["task_id"], Value::Null);
+    assert_eq!(exhausted["status"]["next"], Value::Null);
+    assert_eq!(exhausted["goal"]["task"], Value::Null);
+}
+
+#[cfg(unix)]
+#[test]
+fn closed_work_context_is_branch_independent_and_never_invokes_git() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+    json_output(root, &["area", "close", "general"]);
+    git(root, &["switch", "--detach", "-q", "HEAD"]);
+
+    let fake_path = tempfile::tempdir().expect("fake PATH");
+    let fake_git = fake_path.path().join("git");
+    fs::write(&fake_git, "#!/bin/sh\nexit 97\n").expect("fake git");
+    let mut permissions = fs::metadata(&fake_git)
+        .expect("fake git metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).expect("executable fake git");
+
+    let output = run_zdev_with_env(
+        root,
+        &["work-context", "general", "--format", "json"],
+        &[("PATH", fake_path.path())],
+    );
+    let context: Value = serde_json::from_slice(&output.stdout).expect("closed context JSON");
+    assert_pretty_json(
+        &output,
+        json!({
+            "schema_version": 1,
+            "area": "general",
+            "lifecycle": "closed",
+            "queue": "empty",
+            "task_id": Value::Null,
+            "goal": context["goal"].clone(),
+        }),
+    );
+    assert_eq!(context["lifecycle"], "closed");
+    assert_eq!(context["queue"], "empty");
+    assert_eq!(context["task_id"], Value::Null);
+    assert!(context["goal"].is_object());
+    for omitted in [
+        "status",
+        "stale_advisory",
+        "git_status",
+        "git_diff_cached",
+        "git_diff",
+    ] {
+        assert!(context.get(omitted).is_none(), "unexpected {omitted}");
+    }
+}
+
+#[test]
+fn work_context_rejects_unsafe_and_blocked_open_work_with_structured_errors() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+    import_one_task(root, "general");
+    git(root, &["switch", "--detach", "-q", "HEAD"]);
+
+    let unsafe_output = run_zdev(root, &["work-context", "general", "--format", "json"]);
+    assert!(!unsafe_output.status.success());
+    let unsafe_error: Value =
+        serde_json::from_slice(&unsafe_output.stderr).expect("unsafe JSON error");
+    assert_eq!(unsafe_error["command"], "work-context");
+    assert_eq!(
+        unsafe_error["details"]["status"]["branch_status"]["task_work"]["safe"],
+        false
+    );
+    assert_eq!(unsafe_error["details"]["goal"]["task"]["id"], "general-001");
+
+    git(root, &["switch", "-q", "main"]);
+    let task_path = root.join(".zdev/general/tasks/001-complete-one-task.md");
+    let task = fs::read_to_string(&task_path)
+        .expect("task")
+        .replace("blocked_by = []", "blocked_by = [\"general-999\"]");
+    fs::write(task_path, task).expect("blocked task");
+    let blocked = run_zdev(root, &["work-context", "general", "--format", "json"]);
+    assert!(!blocked.status.success());
+    let blocked_error: Value = serde_json::from_slice(&blocked.stderr).expect("blocked JSON error");
+    assert_eq!(blocked_error["command"], "work-context");
+    assert!(
+        blocked_error["error"]
+            .as_str()
+            .expect("blocked error")
+            .contains("missing blocker general-999")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn work_context_rejects_status_and_goal_disagreement() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+    import_one_task(root, "general");
+
+    let task_path = root.join(".zdev/general/tasks/001-complete-one-task.md");
+    let done_path = root.join("done-task.md");
+    let done_task = fs::read_to_string(&task_path)
+        .expect("task")
+        .replace("status = \"open\"", "status = \"done\"")
+        .replace("- [ ] ", "- [x] ")
+        + "\n## Result\n\nCompleted during the test.\n\nValidation:\n\n- Focused check passed.\n";
+    fs::write(&done_path, done_task).expect("done task source");
+
+    let fake_path = tempfile::tempdir().expect("fake PATH");
+    let fake_git = fake_path.path().join("git");
+    let marker = root.join("mutation-ran");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\nif [ \"$1\" = symbolic-ref ] && [ ! -e \"$MUTATED\" ]; then\n  while IFS= read -r line || [ -n \"$line\" ]; do printf '%s\\n' \"$line\"; done < \"$DONE_TASK\" > \"$TASK_PATH\"\n  : > \"$MUTATED\"\nfi\nexec \"$REAL_GIT\" \"$@\"\n",
+    )
+    .expect("mutating git");
+    let mut permissions = fs::metadata(&fake_git)
+        .expect("fake git metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).expect("executable fake git");
+    let real_git = executable_on_path("git");
+
+    let output = run_zdev_with_env(
+        root,
+        &["work-context", "general", "--format", "json"],
+        &[
+            ("PATH", fake_path.path()),
+            ("REAL_GIT", &real_git),
+            ("DONE_TASK", &done_path),
+            ("TASK_PATH", &task_path),
+            ("MUTATED", &marker),
+        ],
+    );
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&output.stderr).expect("disagreement JSON");
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("disagreement error")
+            .contains("Status and goal disagree")
+    );
+    assert_eq!(error["details"]["goal"]["queue"], "ready");
+    assert_eq!(error["details"]["status"]["queue"], "exhausted");
+}
+
+#[cfg(unix)]
+#[test]
+fn work_context_reports_git_collection_failure_without_partial_output() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+
+    let fake_path = tempfile::tempdir().expect("fake PATH");
+    let fake_git = fake_path.path().join("git");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\nif [ \"$1\" = diff ] && [ \"$2\" = --cached ]; then\n  echo deliberate failure >&2\n  exit 19\nfi\nexec \"$REAL_GIT\" \"$@\"\n",
+    )
+    .expect("fake git");
+    let mut permissions = fs::metadata(&fake_git)
+        .expect("fake git metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).expect("executable fake git");
+    let real_git = executable_on_path("git");
+
+    let output = run_zdev_with_env(
+        root,
+        &["work-context", "general", "--format", "json"],
+        &[("PATH", fake_path.path()), ("REAL_GIT", &real_git)],
+    );
+    assert!(!output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "failure must not emit partial context"
+    );
+    let error: Value = serde_json::from_slice(&output.stderr).expect("failure JSON");
+    assert_eq!(error["command"], "work-context");
+    assert!(
+        error["error"]
+            .as_str()
+            .expect("error")
+            .contains("git diff --cached failed: deliberate failure")
+    );
+
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\nif [ \"$1\" = diff ] && [ \"$#\" = 1 ]; then\n  printf '\\377'\n  exit 0\nfi\nexec \"$REAL_GIT\" \"$@\"\n",
+    )
+    .expect("invalid UTF-8 git");
+    let invalid = run_zdev_with_env(
+        root,
+        &["work-context", "general", "--format", "json"],
+        &[("PATH", fake_path.path()), ("REAL_GIT", &real_git)],
+    );
+    assert!(!invalid.status.success());
+    assert!(invalid.stdout.is_empty());
+    let invalid_error: Value =
+        serde_json::from_slice(&invalid.stderr).expect("invalid UTF-8 JSON error");
+    assert!(
+        invalid_error["error"]
+            .as_str()
+            .expect("invalid UTF-8 error")
+            .contains("git diff returned invalid UTF-8")
+    );
 }
 
 #[test]

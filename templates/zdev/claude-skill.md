@@ -20,14 +20,16 @@ boundaries.
 
 When the packaged workflows are available, `/zdev:zdev-implement` runs a full
 task cycle, `/zdev:zdev-verify` verifies an explicit current ready task without
-mutation, and `/zdev:zdev-audit` runs a read-only audit. The ordinary subagent
-loop also works.
+mutation, `/zdev:zdev-audit` runs a read-only audit, and both
+`/zdev:zdev-loop <area>` and `/zdev:zdev-goal <area>` run the same continuing
+area workflow. The ordinary subagent loop also works.
 
-For an active-zdev goal or loop request, repeat the ordinary one-task route in
-the current interaction, refreshing work context after every verified commit
-and applying the shared stop states. This route does not inspect or apply
-Claude Code's separate `/goal` command. If continuation cannot remain under
-coordinator control, stop after one task and report the fresh next state.
+For an active-zdev goal or loop request, use either packaged continuation
+workflow when available. It repeats the ordinary one-task route, refreshes work
+context after every verified commit, and applies the shared stop states. It
+does not inspect or invoke Claude Code's separate `/goal` command. If the
+packaged workflows are unavailable, continue under coordinator control or stop
+after one task and report the fresh next state.
 
 {{repository_guidance}}
 

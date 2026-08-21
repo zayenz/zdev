@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-045"
 key = "claude-area-loop"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-044"]
 +++
 # Implement Claude goal and loop workflows
@@ -25,13 +25,21 @@ Render `zdev-goal` and `zdev-loop` from one canonical Claude workflow source. Th
 
 ## Done when
 
-- [ ] Both Claude workflow names install, check, and execute the same area-continuation semantics.
-- [ ] A successful task commit advances to the next iteration; closed or other valid no-work stops successfully.
-- [ ] Cached/resumed results cannot skip the next fresh work-context check.
-- [ ] Failure and user-decision states stop without starting another task.
+- [x] Both Claude workflow names install, check, and execute the same area-continuation semantics.
+- [x] A successful task commit advances to the next iteration; closed or other valid no-work stops successfully.
+- [x] Cached/resumed results cannot skip the next fresh work-context check.
+- [x] Failure and user-decision states stop without starting another task.
 
 ## Validation
 
 - Exercise the extracted real workflow with focused Node fixtures for two-task continuation, closed no-work, REWORK, resumed result, and failure.
 - Install and check the Claude integration.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added native Claude goal and loop workflows from one canonical source, reusing the one-task contract with fresh context between iterations.
+
+Validation:
+
+- Independent verifier PASS; executable continuation/resume/failure fixtures and full fmt, clippy, test, build, and Claude install/check passed.

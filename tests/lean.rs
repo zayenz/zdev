@@ -3810,7 +3810,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
     assert_eq!(installed["harness"], harness);
     assert_eq!(installed["scope"], "explicit");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 20);
+    assert_eq!(installed["files"], 22);
 
     let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
     assert_eq!(checked["status"], "ok");
@@ -3953,7 +3953,9 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/to-tasks.md",
             "skills/zdev/references/verify.md",
             "workflows/zdev-audit.js",
+            "workflows/zdev-goal.js",
             "workflows/zdev-implement.js",
+            "workflows/zdev-loop.js",
             "workflows/zdev-verify.js",
         ]
     );
@@ -4377,6 +4379,241 @@ await exercise(
     assert!(
         output.status.success(),
         "Claude complexity routing probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn claude_area_loop_executes_continuation_stop_rework_resume_and_failure() {
+    let repository = repository();
+    let root = repository.path();
+    let destination = root.join("claude-area-loop");
+    let config_home = root.join("claude-area-loop-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "claude",
+            "--to",
+            destination.to_str().expect("Claude loop destination"),
+        ],
+        &environment,
+    );
+    assert_eq!(
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "check",
+                "claude",
+                "--to",
+                destination.to_str().expect("Claude loop destination"),
+            ],
+            &environment,
+        )["status"],
+        "ok"
+    );
+
+    let loop_source =
+        fs::read_to_string(destination.join("workflows/zdev-loop.js")).expect("Claude loop");
+    let goal_source =
+        fs::read_to_string(destination.join("workflows/zdev-goal.js")).expect("Claude goal");
+    assert_eq!(
+        goal_source.replacen("name: 'zdev-goal'", "name: 'zdev-loop'", 1),
+        loop_source,
+        "Claude aliases may differ only in meta.name"
+    );
+    assert!(!loop_source.contains("/goal"));
+
+    let source = loop_source.replacen("export const meta =", "const meta =", 1);
+    let probe = format!(
+        r#"
+async function run(args, agent) {{
+{source}
+}}
+const area = 'work'
+const head = '0123456789abcdef0123456789abcdef01234567'
+const commit1 = '1'.repeat(40)
+const commit2 = '2'.repeat(40)
+const worker = (task, kind, verdict, escalation = 'none', evidence = [], findings = []) => JSON.stringify({{
+  schema_version: 1, kind, area, task_id: task, verdict,
+  summary: verdict + ' result', evidence, findings, escalation,
+}})
+const ready = (task, complexity = 'standard', contextHead = head) => JSON.stringify({{
+  schema_version: 1,
+  area,
+  lifecycle: 'open',
+  queue: 'ready',
+  task_id: task,
+  stale_advisory: false,
+  status: {{
+    area: {{ tag: area }},
+    lifecycle: 'open',
+    queue: 'ready',
+    next: task,
+    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }},
+  }},
+  goal: {{
+    area: {{ tag: area }},
+    lifecycle: 'open',
+    queue: 'ready',
+    task: {{ id: task, complexity }},
+  }},
+  head: contextHead,
+  git_status: '',
+  git_diff_cached: '',
+  git_diff: '',
+}})
+const closed = JSON.stringify({{
+  schema_version: 1,
+  area,
+  lifecycle: 'closed',
+  queue: 'empty',
+  task_id: null,
+  goal: {{ area: {{ tag: area }}, lifecycle: 'closed', queue: 'empty', task: null }},
+}})
+const empty = contextHead => JSON.stringify({{
+  schema_version: 1,
+  area,
+  lifecycle: 'open',
+  queue: 'empty',
+  task_id: null,
+  stale_advisory: false,
+  status: {{
+    area: {{ tag: area }},
+    lifecycle: 'open',
+    queue: 'empty',
+    next: null,
+    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }},
+  }},
+  goal: {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'empty', task: null }},
+  head: contextHead,
+  git_status: '',
+  git_diff_cached: '',
+  git_diff: '',
+}})
+const passEvidence = contextHead => [
+  'HEAD: ' + contextHead,
+  'git_status: ""',
+  'git_diff_cached: ""',
+  'git_diff: ""',
+]
+const completionPass = task =>
+  'PASS zdev-implement ' + area + ' ' + task
+  + '\n\nArea: ' + area + '\nTask: ' + task
+  + '\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed'
+  + '\nVerifier evidence: checked\nCommit ID: ' + (task.endsWith('1') ? commit1 : commit2)
+const exercise = async (name, contexts, workers, completions, expectedPrefix) => {{
+  const calls = []
+  const result = await run({{ area }}, async (_prompt, options) => {{
+    calls.push({{ label: options.label, type: options.agentType ?? null }})
+    if (options.label === 'zdev loop continuation preflight' || options.label === 'zdev implement preflight' || options.label.includes('refresh')) {{
+      if (contexts.length === 0) throw new Error(name + ': unexpected context request')
+      return contexts.shift()
+    }}
+    if (options.agentType) {{
+      if (workers.length === 0) throw new Error(name + ': unexpected worker')
+      return workers.shift()
+    }}
+    if (options.label === 'zdev completion and commit') {{
+      if (completions.length === 0) throw new Error(name + ': unexpected completion')
+      return completions.shift()
+    }}
+    throw new Error(name + ': unknown call ' + JSON.stringify(options))
+  }})
+  if (!result.startsWith(expectedPrefix + ' zdev-loop ' + area)) throw new Error(name + ': ' + result)
+  if (contexts.length || workers.length || completions.length) throw new Error(name + ': unused fixture values')
+  return {{ result, calls }}
+}}
+
+const twoTask = await exercise(
+  'two-task continuation',
+  [ready('work-001'), ready('work-001'), ready('work-002', 'standard', commit1), ready('work-002', 'standard', commit1), closed],
+  [
+    worker('work-001', 'implementer', 'ready'),
+    worker('work-001', 'verifier', 'pass', 'none', passEvidence(head)),
+    worker('work-002', 'implementer', 'ready'),
+    worker('work-002', 'verifier', 'pass', 'none', passEvidence(commit1)),
+  ],
+  [completionPass('work-001'), completionPass('work-002')],
+  'PASS',
+)
+if (!twoTask.result.includes('Tasks completed: work-001, work-002')) throw new Error(twoTask.result)
+if (!twoTask.result.includes('Lifecycle: closed\nQueue: empty')) throw new Error(twoTask.result)
+
+const noWork = await exercise('closed no-work', [closed], [], [], 'PASS')
+if (noWork.calls.length !== 1 || noWork.calls[0].label !== 'zdev loop continuation preflight') throw new Error(JSON.stringify(noWork.calls))
+
+const rework = await exercise(
+  'rework',
+  [ready('work-001'), ready('work-001'), ready('work-001'), ready('work-001'), closed],
+  [
+    worker('work-001', 'implementer', 'ready'),
+    worker('work-001', 'verifier', 'rework', 'none', [], ['fix defect']),
+    worker('work-001', 'implementer', 'ready'),
+    worker('work-001', 'verifier', 'pass', 'none', passEvidence(head)),
+  ],
+  [completionPass('work-001')],
+  'PASS',
+)
+if (rework.calls.filter(call => call.type === 'zdev:zdev-verifier').length !== 2) throw new Error(JSON.stringify(rework.calls))
+
+const resumed = await exercise(
+  'cached completion result',
+  [ready('work-001'), ready('work-001'), empty(commit1)],
+  [
+    worker('work-001', 'implementer', 'ready'),
+    worker('work-001', 'verifier', 'pass', 'none', passEvidence(head)),
+  ],
+  [completionPass('work-001')],
+  'PASS',
+)
+const completionIndex = resumed.calls.findIndex(call => call.label === 'zdev completion and commit')
+if (resumed.calls[completionIndex + 1]?.label !== 'zdev loop continuation preflight') throw new Error(JSON.stringify(resumed.calls))
+
+const staleResumed = await exercise(
+  'cached result without repository advance',
+  [ready('work-001'), ready('work-001'), ready('work-001', 'standard', commit1)],
+  [
+    worker('work-001', 'implementer', 'ready'),
+    worker('work-001', 'verifier', 'pass', 'none', passEvidence(head)),
+  ],
+  [completionPass('work-001')],
+  'BLOCKER',
+)
+if (staleResumed.calls.at(-1)?.label !== 'zdev loop continuation preflight') throw new Error(JSON.stringify(staleResumed.calls))
+
+const failed = await exercise(
+  'completion failure',
+  [ready('work-001'), ready('work-001')],
+  [
+    worker('work-001', 'implementer', 'ready'),
+    worker('work-001', 'verifier', 'pass', 'none', passEvidence(head)),
+  ],
+  ['BLOCKER zdev-implement work work-001\n\nArea: work\nTask: work-001\nFailed stage: commit\nReason: commit failed\nPreserved state: task completion and index remain'],
+  'BLOCKER',
+)
+if (failed.calls.at(-1)?.label !== 'zdev completion and commit') throw new Error(JSON.stringify(failed.calls))
+
+const decision = await exercise(
+  'user decision',
+  [ready('work-001', 'advanced')],
+  [worker('work-001', 'planner', 'blocker', 'none', [], ['public API choice belongs to the user'])],
+  [],
+  'BLOCKER',
+)
+if (decision.calls.at(-1)?.type !== 'zdev:zdev-planner') throw new Error(JSON.stringify(decision.calls))
+"#
+    );
+    let output = Command::new("node")
+        .args(["--input-type=module", "--eval", &probe])
+        .output()
+        .expect("run Claude area-loop workflow probe");
+    assert!(
+        output.status.success(),
+        "Claude area-loop workflow probe failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }
@@ -6051,7 +6288,7 @@ fn harness_roots_make_every_active_zdev_route_discoverable_once() {
         (
             "claude",
             include_str!("../templates/zdev/claude-skill.md"),
-            "repeat the ordinary one-task route in",
+            "use either packaged continuation\nworkflow when available",
         ),
         (
             "opencode",

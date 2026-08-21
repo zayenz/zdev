@@ -1,6 +1,6 @@
 # Harness orchestration
 
-> **Status: current behavior.** The three workflows and installed artifacts
+> **Status: current behavior.** The workflows and installed artifacts
 > described here are implemented. Harness research was checked on 2026-08-20;
 > implementation-seam sections preserve the decision record that led to them.
 
@@ -150,7 +150,7 @@ Code's workflow namespace produces `/zdev:zdev-implement`,
 | Harness | Installed entry points | Native workers |
 | --- | --- | --- |
 | Codex | `skills/zdev-implement/SKILL.md`, `skills/zdev-verify/SKILL.md`, `skills/zdev-audit/SKILL.md` under the selected Codex scope | The skills pass the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning the corresponding native Codex subagent. Advanced planning uses a fresh read-only subagent with the advanced profile; no separate planner artifact or durable child ID is installed. |
-| Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, and `workflows/zdev-audit.js` with matching `meta.name` values | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects the scoped native agent type; the existing zdev skill remains shared guidance and an ordinary-agent fallback. |
+| Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects the scoped native agent type; the existing zdev skill remains shared guidance and an ordinary-agent fallback. |
 | OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; commands use the native task tool. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` exposes `planner`, `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer` with their resolved model and thinking controls; the installed zdev skill supplies the shared contract. |
 | Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`, invoked through native `task`; `hub` may resume an implementer for rework. |
@@ -315,12 +315,13 @@ workflow progress rendering, and the plugin workflow namespace. Other adapters
 express the same sequence through their own skills, commands, prompts, and
 tools; the common contract does not imitate the JavaScript runtime.
 
-Claude should retain and adapt the canonical scripts. Rename `zdev-task.js` to
-`zdev-implement.js`, retain `zdev-audit.js`, and add a focused
-`zdev-verify.js`. The implementation workflow keeps its deterministic
-preflight, implementation, fresh-verification, and `while (REWORK)` control
-flow, but routes `agent()` calls through the scoped named role, refreshes the
-zdev goal before each handoff, validates the common envelopes, and returns the
+Claude retains the canonical `zdev-implement.js`, `zdev-verify.js`, and
+`zdev-audit.js` scripts. One canonical continuation source renders
+`zdev-loop.js` and its `zdev-goal.js` alias. The implementation workflow keeps
+its deterministic preflight, implementation, fresh-verification, and
+`while (REWORK)` control flow, but routes `agent()` calls through the scoped
+named role, refreshes work-context before each handoff, validates the common
+envelopes, and returns the
 coordinator enough evidence to complete and commit. The audit workflow keeps
 its review-and-vet pipeline. These are native advantages, not behavior other
 harnesses must reimplement in JavaScript.

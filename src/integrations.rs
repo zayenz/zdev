@@ -81,6 +81,7 @@ const CLAUDE_PLANNER: &str = include_str!("../templates/zdev/claude/agents/zdev-
 const CLAUDE_VERIFIER: &str = include_str!("../templates/zdev/claude/agents/zdev-verifier.md");
 const CLAUDE_IMPLEMENT_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
+const CLAUDE_LOOP_WORKFLOW: &str = include_str!("../templates/zdev/claude/workflows/zdev-loop.js");
 const CLAUDE_VERIFY_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-verify.js");
 const CLAUDE_AUDIT_WORKFLOW: &str =
@@ -256,6 +257,14 @@ impl Harness {
                         content: CLAUDE_IMPLEMENT_WORKFLOW.to_owned(),
                     },
                     IntegrationFile {
+                        path: "workflows/zdev-loop.js".to_owned(),
+                        content: claude_loop_workflow("zdev-loop")?,
+                    },
+                    IntegrationFile {
+                        path: "workflows/zdev-goal.js".to_owned(),
+                        content: claude_loop_workflow("zdev-goal")?,
+                    },
+                    IntegrationFile {
                         path: "workflows/zdev-verify.js".to_owned(),
                         content: CLAUDE_VERIFY_WORKFLOW.to_owned(),
                     },
@@ -422,6 +431,23 @@ impl Harness {
             workers,
         })
     }
+}
+
+fn claude_loop_workflow(name: &str) -> Result<String, ZdevError> {
+    let (_, one_task_body) = CLAUDE_IMPLEMENT_WORKFLOW
+        .split_once("\n\n")
+        .ok_or_else(|| {
+            ZdevError::new("Cannot extract the canonical Claude one-task workflow body")
+        })?;
+    let rendered = CLAUDE_LOOP_WORKFLOW
+        .replace("__ZDEV_WORKFLOW_NAME__", name)
+        .replace("__ZDEV_ONE_TASK_BODY__", one_task_body);
+    if rendered.contains("__ZDEV_") {
+        return Err(ZdevError::new(
+            "Cannot compose the canonical Claude area-loop workflow",
+        ));
+    }
+    Ok(rendered)
 }
 
 fn repository_guidance(guidance: Option<(&str, &str)>) -> String {

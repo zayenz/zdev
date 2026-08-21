@@ -335,6 +335,7 @@ fn work_context_returns_nested_ready_context_and_untrimmed_git_stdout() {
     let expected_git_status = git_stdout(root, &["status", "--short", "--untracked-files=all"]);
     let expected_git_diff_cached = git_stdout(root, &["diff", "--cached"]);
     let expected_git_diff = git_stdout(root, &["diff"]);
+    let expected_head = git(root, &["rev-parse", "HEAD"]);
     assert_pretty_json(
         &output,
         json!({
@@ -346,6 +347,7 @@ fn work_context_returns_nested_ready_context_and_untrimmed_git_stdout() {
             "stale_advisory": false,
             "status": context["status"].clone(),
             "goal": context["goal"].clone(),
+            "head": expected_head,
             "git_status": expected_git_status,
             "git_diff_cached": expected_git_diff_cached,
             "git_diff": expected_git_diff,
@@ -356,6 +358,7 @@ fn work_context_returns_nested_ready_context_and_untrimmed_git_stdout() {
     assert_eq!(context["queue"], "ready");
     assert_eq!(context["task_id"], "general-001");
     assert_eq!(context["stale_advisory"], false);
+    assert_eq!(context["head"], expected_head);
     assert_eq!(context["goal"]["task"]["id"], "general-001");
     assert_eq!(context["status"]["next"], "general-001");
     assert!(context["status"].is_object());
@@ -3791,13 +3794,13 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert!(task_workflow.contains("agentType: 'zdev:zdev-verifier'"));
     assert!(task_workflow.contains("zdev task done"));
     assert!(task_workflow.contains("zdev commit"));
-    assert!(task_workflow.contains("NO-WORK zdev-implement"));
-    assert!(task_workflow.contains("parseReady"));
-    assert!(task_workflow.contains("expectedTask && match[2] !== expectedTask"));
+    assert!(task_workflow.contains("zdev work-context ${area} --format json"));
+    assert!(task_workflow.contains("parseContext"));
+    assert!(task_workflow.contains("payload.task_id !== expectedTask"));
     assert!(task_workflow.contains("const validPass"));
     let verify_workflow =
         fs::read_to_string(claude.join("workflows/zdev-verify.js")).expect("verify workflow");
-    assert!(verify_workflow.contains("require ready task ${taskId} exactly"));
+    assert!(verify_workflow.contains("require the same open, ready, safe task"));
     assert!(verify_workflow.contains("agentType: 'zdev:zdev-verifier'"));
     assert!(verify_workflow.contains("never invokes an implementer, changes lifecycle state"));
 
@@ -3816,15 +3819,16 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
         for required in [
             "Object.keys(payload).sort()",
             "typeof payload[key] !== 'string'",
-            "!payload.status_json || !payload.goal_json",
             "taskWork?.safe !== true",
             "typeof taskWork.stale_advisory !== 'boolean'",
+            "payload.stale_advisory !== taskWork.stale_advisory",
             "goal?.lifecycle !== 'open'",
-            "goal?.queue !== 'ready'",
+            "goal?.queue !==",
             "goal?.area?.tag !==",
             "goal?.task?.id !==",
             "status?.area?.tag !==",
             "status?.next !==",
+            "payload.head",
             "git_status",
             "git_diff_cached",
             "git_diff",
@@ -3853,20 +3857,20 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(implement.contains("field(result ?? '', 'Area') === area"));
     assert!(implement.contains("field(result ?? '', 'Task') === taskId"));
     assert!(verify.contains("parseWorkerResult(result, 'verifier', area, taskId)"));
-    assert!(implement.contains("taskWork.stale_advisory"));
+    assert!(implement.contains("payload.stale_advisory"));
     assert!(implement.contains("managed rebase remains optional"));
-    assert!(implement.contains("const parseNoWork"));
-    assert!(implement.contains("goal?.lifecycle !== match[1]"));
-    assert!(implement.contains("goal?.queue !== match[2]"));
-    assert!(implement.contains("status?.lifecycle !== match[1]"));
-    assert!(implement.contains("status?.queue !== match[2]"));
+    assert!(implement.contains("const parseContext"));
+    assert!(implement.contains("goal?.lifecycle !== 'closed'"));
+    assert!(implement.contains("goal?.queue !== payload.queue"));
+    assert!(implement.contains("status?.lifecycle !== 'open'"));
+    assert!(implement.contains("status?.queue !== payload.queue"));
     assert!(implement.contains("goal?.task !== null"));
     assert!(!implement.contains("goal?.task != null"));
-    assert!(implement.contains("status?.next !== null"));
-    assert!(implement.contains("missing or invalid ready/no-work goal"));
+    assert!(implement.contains("status?.next !== payload.task_id"));
+    assert!(implement.contains("missing or invalid work-context evidence"));
     for later_failure in [
         "'implementation', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
-        "'goal refresh', `expected ready task ${taskId} with complete status, goal, and Git evidence.`, 'lifecycle and commit were not changed.', staleAdvisory",
+        "'context refresh', `expected ready task ${taskId} with complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory",
         "'rework', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
         "'completion and commit', 'coordinator returned an invalid or mismatched envelope.', 'inspect the checkout and zdev task record before continuing.', staleAdvisory",
     ] {
@@ -3879,27 +3883,61 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(implement.contains("field(result, 'Advisory') === advisory"));
     assert!(verify.contains("prepared.staleAdvisory"));
     assert!(verify.contains("advisoryCount === (advisory ? 1 : 0)"));
-    assert!(verify.contains("Run zdev goal ${area} --format json first"));
-    assert!(verify.contains("without inspecting Git or task-work status"));
+    assert!(verify.contains("Run zdev work-context ${area} --format json exactly once"));
+    assert!(!verify.contains("Run zdev goal ${area}"));
+    assert!(!verify.contains("Run zdev status ${area}"));
+    assert!(implement.contains("Verifier-approved post-validation evidence"));
+    assert!(implement.contains("verdict.approved.head"));
+    assert!(implement.contains("const approvedPostValidation"));
+    for compared in [
+        "exact area and task_id",
+        "open/ready lifecycle and queue",
+        "safe nested status",
+        "git_status, git_diff_cached, and git_diff strings",
+        "byte for byte",
+        "Any mismatch or malformed context blocks before mutation",
+        "Whether this completion is live or resumed",
+    ] {
+        assert!(
+            implement.contains(compared),
+            "missing completion check {compared}"
+        );
+    }
+    let verifier_pass = implement
+        .find("if (verdict.result.verdict !== 'pass')")
+        .expect("verifier PASS gate");
+    let completion_context = implement
+        .rfind("first run zdev work-context ${area} --format json yourself")
+        .expect("completion context");
+    let task_done = implement
+        .rfind("run zdev task done")
+        .expect("completion task done");
+    assert!(verifier_pass < completion_context && completion_context < task_done);
 
-    let parser_start = implement.find("const expectedKeys").expect("parser start");
+    let parser_start = implement
+        .find("const expectedOpenContextKeys")
+        .expect("parser start");
     let parser_end = implement
         .find("const workerResultKeys")
         .expect("parser end");
     let probe = format!(
         r#"const area = 'general'
 {}
-const status = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'empty', next: null, branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }} }}
-const goal = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'empty', task: null }}
-const envelope = (statusValue, goalValue) => `NO-WORK zdev-implement general open empty\n${{JSON.stringify({{ area, lifecycle: 'open', queue: 'empty', status_json: JSON.stringify(statusValue), goal_json: JSON.stringify(goalValue), git_status: '', git_diff_cached: '', git_diff: '' }})}}`
-if (!parseNoWork(envelope(status, goal))) throw new Error('valid no-work rejected')
-if (parseNoWork(envelope({{ ...status, lifecycle: 'closed' }}, goal))) throw new Error('status lifecycle mismatch accepted')
-if (parseNoWork(envelope({{ ...status, queue: 'exhausted' }}, goal))) throw new Error('status queue mismatch accepted')
+const head = '0123456789abcdef0123456789abcdef01234567'
+const status = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', next: 'general-001', branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }} }}
+const goal = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', task: {{ id: 'general-001' }} }}
+const envelope = (changes = {{}}) => JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: 'general-001', stale_advisory: false, status, goal, head, git_status: '', git_diff_cached: '', git_diff: '', ...changes }})
+if (!parseContext(envelope(), area, 'general-001')) throw new Error('valid ready context rejected')
+if (parseContext(envelope({{ task_id: 'general-002' }}), area, 'general-001')) throw new Error('changed task accepted')
+if (parseContext(envelope({{ lifecycle: 'closed' }}), area, 'general-001')) throw new Error('changed lifecycle accepted')
+if (parseContext(envelope({{ head: 'bad' }}), area, 'general-001')) throw new Error('malformed HEAD accepted')
+if (parseContext(envelope({{ git_status: 1 }}), area, 'general-001')) throw new Error('malformed Git evidence accepted')
+if (parseContext(envelope({{ extra: true }}), area, 'general-001')) throw new Error('unknown context key accepted')
 const closedGoal = {{ area: {{ tag: area }}, lifecycle: 'closed', queue: 'empty', task: null }}
-const closedEnvelope = goalValue => `NO-WORK zdev-implement general closed empty\n${{JSON.stringify({{ area, lifecycle: 'closed', queue: 'empty', goal_json: JSON.stringify(goalValue) }})}}`
-if (!parseNoWork(closedEnvelope(closedGoal))) throw new Error('branch-independent closed no-work rejected')
-if (parseNoWork(closedEnvelope({{ ...closedGoal, task: undefined }}))) throw new Error('closed goal without explicit null task accepted')
-if (parseNoWork(`NO-WORK zdev-implement general closed empty\n${{JSON.stringify({{ area, lifecycle: 'closed', queue: 'empty', goal_json: JSON.stringify(closedGoal), git_status: '' }})}}`)) throw new Error('closed goal with Git evidence accepted')
+const closedEnvelope = goalValue => JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed', queue: 'empty', task_id: null, goal: goalValue }})
+if (!parseContext(closedEnvelope(closedGoal), area)) throw new Error('branch-independent closed no-work rejected')
+if (parseContext(closedEnvelope({{ ...closedGoal, task: undefined }}), area)) throw new Error('closed goal without explicit null task accepted')
+if (parseContext(JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed', queue: 'empty', task_id: null, goal: closedGoal, git_status: '' }}), area)) throw new Error('closed goal with Git evidence accepted')
 "#,
         &implement[parser_start..parser_end]
     );
@@ -3912,6 +3950,48 @@ if (parseNoWork(`NO-WORK zdev-implement general closed empty\n${{JSON.stringify(
         "Claude no-work parser probe failed: {}",
         String::from_utf8_lossy(&parser_probe.stderr)
     );
+
+    for workflow in [implement, verify] {
+        let evidence_start = workflow
+            .find("const approvedPostValidation")
+            .expect("post-validation parser start");
+        let evidence_end = ["\n\nif (!/^[a-z0-9]", "\nconst verify ="]
+            .into_iter()
+            .filter_map(|marker| workflow[evidence_start..].find(marker))
+            .min()
+            .map(|offset| evidence_start + offset)
+            .expect("post-validation parser end");
+        let evidence_probe = format!(
+            r#"{}
+const head = '0123456789abcdef0123456789abcdef01234567'
+const result = evidence => ({{ evidence }})
+const valid = approvedPostValidation(result([
+  `HEAD: ${{head}}`,
+  'git_status: " M src/lib.rs\\n"',
+  'git_diff_cached: ""',
+  'git_diff: "line 1\\nline 2\\n"',
+]))
+if (!valid || valid.head !== head || valid.git_status !== ' M src/lib.rs\n' || valid.git_diff_cached !== '' || valid.git_diff !== 'line 1\nline 2\n') throw new Error('exact evidence rejected')
+if (approvedPostValidation(result([`HEAD: ${{head}}`, `HEAD: ${{head}}`, 'git_status: ""', 'git_diff_cached: ""', 'git_diff: ""']))) throw new Error('duplicate HEAD accepted')
+if (approvedPostValidation(result([`HEAD: ${{head}}`, 'git_status: {{}}', 'git_diff_cached: ""', 'git_diff: ""']))) throw new Error('non-string evidence accepted')
+if (approvedPostValidation(result([`HEAD: ${{head}}`, 'git_status: malformed', 'git_diff_cached: ""', 'git_diff: ""']))) throw new Error('malformed JSON accepted')
+if (approvedPostValidation(result(['cargo test passed']))) throw new Error('generic validation-only PASS accepted')
+"#,
+            &workflow[evidence_start..evidence_end]
+        );
+        let evidence_output = Command::new("node")
+            .args(["--input-type=commonjs", "--eval", &evidence_probe])
+            .output()
+            .expect("run Claude post-validation parser probe");
+        assert!(
+            evidence_output.status.success(),
+            "Claude post-validation parser probe failed: {}",
+            String::from_utf8_lossy(&evidence_output.stderr)
+        );
+    }
+
+    assert!(verify.contains("const approvedPostValidation"));
+    assert!(verify.contains("approved.head === prepared.head"));
 
     for workflow in [implement, verify] {
         let worker_start = workflow
@@ -3950,6 +4030,18 @@ if (parseWorkerResult(duplicate, 'verifier', 'general', 'general-001')) throw ne
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+#[test]
+fn work_context_round_trip_counts_match_realized_routes() {
+    let audit = include_str!("../docs/workflow-round-trips.md");
+    for exact_row in [
+        "| Codex, OpenCode, Pi, Oh My Pi | 5 / 5 / 5 / 2 | 2 / 2 / 3 / 1 | 7 / 8 / 8 / 4 |",
+        "| Claude | 5 / 6 / 5 / 5 | 2 / 2 / 3 / 2 | 7 / 9 / 8 / 9 |",
+    ] {
+        assert!(audit.contains(exact_row), "missing count row {exact_row}");
+    }
+    assert!(audit.contains("Closed K performs no\nstatus or Git inspection"));
 }
 
 #[test]
@@ -4130,14 +4222,13 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             fs::read_to_string(destination.join(implement_path)).expect("implement entrypoint");
         let verify = fs::read_to_string(destination.join(verify_path)).expect("verify entrypoint");
         for required in [
-            "validated closed goal is classified before",
-            "Git or task-work gates",
-            "zdev status <area> --format json",
-            "branch_status.task_work.safe",
-            "stale_advisory` is true",
-            "git status --short --untracked-files=all",
+            "zdev work-context <area> --format json",
+            "classifies goal lifecycle first",
+            "validated closed context contains",
+            "stale_advisory",
+            "git status",
+            "--untracked-files=all",
             "git diff --cached",
-            "zdev goal <area> --format json",
             "schema_version",
             "kind",
             "verifier verdict is `pass`, `rework`, or `blocker`",
@@ -4163,6 +4254,8 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
         }
         assert!(implement.contains("zdev task done"));
         assert!(implement.contains("zdev commit"));
+        assert!(!implement.contains("zdev status <area> --format json"));
+        assert!(!implement.contains("zdev goal <area> --format json"));
         assert!(!implement.contains("effective-base\nlink is fresh"));
         assert!(!verify.contains("effective-base\nlink is fresh"));
         assert!(verify.contains("explicit ID"));

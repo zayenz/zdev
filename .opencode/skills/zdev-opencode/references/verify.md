@@ -11,12 +11,12 @@ making intentional edits.
 
 Require the verifier to:
 
-1. Run `zdev status <area> --format json` and require
-   `branch_status.task_work.safe` to be true. When `stale_advisory` is true,
-   report the single rebase advisory once and continue verification; staleness
-   alone is not a blocker and does not require rebase consent. A false `safe`
-   value is `BLOCKER`; use the structured diagnostics to report the unsafe
-   branch, anchor, ancestry, history, or Git-operation state.
+1. Independently run `zdev work-context <area> --format json`. Require the
+   requested task to remain open, ready, and safe in its nested status and goal
+   projections. When `stale_advisory` is true, report the single rebase
+   advisory once and continue verification; staleness alone is not a blocker.
+   A command failure or unsafe context is `BLOCKER`; report its structured
+   diagnostics.
 2. Read `brief.md` first and confirm that it has a concrete `Testing` section
    covering the task. Inspect the task's routing frontmatter; when it names a
    slice, read that slice brief next, then read the complete task and only its
@@ -27,12 +27,11 @@ Require the verifier to:
    is missing or leaves a material testing choice unresolved, return `BLOCKER`
    for the coordinating agent to resolve with the user; do not invent a testing
    level during review.
-3. Capture complete checkout evidence before validation: `git status --short
-   --untracked-files=all`, `git diff --cached`, and `git diff`. Inspect relevant
-   untracked files directly because they do not appear in either diff. Compare
-   this evidence with the pre-implementation baseline and identify every
-   task-owned change; return `BLOCKER` when ownership or overlap with existing
-   user changes is ambiguous.
+3. Use the independently collected work-context Git strings as complete
+   pre-validation evidence. Inspect relevant untracked files directly because
+   they do not appear in either diff. Compare this evidence with the
+   pre-implementation baseline and identify every task-owned change; return
+   `BLOCKER` when ownership or overlap with existing user changes is ambiguous.
 4. **Check the task requirements:** evaluate every `Done when` condition, task
    boundary, area decision, and the brief's `Testing` section against the implementation.
    Check that any tests called for exercise the requested behavior rather than

@@ -7,30 +7,27 @@ lifecycle changes, and commits. Workers never edit `.zdev`, complete tasks,
 commit, delegate, or change the selected task.
 
 Before starting an implementer or verifier, run
-`zdev goal <area> --format json`. A validated closed goal is classified before
-Git or task-work gates: implement returns successful no-work, while explicit
-verify returns `BLOCKER zdev-verify`; neither starts a worker. For every open
-goal, run `zdev status <area> --format json` and require
-`branch_status.task_work.safe` to be true. When
-`branch_status.task_work.stale_advisory` is true, report the advisory once and
-continue without requesting a rebase. Staleness alone is not a blocker. A
-false `safe` value blocks structurally unsafe branch, anchor, ancestry, linear
-history, or active Git-operation state. Capture the complete Git baseline with
-`git status --short --untracked-files=all`, `git diff --cached`, and `git diff`.
-Keep explicit evidence for all three results, including empty results, and
-inspect relevant untracked files. Stop on unexplained or overlapping changes
-or any user-owned decision.
+`zdev work-context <area> --format json` and retain the complete result. The
+command classifies goal lifecycle first. A validated closed context contains
+no status or Git evidence: implement returns successful no-work, while
+explicit verify returns `BLOCKER zdev-verify`; neither starts a worker. Every
+open context contains matching nested status and goal projections, a boolean
+`stale_advisory`, a full lowercase `head` commit ID, and exact `git_status`,
+`git_diff_cached`, and `git_diff` strings. Require the projected area,
+lifecycle, queue, and task ID to agree and task work to be safe. Report a true stale advisory once and continue without
+requesting a rebase. Inspect relevant untracked files, and stop on unexplained
+or overlapping changes or any user-owned decision.
 
 For implement, open/empty and open/exhausted are successful no-work results
 after the open-work gates above and start no worker. Explicit verify requires
 open/ready and returns `BLOCKER zdev-verify` without starting a verifier for
-every no-work result. Invalid records, task graphs, or goal output are
-blockers. For open/ready, retain the complete goal JSON
-unchanged and its task ID as the subject. Before verification and every rework
-handoff, rerun status, the complete Git evidence, and goal; require the same
-ready task ID.
+every no-work result. Invalid records, task graphs, or context output are
+blockers. For open/ready, retain the complete context unchanged and its task ID
+as the subject. Before verification and every rework handoff, rerun
+`work-context` and require the same ready task ID and an explainable exact Git
+delta.
 
-`zdev-implement <area>` gives the goal JSON, brief, task, repository guidance,
+`zdev-implement <area>` gives the complete work-context JSON, brief, task, repository guidance,
 baseline, and task-owned paths to the configured `implementer`. Every
 implementer and verifier returns only one JSON object, without a sentinel line,
 Markdown fence, or other text. The object has exactly these keys:
@@ -60,6 +57,20 @@ malformed JSON. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict. When the stale advisory applies,
 the verifier includes its exact text once in `evidence`; otherwise it omits it.
 
+Every verifier independently runs
+`zdev work-context <area> --format json` before inspecting or validating. It
+requires the same open, ready, safe area and task, compares that fresh context
+with the coordinator context only to detect intervening state, then runs the
+required validation. After validation it reruns `git status
+--short --untracked-files=all`, `git diff --cached`, and `git diff` and reports
+any change. On `pass`, its evidence contains exactly one `HEAD: <full-lowercase-id>`
+entry copied from its independent context and exactly one `git_status:
+<json-string>`, `git_diff_cached: <json-string>`, and `git_diff:
+<json-string>` entry. Each JSON string encodes the exact post-validation
+stdout, including empty output. These four entries let the coordinator compare
+identity, index, worktree, and untracked state before mutation. Coordinator
+context is a locator, never the verifier's evidence.
+
 Every concrete task-owned verifier `rework` goes to the same implementer when the
 harness can resume it, or a replacement implementer with the unchanged goal,
 baseline, current checkout, and full findings. There is no fixed rework count.
@@ -68,9 +79,14 @@ on verifier `pass`, a genuine blocker, unsafe scope expansion, or a required
 user-owned decision. Do not silently send an `advanced-implementer` escalation
 to an ordinary implementer; stop if that role is unavailable.
 
-Only after an exact matching verifier object with verdict `pass`, the coordinator runs
-`zdev task done`, stages only the attributed task-owned files and exact
-generated task records, inspects the staged diff, and runs `zdev commit`.
+Only after an exact matching verifier object with verdict `pass`, the
+coordinator compares the accepted post-validation area, task, lifecycle,
+safety, HEAD, staged diff, unstaged diff, and untracked evidence with the
+latest context. Claude performs this comparison by running a fresh
+`work-context` inside its existing completion agent; no additional worker is
+started. On a match, the coordinator runs `zdev task done`, stages only the
+attributed task-owned files and exact generated task records, inspects the
+staged diff, and runs `zdev commit`.
 Completion or commit failure is a blocker that preserves and reports the exact
 state. Public output begins with
 `PASS zdev-implement <area> <task-id>` or

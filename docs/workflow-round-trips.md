@@ -175,9 +175,9 @@ exercises that recovery boundary.
 
 ## Ranked reductions
 
-### 1. Add one fresh work-context command
+### 1. Fresh work-context command
 
-Add the narrow read-only command
+The narrow read-only command is
 `zdev work-context <area> --format json`. It classifies the complete goal
 projection first. A closed area returns this branch-independent object and
 does not collect status or Git evidence:
@@ -203,6 +203,7 @@ order:
   "git_diff_cached": "<complete stdout, possibly empty>",
   "git_status": "<complete stdout, possibly empty>",
   "goal": {"<complete goal projection>": "<nested JSON value>"},
+  "head": "<full lowercase commit ID>",
   "lifecycle": "open",
   "queue": "empty|ready|exhausted",
   "schema_version": 1,
@@ -214,31 +215,34 @@ order:
 
 `task_id` is a JSON string for `ready` and JSON null otherwise. The nested
 values are the existing projections, not JSON encoded inside strings. Open
-work fails closed unless area, lifecycle, queue, task ID, and branch safety
-agree exactly. Ready work requires `task_work.safe == true`,
+work fails closed unless area, lifecycle, queue, task ID, HEAD, and branch
+safety agree exactly. Ready work requires `task_work.safe == true`,
 `status.next == goal.task.id == task_id`, and a boolean `stale_advisory`.
 Open no-work also requires safe task work and both task projections to be null.
 Invalid or blocked task graphs remain errors. Closed validation still checks
 the task records and lifecycle through goal, but deliberately does not require
 a checkout, branch status, or Git cleanliness.
 
-Collect goal, status, and the three Git results freshly and sequentially in
-one zdev process. This is not an atomic filesystem snapshot: its value is that
-one command owns a complete fail-closed collection, not that concurrent writes
-become impossible. It must not cache or persist any result. Run Git directly
-with process argv—`git status --short --untracked-files=all`, `git diff
---cached`, and `git diff`—without a shell. A spawn failure, nonzero exit,
-non-UTF-8 output, or status/goal/Git parsing failure fails the whole command
-without partial JSON. Successful empty Git stdout is the explicit empty
-string. Existing `status` and `goal` output remain unchanged.
+Collect goal, status, HEAD, and the three Git results freshly and sequentially
+in one zdev process. This is not an atomic filesystem snapshot: its value is
+that one command owns a complete fail-closed collection, not that concurrent
+writes become impossible. It must not cache or persist any result. Run Git
+directly with process argv—`git rev-parse HEAD`, `git status --short
+--untracked-files=all`, `git diff --cached`, and `git diff`—without a shell.
+HEAD must be one full lowercase commit ID; preserve the other stdout strings
+exactly. A spawn failure, nonzero exit, non-UTF-8 output, or status/goal/Git
+parsing failure fails the whole command without partial JSON. Successful empty
+Git stdout is the explicit empty string. Existing `status` and `goal` output
+remain unchanged.
 
-Use it for coordinator snapshots. Require the verifier to invoke it
+Coordinator snapshots use it. The verifier invokes it
 independently for its pre-validation snapshot, closing the installed-prompt
 status gap; the verifier still runs the three Git reads after validation. In
 Claude, also require the completion agent to invoke it immediately before
 completion and use that fresh envelope instead of the original `prepared.raw`.
 This closes the observed completion gap but consumes one of Claude's process
-savings.
+savings. The HEAD read plus three repository-state evidence reads inside K (four total) remain
+internal child processes under the counting method above.
 
 ```text
 before PASS: S -> implementer -> S -> V -> F       C5 Z6 G14 W2
@@ -263,6 +267,19 @@ run each command. With the added completion K, Claude's after counts are
 `C5 Z6 G5 W5` for PASS and `C7 Z9 G8 W9` for one REWORK; explicit verify is
 `C2 Z2 G3 W2`. It saves `0Z + 9G` for PASS, `0Z + 6G` for verify, and
 `1Z + 18G` for one REWORK while adding the missing freshness gate.
+
+The realized fixed counts are therefore:
+
+| Harness route | Ordinary PASS C/Z/G/W | Explicit verify C/Z/G/W | One REWORK C/Z/G/W |
+| --- | --- | --- | --- |
+| Codex, OpenCode, Pi, Oh My Pi | 5 / 5 / 5 / 2 | 2 / 2 / 3 / 1 | 7 / 8 / 8 / 4 |
+| Claude | 5 / 6 / 5 / 5 | 2 / 2 / 3 / 2 | 7 / 9 / 8 / 9 |
+
+A closed or open no-work implementation stops after one K: `C1 Z1 G0 W0`
+for prompt-driven harnesses and `C1 Z1 G0 W1` for Claude. Closed K performs no
+status or Git inspection. External orchestration counts stay lower than the
+audited baseline even though every verifier now collects its own K and Claude's
+existing completion agent collects one fresh K after PASS.
 
 Implementation size is medium: one command, the exact schema above, shared use
 of existing status/goal renderers, template updates, generated integrations,

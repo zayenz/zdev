@@ -8,14 +8,15 @@ areas; do not infer project-wide selection from an omitted area.
 
 ## Do
 
-1. Run `zdev status <area> --format json` and inspect `branch_status.task_work`.
-   Require `safe` to be true. When `stale_advisory` is true, report the single
-   rebase advisory once and continue; do not ask for rebase consent. A stale
-   link remains safe only while the recorded branch, anchor, ancestry, and
-   linear history are valid and no Git recovery operation is active. If `safe`
-   is false, follow [recovery.md](recovery.md) before selecting work. Recommend
-   the explicit managed rebase when the task needs newer base changes or is
-   approaching an integration boundary.
+1. Run `zdev work-context <area> --format json`. The command validates goal
+   lifecycle first. A closed result is branch-independent no-work. For open
+   work, require its nested status and goal to agree, task work to be safe, and
+   retain its exact staged, unstaged, and untracked Git evidence. When
+   `stale_advisory` is true, report the single rebase advisory once and
+   continue; do not ask for rebase consent. If the command reports unsafe
+   state, follow [recovery.md](recovery.md). Recommend the explicit managed
+   rebase when the task needs newer base changes or is approaching an
+   integration boundary.
 2. Read the area brief first. Inspect the selected task's routing frontmatter;
    when it names a slice, read that slice brief next, then read the complete
    task file, repository instructions, and the smallest relevant source and
@@ -31,11 +32,10 @@ areas; do not infer project-wide selection from an omitted area.
    evidence and the task do not make the intended level clear, ask the user
    with a recommended level and its cost/confidence trade-off before
    delegating implementation.
-3. Before delegation, record the checkout baseline in the conversation:
-   `git status --short --untracked-files=all`, `git diff --cached`, and
-   `git diff`. This covers staged, unstaged, and untracked state without
-   changing it. Identify which existing changes are user-owned and which paths
-   this task may change. If an existing change overlaps a task path and
+3. Use the work-context Git strings as the checkout baseline. They cover
+   staged, unstaged, and untracked state without changing it. Inspect relevant
+   untracked files, identify which existing changes are user-owned and which
+   paths this task may change. If an existing change overlaps a task path and
    ownership is unclear, stop and ask the user; do not stash, reset, restore,
    clean, or alter the index to manufacture a clean baseline.
 4. Dispatch one implementer with the brief, task, repository
@@ -50,8 +50,8 @@ areas; do not infer project-wide selection from an omitted area.
    called for and the repository uses test-first development, a focused failing
    behavior test through a stable public seam is appropriate. When the brief
    says no new tests, do not add them merely to demonstrate diligence.
-6. Compare Git status, staged and unstaged diffs, and untracked paths with the
-   recorded baseline. Attribute every new change to the task before treating it
+6. Rerun work-context and compare its area, ready task, safety, and exact Git
+   strings with the recorded baseline. Attribute every new change to the task before treating it
    as implementation evidence. Stop on ambiguous overlap or unexplained state;
    pre-existing changes remain user-owned even when they are adjacent to the
    task. Ignore an intervening commit only when its complete diff adds one or more new

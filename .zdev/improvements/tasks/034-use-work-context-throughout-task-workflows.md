@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-034"
 key = "adopt-work-context"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-032"]
 +++
 # Use work-context throughout task workflows
@@ -26,10 +26,10 @@ Replace repeated external status/goal/Git runs in implement, rework, verify, and
 
 ## Done when
 
-- [ ] Canonical and generated implement/verify routes use work-context instead of separate status, goal, and Git invocations.
-- [ ] Claude completion receives context collected after verifier PASS and rejects mismatched task, unsafe state, or unexpected Git changes.
-- [ ] Closed no-work exits without branch or Git preflight.
-- [ ] The ordinary PASS, one-REWORK, verify-only, and no-work routes use fewer external zdev/Git calls than the audited baseline.
+- [x] Canonical and generated implement/verify routes use work-context instead of separate status, goal, and Git invocations.
+- [x] Claude completion receives context collected after verifier PASS and rejects mismatched task, unsafe state, or unexpected Git changes.
+- [x] Closed no-work exits without branch or Git preflight.
+- [x] The ordinary PASS, one-REWORK, verify-only, and no-work routes use fewer external zdev/Git calls than the audited baseline.
 
 ## Validation
 
@@ -37,3 +37,11 @@ Replace repeated external status/goal/Git runs in implement, rework, verify, and
 - Add focused all-harness contract tests for ready, closed, PASS, REWORK, and verify-only flows.
 - Record the new round-trip counts in docs/workflow-round-trips.md.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Adopted work-context across task workflows, including HEAD, independent verifier snapshots, and a fresh simple Claude completion comparison without another worker.
+
+Validation:
+
+- Focused work-context and Claude parser/call-order tests, five-harness install/check and generation tests, full 105-test suite, formatting, strict Clippy, build, diff check, and fresh independent verification passed.

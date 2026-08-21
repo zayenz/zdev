@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 11
+- Ready: 10
 - Blocked: 10
-- Done: 33
+- Done: 34
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -42,7 +42,7 @@
 | [improvements-031](tasks/031-repair-release-safety-and-current-status-guidance.md) | Repair release safety and current-status guidance | done | — |
 | [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | done | improvements-031 |
 | [improvements-033](tasks/033-simplify-worker-results-to-one-typed-envelope.md) | Simplify worker results to one typed envelope | done | — |
-| [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | ready | improvements-032 |
+| [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | done | improvements-032 |
 | [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | ready | — |
 | [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | ready | — |
 | [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | ready | — |

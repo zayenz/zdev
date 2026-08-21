@@ -971,6 +971,17 @@ fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevErr
         ));
     }
 
+    let head = work_context_git_stdout(root, &["rev-parse", "HEAD"])?;
+    let head = head.trim();
+    if head.len() != 40
+        || !head
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(ZdevError::new(
+            "git rev-parse HEAD returned an invalid commit ID",
+        ));
+    }
     let git_status =
         work_context_git_stdout(root, &["status", "--short", "--untracked-files=all"])?;
     let git_diff_cached = work_context_git_stdout(root, &["diff", "--cached"])?;
@@ -992,6 +1003,7 @@ fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevErr
             "stale_advisory": stale_advisory,
             "status": status,
             "goal": goal,
+            "head": head,
             "git_status": git_status,
             "git_diff_cached": git_diff_cached,
             "git_diff": git_diff,

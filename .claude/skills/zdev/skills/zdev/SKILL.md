@@ -44,6 +44,11 @@ baseline, and changes only task-owned paths. A fresh verifier checks the task
 requirements, touched code, and required validation. The coordinating agent
 completes and commits the task after `PASS`.
 
+One **Implement** interaction stops after reporting that verified commit. An
+explicit request to continue, or an active goal or loop, starts another
+iteration only after collecting fresh post-commit task context; it does not
+reuse the completed task's selection.
+
 Larger areas may organize several related increments as slice briefs under
 `.zdev/<area>/slices/`. A slice records only a title, objective, and boundaries;
 it has no status or required task membership. The area brief remains

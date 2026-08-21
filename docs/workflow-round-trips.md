@@ -281,6 +281,11 @@ status or Git inspection. External orchestration counts stay lower than the
 audited baseline even though every verifier now collects its own K and Claude's
 existing completion agent collects one fresh K after PASS.
 
+The ordinary PASS counts end at the verified commit. A one-task command does
+not run an unused post-commit `next` or K. An explicit continuation or area
+goal/loop pays for a fresh K only when it will use that result to decide whether
+to dispatch another task.
+
 Implementation size is medium: one command, the exact schema above, shared use
 of existing status/goal renderers, template updates, generated integrations,
 and focused black-box and parser coverage. Risk is medium because snapshot

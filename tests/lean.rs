@@ -3938,6 +3938,17 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
         .rfind("run zdev task done")
         .expect("completion task done");
     assert!(verifier_pass < completion_context && completion_context < task_done);
+    let completion = &implement[implement
+        .find("const completed =")
+        .expect("completion boundary")..];
+    assert_eq!(completion.matches("zdev work-context").count(), 1);
+    let completion_context = completion
+        .find("zdev work-context")
+        .expect("fresh completion context");
+    let completion_commit = completion.find("zdev commit").expect("completion commit");
+    assert!(completion_context < completion_commit);
+    assert!(!completion[completion_commit..].contains("zdev work-context"));
+    assert!(!implement.contains("zdev next"));
 
     let parser_start = implement
         .find("const expectedOpenContextKeys")
@@ -4060,6 +4071,8 @@ if (parseWorkerResult(duplicate, 'verifier', 'general', 'general-001')) throw ne
 #[test]
 fn work_context_round_trip_counts_match_realized_routes() {
     let audit = include_str!("../docs/workflow-round-trips.md");
+    let loop_contract = include_str!("../docs/area-loop.md");
+    let shared = include_str!("../templates/zdev/shared-contract.md");
     for exact_row in [
         "| Codex, OpenCode, Pi, Oh My Pi | 5 / 5 / 5 / 2 | 2 / 2 / 3 / 1 | 7 / 8 / 8 / 4 |",
         "| Claude | 5 / 6 / 5 / 5 | 2 / 2 / 3 / 2 | 7 / 9 / 8 / 9 |",
@@ -4067,6 +4080,16 @@ fn work_context_round_trip_counts_match_realized_routes() {
         assert!(audit.contains(exact_row), "missing count row {exact_row}");
     }
     assert!(audit.contains("Closed K performs no\nstatus or Git inspection"));
+    assert!(audit.contains("one-task command does\nnot run an unused post-commit `next` or K"));
+    assert!(loop_contract.contains(
+        "After each exact PASS and commit, run a fresh `zdev work-context <area> --format json`"
+    ));
+    assert!(
+        loop_contract.contains("collect fresh work-context before deciding or dispatching again")
+    );
+    assert!(shared.contains(
+        "explicit request to continue, or an active goal or loop, starts another\niteration only after collecting fresh post-commit task context"
+    ));
 }
 
 #[test]
@@ -4336,6 +4359,11 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
         }
         assert!(implement.contains("zdev task done"));
         assert!(implement.contains("zdev commit"));
+        assert!(implement.contains("`zdev-implement` completes one task"));
+        assert!(implement.contains("stops without querying `zdev next` or another `work-context`"));
+        assert!(implement.contains("after the commit and before another"));
+        assert!(implement.contains("worker dispatch"));
+        assert!(!implement.contains("zdev next <area> --format json"));
         assert!(!implement.contains("zdev status <area> --format json"));
         assert!(!implement.contains("zdev goal <area> --format json"));
         assert!(!implement.contains("effective-base\nlink is fresh"));

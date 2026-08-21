@@ -111,9 +111,9 @@ and does not stop work.
 For validated `closed`, it returns no work immediately. It does not run status
 or Git evidence commands, require `task_work.safe`, or emit branch status or
 advisory. The closed goal must contain the requested area, its actual empty or
-exhausted queue, and `task: null`; malformed records still fail. This replaces
-the current Claude `zdev-implement` preflight/parser rule that requires
-task-work safety and Git evidence for every no-work result. It is the
+exhausted queue, and `task: null`; malformed records still fail. `work-context`
+and Claude `zdev-implement` already classify validated closed state before
+status or Git collection. Future continuation must preserve this
 branch-independent read contract from [Area lifecycle](area-lifecycle.md).
 
 The loop deliberately repeats the applicable preflight instead of introducing
@@ -136,7 +136,7 @@ with `<area>` replaced by the validated tag. Claude's JavaScript workflow
 encodes the same predicate directly in its loop:
 
 ```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. After each exact PASS and commit, refresh the complete goal; for open lifecycle also refresh status and complete Git evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when a fresh goal is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration.
+For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. After each exact PASS and commit, run a fresh `zdev work-context <area> --format json`. Continue only while its lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when the fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration.
 ```
 
 This condition never replaces the selected task's `native_goal`. The area
@@ -145,7 +145,7 @@ the unchanged task-sized projection and `native_goal` from `zdev goal`.
 
 | Fresh state or event | Result |
 | --- | --- |
-| `open` / `ready`, safe | Run exactly one task iteration. After PASS and commit, refresh before deciding again. |
+| `open` / `ready`, safe | Run exactly one task iteration. After PASS and commit, collect fresh work-context before deciding or dispatching again. |
 | `open` / `empty` | `PASS`; no worker. The area objective remains open. |
 | `open` / `exhausted` | `PASS`; no worker. The area objective remains open. |
 | `closed` / `empty` or `closed` / `exhausted` | `PASS`; no worker. Report the explicit closed lifecycle without branch status or advisory. The result works off-branch, detached, or during an unrelated Git operation. |

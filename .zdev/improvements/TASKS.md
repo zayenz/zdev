@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 7
+- Ready: 6
 - Blocked: 10
-- Done: 37
+- Done: 38
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -46,7 +46,7 @@
 | [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | done | — |
 | [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | done | — |
 | [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | done | — |
-| [improvements-038](tasks/038-query-the-next-task-only-when-work-will-continue.md) | Query the next task only when work will continue | ready | — |
+| [improvements-038](tasks/038-query-the-next-task-only-when-work-will-continue.md) | Query the next task only when work will continue | done | — |
 | [improvements-039](tasks/039-make-the-review-fingerprint-an-opaque-machine-handoff.md) | Make the review fingerprint an opaque machine handoff | ready | — |
 | [improvements-040](tasks/040-clarify-root-skill-routing-and-disclosure.md) | Clarify root skill routing and disclosure | ready | improvements-031 |
 | [improvements-041](tasks/041-add-routine-standard-and-advanced-worker-profiles.md) | Add routine, standard, and advanced worker profiles | ready | — |

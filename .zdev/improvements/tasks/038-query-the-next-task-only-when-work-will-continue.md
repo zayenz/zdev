@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-038"
 key = "conditional-next-query"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Query the next task only when work will continue
@@ -24,11 +24,19 @@ Current guidance may run zdev next after every commit even when the user request
 
 ## Done when
 
-- [ ] Canonical one-task routes report the commit and stop without an unused next query.
-- [ ] Goal/loop and explicit continue routes run a fresh next/work-context boundary before another task.
-- [ ] All harness guidance agrees on the distinction.
+- [x] Canonical one-task routes report the commit and stop without an unused next query.
+- [x] Goal/loop and explicit continue routes run a fresh next/work-context boundary before another task.
+- [x] All harness guidance agrees on the distinction.
 
 ## Validation
 
 - Add focused contract assertions for terminal one-task and continuing routes.
 - Regenerate affected artifacts and run the area-wide validation from brief.md.
+
+## Result
+
+Made one-task routes stop after the verified commit while reserving fresh post-commit work-context selection for explicit continuation and future goal/loop routes.
+
+Validation:
+
+- Focused terminal/continuation call-order, count, all-harness, generation, full 106-test, formatting, strict Clippy, build, diff-check, and fresh independent verification passed.

@@ -85,7 +85,6 @@ zdev task done <area> <task> --summary <summary> --validation <result>...
 git add <explicit-task-source-path>... .zdev/<area>/tasks/<exact-task-file> .zdev/<area>/TASKS.md
 git diff --cached
 zdev commit -m <message>
-zdev next <area> --format json
 ```
 
 Stage only explicit task-owned source paths, the exact completed task file, and
@@ -94,9 +93,11 @@ inspect `git status --short --untracked-files=all` and the full cached diff
 against the baseline and verified evidence. The index must contain only the
 intended task changes. Stop if pre-existing staged content, unexplained changes,
 or ambiguous ownership would enter the commit. Do not rearrange the user's
-index automatically. `zdev commit` adds the stable change ID. Return control with
-the next ready task; continue only when the user's existing zdev execution
-request authorizes the loop.
+index automatically. `zdev commit` adds the stable change ID. Return control
+with the verified commit and stop without querying the next task. If the user
+explicitly asks to continue, or an authorized goal or loop is active, begin a
+new iteration with a fresh `zdev work-context <area> --format json` before
+dispatching another worker. Never reuse the pre-commit selection.
 
 After interruption, read [recovery.md](recovery.md) before resuming or assigning
 change ownership.

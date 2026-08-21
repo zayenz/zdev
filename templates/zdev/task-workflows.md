@@ -92,6 +92,12 @@ files, validation, verifier evidence, and commit ID on pass, or the failed
 stage, reason, and preserved state on blocker. It omits the advisory field when
 no stale advisory was observed.
 
+`zdev-implement` completes one task. After reporting its verified commit, it
+stops without querying `zdev next` or another `work-context`. A goal, loop, or
+explicit continuation owns the next iteration and must collect a fresh
+`zdev work-context <area> --format json` after the commit and before another
+worker dispatch. It never reuses the completed task's pre-commit selection.
+
 `zdev-verify <area> <task-id>` performs the same read-only preflight and requires
 the explicit ID to equal the current ready goal task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,

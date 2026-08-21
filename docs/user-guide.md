@@ -237,25 +237,24 @@ rendering:
 zdev tasks review scheduling --from - --format json
 ```
 
-The result contains the complete readable Markdown and an approval fingerprint.
-After you approve the Markdown, the harness sends the unchanged JSON and that
-fingerprint to import:
+The result contains the complete readable Markdown and an opaque review
+fingerprint in its `approval` field. The fingerprint detects bundle drift; it
+is not security authorization. The harness retains it automatically. You
+approve the Markdown once, without reading, copying, or comparing the
+fingerprint, and the harness sends the unchanged JSON and retained value to
+import through the existing `--approval` option.
 
-```sh
-zdev tasks import scheduling --from - --approval <approval-id>
-```
+Zdev rejects content that differs from the reviewed bundle. If it changed, the
+harness reviews the new rendering and asks for approval again; it never asks
+you to diagnose the fingerprint. For manual input, direct import remains
+available without `--approval`: paste the JSON into `zdev tasks import
+scheduling --from -` and press Ctrl-D. `--from path/to/tasks.json` also works
+and leaves the source file in place. Zdev writes one Markdown file per task and
+regenerates `TASKS.md`. Edit task files, not the generated index.
 
-Zdev rejects content that differs from the reviewed bundle. For manual input,
-paste the same JSON into each command and press Ctrl-D. `--from
-path/to/tasks.json` also works and leaves the source file in place. Zdev writes
-one Markdown file per task and regenerates `TASKS.md`. Edit task files, not the
-generated index.
-
-When adding tasks to an existing task list, commit them directly:
-
-```sh
-zdev tasks import scheduling --from - --approval <approval-id> --commit --format json
-```
+When adding tasks to an existing task list, the harness adds `--commit --format
+json` to its approved import. A manual direct import can use `zdev tasks import
+scheduling --from - --commit --format json`.
 
 Use ordinary import for the initial task split or when you explicitly want the
 additions left uncommitted. If the approved work modified the owning area's

@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 6
+- Ready: 5
 - Blocked: 10
-- Done: 38
+- Done: 39
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@
 | [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | done | — |
 | [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | done | — |
 | [improvements-038](tasks/038-query-the-next-task-only-when-work-will-continue.md) | Query the next task only when work will continue | done | — |
-| [improvements-039](tasks/039-make-the-review-fingerprint-an-opaque-machine-handoff.md) | Make the review fingerprint an opaque machine handoff | ready | — |
+| [improvements-039](tasks/039-make-the-review-fingerprint-an-opaque-machine-handoff.md) | Make the review fingerprint an opaque machine handoff | done | — |
 | [improvements-040](tasks/040-clarify-root-skill-routing-and-disclosure.md) | Clarify root skill routing and disclosure | ready | improvements-031 |
 | [improvements-041](tasks/041-add-routine-standard-and-advanced-worker-profiles.md) | Add routine, standard, and advanced worker profiles | ready | — |
 | [improvements-042](tasks/042-persist-routine-standard-and-advanced-task-complexity.md) | Persist routine, standard, and advanced task complexity | ready | — |

@@ -227,7 +227,7 @@ pub(super) fn review(root: &Path, area: &str, source: &Path) -> Result<CommandOu
     let approval = task_bundle_approval_id(&bundle)?;
     let markdown = render_task_bundle_approval(&bundle);
     Ok(CommandOutput::new(
-        format!("{markdown}\n\nApproval ID: {approval}"),
+        markdown.clone(),
         json!({
             "schema_version": SCHEMA_VERSION,
             "status": "reviewed",
@@ -250,9 +250,9 @@ pub(super) fn import(
     if let Some(approval) = approval {
         let actual = task_bundle_approval_id(&bundle)?;
         if approval != actual {
-            return Err(ZdevError::new(format!(
-                "Task bundle differs from approved review {approval}; review this bundle and use its approval ID"
-            )));
+            return Err(ZdevError::new(
+                "Task bundle differs from the reviewed content; run `zdev tasks review` again before importing it",
+            ));
         }
     }
     let _lock = ZdevStateLock::acquire(root)?;

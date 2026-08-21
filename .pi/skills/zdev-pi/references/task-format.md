@@ -140,10 +140,13 @@ never an authored source.
 - optional `validation` strings.
 
 Run `zdev tasks review <area> --from - --format json` to validate a draft bundle
-and render its complete approval document. The result includes an `approval`
-fingerprint. After approval, pass the unchanged JSON to
-`zdev tasks import <area> --from - --approval <approval-id>`. Zdev rejects a
-bundle that differs from the reviewed content.
+and render its complete review document. The result includes an opaque review
+fingerprint in the existing `approval` field. The coordinator retains it
+automatically; the user approves the readable Markdown and is never asked to
+handle the fingerprint. After approval, the coordinator passes the unchanged
+JSON to `zdev tasks import <area> --from - --approval <review-fingerprint>`. Zdev
+rejects a bundle that differs from the reviewed content. The option remains
+compatible with manual callers, and direct import without it remains valid.
 
 Review, import, and `zdev check` reject a task whose `slice` does not name an
 existing `.zdev/<area>/slices/<key>.md`. Unsliced tasks remain valid and appear

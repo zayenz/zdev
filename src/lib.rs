@@ -363,10 +363,10 @@ enum SliceCommand {
 
 #[derive(Debug, Subcommand)]
 enum TasksCommand {
-    /// Render a JSON task bundle for human approval
+    /// Render a JSON task bundle for human review
     ///
-    /// Validates the bundle's shape, renders its complete Markdown approval
-    /// document, and returns a fingerprint for use with `tasks import --approval`.
+    /// Validates the bundle's shape, renders its complete Markdown review
+    /// document, and returns an opaque fingerprint for `tasks import --approval`.
     Review {
         /// Area tag that will own the reviewed tasks
         area: String,
@@ -387,8 +387,8 @@ enum TasksCommand {
         /// Commit only the imported task files and regenerated summary
         #[arg(long)]
         commit: bool,
-        /// Fingerprint returned by `zdev tasks review` for this exact bundle
-        #[arg(long, value_name = "ID")]
+        /// Opaque review fingerprint carried from `zdev tasks review`
+        #[arg(long, value_name = "FINGERPRINT")]
         approval: Option<String>,
     },
     /// List every task in an area with its current state

@@ -198,14 +198,14 @@ stash, reset, or assign partial work by guessing.
 For automatic authority, the coordinator shows the exact proposal once with
 `Authority: automatic` and proceeds without asking a redundant question. For
 manual authority, `zdev tasks derive review` validates and renders the complete
-envelope and returns a fingerprint over its canonical form. The coordinator
-shows that rendering and asks for approval. Any change to the source result,
-mode, order, dependency, or task content requires a new fingerprint. Ordinary
-`zdev tasks review` and `tasks import --approval` remain available for manually
-authored bundles.
+envelope and returns an opaque review fingerprint over its canonical form. The
+coordinator shows that rendering and asks for approval. Any change to the
+source result, mode, order, dependency, or task content requires a new opaque
+review fingerprint. Ordinary `zdev tasks review` and `tasks import --approval`
+remain available for manually authored bundles.
 
 `zdev tasks derive apply` accepts the unchanged envelope and an optional
-approval fingerprint. Automatic use omits the fingerprint; reviewed use
+opaque review fingerprint. Automatic use omits the fingerprint; reviewed use
 requires it. Before writing, the command acquires the existing state lock,
 rereads the area, source task, slices, tasks, branch state, Git operation,
 worktree, and index, allocates IDs, renders all files, and validates the complete

@@ -78,13 +78,15 @@ If a harness wants to show a rendered bundle before importing it, use:
 zdev tasks review scheduling --from - --format json
 ```
 
-The `--approval <approval-id>` option binds an import to the exact bundle that
-was reviewed. It is an optional check around a review handoff, not another kind
-of task state. For example, a reviewed bundle can be imported and committed
-with:
+The result's `approval` field is an opaque review fingerprint that detects
+changes between review and import. A coordinating harness carries it through
+`--approval` automatically after the user approves the rendered bundle; it is
+not security authorization or another kind of task state. Direct import
+without it remains available. For example, the coordinator imports and commits
+an approved bundle with:
 
 ```sh
-zdev tasks import scheduling --from - --approval <approval-id> --commit --format json
+zdev tasks import scheduling --from - --approval <review-fingerprint> --commit --format json
 ```
 
 If the approved task work modified the area's tracked `brief.md`, leave it

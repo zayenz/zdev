@@ -107,22 +107,25 @@ order. Send that JSON to:
 <task-bundle-json> | zdev tasks review <area> --from - --format json
 ```
 
-The command validates the bundle shape and returns an `approval` fingerprint
-and a complete `markdown` document. Show the returned Markdown unchanged, then
-ask: `Approve this task bundle for import?`
+The command validates the bundle shape and returns a complete `markdown`
+document plus an opaque review fingerprint in the existing `approval` field.
+The coordinator retains that field automatically. Show only the returned
+Markdown unchanged, then ask: `Approve this task bundle for import?` Never ask
+the user to read, copy, compare, or reason about the fingerprint.
 
 Keep the reviewed JSON unchanged. If any task content, order, or dependency
-changes, run `zdev tasks review` again, show the new Markdown, and request fresh
-approval. Pass the bundle through standard input or use a path supplied by the
-user; do not create a transport file.
+changes, run `zdev tasks review` again, retain its replacement fingerprint,
+show the new Markdown, and request fresh approval. Pass the bundle through
+standard input or use a path supplied by the user; do not create a transport
+file.
 
 ## Import
 
-After explicit approval, send the reviewed JSON and its fingerprint directly to
-zdev:
+After explicit approval, send the reviewed JSON and the retained fingerprint
+directly to zdev without another user step:
 
 ```text
-<reviewed-task-bundle-json> | zdev tasks import <area> --from - --approval <approval-id>
+<reviewed-task-bundle-json> | zdev tasks import <area> --from - --approval <review-fingerprint>
 zdev check <area> --format json
 ```
 

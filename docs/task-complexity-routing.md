@@ -34,7 +34,7 @@ result of a worker run. Changing it after approval is an ordinary task-content
 change and requires the existing review discipline.
 
 Bundle review displays complexity and includes an authored value in the
-approval fingerprint. To preserve old approval IDs, deserializing an omitted
+review fingerprint. To preserve old review fingerprints, deserializing an omitted
 field must not add `standard` to the canonical bundle used for fingerprinting.
 `tasks list`, `tasks show`, `next`, and `goal` expose the effective value; goal
 projection is the coordinator's routing input. `TASKS.md` needs no new column.
@@ -214,7 +214,7 @@ not change the routing contract.
 ## Smallest implementation seam
 
 - `src/tasks.rs`: add the strict two-value complexity type to bundle and task
-  parsing, preserve omitted-field compatibility and approval IDs, and expose
+  parsing, preserve omitted-field compatibility and review fingerprints, and expose
   the effective value through task views. Keep the parsed field optional with
   a `standard` accessor; new imports render an explicit value while old files
   stay byte-stable through completion and reopen.

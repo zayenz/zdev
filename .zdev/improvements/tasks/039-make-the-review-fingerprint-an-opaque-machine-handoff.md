@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-039"
 key = "review-fingerprint-handoff"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Make the review fingerprint an opaque machine handoff
@@ -25,11 +25,19 @@ The current approval value usefully binds review to unchanged canonical bundle c
 
 ## Done when
 
-- [ ] Review and import documentation consistently call the value a review fingerprint rather than security authorization.
-- [ ] The coordinator passes it automatically for an unchanged reviewed bundle.
-- [ ] A changed bundle is still rejected when the supplied fingerprint no longer matches.
+- [x] Review and import documentation consistently call the value a review fingerprint rather than security authorization.
+- [x] The coordinator passes it automatically for an unchanged reviewed bundle.
+- [x] A changed bundle is still rejected when the supplied fingerprint no longer matches.
 
 ## Validation
 
 - Use focused existing fingerprint tests for unchanged, changed, and omitted cases; do not test hash implementation details.
 - Regenerate affected guidance and run the area-wide validation from brief.md.
+
+## Result
+
+Reframed the approval value as an opaque machine-carried review fingerprint while preserving bundle-drift rejection and direct-import compatibility.
+
+Validation:
+
+- Existing unchanged, changed, and omitted-fingerprint tests, generation checks, full 106-test suite, formatting, strict Clippy, build, diff check, and fresh independent verification passed.

@@ -22,9 +22,11 @@ applicable `AGENTS.md` instructions.
 {% if verifier_has_model %}For the verifier, pass `model={{ verifier_model }}`{% if verifier_has_effort %} and
 `reasoning_effort={{ verifier_effort }}`{% endif %} to the spawned agent.{% else %}Leave the verifier's model and reasoning effort unset so it inherits them.{% endif %}
 
-Inspect `/goal` before explicit native-goal use, then apply `/goal <native_goal>`
-only when no unfinished goal exists. Otherwise follow the shared ordinary-prompt
-or unavailable-feature fallback.
+For an active-zdev goal or loop request, inspect `/goal` first. If no unfinished
+goal exists, use the shared area continuation condition as the native goal; the
+selected task's `native_goal` remains task context and is not the area goal. If
+native continuation is unavailable, complete at most one task and report the
+fresh next state. Never replace or layer work over an unfinished goal.
 
 {{repository_guidance}}
 

@@ -5575,6 +5575,103 @@ fn harness_skill_templates_are_thin_wrappers_around_the_shared_contract() {
 }
 
 #[test]
+fn harness_roots_make_every_active_zdev_route_discoverable_once() {
+    let shared = include_str!("../templates/zdev/shared-contract.md");
+    let routes = [
+        "| **Explore an objective**",
+        "| **Discuss the brief**",
+        "| **Improve**",
+        "| **Investigate**",
+        "| **Create tasks**",
+        "| **Implement**",
+        "| **Verify**",
+        "| **Audit**",
+        "| **Goal / loop**",
+        "| **Recover**",
+        "| **Configure**",
+        "| **Set up durable work**",
+    ];
+    for route in routes {
+        assert_eq!(shared.matches(route).count(), 1, "ambiguous route: {route}");
+    }
+    assert!(shared.contains("Load only the references named by the selected row"));
+    assert!(shared.contains("“goal” and “loop” are synonyms"));
+    assert!(shared.contains("binary command `zdev goal"));
+
+    for (harness, template, native_route) in [
+        (
+            "codex",
+            include_str!("../templates/zdev/codex-skill.md"),
+            "For an active-zdev goal or loop request, inspect `/goal` first.",
+        ),
+        (
+            "claude",
+            include_str!("../templates/zdev/claude-skill.md"),
+            "repeat the ordinary one-task route in",
+        ),
+        (
+            "opencode",
+            include_str!("../templates/zdev/opencode-skill.md"),
+            "OpenCode has no required native continuation surface.",
+        ),
+        (
+            "pi",
+            include_str!("../templates/zdev/pi-skill.md"),
+            "Stock Pi has no native continuation surface.",
+        ),
+        (
+            "omp",
+            include_str!("../templates/zdev/omp-skill.md"),
+            "For an active-zdev goal or loop request, inspect `/goal show` first.",
+        ),
+    ] {
+        assert!(
+            template.contains(native_route),
+            "{harness} must define its native goal/loop route"
+        );
+    }
+
+    for (harness, rendered) in [
+        ("codex", include_str!("../skills/zdev/SKILL.md")),
+        (
+            "claude",
+            include_str!("../.claude/skills/zdev/skills/zdev/SKILL.md"),
+        ),
+        (
+            "opencode",
+            include_str!("../.opencode/skills/zdev-opencode/SKILL.md"),
+        ),
+        ("pi", include_str!("../.pi/skills/zdev-pi/SKILL.md")),
+    ] {
+        for route in routes {
+            assert_eq!(
+                rendered.matches(route).count(),
+                1,
+                "{harness} rendered an ambiguous route: {route}"
+            );
+        }
+    }
+
+    for (reference, content) in [
+        (
+            "implement",
+            include_str!("../templates/zdev/references/implement.md"),
+        ),
+        (
+            "to-tasks",
+            include_str!("../templates/zdev/references/to-tasks.md"),
+        ),
+    ] {
+        assert!(
+            !content.contains("](recovery.md)")
+                && !content.contains("](verify.md)")
+                && !content.contains("](task-format.md)"),
+            "{reference} must not route through another reference"
+        );
+    }
+}
+
+#[test]
 fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     let repository = repository();
     let root = repository.path();

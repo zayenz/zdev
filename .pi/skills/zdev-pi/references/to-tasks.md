@@ -99,9 +99,9 @@ bundle before requesting approval.
 
 ## Review the split
 
-Build the complete Task Bundle JSON defined in
-[task-format.md](task-format.md). Keep every task and dependency in dependency
-order. Send that JSON to:
+Build the complete Task Bundle JSON defined in the task-format reference loaded
+for this route. Keep every task and dependency in dependency order. Send that
+JSON to:
 
 ```text
 <task-bundle-json> | zdev tasks review <area> --from - --format json

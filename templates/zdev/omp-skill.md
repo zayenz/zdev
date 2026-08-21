@@ -21,10 +21,12 @@ Return concrete failures to the existing implementer with `hub` when possible,
 then verify the correction with a different agent. Continue until `PASS` or
 `BLOCKER`. The coordinating agent runs `zdev task done` and `zdev commit`.
 
-Inspect `/goal show` before explicit native-goal use, then apply `/goal set
-<native_goal>` only when no unfinished goal exists. Otherwise follow the shared
-ordinary-prompt or unavailable-feature fallback; never drop or replace an
-existing Oh My Pi goal implicitly.
+For an active-zdev goal or loop request, inspect `/goal show` first. If no
+unfinished goal exists, use the shared area continuation condition as the
+native goal; the selected task's `native_goal` remains task context and is not
+the area goal. If native continuation is unavailable, complete at most one task
+and report the fresh next state. Never drop, replace, or layer work over an
+unfinished Oh My Pi goal.
 
 {{repository_guidance}}
 

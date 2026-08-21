@@ -7,32 +7,37 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 
 ## Activate zdev, then route intent
 
-Activate this workflow only for `zdev`, `$zdev`, an existing `.zdev` area,
-or an unmistakable reference to zdev's stored areas or tasks. Ordinary intent
-words such as “audit,” “explore,” and “implement” route work after activation;
-they do not activate zdev alone.
+Activate this workflow only when the user invokes `zdev` or `$zdev`, asks to
+work through a named `.zdev` area or task, or unmistakably refers to stored zdev
+work. Ordinary words such as “audit,” “goal,” “loop,” and “implement” route
+work only after activation; by themselves they do not activate zdev.
 
-| Active zdev intent | Direct reference |
+| Active zdev intent | One route |
 | --- | --- |
 | **Explore an objective** — start or revise an area and its brief; aliases: “wayfind,” “shape” | [references/shape-work.md](references/shape-work.md) |
 | **Discuss the brief** — challenge or sharpen an existing brief; alias: “grill” | [references/discuss.md](references/discuss.md) |
-| **Improve** — broadly audit or review and propose candidate work | [references/improve.md](references/improve.md) |
+| **Improve** — broadly inspect the codebase and propose candidate work | [references/improve.md](references/improve.md) |
 | **Audit** — inspect a named boundary and return only independently checked findings | Use the installed `zdev-audit` entrypoint and its dedicated audit contract |
 | **Investigate** — answer one named checkable uncertainty through research, diagnosis, or a prototype | [references/investigate.md](references/investigate.md) |
-| **Create tasks** — draft an approved task split | Read [references/to-tasks.md](references/to-tasks.md) and the authoritative [references/task-format.md](references/task-format.md) |
-| **Implement** — continue with the next ready task | [references/implement.md](references/implement.md) |
-| **Verify** — independently review an implementation | [references/verify.md](references/verify.md) |
+| **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](references/to-tasks.md) and [references/task-format.md](references/task-format.md) |
+| **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | Use the installed `zdev-implement` entrypoint when available; otherwise load [references/implement.md](references/implement.md) and [references/verify.md](references/verify.md) |
+| **Verify** — independently review the explicit current ready task | Use the installed `zdev-verify` entrypoint when available; otherwise load [references/verify.md](references/verify.md) |
+| **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | Follow **Goal and loop** below, then the harness-native instructions |
+| **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
+| **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
+| **Set up durable work** — initialize zdev when durable state is requested | [references/setup.md](references/setup.md) |
 
 Use `zdev next --any --format json` only when the user explicitly asks for any
 ready or unblocked task across areas. A generic request to continue, select the
 next task, or work without naming an area keeps the ordinary area-specific
 selection rules.
 
-Read every selected reference completely before starting its interaction. Run
-the interactions the user requested, in their requested order. After the last
-one, report the result and wait. If an approved artifact changes, show the
-revision and ask for approval again. Ask which interaction comes first only
-when the requested order is unclear.
+Load only the references named by the selected row, read each completely once,
+and do not ask a reference to choose another route. Run requested interactions
+in their requested order; load a shared reference only at its first use. After
+the last interaction, report the result and wait. If an approved artifact
+changes, show the revision and ask for approval again. Ask which interaction
+comes first only when the requested order is unclear.
 
 ## Development model
 
@@ -69,27 +74,16 @@ This shorter planning path still requires concrete outcomes, boundaries, done
 proof, approval, branch safety, proportionate testing, independent
 verification, and committed accepted work.
 
-1. Confirm `zdev` is available.
-2. Choose the direct interaction before creating state. When the repository has
-   no `.zdev` directory, run standalone **Improve** and **Investigate** without
-   initialization, ownership questions, or integration setup. If the user later
-   wants to preserve findings as zdev work, offer **Explore an objective**.
-3. When `.zdev` is absent and the user wants new durable work, read
-   [references/setup.md](references/setup.md) completely before initialization.
-4. Run `zdev status [<area>] --format json` for status or orientation.
-   If several areas have open work and none is selected, present their tags and
-   ask the user to choose. Do not infer an area from unrelated chat history.
-5. For **Explore**, **Discuss**, **Improve**, **Investigate**, or **Create
-   tasks**, report a selected area's branch and base diagnostics. Require the
-   recorded branch before changing area state, but do not run `zdev area rebase`
-   without explicit consent. Read-only interactions never rebase.
-6. Before **Implement**, **Verify**, completion, or commit, read
-   [references/implement.md](references/implement.md) and
-   [references/verify.md](references/verify.md) completely. They define the
-   required area gates, Git baseline, ownership checks, rework loop, validation,
-   staging, and commit sequence. Read
-   [references/recovery.md](references/recovery.md) when a gate fails, Git is
-   rebasing, or task ownership must be reconstructed after interruption.
+Confirm `zdev` is available before using durable state. When `.zdev` is absent,
+run standalone **Improve** and **Investigate** without initialization. Load the
+setup route only when the user asks to create durable work. If several areas
+have open work and none is selected, show their tags and ask the user to
+choose; do not infer an area from unrelated chat history.
+
+For area planning interactions, report the selected area's branch and base
+diagnostics. Require its recorded branch before changing area state, but never
+run a managed rebase without explicit consent. Read-only interactions never
+rebase.
 
 For ordinary task work, use `branch_status.task_work.safe` as the branch gate.
 Report a stale-but-safe rebase advisory once and continue without requesting a
@@ -99,25 +93,35 @@ stops implementation, verification, completion, and commit preparation.
 Keep existing Git changes in place. Establish ownership before touching an
 overlapping path or changing the index.
 
-## Deterministic task context
+## Goal and loop
 
-For work in a named area, run `zdev goal <area> --format json` first. An open
-`empty` or `exhausted` queue, or a `closed` lifecycle, means there is no
-executable task; report it without starting a worker or native goal. For an
-open `ready` queue, use `zdev goal <area>` as
-ordinary prompt context unless the user explicitly asks to apply a continuing
-native goal. Do not reproduce the goal renderer in the harness.
+Inside active zdev, “goal” and “loop” are synonyms: continue one named area one
+independently verified task and commit at a time. The binary command `zdev goal
+<area>` remains the deterministic projection of one task; it is context for an
+iteration, not this continuing user intent.
 
-On a harness with native goals, inspect the current native goal before applying
-one. An active, paused, budget-limited, or otherwise unfinished native goal
-wins. Do not edit, clear, replace, or layer task work over it; report the
-conflict and ask the user whether to keep or explicitly replace it. When native
-mode was explicitly requested and no unfinished goal exists, apply the exact
-`native_goal` value. If the feature is absent, disabled, or unavailable, use
-the ordinary prompt instead and say that no native continuation was started.
+Each iteration uses the **Implement** route and stops internally only on a
+verified commit, a blocker, or a user-owned decision. Before another task,
+collect a fresh `zdev work-context <area> --format json`; never reuse the
+completed task's selection. Finish on open `empty`, open `exhausted`, or
+validated `closed`. Closed is classified before Git and branch gates. Open work
+still requires `branch_status.task_work.safe`; a stale-but-safe base is one
+advisory, not a blocker.
 
-A native goal never completes a zdev task or commits. Goal command failure also
-leaves the session goal unchanged.
+The harness-native section says whether continuation is native or bounded. A
+bounded fallback completes at most one task, reports the fresh next state, and
+never claims a background loop. On a harness with native goals, an unfinished
+native goal wins: do not replace, clear, edit, or layer work over it. Native
+goal failure leaves both session goal and zdev state unchanged.
+
+## Configuration
+
+Use `zdev config show|get|set|unset` for the fixed project and worker registry;
+use `zdev config trunk` for the branch-aware trunk convenience. Read command
+help before mutation rather than inventing keys or scopes. Configuration does
+not change area, slice, or task records. A successful worker-profile mutation
+reports the exact `zdev skill install <harness> ... --force` refresh command;
+report it without installing or rewriting the integration automatically.
 
 ## Write human-facing prose plainly
 
@@ -161,9 +165,11 @@ For the implementer, pass `model="gpt-5.6-sol"` and
 For the verifier, pass `model="gpt-5.6-sol"` and
 `reasoning_effort="high"` to the spawned agent.
 
-Inspect `/goal` before explicit native-goal use, then apply `/goal <native_goal>`
-only when no unfinished goal exists. Otherwise follow the shared ordinary-prompt
-or unavailable-feature fallback.
+For an active-zdev goal or loop request, inspect `/goal` first. If no unfinished
+goal exists, use the shared area continuation condition as the native goal; the
+selected task's `native_goal` remains task context and is not the area goal. If
+native continuation is unavailable, complete at most one task and report the
+fresh next state. Never replace or layer work over an unfinished goal.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

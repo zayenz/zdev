@@ -22,8 +22,11 @@ task cycle, `/zdev:zdev-verify` verifies an explicit current ready task without
 mutation, and `/zdev:zdev-audit` runs a read-only audit. The ordinary subagent
 loop also works.
 
-Use `zdev goal` output as ordinary workflow context. The integration does not
-inspect or apply Claude Code's separate `/goal` command.
+For an active-zdev goal or loop request, repeat the ordinary one-task route in
+the current interaction, refreshing work context after every verified commit
+and applying the shared stop states. This route does not inspect or apply
+Claude Code's separate `/goal` command. If continuation cannot remain under
+coordinator control, stop after one task and report the fresh next state.
 
 {{repository_guidance}}
 

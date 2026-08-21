@@ -20,9 +20,9 @@ Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
 read-only task verification, and `/zdev-audit` for a read-only audit. Child Pi
 processes cannot load extensions or delegate.
 
-Stock Pi has no native goal surface. Use the rendered zdev goal as an ordinary
-prompt, including when a native feature was requested but is unavailable, and
-state that no native continuation was started.
+Stock Pi has no native continuation surface. For an active-zdev goal or loop
+request, complete at most one task using the ordinary route, report the fresh
+next state, and state that no continuing loop was started.
 
 {{repository_guidance}}
 

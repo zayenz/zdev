@@ -14,7 +14,7 @@ areas; do not infer project-wide selection from an omitted area.
    retain its exact staged, unstaged, and untracked Git evidence. When
    `stale_advisory` is true, report the single rebase advisory once and
    continue; do not ask for rebase consent. If the command reports unsafe
-   state, follow [recovery.md](recovery.md). Recommend the explicit managed
+   state, return to the root **Recover** route. Recommend the explicit managed
    rebase when the task needs newer base changes or is approaching an
    integration boundary.
 2. Read the area brief first. Inspect the selected task's routing frontmatter;
@@ -73,7 +73,7 @@ For verification, give a different agent the brief, task, actual checkout diff,
 relevant source and tests, and repository verification instructions. It checks
 every task requirement, inspects the touched code, runs task-listed validation,
 and compares Git state before and after validation. The verifier returns the
-strict typed object defined in [verify.md](verify.md). The
+strict typed object defined in the **Verify** reference loaded for this route. The
 coordinating agent checks that the verdict covers the whole task.
 
 ## Finish
@@ -99,5 +99,5 @@ explicitly asks to continue, or an authorized goal or loop is active, begin a
 new iteration with a fresh `zdev work-context <area> --format json` before
 dispatching another worker. Never reuse the pre-commit selection.
 
-After interruption, read [recovery.md](recovery.md) before resuming or assigning
-change ownership.
+After interruption, return to the root **Recover** route before resuming or
+assigning change ownership.

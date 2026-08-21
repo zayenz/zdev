@@ -152,12 +152,13 @@ mention commands only when they help the user continue or recover.
 
 ## Claude Code orchestration
 
-For an ordinary task, delegate source changes to `zdev:zdev-implementer`, then
-ask a different `zdev:zdev-verifier` to check the task requirements, touched
-code, and validation. Return each task-owned `REWORK` finding to an implementer
-and verify the correction with a different agent. Continue until `PASS` or
-`BLOCKER`. Include the rendered repository guidance in every prompt. If the
-named agents are unavailable, use ordinary Claude Code subagents with the same
+Route the goal's authored complexity through `zdev:zdev-routine-implementer`,
+`zdev:zdev-implementer`, or `zdev:zdev-advanced-implementer`. Advanced work
+first uses one read-only `zdev:zdev-planner`. Always verify with a fresh
+`zdev:zdev-verifier`. Ordinary rework stays on the selected profile; one valid
+standard-work escalation uses an advanced replacement without replanning.
+Include rendered repository guidance in every prompt. If named agents are
+unavailable, use ordinary Claude Code subagents with the same profiles and
 boundaries.
 
 When the packaged workflows are available, `/zdev:zdev-implement` runs a full

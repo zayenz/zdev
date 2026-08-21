@@ -27,10 +27,18 @@ as the subject. Before verification and every rework handoff, rerun
 `work-context` and require the same ready task ID and an explainable exact Git
 delta.
 
-`zdev-implement <area>` gives the complete work-context JSON, brief, task, repository guidance,
-baseline, and task-owned paths to the configured `implementer`. Every
-implementer and verifier returns only one JSON object, without a sentinel line,
-Markdown fence, or other text. The object has exactly these keys:
+`zdev-implement <area>` reads the effective complexity from the selected goal.
+Authored `routine` uses `routine-implementer`; `standard`, including an omitted
+legacy value, uses `implementer`. Never infer routine work from files or diff
+size. Before any edit for `advanced`, start one fresh read-only `planner` using
+the `advanced-implementer` profile. Give it the complete work-context JSON,
+brief, task, repository guidance, baseline, and task-owned paths. A valid plan
+is passed unchanged to a fresh `advanced-implementer`. A planner blocker,
+including any product decision, stops before edits. Resumption, verification,
+and rework never repeat planning.
+
+Every planner, implementer, and verifier returns only one JSON object, without a
+sentinel line, Markdown fence, or other text. The object has exactly these keys:
 
 ```json
 {
@@ -46,8 +54,10 @@ Markdown fence, or other text. The object has exactly these keys:
 }
 ```
 
-`kind` is `implementer` or `verifier`. Implementer verdict is `ready` or
-`blocker`; verifier verdict is `pass`, `rework`, or `blocker`. `summary` is a
+`kind` is `planner`, `implementer`, or `verifier`. Planner verdict is `plan` or
+`blocker`; implementer verdict is `ready` or `blocker`; verifier verdict is
+`pass`, `rework`, or `blocker`. A plan has no findings and puts exactly one
+non-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`. `summary` is a
 non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`, except that verifier
 `rework` may request `advanced-implementer`. Every other combination requires
@@ -71,13 +81,17 @@ stdout, including empty output. These four entries let the coordinator compare
 identity, index, worktree, and untracked state before mutation. Coordinator
 context is a locator, never the verifier's evidence.
 
-Every concrete task-owned verifier `rework` goes to the same implementer when the
-harness can resume it, or a replacement implementer with the unchanged goal,
-baseline, current checkout, and full findings. There is no fixed rework count.
-After each correction, a fresh verifier checks the whole task again. Stop only
-on verifier `pass`, a genuine blocker, unsafe scope expansion, or a required
-user-owned decision. Do not silently send an `advanced-implementer` escalation
-to an ordinary implementer; stop if that role is unavailable.
+Every concrete task-owned verifier `rework` with escalation `none` goes to the
+same selected profile when the harness can resume it, or a same-profile
+replacement with the unchanged goal, baseline, current checkout, and full
+findings. A verifier may request `advanced-implementer` once, only after the
+initial standard/default implementation. That starts a replacement advanced
+implementer without planning and is followed by a fresh standard verifier.
+Reject a second escalation, an escalation after routine or advanced
+implementation, and every escalation attached to `pass` or `blocker`. There is
+no fixed ordinary-rework count. After each correction, a fresh standard
+verifier checks the whole task again. Stop only on verifier `pass`, a genuine
+blocker, unsafe scope expansion, or a required user-owned decision.
 
 Only after an exact matching verifier object with verdict `pass`, the
 coordinator compares the accepted post-validation area, task, lifecycle,
@@ -111,10 +125,11 @@ independent verification, or an invalid worker envelope returns `BLOCKER zdev-ve
 without mutation.
 
 Use `$ARGUMENTS` as the area. The primary agent is the coordinator. After
-preflight, invoke the `zdev-implementer` subagent with the unchanged
-work-context and baseline. Use a new `zdev-verifier` subagent for every full verification.
-Resume the implementer only for concrete rework when safe; otherwise start a
-replacement implementer with the complete context.
+preflight, select `zdev-routine-implementer`, `zdev-implementer`, or
+`zdev-advanced-implementer` from effective complexity. Run `zdev-planner` once
+before the first advanced edit. Use a new `zdev-verifier` for every full
+verification. Resume only same-profile ordinary rework; a valid one-time
+standard escalation starts an advanced replacement without replanning.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

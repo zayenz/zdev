@@ -68,11 +68,12 @@ const parseContext = (raw, expectedArea, expectedTask = null) => {
   if (goal?.area?.tag !== expectedArea || goal?.lifecycle !== 'open' || goal?.queue !== payload.queue) return null
   if (payload.queue === 'ready') {
     if (typeof payload.task_id !== 'string' || goal?.task?.id !== payload.task_id) return null
+    if (!['routine', 'standard', 'advanced'].includes(goal?.task?.complexity)) return null
     if (expectedTask && payload.task_id !== expectedTask) return null
   } else {
     if (!['empty', 'exhausted'].includes(payload.queue) || payload.task_id !== null || goal?.task !== null || expectedTask) return null
   }
-  return { raw, lifecycle: 'open', queue: payload.queue, taskId: payload.task_id, staleAdvisory: payload.stale_advisory, payload }
+  return { raw, lifecycle: 'open', queue: payload.queue, taskId: payload.task_id, complexity: goal?.task?.complexity ?? null, staleAdvisory: payload.stale_advisory, payload }
 }
 const workerResultKeys = [
   'area',
@@ -179,10 +180,18 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
     if (!Array.isArray(result[name])) return null
     if (!result[name].every(item => typeof item === 'string' && item.trim())) return null
   }
-  const validVerdict = expectedKind === 'implementer'
-    ? ['ready', 'blocker'].includes(result.verdict)
-    : ['pass', 'rework', 'blocker'].includes(result.verdict)
+  const validVerdict = expectedKind === 'planner'
+    ? ['plan', 'blocker'].includes(result.verdict)
+    : expectedKind === 'implementer'
+      ? ['ready', 'blocker'].includes(result.verdict)
+      : ['pass', 'rework', 'blocker'].includes(result.verdict)
   if (!validVerdict) return null
+  if (expectedKind === 'planner' && result.verdict === 'plan') {
+    if (result.findings.length !== 0) return null
+    for (const prefix of ['Approach: ', 'Paths: ', 'Validation: ']) {
+      if (result.evidence.filter(item => item.startsWith(prefix) && item.length > prefix.length).length !== 1) return null
+    }
+  }
   const validEscalation = result.escalation === 'none'
     || (expectedKind === 'verifier' && result.verdict === 'rework' && result.escalation === 'advanced-implementer')
   return validEscalation ? result : null
@@ -206,19 +215,41 @@ if (!prepared || prepared.queue !== 'ready') {
   return blocker(area, 'unknown', 'preflight', 'missing or invalid work-context evidence.', 'no implementer or verifier was started.')
 }
 const taskId = prepared.taskId
+const complexity = prepared.complexity
 let staleAdvisory = prepared.staleAdvisory
 
+let plan = null
+if (complexity === 'advanced') {
+  const planRaw = (await agent(
+    `${workflowContract}\n\nPlan the ready advanced task ${taskId} in area ${area} without changing files. Use the complete coordinator context below. Return only the strict JSON object with kind "planner", area "${area}", task_id "${taskId}", verdict "plan" or "blocker", and escalation "none". A plan puts exactly one non-empty Approach:, Paths:, and Validation: entry in evidence and has no findings. Any product decision is a blocker.\n\nCoordinator context:\n${prepared.raw}`,
+    { agentType: 'zdev:zdev-planner', label: 'zdev advanced read-only plan' },
+  ))?.trim()
+  plan = parseWorkerResult(planRaw, 'planner', area, taskId)
+  if (!plan) {
+    return blocker(area, taskId, 'planning', 'planner returned an invalid or mismatched envelope.', 'no implementation, lifecycle, or commit change was started.', staleAdvisory)
+  }
+  if (plan.verdict === 'blocker') {
+    return blocker(area, taskId, 'planning', plan.summary, `Evidence: ${plan.evidence.join('; ') || 'none.'} Findings: ${plan.findings.join('; ') || 'none.'}`, staleAdvisory)
+  }
+}
+const implementationAgentType = complexity === 'routine'
+  ? 'zdev:zdev-routine-implementer'
+  : complexity === 'advanced'
+    ? 'zdev:zdev-advanced-implementer'
+    : 'zdev:zdev-implementer'
 const implementationRaw = (await agent(
-  `${workflowContract}\n\nImplement the ready task ${taskId} in area ${area}. Use the complete coordinator context below. Change only task-owned source and tests, run required validation, and return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCoordinator context:\n${prepared.raw}`,
-  { agentType: 'zdev:zdev-implementer', label: 'zdev implementation' },
+  `${workflowContract}\n\nImplement the ready ${complexity} task ${taskId} in area ${area}. Use the complete coordinator context below.${plan ? ` Follow this validated plan unchanged: ${JSON.stringify(plan)}.` : ''} Change only task-owned source and tests, run required validation, and return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCoordinator context:\n${prepared.raw}`,
+  { agentType: implementationAgentType, label: `zdev ${complexity} implementation` },
 ))?.trim()
 const implementation = parseWorkerResult(implementationRaw, 'implementer', area, taskId)
 const implementationHistory = []
+let activeAgentType = implementationAgentType
+let escalated = false
 
 const refresh = async label => {
   const current = parseContext((await preflight(label))?.trim(), area, taskId)
   if (current?.staleAdvisory) staleAdvisory = true
-  return current?.queue === 'ready' ? current : blocker(area, taskId, 'context refresh', `expected ready task ${taskId} with complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory)
+  return current?.queue === 'ready' && current.complexity === complexity ? current : blocker(area, taskId, 'context refresh', `expected ready task ${taskId} with unchanged complexity ${complexity} and complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory)
 }
 const approvedPostValidation = result => {
   const one = prefix => {
@@ -268,13 +299,17 @@ if (!verdict) {
 }
 while (verdict.result.verdict === 'rework') {
   if (verdict.result.escalation === 'advanced-implementer') {
-    return blocker(area, taskId, 'rework', 'verifier requested an unavailable advanced implementer.', 'lifecycle and commit were not changed.', staleAdvisory)
+    if (complexity !== 'standard' || escalated) {
+      return blocker(area, taskId, 'rework', 'verifier requested an inapplicable or repeated advanced escalation.', 'lifecycle and commit were not changed.', staleAdvisory)
+    }
+    escalated = true
+    activeAgentType = 'zdev:zdev-advanced-implementer'
   }
   current = await refresh('zdev rework refresh')
   if (typeof current === 'string') return current
   const reworkRaw = (await agent(
-    `${workflowContract}\n\nCorrect every concrete task-owned finding for ${taskId}. Use the unchanged goal, current checkout, baseline, and full findings below. Return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCurrent coordinator context:\n${current.raw}\n\nFindings:\n${verdict.raw}`,
-    { agentType: 'zdev:zdev-implementer', label: 'zdev native rework' },
+    `${workflowContract}\n\nCorrect every concrete task-owned finding for ${taskId} without replanning. Use the unchanged goal, current checkout, baseline, and full findings below. Return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCurrent coordinator context:\n${current.raw}\n\nFindings:\n${verdict.raw}`,
+    { agentType: activeAgentType, label: escalated ? 'zdev advanced escalation rework' : 'zdev native rework' },
   ))?.trim()
   const rework = parseWorkerResult(reworkRaw, 'implementer', area, taskId)
   if (!rework) {

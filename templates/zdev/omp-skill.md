@@ -12,14 +12,13 @@ description: Zdev manages durable software work through briefs, tasks, implement
 Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
 read-only task verification, and `/zdev-audit` for a read-only audit.
 
-For an ordinary task, use the built-in `task` tool to give the selected brief,
-task, repository guidance, and relevant source to `zdev-implementer`. Inspect
-the resulting diff, then ask a different `zdev-verifier` to check the task
-requirements, touched code, and validation.
-
-Return concrete failures to the existing implementer with `hub` when possible,
-then verify the correction with a different agent. Continue until `PASS` or
-`BLOCKER`. The coordinating agent runs `zdev task done` and `zdev commit`.
+Use `zdev-routine-implementer` only for authored routine,
+`zdev-implementer` for standard/default, and `zdev-advanced-implementer` for
+advanced. Advanced work first uses one blocking read-only `zdev-planner`.
+Always verify with a fresh `zdev-verifier`. Return ordinary rework to the
+selected profile with `hub` when possible; one valid standard-work escalation
+starts an advanced replacement without replanning. The coordinator retains
+task completion and commits.
 
 For an active-zdev goal or loop request, inspect `/goal show` first. If no
 unfinished goal exists, use the shared area continuation condition as the

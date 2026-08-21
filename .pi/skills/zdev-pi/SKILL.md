@@ -152,12 +152,13 @@ mention commands only when they help the user continue or recover.
 
 ## Pi orchestration
 
-For an ordinary task, call `zdev_subagent` with role `implementer` and the
-selected brief, task, repository guidance, and relevant source context. Inspect
-the resulting diff, then call a different `zdev_subagent` with role `verifier`
-to check the task requirements, touched code, and validation. Return each
-task-owned `REWORK` finding to an implementer and verify the correction with a
-different agent. Continue until `PASS` or `BLOCKER`.
+Call `zdev_subagent` with role `routine-implementer` only for authored routine,
+`implementer` for standard/default, or `advanced-implementer` for advanced.
+Advanced work first uses one read-only `planner` call. Always use a fresh
+`verifier` call for verification. Ordinary rework keeps the selected profile;
+one valid standard-work escalation uses an advanced replacement without
+replanning. Each child receives the selected brief, task, repository guidance,
+work-context, and relevant source.
 
 Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
 read-only task verification, and `/zdev-audit` for a read-only audit. Child Pi

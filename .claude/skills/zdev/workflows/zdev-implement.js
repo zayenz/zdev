@@ -3,7 +3,7 @@ export const meta = {
   description: 'Implement, independently verify, complete, and commit one ready zdev task',
 }
 
-const taskContract = "The coordinating session owns task selection, branch safety, Git ownership,\nlifecycle changes, and commits. Workers never edit `.zdev`, complete tasks,\ncommit, delegate, or change the selected task.\n\nBefore starting an implementer or verifier, run\n`zdev work-context <area> --format json` and retain the complete result. The\ncommand classifies goal lifecycle first. A validated closed context contains\nno status or Git evidence: implement returns successful no-work, while\nexplicit verify returns `BLOCKER zdev-verify`; neither starts a worker. Every\nopen context contains matching nested status and goal projections, a boolean\n`stale_advisory`, a full lowercase `head` commit ID, and exact `git_status`,\n`git_diff_cached`, and `git_diff` strings. Require the projected area,\nlifecycle, queue, and task ID to agree and task work to be safe. Report a true stale advisory once and continue without\nrequesting a rebase. Inspect relevant untracked files, and stop on unexplained\nor overlapping changes or any user-owned decision.\n\nFor implement, open/empty and open/exhausted are successful no-work results\nafter the open-work gates above and start no worker. Explicit verify requires\nopen/ready and returns `BLOCKER zdev-verify` without starting a verifier for\nevery no-work result. Invalid records, task graphs, or context output are\nblockers. For open/ready, retain the complete context unchanged and its task ID\nas the subject. Before verification and every rework handoff, rerun\n`work-context` and require the same ready task ID and an explainable exact Git\ndelta.\n\n`zdev-implement <area>` gives the complete work-context JSON, brief, task, repository guidance,\nbaseline, and task-owned paths to the configured `implementer`. Every\nimplementer and verifier returns only one JSON object, without a sentinel line,\nMarkdown fence, or other text. The object has exactly these keys:\n\n```json\n{\n  \"schema_version\": 1,\n  \"kind\": \"implementer\",\n  \"area\": \"<area>\",\n  \"task_id\": \"<task-id>\",\n  \"verdict\": \"ready\",\n  \"summary\": \"<non-empty summary>\",\n  \"evidence\": [],\n  \"findings\": [],\n  \"escalation\": \"none\"\n}\n```\n\n`kind` is `implementer` or `verifier`. Implementer verdict is `ready` or\n`blocker`; verifier verdict is `pass`, `rework`, or `blocker`. `summary` is a\nnon-empty string. `evidence` and `findings` are always arrays of non-empty\nstrings, including when empty. `escalation` is `none`, except that verifier\n`rework` may request `advanced-implementer`. Every other combination requires\n`none`. Schema version, kind, area, task ID, keys, types, and combinations must\nmatch exactly. Reject duplicate or unknown keys, missing keys, extra text, and\nmalformed JSON. Inspect the checkout after an implementer result, then use a\nfresh configured `verifier` for every verdict. When the stale advisory applies,\nthe verifier includes its exact text once in `evidence`; otherwise it omits it.\n\nEvery verifier independently runs\n`zdev work-context <area> --format json` before inspecting or validating. It\nrequires the same open, ready, safe area and task, compares that fresh context\nwith the coordinator context only to detect intervening state, then runs the\nrequired validation. After validation it reruns `git status\n--short --untracked-files=all`, `git diff --cached`, and `git diff` and reports\nany change. On `pass`, its evidence contains exactly one `HEAD: <full-lowercase-id>`\nentry copied from its independent context and exactly one `git_status:\n<json-string>`, `git_diff_cached: <json-string>`, and `git_diff:\n<json-string>` entry. Each JSON string encodes the exact post-validation\nstdout, including empty output. These four entries let the coordinator compare\nidentity, index, worktree, and untracked state before mutation. Coordinator\ncontext is a locator, never the verifier's evidence.\n\nEvery concrete task-owned verifier `rework` goes to the same implementer when the\nharness can resume it, or a replacement implementer with the unchanged goal,\nbaseline, current checkout, and full findings. There is no fixed rework count.\nAfter each correction, a fresh verifier checks the whole task again. Stop only\non verifier `pass`, a genuine blocker, unsafe scope expansion, or a required\nuser-owned decision. Do not silently send an `advanced-implementer` escalation\nto an ordinary implementer; stop if that role is unavailable.\n\nOnly after an exact matching verifier object with verdict `pass`, the\ncoordinator compares the accepted post-validation area, task, lifecycle,\nsafety, HEAD, staged diff, unstaged diff, and untracked evidence with the\nlatest context. Claude performs this comparison by running a fresh\n`work-context` inside its existing completion agent; no additional worker is\nstarted. On a match, the coordinator runs `zdev task done`, stages only the\nattributed task-owned files and exact generated task records, inspects the\nstaged diff, and runs `zdev commit`.\nCompletion or commit failure is a blocker that preserves and reports the exact\nstate. Public output begins with\n`PASS zdev-implement <area> <task-id>` or\n`BLOCKER zdev-implement <area> <task-id>`; its body repeats the exact area and\ntask, reports the stale advisory once when present, and names summary, changed\nfiles, validation, verifier evidence, and commit ID on pass, or the failed\nstage, reason, and preserved state on blocker. It omits the advisory field when\nno stale advisory was observed.\n\n`zdev-implement` completes one task. After reporting its verified commit, it\nstops without querying `zdev next` or another `work-context`. A goal, loop, or\nexplicit continuation owns the next iteration and must collect a fresh\n`zdev work-context <area> --format json` after the commit and before another\nworker dispatch. It never reuses the completed task's pre-commit selection.\n\n`zdev-verify <area> <task-id>` performs the same read-only preflight and requires\nthe explicit ID to equal the current ready goal task before starting one fresh\nconfigured verifier. It never invokes an implementer, changes lifecycle state,\nstages, or commits. Its public result is the accepted verifier object above. Empty,\nexhausted, or closed goals, a different ready task, unsafe state, unavailable\nindependent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`\nwithout mutation."
+const taskContract = "The coordinating session owns task selection, branch safety, Git ownership,\nlifecycle changes, and commits. Workers never edit `.zdev`, complete tasks,\ncommit, delegate, or change the selected task.\n\nBefore starting an implementer or verifier, run\n`zdev work-context <area> --format json` and retain the complete result. The\ncommand classifies goal lifecycle first. A validated closed context contains\nno status or Git evidence: implement returns successful no-work, while\nexplicit verify returns `BLOCKER zdev-verify`; neither starts a worker. Every\nopen context contains matching nested status and goal projections, a boolean\n`stale_advisory`, a full lowercase `head` commit ID, and exact `git_status`,\n`git_diff_cached`, and `git_diff` strings. Require the projected area,\nlifecycle, queue, and task ID to agree and task work to be safe. Report a true stale advisory once and continue without\nrequesting a rebase. Inspect relevant untracked files, and stop on unexplained\nor overlapping changes or any user-owned decision.\n\nFor implement, open/empty and open/exhausted are successful no-work results\nafter the open-work gates above and start no worker. Explicit verify requires\nopen/ready and returns `BLOCKER zdev-verify` without starting a verifier for\nevery no-work result. Invalid records, task graphs, or context output are\nblockers. For open/ready, retain the complete context unchanged and its task ID\nas the subject. Before verification and every rework handoff, rerun\n`work-context` and require the same ready task ID and an explainable exact Git\ndelta.\n\n`zdev-implement <area>` reads the effective complexity from the selected goal.\nAuthored `routine` uses `routine-implementer`; `standard`, including an omitted\nlegacy value, uses `implementer`. Never infer routine work from files or diff\nsize. Before any edit for `advanced`, start one fresh read-only `planner` using\nthe `advanced-implementer` profile. Give it the complete work-context JSON,\nbrief, task, repository guidance, baseline, and task-owned paths. A valid plan\nis passed unchanged to a fresh `advanced-implementer`. A planner blocker,\nincluding any product decision, stops before edits. Resumption, verification,\nand rework never repeat planning.\n\nEvery planner, implementer, and verifier returns only one JSON object, without a\nsentinel line, Markdown fence, or other text. The object has exactly these keys:\n\n```json\n{\n  \"schema_version\": 1,\n  \"kind\": \"implementer\",\n  \"area\": \"<area>\",\n  \"task_id\": \"<task-id>\",\n  \"verdict\": \"ready\",\n  \"summary\": \"<non-empty summary>\",\n  \"evidence\": [],\n  \"findings\": [],\n  \"escalation\": \"none\"\n}\n```\n\n`kind` is `planner`, `implementer`, or `verifier`. Planner verdict is `plan` or\n`blocker`; implementer verdict is `ready` or `blocker`; verifier verdict is\n`pass`, `rework`, or `blocker`. A plan has no findings and puts exactly one\nnon-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`. `summary` is a\nnon-empty string. `evidence` and `findings` are always arrays of non-empty\nstrings, including when empty. `escalation` is `none`, except that verifier\n`rework` may request `advanced-implementer`. Every other combination requires\n`none`. Schema version, kind, area, task ID, keys, types, and combinations must\nmatch exactly. Reject duplicate or unknown keys, missing keys, extra text, and\nmalformed JSON. Inspect the checkout after an implementer result, then use a\nfresh configured `verifier` for every verdict. When the stale advisory applies,\nthe verifier includes its exact text once in `evidence`; otherwise it omits it.\n\nEvery verifier independently runs\n`zdev work-context <area> --format json` before inspecting or validating. It\nrequires the same open, ready, safe area and task, compares that fresh context\nwith the coordinator context only to detect intervening state, then runs the\nrequired validation. After validation it reruns `git status\n--short --untracked-files=all`, `git diff --cached`, and `git diff` and reports\nany change. On `pass`, its evidence contains exactly one `HEAD: <full-lowercase-id>`\nentry copied from its independent context and exactly one `git_status:\n<json-string>`, `git_diff_cached: <json-string>`, and `git_diff:\n<json-string>` entry. Each JSON string encodes the exact post-validation\nstdout, including empty output. These four entries let the coordinator compare\nidentity, index, worktree, and untracked state before mutation. Coordinator\ncontext is a locator, never the verifier's evidence.\n\nEvery concrete task-owned verifier `rework` with escalation `none` goes to the\nsame selected profile when the harness can resume it, or a same-profile\nreplacement with the unchanged goal, baseline, current checkout, and full\nfindings. A verifier may request `advanced-implementer` once, only after the\ninitial standard/default implementation. That starts a replacement advanced\nimplementer without planning and is followed by a fresh standard verifier.\nReject a second escalation, an escalation after routine or advanced\nimplementation, and every escalation attached to `pass` or `blocker`. There is\nno fixed ordinary-rework count. After each correction, a fresh standard\nverifier checks the whole task again. Stop only on verifier `pass`, a genuine\nblocker, unsafe scope expansion, or a required user-owned decision.\n\nOnly after an exact matching verifier object with verdict `pass`, the\ncoordinator compares the accepted post-validation area, task, lifecycle,\nsafety, HEAD, staged diff, unstaged diff, and untracked evidence with the\nlatest context. Claude performs this comparison by running a fresh\n`work-context` inside its existing completion agent; no additional worker is\nstarted. On a match, the coordinator runs `zdev task done`, stages only the\nattributed task-owned files and exact generated task records, inspects the\nstaged diff, and runs `zdev commit`.\nCompletion or commit failure is a blocker that preserves and reports the exact\nstate. Public output begins with\n`PASS zdev-implement <area> <task-id>` or\n`BLOCKER zdev-implement <area> <task-id>`; its body repeats the exact area and\ntask, reports the stale advisory once when present, and names summary, changed\nfiles, validation, verifier evidence, and commit ID on pass, or the failed\nstage, reason, and preserved state on blocker. It omits the advisory field when\nno stale advisory was observed.\n\n`zdev-implement` completes one task. After reporting its verified commit, it\nstops without querying `zdev next` or another `work-context`. A goal, loop, or\nexplicit continuation owns the next iteration and must collect a fresh\n`zdev work-context <area> --format json` after the commit and before another\nworker dispatch. It never reuses the completed task's pre-commit selection.\n\n`zdev-verify <area> <task-id>` performs the same read-only preflight and requires\nthe explicit ID to equal the current ready goal task before starting one fresh\nconfigured verifier. It never invokes an implementer, changes lifecycle state,\nstages, or commits. Its public result is the accepted verifier object above. Empty,\nexhausted, or closed goals, a different ready task, unsafe state, unavailable\nindependent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`\nwithout mutation."
 const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore planning or changing code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->"
 const workflowContract = [taskContract, repositoryGuidance].join('\n\n')
 const input = args ?? {}
@@ -68,11 +68,12 @@ const parseContext = (raw, expectedArea, expectedTask = null) => {
   if (goal?.area?.tag !== expectedArea || goal?.lifecycle !== 'open' || goal?.queue !== payload.queue) return null
   if (payload.queue === 'ready') {
     if (typeof payload.task_id !== 'string' || goal?.task?.id !== payload.task_id) return null
+    if (!['routine', 'standard', 'advanced'].includes(goal?.task?.complexity)) return null
     if (expectedTask && payload.task_id !== expectedTask) return null
   } else {
     if (!['empty', 'exhausted'].includes(payload.queue) || payload.task_id !== null || goal?.task !== null || expectedTask) return null
   }
-  return { raw, lifecycle: 'open', queue: payload.queue, taskId: payload.task_id, staleAdvisory: payload.stale_advisory, payload }
+  return { raw, lifecycle: 'open', queue: payload.queue, taskId: payload.task_id, complexity: goal?.task?.complexity ?? null, staleAdvisory: payload.stale_advisory, payload }
 }
 const workerResultKeys = [
   'area',
@@ -179,10 +180,18 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
     if (!Array.isArray(result[name])) return null
     if (!result[name].every(item => typeof item === 'string' && item.trim())) return null
   }
-  const validVerdict = expectedKind === 'implementer'
-    ? ['ready', 'blocker'].includes(result.verdict)
-    : ['pass', 'rework', 'blocker'].includes(result.verdict)
+  const validVerdict = expectedKind === 'planner'
+    ? ['plan', 'blocker'].includes(result.verdict)
+    : expectedKind === 'implementer'
+      ? ['ready', 'blocker'].includes(result.verdict)
+      : ['pass', 'rework', 'blocker'].includes(result.verdict)
   if (!validVerdict) return null
+  if (expectedKind === 'planner' && result.verdict === 'plan') {
+    if (result.findings.length !== 0) return null
+    for (const prefix of ['Approach: ', 'Paths: ', 'Validation: ']) {
+      if (result.evidence.filter(item => item.startsWith(prefix) && item.length > prefix.length).length !== 1) return null
+    }
+  }
   const validEscalation = result.escalation === 'none'
     || (expectedKind === 'verifier' && result.verdict === 'rework' && result.escalation === 'advanced-implementer')
   return validEscalation ? result : null
@@ -206,19 +215,41 @@ if (!prepared || prepared.queue !== 'ready') {
   return blocker(area, 'unknown', 'preflight', 'missing or invalid work-context evidence.', 'no implementer or verifier was started.')
 }
 const taskId = prepared.taskId
+const complexity = prepared.complexity
 let staleAdvisory = prepared.staleAdvisory
 
+let plan = null
+if (complexity === 'advanced') {
+  const planRaw = (await agent(
+    `${workflowContract}\n\nPlan the ready advanced task ${taskId} in area ${area} without changing files. Use the complete coordinator context below. Return only the strict JSON object with kind "planner", area "${area}", task_id "${taskId}", verdict "plan" or "blocker", and escalation "none". A plan puts exactly one non-empty Approach:, Paths:, and Validation: entry in evidence and has no findings. Any product decision is a blocker.\n\nCoordinator context:\n${prepared.raw}`,
+    { agentType: 'zdev:zdev-planner', label: 'zdev advanced read-only plan' },
+  ))?.trim()
+  plan = parseWorkerResult(planRaw, 'planner', area, taskId)
+  if (!plan) {
+    return blocker(area, taskId, 'planning', 'planner returned an invalid or mismatched envelope.', 'no implementation, lifecycle, or commit change was started.', staleAdvisory)
+  }
+  if (plan.verdict === 'blocker') {
+    return blocker(area, taskId, 'planning', plan.summary, `Evidence: ${plan.evidence.join('; ') || 'none.'} Findings: ${plan.findings.join('; ') || 'none.'}`, staleAdvisory)
+  }
+}
+const implementationAgentType = complexity === 'routine'
+  ? 'zdev:zdev-routine-implementer'
+  : complexity === 'advanced'
+    ? 'zdev:zdev-advanced-implementer'
+    : 'zdev:zdev-implementer'
 const implementationRaw = (await agent(
-  `${workflowContract}\n\nImplement the ready task ${taskId} in area ${area}. Use the complete coordinator context below. Change only task-owned source and tests, run required validation, and return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCoordinator context:\n${prepared.raw}`,
-  { agentType: 'zdev:zdev-implementer', label: 'zdev implementation' },
+  `${workflowContract}\n\nImplement the ready ${complexity} task ${taskId} in area ${area}. Use the complete coordinator context below.${plan ? ` Follow this validated plan unchanged: ${JSON.stringify(plan)}.` : ''} Change only task-owned source and tests, run required validation, and return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCoordinator context:\n${prepared.raw}`,
+  { agentType: implementationAgentType, label: `zdev ${complexity} implementation` },
 ))?.trim()
 const implementation = parseWorkerResult(implementationRaw, 'implementer', area, taskId)
 const implementationHistory = []
+let activeAgentType = implementationAgentType
+let escalated = false
 
 const refresh = async label => {
   const current = parseContext((await preflight(label))?.trim(), area, taskId)
   if (current?.staleAdvisory) staleAdvisory = true
-  return current?.queue === 'ready' ? current : blocker(area, taskId, 'context refresh', `expected ready task ${taskId} with complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory)
+  return current?.queue === 'ready' && current.complexity === complexity ? current : blocker(area, taskId, 'context refresh', `expected ready task ${taskId} with unchanged complexity ${complexity} and complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory)
 }
 const approvedPostValidation = result => {
   const one = prefix => {
@@ -268,13 +299,17 @@ if (!verdict) {
 }
 while (verdict.result.verdict === 'rework') {
   if (verdict.result.escalation === 'advanced-implementer') {
-    return blocker(area, taskId, 'rework', 'verifier requested an unavailable advanced implementer.', 'lifecycle and commit were not changed.', staleAdvisory)
+    if (complexity !== 'standard' || escalated) {
+      return blocker(area, taskId, 'rework', 'verifier requested an inapplicable or repeated advanced escalation.', 'lifecycle and commit were not changed.', staleAdvisory)
+    }
+    escalated = true
+    activeAgentType = 'zdev:zdev-advanced-implementer'
   }
   current = await refresh('zdev rework refresh')
   if (typeof current === 'string') return current
   const reworkRaw = (await agent(
-    `${workflowContract}\n\nCorrect every concrete task-owned finding for ${taskId}. Use the unchanged goal, current checkout, baseline, and full findings below. Return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCurrent coordinator context:\n${current.raw}\n\nFindings:\n${verdict.raw}`,
-    { agentType: 'zdev:zdev-implementer', label: 'zdev native rework' },
+    `${workflowContract}\n\nCorrect every concrete task-owned finding for ${taskId} without replanning. Use the unchanged goal, current checkout, baseline, and full findings below. Return only the required strict JSON object with kind "implementer", area "${area}", and task_id "${taskId}".\n\nCurrent coordinator context:\n${current.raw}\n\nFindings:\n${verdict.raw}`,
+    { agentType: activeAgentType, label: escalated ? 'zdev advanced escalation rework' : 'zdev native rework' },
   ))?.trim()
   const rework = parseWorkerResult(reworkRaw, 'implementer', area, taskId)
   if (!rework) {

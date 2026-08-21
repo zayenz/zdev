@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-043"
 key = "complexity-worker-routing"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-041", "improvements-042", "improvements-033"]
 +++
 # Route task complexity through planning and escalation
@@ -26,13 +26,21 @@ Implement the settled routing behavior with the revised tier names. Routine and 
 
 ## Done when
 
-- [ ] All five harnesses route each level to the configured native profile.
-- [ ] Only advanced tasks plan before first edits; resume, verification, and ordinary rework do not repeat planning.
-- [ ] Verifier REWORK can request one advanced implementation retry and then requires fresh standard verification.
-- [ ] Strict tests cover routine PASS, standard PASS, advanced plan/PASS, ordinary REWORK, escalation, and user-decision BLOCKER.
+- [x] All five harnesses route each level to the configured native profile.
+- [x] Only advanced tasks plan before first edits; resume, verification, and ordinary rework do not repeat planning.
+- [x] Verifier REWORK can request one advanced implementation retry and then requires fresh standard verification.
+- [x] Strict tests cover routine PASS, standard PASS, advanced plan/PASS, ordinary REWORK, escalation, and user-decision BLOCKER.
 
 ## Validation
 
 - Run focused all-harness routing and envelope tests.
 - Regenerate and check all harness artifacts.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Implemented deterministic routine, standard, and advanced routing across all harnesses, including advanced planning and one-time escalation.
+
+Validation:
+
+- Independent verifier PASS; focused routing/envelope tests and full fmt, clippy, test, build, install/check, and diff validation passed.

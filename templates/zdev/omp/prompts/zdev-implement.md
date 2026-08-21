@@ -5,9 +5,11 @@ description: Implement, independently verify, complete, and commit one ready zde
 {{task_workflow_contract}}
 
 Use `$ARGUMENTS` as the area. The current Oh My Pi session is the coordinator.
-After preflight, invoke the blocking `zdev-implementer` task agent with the
-unchanged work-context and baseline. Use a fresh blocking `zdev-verifier` agent for
-every full verification. `hub` may return concrete rework to the implementer;
-otherwise start a replacement with the complete context.
+After preflight, select `zdev-routine-implementer`, `zdev-implementer`, or
+`zdev-advanced-implementer` from effective complexity. Run the blocking
+read-only `zdev-planner` once before the first advanced edit. Use a fresh
+blocking `zdev-verifier` for every verification. `hub` may return ordinary
+rework to the selected profile; a valid one-time standard escalation starts an
+advanced replacement without replanning.
 
 {{repository_guidance}}

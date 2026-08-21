@@ -63,7 +63,9 @@ task-owned validation writes, and `blocker` for ambiguous Git ownership,
 unsafe or unavailable required evidence, or a user-owned design, scope, or
 testing decision. Put checked locations and validation in `evidence`, concrete
 corrections in `findings`, and always include both arrays. Only `rework` may
-request `advanced-implementer`; otherwise `escalation` is `none`.
+request `advanced-implementer`; otherwise `escalation` is `none`. The
+coordinator accepts that request at most once and only after standard/default
+implementation. Verification itself always uses a fresh standard verifier.
 
 The coordinating agent confirms that the verdict addresses the whole task.
 Zdev stores the result in the task rather than keeping the verifier's

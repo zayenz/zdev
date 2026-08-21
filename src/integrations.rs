@@ -76,6 +76,7 @@ const CLAUDE_ROUTINE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/claude/agents/zdev-routine-implementer.md");
 const CLAUDE_ADVANCED_IMPLEMENTER: &str =
     include_str!("../templates/zdev/claude/agents/zdev-advanced-implementer.md");
+const CLAUDE_PLANNER: &str = include_str!("../templates/zdev/claude/agents/zdev-planner.md");
 const CLAUDE_VERIFIER: &str = include_str!("../templates/zdev/claude/agents/zdev-verifier.md");
 const CLAUDE_IMPLEMENT_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
@@ -90,6 +91,7 @@ const OPENCODE_ROUTINE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/opencode/agents/zdev-routine-implementer.md");
 const OPENCODE_ADVANCED_IMPLEMENTER: &str =
     include_str!("../templates/zdev/opencode/agents/zdev-advanced-implementer.md");
+const OPENCODE_PLANNER: &str = include_str!("../templates/zdev/opencode/agents/zdev-planner.md");
 const OPENCODE_VERIFIER: &str = include_str!("../templates/zdev/opencode/agents/zdev-verifier.md");
 const OPENCODE_IMPLEMENT_COMMAND: &str =
     include_str!("../templates/zdev/opencode/commands/zdev-implement.md");
@@ -109,6 +111,7 @@ const OMP_ROUTINE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/omp/agents/zdev-routine-implementer.md");
 const OMP_ADVANCED_IMPLEMENTER: &str =
     include_str!("../templates/zdev/omp/agents/zdev-advanced-implementer.md");
+const OMP_PLANNER: &str = include_str!("../templates/zdev/omp/agents/zdev-planner.md");
 const OMP_VERIFIER: &str = include_str!("../templates/zdev/omp/agents/zdev-verifier.md");
 const OMP_AUDIT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-audit.md");
 const OMP_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-implement.md");
@@ -244,6 +247,10 @@ impl Harness {
                         content: CLAUDE_ADVANCED_IMPLEMENTER.to_owned(),
                     },
                     IntegrationFile {
+                        path: "agents/zdev-planner.md".to_owned(),
+                        content: CLAUDE_PLANNER.to_owned(),
+                    },
+                    IntegrationFile {
                         path: "workflows/zdev-implement.js".to_owned(),
                         content: CLAUDE_IMPLEMENT_WORKFLOW.to_owned(),
                     },
@@ -284,6 +291,10 @@ impl Harness {
                     IntegrationFile {
                         path: "agents/zdev-advanced-implementer.md".to_owned(),
                         content: OPENCODE_ADVANCED_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "agents/zdev-planner.md".to_owned(),
+                        content: OPENCODE_PLANNER.to_owned(),
                     },
                     IntegrationFile {
                         path: "commands/zdev-implement.md".to_owned(),
@@ -356,6 +367,10 @@ impl Harness {
                     IntegrationFile {
                         path: "agents/zdev-advanced-implementer.md".to_owned(),
                         content: OMP_ADVANCED_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "agents/zdev-planner.md".to_owned(),
+                        content: OMP_PLANNER.to_owned(),
                     },
                     IntegrationFile {
                         path: "prompts/zdev-audit.md".to_owned(),

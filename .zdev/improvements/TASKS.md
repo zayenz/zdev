@@ -4,8 +4,8 @@
 
 - Total: 54
 - Ready: 3
-- Blocked: 9
-- Done: 42
+- Blocked: 8
+- Done: 43
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -51,8 +51,8 @@
 | [improvements-040](tasks/040-clarify-root-skill-routing-and-disclosure.md) | Clarify root skill routing and disclosure | done | improvements-031 |
 | [improvements-041](tasks/041-add-routine-standard-and-advanced-worker-profiles.md) | Add routine, standard, and advanced worker profiles | done | — |
 | [improvements-042](tasks/042-persist-routine-standard-and-advanced-task-complexity.md) | Persist routine, standard, and advanced task complexity | done | — |
-| [improvements-043](tasks/043-route-task-complexity-through-planning-and-escalation.md) | Route task complexity through planning and escalation | ready | improvements-041, improvements-042, improvements-033 |
-| [improvements-044](tasks/044-add-common-goal-loop-routing-and-bounded-fallbacks.md) | Add common goal/loop routing and bounded fallbacks | blocked | improvements-034, improvements-043, improvements-040 |
+| [improvements-043](tasks/043-route-task-complexity-through-planning-and-escalation.md) | Route task complexity through planning and escalation | done | improvements-041, improvements-042, improvements-033 |
+| [improvements-044](tasks/044-add-common-goal-loop-routing-and-bounded-fallbacks.md) | Add common goal/loop routing and bounded fallbacks | ready | improvements-034, improvements-043, improvements-040 |
 | [improvements-045](tasks/045-implement-claude-goal-and-loop-workflows.md) | Implement Claude goal and loop workflows | blocked | improvements-044 |
 | [improvements-046](tasks/046-implement-native-goal-loop-adapters-for-codex-and-omp.md) | Implement native goal/loop adapters for Codex and OMP | blocked | improvements-044 |
 | [improvements-047](tasks/047-parse-and-review-derived-task-proposals.md) | Parse and review derived task proposals | ready | improvements-033 |

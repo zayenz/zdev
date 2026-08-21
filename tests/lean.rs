@@ -3810,7 +3810,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
     assert_eq!(installed["harness"], harness);
     assert_eq!(installed["scope"], "explicit");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 19);
+    assert_eq!(installed["files"], 20);
 
     let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
     assert_eq!(checked["status"], "ok");
@@ -3938,6 +3938,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             ".claude-plugin/plugin.json",
             "agents/zdev-advanced-implementer.md",
             "agents/zdev-implementer.md",
+            "agents/zdev-planner.md",
             "agents/zdev-routine-implementer.md",
             "agents/zdev-verifier.md",
             "skills/zdev/SKILL.md",
@@ -3971,7 +3972,8 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     let task_workflow =
         fs::read_to_string(claude.join("workflows/zdev-implement.js")).expect("implement workflow");
     assert!(task_workflow.contains("while (verdict.result.verdict === 'rework')"));
-    assert!(task_workflow.contains("agentType: 'zdev:zdev-implementer'"));
+    assert!(task_workflow.contains("'zdev:zdev-implementer'"));
+    assert!(task_workflow.contains("agentType: 'zdev:zdev-planner'"));
     assert!(task_workflow.contains("agentType: 'zdev:zdev-verifier'"));
     assert!(task_workflow.contains("zdev task done"));
     assert!(task_workflow.contains("zdev commit"));
@@ -4051,7 +4053,7 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(implement.contains("missing or invalid work-context evidence"));
     for later_failure in [
         "'implementation', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
-        "'context refresh', `expected ready task ${taskId} with complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory",
+        "'context refresh', `expected ready task ${taskId} with unchanged complexity ${complexity} and complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory",
         "'rework', 'implementer returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory",
         "'completion and commit', 'coordinator returned an invalid or mismatched envelope.', 'inspect the checkout and zdev task record before continuing.', staleAdvisory",
     ] {
@@ -4117,7 +4119,7 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
 {}
 const head = '0123456789abcdef0123456789abcdef01234567'
 const status = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', next: 'general-001', branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }} }}
-const goal = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', task: {{ id: 'general-001' }} }}
+const goal = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', task: {{ id: 'general-001', complexity: 'standard' }} }}
 const envelope = (changes = {{}}) => JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: 'general-001', stale_advisory: false, status, goal, head, git_status: '', git_diff_cached: '', git_diff: '', ...changes }})
 if (!parseContext(envelope(), area, 'general-001')) throw new Error('valid ready context rejected')
 if (parseContext(envelope({{ task_id: 'general-002' }}), area, 'general-001')) throw new Error('changed task accepted')
@@ -4201,6 +4203,12 @@ const rework = {{ ...base, verdict: 'rework', summary: 'Correction needed.', fin
 if (!parseWorkerResult(JSON.stringify(rework), 'verifier', 'general', 'general-001')) throw new Error('REWORK escalation rejected')
 const blocker = {{ ...base, kind: 'implementer', verdict: 'blocker', summary: 'Cannot edit safely.', evidence: [], findings: ['overlapping change'] }}
 if (!parseWorkerResult(JSON.stringify(blocker), 'implementer', 'general', 'general-001')) throw new Error('BLOCKER rejected')
+if (parseWorkerResult.toString().includes("expectedKind === 'planner'")) {{
+  const plan = {{ ...base, kind: 'planner', verdict: 'plan', evidence: ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test'] }}
+  if (!parseWorkerResult(JSON.stringify(plan), 'planner', 'general', 'general-001')) throw new Error('plan rejected')
+  if (parseWorkerResult(JSON.stringify({{ ...plan, findings: ['unresolved product choice'] }}), 'planner', 'general', 'general-001')) throw new Error('plan with findings accepted')
+  if (parseWorkerResult(JSON.stringify({{ ...plan, evidence: ['Approach: inspect then edit', 'Paths: src/lib.rs'] }}), 'planner', 'general', 'general-001')) throw new Error('plan without validation accepted')
+}}
 if (parseWorkerResult(JSON.stringify({{ ...base, extra: true }}), 'verifier', 'general', 'general-001')) throw new Error('unknown key accepted')
 if (parseWorkerResult(JSON.stringify({{ ...base, task_id: 'general-002' }}), 'verifier', 'general', 'general-001')) throw new Error('identity mismatch accepted')
 if (parseWorkerResult(JSON.stringify({{ ...base, escalation: 'advanced-implementer' }}), 'verifier', 'general', 'general-001')) throw new Error('contradictory escalation accepted')
@@ -4222,6 +4230,155 @@ if (parseWorkerResult(duplicate, 'verifier', 'general', 'general-001')) throw ne
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+#[test]
+fn claude_implementation_routes_complexity_planning_rework_and_escalation() {
+    let source = include_str!("../templates/zdev/claude/workflows/zdev-implement.js")
+        .replacen("export const meta =", "const meta =", 1)
+        .replace(
+            "{{task_workflow_contract}}",
+            &serde_json::to_string("workflow contract").expect("workflow contract JSON"),
+        )
+        .replace(
+            "{{repository_guidance}}",
+            &serde_json::to_string("repository guidance").expect("repository guidance JSON"),
+        );
+    let probe = format!(
+        r#"
+async function run(args, agent) {{
+{source}
+}}
+const area = 'work'
+const taskId = 'work-001'
+const head = '0123456789abcdef0123456789abcdef01234567'
+const worker = (kind, verdict, escalation = 'none', evidence = [], findings = []) => JSON.stringify({{
+  schema_version: 1, kind, area, task_id: taskId, verdict,
+  summary: verdict + ' result', evidence, findings, escalation,
+}})
+const context = complexity => JSON.stringify({{
+  schema_version: 1,
+  area,
+  lifecycle: 'open',
+  queue: 'ready',
+  task_id: taskId,
+  stale_advisory: false,
+  status: {{
+    area: {{ tag: area }},
+    lifecycle: 'open',
+    queue: 'ready',
+    next: taskId,
+    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }},
+  }},
+  goal: {{
+    area: {{ tag: area }},
+    lifecycle: 'open',
+    queue: 'ready',
+    task: {{ id: taskId, complexity }},
+  }},
+  head,
+  git_status: '',
+  git_diff_cached: '',
+  git_diff: '',
+}})
+const passEvidence = [
+  'HEAD: ' + head,
+  'git_status: ""',
+  'git_diff_cached: ""',
+  'git_diff: ""',
+]
+const completion = 'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: abc123'
+const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS') => {{
+  const types = []
+  const result = await run({{ area }}, async (_prompt, options) => {{
+    if (options.agentType) {{
+      types.push(options.agentType)
+      if (responses.length === 0) throw new Error(name + ': unexpected worker')
+      return responses.shift()
+    }}
+    if (options.label === 'zdev completion and commit') return completion
+    return context(complexity)
+  }})
+  if (!result.startsWith(expectedPrefix + ' zdev-implement')) throw new Error(name + ': ' + result)
+  if (responses.length !== 0) throw new Error(name + ': unused responses')
+  if (JSON.stringify(types) !== JSON.stringify(expectedTypes)) {{
+    throw new Error(name + ': ' + JSON.stringify(types))
+  }}
+}}
+await exercise(
+  'routine pass',
+  'routine',
+  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
+  ['zdev:zdev-routine-implementer', 'zdev:zdev-verifier'],
+)
+await exercise(
+  'standard pass',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+)
+await exercise(
+  'advanced plan pass',
+  'advanced',
+  [
+    worker('planner', 'plan', 'none', ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-planner', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier'],
+)
+await exercise(
+  'advanced retained plan rework',
+  'advanced',
+  [
+    worker('planner', 'plan', 'none', ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'rework', 'none', [], ['fix the task-owned defect']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-planner', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier'],
+)
+await exercise(
+  'ordinary rework',
+  'standard',
+  [
+    worker('implementer', 'ready'),
+    worker('verifier', 'rework', 'none', [], ['fix the task-owned defect']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
+)
+await exercise(
+  'advanced escalation',
+  'standard',
+  [
+    worker('implementer', 'ready'),
+    worker('verifier', 'rework', 'advanced-implementer', [], ['broader reasoning is required']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier'],
+)
+await exercise(
+  'product decision blocker',
+  'advanced',
+  [worker('planner', 'blocker', 'none', [], ['public API choice belongs to the user'])],
+  ['zdev:zdev-planner'],
+  'BLOCKER',
+)
+"#
+    );
+    let output = Command::new("node")
+        .args(["--input-type=module", "--eval", &probe])
+        .output()
+        .expect("run Claude complexity routing probe");
+    assert!(
+        output.status.success(),
+        "Claude complexity routing probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -4494,16 +4651,20 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             "git diff --cached",
             "schema_version",
             "kind",
-            "verifier verdict is `pass`, `rework`, or `blocker`",
+            "Planner verdict is `plan` or",
             "`advanced-implementer`",
-            "no fixed rework count",
+            "Authored `routine` uses `routine-implementer`",
+            "Before any edit for `advanced`, start one fresh read-only `planner`",
+            "without planning and is followed by a fresh standard verifier",
+            "Reject a second escalation",
+            "no fixed ordinary-rework count",
         ] {
             assert!(implement.contains(required), "{harness} missing {required}");
         }
         for entrypoint in [&implement, &verify] {
             for required in [
                 "schema_version",
-                "`kind` is `implementer` or `verifier`",
+                "`kind` is `planner`, `implementer`, or `verifier`",
                 "`evidence` and `findings` are always arrays",
                 "Reject duplicate or unknown keys",
             ] {
@@ -5919,7 +6080,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 18);
+    assert_eq!(installed["files"], 19);
     assert_eq!(
         fs::read_to_string(destination.join("opencode.json")).expect("preserved config"),
         "{\"theme\":\"system\"}\n"
@@ -5928,6 +6089,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         "skills/zdev-opencode/SKILL.md",
         "agents/zdev-advanced-implementer.md",
         "agents/zdev-implementer.md",
+        "agents/zdev-planner.md",
         "agents/zdev-routine-implementer.md",
         "agents/zdev-verifier.md",
         "commands/zdev-implement.md",
@@ -6184,12 +6346,13 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     );
     assert_eq!(installed["harness"], "omp");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 18);
+    assert_eq!(installed["files"], 19);
     assert_eq!(
         file_inventory(&destination),
         [
             "agents/zdev-advanced-implementer.md",
             "agents/zdev-implementer.md",
+            "agents/zdev-planner.md",
             "agents/zdev-routine-implementer.md",
             "agents/zdev-verifier.md",
             "prompts/zdev-audit.md",

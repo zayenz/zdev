@@ -22,7 +22,7 @@ matrix.
   Its main risks are confirmation bias, trusting the implementer's summary, and
   accepting tests as a substitute for inspecting the change.
 - `advanced-implementer` handles authored advanced implementation and explicit
-  advanced rework. A later planning workflow may reuse it read-only; there is
+  advanced rework. Advanced-task planning reuses it read-only; there is
   no separate planner or advanced-verifier key.
 
 The coordinator is not another worker profile. It owns task selection, user

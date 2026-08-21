@@ -38,7 +38,14 @@ areas; do not infer project-wide selection from an omitted area.
    paths this task may change. If an existing change overlaps a task path and
    ownership is unclear, stop and ask the user; do not stash, reset, restore,
    clean, or alter the index to manufacture a clean baseline.
-4. Dispatch one implementer with the brief, task, repository
+4. Read effective complexity from the selected goal. Dispatch
+   `routine-implementer` only for authored `routine`, `implementer` for
+   `standard` or omitted legacy complexity, and `advanced-implementer` for
+   `advanced`. Before the first advanced edit, obtain one strict plan from a
+   fresh read-only planner using the advanced profile and pass it unchanged to
+   the advanced implementer. A planner blocker or user-owned decision stops
+   before edits. Never infer routine, and never plan again on resume or rework.
+   Give the selected implementer the brief, task, repository
    guidance, relevant source, and task-owned path boundaries from the baseline.
    It may edit source and tests and run validation. It must not edit `.zdev`, run
    `zdev task done`, change task lifecycle state, or commit.
@@ -61,10 +68,13 @@ areas; do not infer project-wide selection from an omitted area.
    change, including changes to an existing task, the selected task, `brief.md`,
    area metadata, lifecycle state, or source. Then apply the independent
    verification contract below with a fresh verifier.
-7. Return every concrete task-owned verifier `rework` finding to the same implementer
-   when possible.
-   Otherwise give a replacement implementer the task, current diff, and exact
-   findings. After correction, use a fresh verifier for both passes again.
+7. Return every concrete task-owned verifier `rework` finding with escalation
+   `none` to the same selected profile when possible. Otherwise give a
+   same-profile replacement the task, current diff, and exact findings. A
+   verifier may request `advanced-implementer` once only after standard/default
+   implementation; use an advanced replacement without replanning. Reject a
+   second or inapplicable escalation. After every correction, use a fresh
+   standard verifier.
 8. Repeat implementation and fresh verification without a fixed retry count.
    Stop only for verifier `pass`, a real blocker, unsafe scope expansion, or a
    user-owned decision.

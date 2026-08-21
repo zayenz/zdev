@@ -5,9 +5,11 @@ description: Implement, independently verify, complete, and commit one ready zde
 {{task_workflow_contract}}
 
 Use `$ARGUMENTS` as the area. The current Pi session is the coordinator. After
-preflight, call `zdev_subagent` with role `implementer`, the unchanged work-context,
-and baseline. Use a fresh call with role `verifier` for every full verification.
-Pi children have no resumed session, so each rework uses a replacement
-implementer with the complete current context and findings.
+preflight, select role `routine-implementer`, `implementer`, or
+`advanced-implementer` from effective complexity. Call read-only `planner` once
+before the first advanced edit. Use a fresh `verifier` for every full
+verification. Pi children cannot resume, so ordinary rework uses a same-profile
+replacement and a valid one-time standard escalation uses an advanced
+replacement without replanning.
 
 {{repository_guidance}}

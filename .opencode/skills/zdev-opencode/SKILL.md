@@ -153,11 +153,13 @@ mention commands only when they help the user continue or recover.
 
 ## OpenCode orchestration
 
-Delegate one selected task to `@zdev-implementer`, then ask a different
-`@zdev-verifier` to check the task requirements, touched code, and validation.
-Return each task-owned `REWORK` finding to an implementer and verify the
-correction with a different agent. Continue until `PASS` or `BLOCKER`. Include
-the rendered repository guidance and applicable instructions in every prompt.
+Route authored routine, standard/default, and advanced work to
+`@zdev-routine-implementer`, `@zdev-implementer`, or
+`@zdev-advanced-implementer`. Advanced work first uses one read-only
+`@zdev-planner`. Always verify with a fresh `@zdev-verifier`. Ordinary rework
+stays on the selected profile; one valid standard-work escalation uses an
+advanced replacement without replanning. Include rendered repository guidance
+and applicable instructions in every prompt.
 
 Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
 read-only task verification, and `/zdev-audit` for a read-only audit.

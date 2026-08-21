@@ -1,8 +1,8 @@
 # Task complexity and worker escalation
 
-> **Status: partly current.** Zdev persists and projects the three task
-> complexity values described below. Worker-profile and execution routing in
-> the later sections remains design only.
+> **Status: current behavior.** Zdev persists and projects the three task
+> complexity values and realizes the routing policy below in every installed
+> harness integration.
 
 This record defines a small routing policy for zdev task work. It keeps task
 complexity explicit, keeps routine work bounded, and reserves the advanced
@@ -11,8 +11,8 @@ evaluation system, provider catalog, or automatic complexity classifier.
 
 The harness evidence and editable defaults were checked on 2026-08-20 and are
 recorded in [Worker profiles](worker-profiles.md). That document describes the
-current roles and runtime; this record builds only the future routing policy on
-top of them.
+current roles and runtime; this record describes the current routing policy
+they realize.
 
 ## Decisions
 
@@ -60,7 +60,7 @@ profile for its harness. Projects may override each whole profile through the
 existing config contract.
 
 Independent verification always uses a fresh `verifier`. There is no planner,
-coordinator, or advanced-verifier profile. The proposed planner below is a
+coordinator, or advanced-verifier profile. The planner below is a
 read-only dispatch of the resolved `advanced-implementer` profile; it does not
 add a durable role or configuration key.
 
@@ -69,19 +69,10 @@ add a durable role or configuration key.
 Before the first code edit for an `advanced` task, the coordinator starts a
 fresh read-only planner using `advanced-implementer`. The planner receives the
 same goal, brief, task, repository guidance, and three-part Git baseline as an
-implementer. It returns:
-
-```text
-PLAN planner <area> <task-id>
-
-Baseline: <HEAD commit>
-Approach: <ordered implementation approach>
-Paths: <expected task-owned paths>
-Validation: <checks from the approved contract>
-Decisions: none
-```
-
-`BLOCKER planner <area> <task-id>` is the only alternative. The plan is a
+implementer. It returns the strict nine-key worker object with
+`kind: "planner"`, `verdict: "plan"`, and `escalation: "none"`. A plan has
+exactly one non-empty `Approach: `, `Paths: `, and `Validation: ` evidence
+entry and no findings. `verdict: "blocker"` is the only alternative. The plan is a
 conversation handoff, not a repository file or zdev record. It cannot add
 scope, relax validation, or amend the approved task. The coordinator checks
 the subject, baseline, paths, and absence of unresolved decisions, then passes
@@ -92,8 +83,7 @@ and a resumed workflow that already holds a valid plan for the same task and
 unchanged baseline. It is also skipped when implementation or rework exists;
 planning after attributed task edits would not protect the first implementation
 choice. Unexplained or ambiguously owned edits still block under the existing
-baseline rules. An explicit user request may add planning to a standard task,
-but may not suppress planning for an approved advanced task.
+baseline rules.
 
 ### Escalation is a recommendation, not a verdict
 
@@ -107,8 +97,9 @@ The verifier recommends escalation only when its concrete findings show that
 the repair needs broader reasoning within the already approved scope. It does
 not recommend escalation for an unavailable model, transport failure, missing
 evidence, unsafe scope, or a product decision; those are blockers. The
-coordinator may move a routine or standard implementation to
-`advanced-implementer`, once per task run. There is no higher tier, downgrade,
+coordinator may move a standard implementation to `advanced-implementer` once
+per task run. A routine or already advanced route cannot escalate. There is no
+higher tier, downgrade,
 retry count, model search, or automatic change to durable complexity. An
 advanced implementation that receives verifier verdict `rework` returns to an
 advanced implementer and then to a new verifier.
@@ -147,7 +138,7 @@ The case policy is common:
 | Standard success | standard implementer → fresh verifier verdict `pass` → complete and commit |
 | Advanced success | read-only advanced planner → fresh advanced implementer → fresh verifier verdict `pass` |
 | Ordinary repair | selected implementer → verifier verdict `rework`, escalation `none` → same-profile repair → fresh verifier |
-| Escalated repair | routine or standard implementer → verifier verdict `rework`, escalation `advanced-implementer` → replacement advanced implementer → fresh verifier |
+| Escalated repair | standard implementer → verifier verdict `rework`, escalation `advanced-implementer` → replacement advanced implementer → fresh verifier |
 | Product decision | planner blocks or a worker returns verdict `blocker` → coordinator asks the user; no completion or commit |
 
 Each harness realizes every row through these native seams:
@@ -155,10 +146,10 @@ Each harness realizes every row through these native seams:
 | Harness | Planner | Implementation | Verification and rework |
 | --- | --- | --- | --- |
 | Codex | fresh read-only subagent using the resolved advanced model/effort | fresh subagent using the routine, standard, or advanced profile | fresh verifier each time; follow up only for same-profile repair; escalation spawns a replacement |
-| Claude Code | proposed read-only `zdev-planner` agent rendered from the advanced profile | current `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | `zdev-verifier`; workflow resumes only same-profile repair and starts an advanced replacement on escalation |
-| OpenCode | proposed read-only `zdev-planner` subagent rendered from the advanced profile | current `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | new verifier task each time; `task_id` resume only for same-profile repair |
-| Pi | proposed read-only `planner` role using the advanced profile | current `routine-implementer`, `implementer`, or `advanced-implementer` role | `verifier`; every repair is a fresh process using the selected profile |
-| Oh My Pi | proposed blocking read-only `zdev-planner` task agent rendered from the advanced profile | current `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | fresh `zdev-verifier`; `hub` only for same-profile repair, replacement task for escalation |
+| Claude Code | read-only `zdev-planner` agent rendered from the advanced profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | `zdev-verifier`; workflow resumes only same-profile repair and starts an advanced replacement on escalation |
+| OpenCode | read-only `zdev-planner` subagent rendered from the advanced profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | new verifier task each time; `task_id` resume only for same-profile repair |
+| Pi | read-only `planner` role using the advanced profile | `routine-implementer`, `implementer`, or `advanced-implementer` role | `verifier`; every repair is a fresh process using the selected profile |
+| Oh My Pi | blocking read-only `zdev-planner` task agent rendered from the advanced profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | fresh `zdev-verifier`; `hub` only for same-profile repair, replacement task for escalation |
 
 The product-decision case stops in the coordinating session in all five
 harnesses. Native transport, resumption, background jobs, teams, and fan-out do
@@ -183,14 +174,5 @@ not change the routing contract.
   and harness-contract tests; do not build a provider matrix or harness
   simulator.
 
-## Follow-up implementation tasks
-
-1. **Route complexity, planning, repair, and escalation.** Update the common
-   workflow and five adapters to select the current profiles, add only the
-   read-only planner artifacts needed for advanced work, preserve the typed
-   verifier verdicts, use the existing constrained escalation field, regenerate
-   checked-in integrations, and trace the cases above through focused contract
-   tests.
-
-This follow-up adds no evaluation, benchmarking, telemetry, model discovery,
-provider catalogs, derived-task authority, or optional verification.
+The implementation adds no evaluation, benchmarking, telemetry, model
+discovery, provider catalog, derived-task authority, or optional verification.

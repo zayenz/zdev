@@ -2,9 +2,9 @@
 
 # Tasks: improvements
 
-- Total: 30
-- Ready: 0
-- Blocked: 0
+- Total: 54
+- Ready: 10
+- Blocked: 14
 - Done: 30
 
 | ID | Task | State | Blocked by |
@@ -39,3 +39,27 @@
 | [improvements-028](tasks/028-assess-gpt-5-6-luna-for-zdev-coordination.md) | Assess gpt-5.6-luna for zdev coordination | done | — |
 | [improvements-029](tasks/029-define-safe-derived-tasks-without-repeated-approval-ceremony.md) | Define safe derived tasks without repeated approval ceremony | done | — |
 | [improvements-030](tasks/030-define-first-class-trunk-based-area-work.md) | Define first-class trunk-based area work | done | — |
+| [improvements-031](tasks/031-repair-release-safety-and-current-status-guidance.md) | Repair release safety and current-status guidance | ready | — |
+| [improvements-032](tasks/032-add-one-read-only-work-context-command.md) | Add one read-only work-context command | blocked | improvements-031 |
+| [improvements-033](tasks/033-simplify-worker-results-to-one-typed-envelope.md) | Simplify worker results to one typed envelope | ready | — |
+| [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | blocked | improvements-032 |
+| [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | ready | — |
+| [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | ready | — |
+| [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | ready | — |
+| [improvements-038](tasks/038-query-the-next-task-only-when-work-will-continue.md) | Query the next task only when work will continue | ready | — |
+| [improvements-039](tasks/039-make-the-review-fingerprint-an-opaque-machine-handoff.md) | Make the review fingerprint an opaque machine handoff | ready | — |
+| [improvements-040](tasks/040-clarify-root-skill-routing-and-disclosure.md) | Clarify root skill routing and disclosure | blocked | improvements-031 |
+| [improvements-041](tasks/041-add-routine-standard-and-advanced-worker-profiles.md) | Add routine, standard, and advanced worker profiles | ready | — |
+| [improvements-042](tasks/042-persist-routine-standard-and-advanced-task-complexity.md) | Persist routine, standard, and advanced task complexity | ready | — |
+| [improvements-043](tasks/043-route-task-complexity-through-planning-and-escalation.md) | Route task complexity through planning and escalation | blocked | improvements-041, improvements-042, improvements-033 |
+| [improvements-044](tasks/044-add-common-goal-loop-routing-and-bounded-fallbacks.md) | Add common goal/loop routing and bounded fallbacks | blocked | improvements-034, improvements-043, improvements-040 |
+| [improvements-045](tasks/045-implement-claude-goal-and-loop-workflows.md) | Implement Claude goal and loop workflows | blocked | improvements-044 |
+| [improvements-046](tasks/046-implement-native-goal-loop-adapters-for-codex-and-omp.md) | Implement native goal/loop adapters for Codex and OMP | blocked | improvements-044 |
+| [improvements-047](tasks/047-parse-and-review-derived-task-proposals.md) | Parse and review derived task proposals | blocked | improvements-033 |
+| [improvements-048](tasks/048-apply-derived-tasks-atomically.md) | Apply derived tasks atomically | blocked | improvements-047, improvements-036 |
+| [improvements-049](tasks/049-route-investigation-follow-ups-and-implementation-splits.md) | Route investigation follow-ups and implementation splits | blocked | improvements-048 |
+| [improvements-050](tasks/050-add-explicit-trunk-area-metadata.md) | Add explicit trunk area metadata | ready | — |
+| [improvements-051](tasks/051-implement-safe-trunk-area-transitions.md) | Implement safe trunk area transitions | blocked | improvements-050 |
+| [improvements-052](tasks/052-integrate-trunk-areas-with-task-workflows.md) | Integrate trunk areas with task workflows | blocked | improvements-051, improvements-034 |
+| [improvements-053](tasks/053-reconcile-final-release-documentation.md) | Reconcile final release documentation | blocked | improvements-049, improvements-045, improvements-046, improvements-052, improvements-043, improvements-034, improvements-035, improvements-036, improvements-037, improvements-038, improvements-039 |
+| [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | blocked | improvements-053 |

@@ -124,7 +124,6 @@ zdev:
 ```text
 <reviewed-task-bundle-json> | zdev tasks import <area> --from - --approval <approval-id>
 zdev check <area> --format json
-zdev tasks list <area> --format json
 ```
 
 When adding tasks to an existing task list, add `--commit --format json` to the
@@ -142,7 +141,7 @@ Review any other concurrent commit that changes existing tasks, `brief.md`, area
 metadata, lifecycle state, or source.
 
 If the user supplies a bundle path, pass it to both review and import unchanged.
-Report allocated task IDs and the ready frontier from the post-import task list.
+Report allocated task IDs and the complete ready frontier returned by the import.
 Offer **Implement** and stop unless the user already authorized implementation
 of this approved bundle. When authorized, read `implement.md` completely and
 apply its preconditions to the actual next ready task. Continue only after the

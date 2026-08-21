@@ -2039,7 +2039,7 @@ fn task_order_uses_numeric_suffix_with_full_id_as_tie_breaker() {
 }
 
 #[test]
-fn task_import_reads_a_complete_bundle_from_standard_input() {
+fn task_import_returns_complete_ready_frontier_from_standard_input() {
     let repository = repository();
     let root = repository.path();
     json_output(root, &["init", "--record", "project"]);
@@ -2073,10 +2073,30 @@ fn task_import_reads_a_complete_bundle_from_standard_input() {
         json_output_with_stdin(root, &["tasks", "import", "stdin", "--from", "-"], &bundle);
 
     assert_eq!(imported["tasks"][0], "stdin-001");
+    assert_eq!(imported["ready"], json!(["stdin-001"]));
     assert!(
         root.join(".zdev/stdin/tasks/001-import-one-task.md")
             .exists()
     );
+
+    let blocked = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "stdin",
+        "tasks": [{
+            "key": "two",
+            "title": "Wait for the existing task",
+            "outcome": "The new task remains blocked while existing work is ready.",
+            "done_when": ["The existing task remains the ready frontier."],
+            "validation": ["Inspect the import result."],
+            "blocked_by": ["stdin-001"]
+        }]
+    }))
+    .expect("blocked task bundle");
+    let imported =
+        json_output_with_stdin(root, &["tasks", "import", "stdin", "--from", "-"], &blocked);
+
+    assert_eq!(imported["tasks"], json!(["stdin-002"]));
+    assert_eq!(imported["ready"], json!(["stdin-001"]));
 }
 
 #[test]
@@ -2356,7 +2376,7 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
             "outcome": "The task joins the next selection boundary.",
             "done_when": ["The task is available."],
             "validation": ["Exercise the CLI."],
-            "blocked_by": []
+            "blocked_by": ["concurrent-001"]
         }]
     }))
     .expect("bundle");
@@ -2369,6 +2389,7 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
 
     assert_eq!(imported["status"], "committed");
     assert_eq!(imported["tasks"][0], "concurrent-002");
+    assert_eq!(imported["ready"], json!(["concurrent-001"]));
     assert_eq!(
         imported["paths"],
         json!([
@@ -2590,6 +2611,10 @@ fn failed_committed_task_import_rolls_back_planning_changes_and_preserves_index(
     assert_eq!(
         git(root, &["log", "-1", "--format=%s"]),
         "configure failure area"
+    );
+    assert_eq!(
+        json_output(root, &["next", "commit-failure"])["task"]["id"],
+        "commit-failure-001"
     );
 }
 

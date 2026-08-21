@@ -335,7 +335,13 @@ pub(super) fn import(
     for (path, content) in &writes {
         hypothetical.push(parse_task(content, path, area)?);
     }
+    hypothetical.sort_by(compare_tasks_by_id);
     validate_graph(&hypothetical)?;
+    let ready = hypothetical
+        .iter()
+        .filter(|task| task_state(task, &hypothetical) == "ready")
+        .map(|task| task.header.id.clone())
+        .collect::<Vec<_>>();
     let index_path = area_dir.join("TASKS.md");
     let previous_index = fs::read(&index_path)
         .map_err(|error| ZdevError::io(format!("Cannot read {}", index_path.display()), error))?;
@@ -388,7 +394,7 @@ pub(super) fn import(
                     "Added and committed {} tasks to {area} ({revision})",
                     ids.len()
                 ),
-                json!({"schema_version": SCHEMA_VERSION, "status": "committed", "area": area, "tasks": ids, "commit": revision, "change_id": change_id, "paths": relative_paths(root, &paths)?}),
+                json!({"schema_version": SCHEMA_VERSION, "status": "committed", "area": area, "tasks": ids, "ready": ready, "commit": revision, "change_id": change_id, "paths": relative_paths(root, &paths)?}),
             )),
             Err(error) => Err(import_rollback_error(
                 rollback_task_import_index(root, &paths, error),
@@ -399,7 +405,7 @@ pub(super) fn import(
     }
     Ok(CommandOutput::new(
         format!("Added {} tasks to {area}", ids.len()),
-        json!({"schema_version": SCHEMA_VERSION, "status": "created", "area": area, "tasks": ids}),
+        json!({"schema_version": SCHEMA_VERSION, "status": "created", "area": area, "tasks": ids, "ready": ready}),
     ))
 }
 

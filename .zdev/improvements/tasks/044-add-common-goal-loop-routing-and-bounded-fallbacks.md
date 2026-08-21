@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-044"
 key = "goal-loop-routing"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-034", "improvements-043", "improvements-040"]
 +++
 # Add common goal/loop routing and bounded fallbacks
@@ -26,14 +26,22 @@ Implement the shared portion of docs/area-loop.md. `zdev-loop <area>` is the can
 
 ## Done when
 
-- [ ] Canonical skill routing defines goal and loop as exact continuation aliases without shadowing the binary goal projection.
-- [ ] The shared stop/continue contract covers ready, closed, empty, exhausted, blocked, unsafe, REWORK, and failure states.
-- [ ] Each successful iteration has exactly one selected task and one independently verified commit.
-- [ ] Generated adapters expose the names appropriate to their native command systems.
-- [ ] OpenCode and Pi install paired aliases with identical one-task boundaries, restart behavior, and exact CONTINUE output.
+- [x] Canonical skill routing defines goal and loop as exact continuation aliases without shadowing the binary goal projection.
+- [x] The shared stop/continue contract covers ready, closed, empty, exhausted, blocked, unsafe, REWORK, and failure states.
+- [x] Each successful iteration has exactly one selected task and one independently verified commit.
+- [x] Generated adapters expose the names appropriate to their native command systems.
+- [x] OpenCode and Pi install paired aliases with identical one-task boundaries, restart behavior, and exact CONTINUE output.
 
 ## Validation
 
 - Add focused shared routing and stop-state contract tests.
 - Regenerate and check all harness artifacts.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added canonical goal/loop continuation aliases with a shared bounded one-task contract and byte-identical OpenCode/Pi adapters.
+
+Validation:
+
+- Independent verifier PASS; focused alias/install tests and full fmt, clippy, test, build, package, and harness checks passed.

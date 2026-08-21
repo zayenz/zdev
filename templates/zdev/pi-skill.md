@@ -18,12 +18,15 @@ replanning. Each child receives the selected brief, task, repository guidance,
 work-context, and relevant source.
 
 Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
-read-only task verification, and `/zdev-audit` for a read-only audit. Child Pi
-processes cannot load extensions or delegate.
+read-only task verification, and `/zdev-audit` for a read-only audit. Use
+`/zdev-loop <area>` for bounded area continuation; `/zdev-goal <area>` is its
+exact alias. Child Pi processes cannot load extensions or delegate.
 
 Stock Pi has no native continuation surface. For an active-zdev goal or loop
-request, complete at most one task using the ordinary route, report the fresh
-next state, and state that no continuing loop was started.
+request, use either paired prompt. It completes at most one task using the
+ordinary route, returns canonical `CONTINUE zdev-loop <area>` only after a
+verified commit when fresh ready work remains, and never claims a continuing
+loop was started.
 
 {{repository_guidance}}
 

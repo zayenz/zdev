@@ -15,7 +15,7 @@ work only after activation; by themselves they do not activate zdev.
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](references/to-tasks.md) and [references/task-format.md](references/task-format.md) |
 | **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | Use the installed `zdev-implement` entrypoint when available; otherwise load [references/implement.md](references/implement.md) and [references/verify.md](references/verify.md) |
 | **Verify** — independently review the explicit current ready task | Use the installed `zdev-verify` entrypoint when available; otherwise load [references/verify.md](references/verify.md) |
-| **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | Follow **Goal and loop** below, then the harness-native instructions |
+| **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | Use the installed `zdev-loop` entrypoint (`zdev-goal` is an exact alias) when available; otherwise follow **Goal and loop** below, then the harness-native instructions |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
 | **Set up durable work** — initialize zdev when durable state is requested | [references/setup.md](references/setup.md) |
@@ -93,6 +93,10 @@ independently verified task and commit at a time. The binary command `zdev goal
 <area>` remains the deterministic projection of one task; it is context for an
 iteration, not this continuing user intent.
 
+The canonical explicit route is `zdev-loop <area>` and `zdev-goal <area>` is
+an exact semantic alias. Both use canonical `zdev-loop` results. Do not treat
+the alias as a one-task mode or confuse either route with the binary projection.
+
 Each iteration uses the **Implement** route and stops internally only on a
 verified commit, a blocker, or a user-owned decision. Before another task,
 collect a fresh `zdev work-context <area> --format json`; never reuse the
@@ -100,6 +104,13 @@ completed task's selection. Finish on open `empty`, open `exhausted`, or
 validated `closed`. Closed is classified before Git and branch gates. Open work
 still requires `branch_status.task_work.safe`; a stale-but-safe base is one
 advisory, not a blocker.
+
+The fixed results begin `PASS zdev-loop <area>`, `CONTINUE zdev-loop <area>`,
+or `BLOCKER zdev-loop <area>`. `CONTINUE` is valid only after one independently
+verified task was completed and committed and fresh work-context reports
+another open, ready, safe task. `REWORK` stays inside the current task; worker,
+validation, completion, commit, refresh, unsafe-state, and user-decision
+failures stop as `BLOCKER`. No invocation stores durable loop state.
 
 The harness-native section says whether continuation is native or bounded. A
 bounded fallback completes at most one task, reports the fresh next state, and

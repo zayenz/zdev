@@ -1,7 +1,8 @@
 # Explicit area continuation across harnesses
 
-> **Status: design only.** Zdev does not install or run this continuation
-> contract.
+> **Status: partially implemented.** Shared routing and the bounded OpenCode
+> and Pi aliases are current. Native Codex, Claude Code, and Oh My Pi
+> continuation adapters remain design.
 
 This record defines an explicit zdev route that completes approved work one
 task at a time while an area remains open and ready. Research was checked on

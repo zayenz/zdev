@@ -357,15 +357,18 @@ agents. Claude Code 2.1.154 or later can also use `/zdev:zdev-implement`,
 ### OpenCode
 
 OpenCode installs its skill, agents, and `/zdev-implement`, `/zdev-verify`, and
-`/zdev-audit` commands under `.opencode`. It discovers project skills when
-started from a subdirectory in the worktree.
+`/zdev-audit` commands under `.opencode`. `/zdev-loop <area>` and its exact
+`/zdev-goal <area>` alias complete at most one task and return `CONTINUE` only
+after a verified commit when ready work remains. OpenCode discovers project
+skills when started from a subdirectory in the worktree.
 
 ### Pi
 
 Pi installs a skill, prompt templates, and the `zdev_subagent` extension under
 `.pi`. The extension starts a fresh child Pi process for each implementation or
-verification handoff. A user installation goes to `$PI_CODING_AGENT_DIR`, or
-`~/.pi/agent` when the variable is unset.
+verification handoff. `/zdev-loop <area>` and `/zdev-goal <area>` are the same
+bounded one-task continuation prompt. A user installation goes to
+`$PI_CODING_AGENT_DIR`, or `~/.pi/agent` when the variable is unset.
 
 ### Oh My Pi
 

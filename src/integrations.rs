@@ -62,6 +62,7 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
 const SHARED_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/shared-contract.md");
 const AUDIT_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/audit.md");
 const TASK_WORKFLOW_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/task-workflows.md");
+const BOUNDED_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/bounded-area-loop.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
 const CODEX_AUDIT_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-audit-skill.md");
 const CODEX_IMPLEMENT_SKILL_TEMPLATE: &str =
@@ -308,6 +309,14 @@ impl Harness {
                         path: "commands/zdev-audit.md".to_owned(),
                         content: OPENCODE_AUDIT_COMMAND.to_owned(),
                     },
+                    IntegrationFile {
+                        path: "commands/zdev-loop.md".to_owned(),
+                        content: BOUNDED_AREA_LOOP_TEMPLATE.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "commands/zdev-goal.md".to_owned(),
+                        content: BOUNDED_AREA_LOOP_TEMPLATE.to_owned(),
+                    },
                 ]);
             }
             Self::Pi => {
@@ -333,6 +342,14 @@ impl Harness {
                     IntegrationFile {
                         path: "prompts/zdev-audit.md".to_owned(),
                         content: PI_AUDIT_PROMPT.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-loop.md".to_owned(),
+                        content: BOUNDED_AREA_LOOP_TEMPLATE.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-goal.md".to_owned(),
+                        content: BOUNDED_AREA_LOOP_TEMPLATE.to_owned(),
                     },
                     IntegrationFile {
                         path: "extensions/zdev-subagent.ts".to_owned(),

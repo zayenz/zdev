@@ -19,11 +19,15 @@ advanced replacement without replanning. Include rendered repository guidance
 and applicable instructions in every prompt.
 
 Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
-read-only task verification, and `/zdev-audit` for a read-only audit.
+read-only task verification, and `/zdev-audit` for a read-only audit. Use
+`/zdev-loop <area>` for bounded area continuation; `/zdev-goal <area>` is its
+exact alias.
 
 OpenCode has no required native continuation surface. For an active-zdev goal
-or loop request, complete at most one task using the ordinary route, report the
-fresh next state, and state that no continuing loop was started.
+or loop request, use either paired command. It completes at most one task using
+the ordinary route, returns canonical `CONTINUE zdev-loop <area>` only after a
+verified commit when fresh ready work remains, and never claims a continuing
+loop was started.
 
 {{repository_guidance}}
 

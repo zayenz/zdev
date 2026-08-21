@@ -4707,6 +4707,64 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
 }
 
 #[test]
+fn bounded_area_loop_aliases_share_one_stop_and_restart_contract() {
+    let repository = repository();
+    let root = repository.path();
+    let config_home = root.join("bounded-loop-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    for (harness, directory) in [("opencode", "commands"), ("pi", "prompts")] {
+        let destination = root.join(format!("bounded-loop-{harness}"));
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("loop destination"),
+            ],
+            &environment,
+        );
+        let canonical = fs::read_to_string(destination.join(directory).join("zdev-loop.md"))
+            .expect("canonical bounded loop");
+        let alias = fs::read_to_string(destination.join(directory).join("zdev-goal.md"))
+            .expect("bounded loop alias");
+        assert_eq!(canonical, alias, "{harness} aliases must be byte-identical");
+        for required in [
+            "`zdev-loop` is the canonical name",
+            "`zdev-goal` is an exact alias",
+            "closed` returns `PASS` immediately, before Git or task-work gates",
+            "Open `empty` or `exhausted` returns `PASS`",
+            "Open `ready` with `branch_status.task_work.safe: true`",
+            "missing blockers, dependency cycles, unsafe task work",
+            "Concrete task-owned `rework` remains inside that one task cycle",
+            "failed completion, or failed commit returns\n`BLOCKER`",
+            "CONTINUE zdev-loop <area>",
+            "fresh ready task ID",
+            "Do not start it or claim a background loop",
+            "Task records\nand commits are the only checkpoint",
+        ] {
+            assert!(canonical.contains(required), "{harness} missing {required}");
+        }
+        assert_eq!(
+            json_output_with_env(
+                root,
+                &[
+                    "skill",
+                    "check",
+                    harness,
+                    "--to",
+                    destination.to_str().expect("loop destination"),
+                ],
+                &environment,
+            )["status"],
+            "ok"
+        );
+    }
+}
+
+#[test]
 fn legacy_task_entrypoints_require_forced_allowlisted_migration() {
     use std::os::unix::fs::symlink;
 
@@ -6080,7 +6138,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 19);
+    assert_eq!(installed["files"], 21);
     assert_eq!(
         fs::read_to_string(destination.join("opencode.json")).expect("preserved config"),
         "{\"theme\":\"system\"}\n"
@@ -6093,6 +6151,8 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         "agents/zdev-routine-implementer.md",
         "agents/zdev-verifier.md",
         "commands/zdev-implement.md",
+        "commands/zdev-loop.md",
+        "commands/zdev-goal.md",
         "commands/zdev-verify.md",
         "commands/zdev-audit.md",
     ] {
@@ -6204,13 +6264,15 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 15);
+    assert_eq!(installed["files"], 17);
     assert_eq!(
         file_inventory(&destination),
         [
             "extensions/zdev-subagent.ts",
             "prompts/zdev-audit.md",
+            "prompts/zdev-goal.md",
             "prompts/zdev-implement.md",
+            "prompts/zdev-loop.md",
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev-pi/SKILL.md",
@@ -6233,6 +6295,8 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     for path in [
         "skills/zdev-pi/SKILL.md",
         "prompts/zdev-implement.md",
+        "prompts/zdev-goal.md",
+        "prompts/zdev-loop.md",
         "prompts/zdev-verify.md",
         "prompts/zdev-audit.md",
         "extensions/zdev-subagent.ts",

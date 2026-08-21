@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-037"
 key = "config-refresh-hint"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Report integration refresh after worker config changes
@@ -24,11 +24,19 @@ Config set and unset change the worker values used to realize harness artifacts,
 
 ## Done when
 
-- [ ] Successful worker-profile set and unset results include a stable integration_refresh_required value and the appropriate existing refresh command.
-- [ ] Unrelated config mutations do not claim a refresh is needed.
-- [ ] Human output communicates the same fact in one concise line.
+- [x] Successful worker-profile set and unset results include a stable integration_refresh_required value and the appropriate existing refresh command.
+- [x] Unrelated config mutations do not claim a refresh is needed.
+- [x] Human output communicates the same fact in one concise line.
 
 ## Validation
 
 - Add focused set/unset JSON and human-output coverage without duplicating config persistence tests.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added scope- and harness-specific integration refresh hints to successful worker-profile set and unset results without publishing integrations.
+
+Validation:
+
+- Focused worker/project mutation and lock-failure checks, full 106-test suite, formatting, strict Clippy, build, diff check, and fresh independent verification passed.

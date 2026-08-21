@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 8
+- Ready: 7
 - Blocked: 10
-- Done: 36
+- Done: 37
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -45,7 +45,7 @@
 | [improvements-034](tasks/034-use-work-context-throughout-task-workflows.md) | Use work-context throughout task workflows | done | improvements-032 |
 | [improvements-035](tasks/035-make-small-audits-use-one-verifier.md) | Make small audits use one verifier | done | — |
 | [improvements-036](tasks/036-return-the-ready-frontier-from-task-import.md) | Return the ready frontier from task import | done | — |
-| [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | ready | — |
+| [improvements-037](tasks/037-report-integration-refresh-after-worker-config-changes.md) | Report integration refresh after worker config changes | done | — |
 | [improvements-038](tasks/038-query-the-next-task-only-when-work-will-continue.md) | Query the next task only when work will continue | ready | — |
 | [improvements-039](tasks/039-make-the-review-fingerprint-an-opaque-machine-handoff.md) | Make the review fingerprint an opaque machine handoff | ready | — |
 | [improvements-040](tasks/040-clarify-root-skill-routing-and-disclosure.md) | Clarify root skill routing and disclosure | ready | improvements-031 |

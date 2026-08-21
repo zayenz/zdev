@@ -634,7 +634,11 @@ fn set_worker(
             write_worker_value(&path, key, Some(raw), false, "global")?;
         }
     }
-    Ok(set_output(key.name, profile.value(), origin))
+    Ok(with_integration_refresh(
+        set_output(key.name, profile.value(), origin),
+        scope,
+        key.harness,
+    ))
 }
 
 fn unset_worker(
@@ -672,7 +676,11 @@ fn unset_worker(
             write_worker_value(&path, key, None, true, "global")?;
         }
     }
-    Ok(unset_output(key.name, origin, fallback))
+    Ok(with_integration_refresh(
+        unset_output(key.name, origin, fallback),
+        scope,
+        key.harness,
+    ))
 }
 
 fn worker_target(root: Option<&Path>, scope: ConfigWriteScope) -> Result<PathBuf, ZdevError> {
@@ -730,6 +738,27 @@ fn write_worker_value(
     let rendered = toml::to_string_pretty(&document)
         .map_err(|error| ZdevError::new(format!("Cannot render {}: {error}", path.display())))?;
     write_atomic(path, rendered.as_bytes())
+}
+
+fn with_integration_refresh(
+    mut output: CommandOutput,
+    scope: ConfigWriteScope,
+    harness: WorkerHarness,
+) -> CommandOutput {
+    let command = format!(
+        "zdev skill install {} --scope {} --force",
+        harness.as_str(),
+        match scope {
+            ConfigWriteScope::Local => "project",
+            ConfigWriteScope::Global => "user",
+        }
+    );
+    output
+        .text
+        .push_str(&format!("\nRefresh integration: {command}"));
+    output.value["integration_refresh_command"] = json!(command);
+    output.value["integration_refresh_required"] = json!(true);
+    output
 }
 
 fn set_output(key: &str, value: Value, origin: Origin) -> CommandOutput {

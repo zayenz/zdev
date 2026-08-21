@@ -4983,6 +4983,8 @@ fn config_set_validates_typed_project_values_and_preserves_trunk_alias() {
     assert_eq!(set["status"], "set");
     assert_eq!(set["key"], "project.default-area");
     assert_eq!(set["value"], "improvements");
+    assert!(set.get("integration_refresh_required").is_none());
+    assert!(set.get("integration_refresh_command").is_none());
     assert_eq!(
         set["origin"],
         json!({"path": ".zdev/config.toml", "scope": "local"})
@@ -5021,6 +5023,8 @@ fn config_set_validates_typed_project_values_and_preserves_trunk_alias() {
     assert_eq!(unset["status"], "unset");
     assert_eq!(unset["effective"]["value"], Value::Null);
     assert_eq!(unset["effective"]["origin"]["scope"], "default");
+    assert!(unset.get("integration_refresh_required").is_none());
+    assert!(unset.get("integration_refresh_command").is_none());
 }
 
 #[test]
@@ -5045,6 +5049,11 @@ fn config_worker_mutations_are_atomic_and_unset_exposes_the_next_layer() {
         &environment,
     );
     assert_eq!(global["status"], "set");
+    assert_eq!(global["integration_refresh_required"], true);
+    assert_eq!(
+        global["integration_refresh_command"],
+        "zdev skill install codex --scope user --force"
+    );
     assert_eq!(
         global["value"],
         json!({"model": "gpt-5.5", "effort": "xhigh"})
@@ -5055,7 +5064,7 @@ fn config_worker_mutations_are_atomic_and_unset_exposes_the_next_layer() {
         "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.5\"\neffort = \"xhigh\"\n"
     );
 
-    json_output_with_env(
+    let local_set = run_zdev_with_env(
         root,
         &[
             "config",
@@ -5066,12 +5075,22 @@ fn config_worker_mutations_are_atomic_and_unset_exposes_the_next_layer() {
         ],
         &environment,
     );
+    assert!(local_set.status.success());
+    assert_eq!(
+        String::from_utf8(local_set.stdout).expect("local set output"),
+        "Set worker.codex.implementer in local .zdev/workers.toml.\nRefresh integration: zdev skill install codex --scope project --force\n"
+    );
     let unset_local = json_output_with_env(
         root,
         &["config", "unset", "worker.codex.implementer"],
         &environment,
     );
     assert_eq!(unset_local["effective"]["origin"]["scope"], "global");
+    assert_eq!(unset_local["integration_refresh_required"], true);
+    assert_eq!(
+        unset_local["integration_refresh_command"],
+        "zdev skill install codex --scope project --force"
+    );
     assert_eq!(
         unset_local["effective"]["value"],
         json!({"model": "gpt-5.5", "effort": "xhigh"})
@@ -5087,9 +5106,38 @@ fn config_worker_mutations_are_atomic_and_unset_exposes_the_next_layer() {
         &environment,
     );
     assert_eq!(unset_global["effective"]["origin"]["scope"], "default");
+    assert_eq!(unset_global["integration_refresh_required"], true);
+    assert_eq!(
+        unset_global["integration_refresh_command"],
+        "zdev skill install codex --scope user --force"
+    );
     assert_eq!(
         fs::read_to_string(&global_path).expect("empty global workers"),
         "schema_version = 1\n"
+    );
+    json_output_with_env(
+        root,
+        &[
+            "config",
+            "set",
+            "--global",
+            "worker.codex.verifier",
+            "inherit",
+        ],
+        &environment,
+    );
+    let human_unset = run_zdev_with_env(
+        root,
+        &["config", "unset", "--global", "worker.codex.verifier"],
+        &environment,
+    );
+    assert!(human_unset.status.success());
+    assert_eq!(
+        String::from_utf8(human_unset.stdout).expect("global unset output"),
+        format!(
+            "Unset worker.codex.verifier from global {}.\nEffective value: {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\nRefresh integration: zdev skill install codex --scope user --force\n",
+            global_path.display()
+        )
     );
     let before = fs::read(&global_path).expect("global bytes");
     for arguments in [
@@ -5141,7 +5189,7 @@ fn config_global_lock_failure_preserves_worker_bytes() {
     assert_eq!(
         String::from_utf8(created.stdout).expect("set output"),
         format!(
-            "Set worker.codex.implementer in global {}.\n",
+            "Set worker.codex.implementer in global {}.\nRefresh integration: zdev skill install codex --scope user --force\n",
             global_path.display()
         )
     );

@@ -200,6 +200,13 @@ missing value is an error. `project.name` and `project.record` are visible to
 `show` and `get`, but `set` and `unset` reject them and point to `zdev init` and
 the record-policy documentation.
 
+A successful worker-profile `set` or `unset` reports that its harness
+integration must be refreshed; it does not refresh it. A local mutation names
+`zdev skill install <harness> --scope project --force`, and a global mutation
+names `zdev skill install <harness> --scope user --force`. Project-key
+mutations omit the refresh fields and hint because they do not change rendered
+worker controls.
+
 `zdev config trunk [<branch>]` remains supported. It is the existing
 branch-aware convenience command: omission means the checked-out branch. With
 an explicit branch it has the same stored result as `zdev config set
@@ -604,10 +611,13 @@ Successful mutation output is also stable. For example:
 
 ```text
 Set worker.codex.implementer in global /home/alice/.config/zdev/workers.toml.
+Refresh integration: zdev skill install codex --scope user --force
 ```
 
 ```json
 {
+  "integration_refresh_command": "zdev skill install codex --scope user --force",
+  "integration_refresh_required": true,
   "key": "worker.codex.implementer",
   "origin": {
     "path": "/home/alice/.config/zdev/workers.toml",
@@ -628,6 +638,7 @@ the human result is:
 ```text
 Unset worker.codex.implementer from local .zdev/workers.toml.
 Effective value: { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
+Refresh integration: zdev skill install codex --scope project --force
 ```
 
 The JSON result is:
@@ -644,6 +655,8 @@ The JSON result is:
       "model": "gpt-5.5"
     }
   },
+  "integration_refresh_command": "zdev skill install codex --scope project --force",
+  "integration_refresh_required": true,
   "key": "worker.codex.implementer",
   "origin": {
     "path": ".zdev/workers.toml",

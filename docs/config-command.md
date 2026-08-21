@@ -28,8 +28,8 @@ discovery looks only for the file; initialization checks an existing record;
 cleanup, status, checks, task selection, branch operations, and integration
 guidance parse it. No command currently writes `default_area`. Area creation,
 binding, parenting, and managed rebase separately write strict
-`.zdev/<area>/area.toml` records. The worker profile contract proposes
-`.zdev/workers.toml`, but no runtime path reads or writes it yet.
+`.zdev/<area>/area.toml` records. Worker preferences use the implemented strict
+`.zdev/workers.toml` format described below.
 
 ## Supported keys and scopes
 
@@ -46,16 +46,26 @@ or `pull-request` record policy still determines whether `.zdev` is shared.
 | `project.trunk` | Git branch name, or absent | repo-only | Set or unset locally. |
 | `project.default-area` | existing area tag, or absent | repo-only | Set or unset locally. |
 | `project.guidance` | `auto`, `agents`, `zdev`, or a safe repository-relative Markdown path; absent means `auto` | repo-only | Set or unset locally. Project integration install may continue recording the source it used. |
+| `worker.codex.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.codex.implementer` | worker profile | global and local | Set or unset. |
 | `worker.codex.verifier` | worker profile | global and local | Set or unset. |
+| `worker.codex.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.claude.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.claude.implementer` | worker profile | global and local | Set or unset. |
 | `worker.claude.verifier` | worker profile | global and local | Set or unset. |
+| `worker.claude.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.opencode.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.opencode.implementer` | worker profile | global and local | Set or unset. |
 | `worker.opencode.verifier` | worker profile | global and local | Set or unset. |
+| `worker.opencode.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.pi.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.pi.implementer` | worker profile | global and local | Set or unset. |
 | `worker.pi.verifier` | worker profile | global and local | Set or unset. |
+| `worker.pi.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.omp.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.omp.implementer` | worker profile | global and local | Set or unset. |
 | `worker.omp.verifier` | worker profile | global and local | Set or unset. |
+| `worker.omp.advanced-implementer` | worker profile | global and local | Set or unset. |
 
 A worker profile is one atomic value. It is either `inherit`, or a non-empty
 model plus one effort from `inherit`, `low`, `medium`, `high`, `xhigh`, or
@@ -66,18 +76,13 @@ effort control; a whole-profile `inherit` omits both controls.
 The built-in worker defaults are the dated suggestions in
 [Worker profiles](worker-profiles.md):
 
-| Key | Built-in value |
-| --- | --- |
-| `worker.codex.implementer` | `gpt-5.6-sol high` |
-| `worker.codex.verifier` | `gpt-5.6-sol high` |
-| `worker.claude.implementer` | `claude-opus-5 high` |
-| `worker.claude.verifier` | `claude-opus-5 high` |
-| `worker.opencode.implementer` | `openai/gpt-5.6-sol high` |
-| `worker.opencode.verifier` | `anthropic/claude-opus-5 inherit` |
-| `worker.pi.implementer` | `openai/gpt-5.6-sol high` |
-| `worker.pi.verifier` | `anthropic/claude-opus-5 high` |
-| `worker.omp.implementer` | `openai/gpt-5.6-sol high` |
-| `worker.omp.verifier` | `anthropic/claude-opus-5 high` |
+| Harness | Routine implementer | Implementer | Verifier | Advanced implementer |
+| --- | --- | --- | --- | --- |
+| Codex | `gpt-5.6-luna low` | `gpt-5.6-sol low` | `gpt-5.6-sol low` | `gpt-5.6-sol high` |
+| Claude | `haiku low` | `claude-opus-5 low` | `claude-opus-5 low` | `claude-opus-5 high` |
+| OpenCode | `openai/gpt-5.6-luna low` | `openai/gpt-5.6-sol low` | `anthropic/claude-opus-5 inherit` | `openai/gpt-5.6-sol high` |
+| Pi | `openai/gpt-5.6-luna low` | `openai/gpt-5.6-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-5.6-sol high` |
+| OMP | `openai/gpt-5.6-luna low` | `openai/gpt-5.6-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-5.6-sol high` |
 
 The Oh My Pi adapter renders these two abstract fields into its native combined
 representation. It must validate that the pair is expressible rather than
@@ -150,7 +155,9 @@ inherit = true
 The global and local files have the same schema. A missing worker file is an
 empty layer. Removing its final profile leaves a deterministic file containing
 only `schema_version = 1`; the command does not delete the file. The local
-project file is required for local and effective operations.
+project file is required for local and effective operations. Schema version 1
+is unchanged: the two added roles are optional tables, so every valid legacy
+implementer/verifier file retains the same meaning.
 
 ## Command grammar
 
@@ -216,7 +223,8 @@ project.trunk <branch>`. The generic form never infers a value.
 
 Key order is the order in the scope table above: project keys first, then
 harnesses in `codex`, `claude`, `opencode`, `pi`, `omp` order, with
-`implementer` before `verifier`. A scoped view omits keys not stored in that
+`routine-implementer`, `implementer`, `verifier`, and
+`advanced-implementer` in that order. A scoped view omits keys not stored in that
 scope. Every JSON object uses the lexical key order produced by the current
 `serde_json::Value` map and existing `serde_json::to_string_pretty` renderer;
 arrays retain the registry and precedence order defined here. No preserve-order
@@ -228,15 +236,14 @@ Human `show` prints one effective or stored value per line. A lower-precedence
 candidate follows its winner on an indented `shadows` line. Strings use TOML
 quoting, profiles use TOML inline-table notation, and `null` is literal.
 
-### Complete effective view
+### Effective view shape
 
-The following fixture has project name `checkout`, record policy `project`, and
-local default area `payments`; trunk and guidance are absent. Local worker
-profiles set the Codex implementer and make the Claude verifier inherit. Global
-profiles set both Codex roles, the Claude verifier, and the Pi implementer. All
-other workers use built-ins.
+The current view contains all four roles for each harness in the registry order
+above. The older standard-role fixture below is retained as a compact rendering
+example; it omits routine and advanced rows. The defaults table above, rather
+than values in this abbreviated fixture, is authoritative.
 
-For that fixture, unscoped `zdev config show` is exactly:
+Selected human rows have this form:
 
 ```text
 project.name = "checkout"  [local .zdev/config.toml]
@@ -247,23 +254,23 @@ project.default-area = "payments"  [local .zdev/config.toml]
 project.guidance = "auto"  [default]
 worker.codex.implementer = { model = "gpt-5.6-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-5.6-sol", effort = "high" }  [default]
+  shadows { model = "gpt-5.6-sol", effort = "low" }  [default]
 worker.codex.verifier = { model = "gpt-5.5", effort = "high" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-5.6-sol", effort = "high" }  [default]
-worker.claude.implementer = { model = "claude-opus-5", effort = "high" }  [default]
+  shadows { model = "gpt-5.6-sol", effort = "low" }  [default]
+worker.claude.implementer = { model = "claude-opus-5", effort = "low" }  [default]
 worker.claude.verifier = { inherit = true }  [local .zdev/workers.toml]
   shadows { model = "claude-opus-5", effort = "medium" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "claude-opus-5", effort = "high" }  [default]
-worker.opencode.implementer = { model = "openai/gpt-5.6-sol", effort = "high" }  [default]
+  shadows { model = "claude-opus-5", effort = "low" }  [default]
+worker.opencode.implementer = { model = "openai/gpt-5.6-sol", effort = "low" }  [default]
 worker.opencode.verifier = { model = "anthropic/claude-opus-5", effort = "inherit" }  [default]
 worker.pi.implementer = { model = "openai/gpt-5.5", effort = "high" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "openai/gpt-5.6-sol", effort = "high" }  [default]
-worker.pi.verifier = { model = "anthropic/claude-opus-5", effort = "high" }  [default]
-worker.omp.implementer = { model = "openai/gpt-5.6-sol", effort = "high" }  [default]
-worker.omp.verifier = { model = "anthropic/claude-opus-5", effort = "high" }  [default]
+  shadows { model = "openai/gpt-5.6-sol", effort = "low" }  [default]
+worker.pi.verifier = { model = "anthropic/claude-opus-5", effort = "low" }  [default]
+worker.omp.implementer = { model = "openai/gpt-5.6-sol", effort = "low" }  [default]
+worker.omp.verifier = { model = "anthropic/claude-opus-5", effort = "low" }  [default]
 ```
 
-Its complete JSON form is exactly:
+The same selected rows have this JSON shape:
 
 ```json
 {
@@ -346,7 +353,7 @@ Its complete JSON form is exactly:
             "scope": "default"
           },
           "value": {
-            "effort": "high",
+            "effort": "low",
             "model": "gpt-5.6-sol"
           }
         }
@@ -369,7 +376,7 @@ Its complete JSON form is exactly:
             "scope": "default"
           },
           "value": {
-            "effort": "high",
+            "effort": "low",
             "model": "gpt-5.6-sol"
           }
         }
@@ -387,7 +394,7 @@ Its complete JSON form is exactly:
       },
       "shadowed": [],
       "value": {
-        "effort": "high",
+        "effort": "low",
         "model": "claude-opus-5"
       }
     },
@@ -414,7 +421,7 @@ Its complete JSON form is exactly:
             "scope": "default"
           },
           "value": {
-            "effort": "high",
+            "effort": "low",
             "model": "claude-opus-5"
           }
         }
@@ -431,7 +438,7 @@ Its complete JSON form is exactly:
       },
       "shadowed": [],
       "value": {
-        "effort": "high",
+        "effort": "low",
         "model": "openai/gpt-5.6-sol"
       }
     },
@@ -460,7 +467,7 @@ Its complete JSON form is exactly:
             "scope": "default"
           },
           "value": {
-            "effort": "high",
+            "effort": "low",
             "model": "openai/gpt-5.6-sol"
           }
         }
@@ -478,7 +485,7 @@ Its complete JSON form is exactly:
       },
       "shadowed": [],
       "value": {
-        "effort": "high",
+        "effort": "low",
         "model": "anthropic/claude-opus-5"
       }
     },
@@ -490,7 +497,7 @@ Its complete JSON form is exactly:
       },
       "shadowed": [],
       "value": {
-        "effort": "high",
+        "effort": "low",
         "model": "openai/gpt-5.6-sol"
       }
     },
@@ -502,7 +509,7 @@ Its complete JSON form is exactly:
       },
       "shadowed": [],
       "value": {
-        "effort": "high",
+        "effort": "low",
         "model": "anthropic/claude-opus-5"
       }
     }
@@ -565,7 +572,7 @@ is exactly:
 ```text
 worker.codex.implementer = { model = "gpt-5.6-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-5.6-sol", effort = "high" }  [default]
+  shadows { model = "gpt-5.6-sol", effort = "low" }  [default]
 ```
 
 Its JSON form is exactly:
@@ -595,7 +602,7 @@ Its JSON form is exactly:
         "scope": "default"
       },
       "value": {
-        "effort": "high",
+        "effort": "low",
         "model": "gpt-5.6-sol"
       }
     }

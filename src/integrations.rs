@@ -72,6 +72,10 @@ const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
 const CLAUDE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/claude/agents/zdev-implementer.md");
+const CLAUDE_ROUTINE_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/claude/agents/zdev-routine-implementer.md");
+const CLAUDE_ADVANCED_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/claude/agents/zdev-advanced-implementer.md");
 const CLAUDE_VERIFIER: &str = include_str!("../templates/zdev/claude/agents/zdev-verifier.md");
 const CLAUDE_IMPLEMENT_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
@@ -82,6 +86,10 @@ const CLAUDE_AUDIT_WORKFLOW: &str =
 const OPENCODE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/opencode-skill.md");
 const OPENCODE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/opencode/agents/zdev-implementer.md");
+const OPENCODE_ROUTINE_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/opencode/agents/zdev-routine-implementer.md");
+const OPENCODE_ADVANCED_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/opencode/agents/zdev-advanced-implementer.md");
 const OPENCODE_VERIFIER: &str = include_str!("../templates/zdev/opencode/agents/zdev-verifier.md");
 const OPENCODE_IMPLEMENT_COMMAND: &str =
     include_str!("../templates/zdev/opencode/commands/zdev-implement.md");
@@ -97,6 +105,10 @@ const PI_SUBAGENT_EXTENSION: &str =
     include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts");
 const OMP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/omp-skill.md");
 const OMP_IMPLEMENTER: &str = include_str!("../templates/zdev/omp/agents/zdev-implementer.md");
+const OMP_ROUTINE_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/omp/agents/zdev-routine-implementer.md");
+const OMP_ADVANCED_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/omp/agents/zdev-advanced-implementer.md");
 const OMP_VERIFIER: &str = include_str!("../templates/zdev/omp/agents/zdev-verifier.md");
 const OMP_AUDIT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-audit.md");
 const OMP_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-implement.md");
@@ -216,12 +228,20 @@ impl Harness {
                 }));
                 files.extend([
                     IntegrationFile {
+                        path: "agents/zdev-routine-implementer.md".to_owned(),
+                        content: CLAUDE_ROUTINE_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
                         path: "agents/zdev-implementer.md".to_owned(),
                         content: CLAUDE_IMPLEMENTER.to_owned(),
                     },
                     IntegrationFile {
                         path: "agents/zdev-verifier.md".to_owned(),
                         content: CLAUDE_VERIFIER.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "agents/zdev-advanced-implementer.md".to_owned(),
+                        content: CLAUDE_ADVANCED_IMPLEMENTER.to_owned(),
                     },
                     IntegrationFile {
                         path: "workflows/zdev-implement.js".to_owned(),
@@ -250,12 +270,20 @@ impl Harness {
                 }));
                 files.extend([
                     IntegrationFile {
+                        path: "agents/zdev-routine-implementer.md".to_owned(),
+                        content: OPENCODE_ROUTINE_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
                         path: "agents/zdev-implementer.md".to_owned(),
                         content: OPENCODE_IMPLEMENTER.to_owned(),
                     },
                     IntegrationFile {
                         path: "agents/zdev-verifier.md".to_owned(),
                         content: OPENCODE_VERIFIER.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "agents/zdev-advanced-implementer.md".to_owned(),
+                        content: OPENCODE_ADVANCED_IMPLEMENTER.to_owned(),
                     },
                     IntegrationFile {
                         path: "commands/zdev-implement.md".to_owned(),
@@ -314,12 +342,20 @@ impl Harness {
                 }));
                 files.extend([
                     IntegrationFile {
+                        path: "agents/zdev-routine-implementer.md".to_owned(),
+                        content: OMP_ROUTINE_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
                         path: "agents/zdev-implementer.md".to_owned(),
                         content: OMP_IMPLEMENTER.to_owned(),
                     },
                     IntegrationFile {
                         path: "agents/zdev-verifier.md".to_owned(),
                         content: OMP_VERIFIER.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "agents/zdev-advanced-implementer.md".to_owned(),
+                        content: OMP_ADVANCED_IMPLEMENTER.to_owned(),
                     },
                     IntegrationFile {
                         path: "prompts/zdev-audit.md".to_owned(),
@@ -398,6 +434,10 @@ fn render_template(
             repository_guidance,
             question_tool_guidance,
             version,
+            routine_implementer_has_model => workers.routine_implementer.has_model(),
+            routine_implementer_has_effort => workers.routine_implementer.has_effort(),
+            routine_implementer_model => workers.routine_implementer.model_literal(),
+            routine_implementer_effort => workers.routine_implementer.effort_literal(),
             implementer_has_model => workers.implementer.has_model(),
             implementer_has_effort => workers.implementer.has_effort(),
             implementer_model => workers.implementer.model_literal(),
@@ -406,6 +446,10 @@ fn render_template(
             verifier_has_effort => workers.verifier.has_effort(),
             verifier_model => workers.verifier.model_literal(),
             verifier_effort => workers.verifier.effort_literal(),
+            advanced_implementer_has_model => workers.advanced_implementer.has_model(),
+            advanced_implementer_has_effort => workers.advanced_implementer.has_effort(),
+            advanced_implementer_model => workers.advanced_implementer.model_literal(),
+            advanced_implementer_effort => workers.advanced_implementer.effort_literal(),
         })
         .map_err(|error| {
             ZdevError::new(format!(

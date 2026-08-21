@@ -113,12 +113,23 @@ exhausted, or closed goals, a different ready task, unsafe state, unavailable
 independent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`
 without mutation.
 
-Use one fresh Codex collaboration agent with the configured implementer profile
-for implementation. Pass `model="gpt-5.6-sol"` and
-`reasoning_effort="high"` when spawning it.
+Use one fresh Codex collaboration agent with the configured role profile.
+Normal work uses `implementer`. Authored routine work alone may use
+`routine-implementer`; that worker may edit only the supplied task-owned
+implementation paths and may collect narrow evidence, but never performs final
+verification, lifecycle changes, staging, commits, or product decisions.
+Advanced work and explicit advanced rework use `advanced-implementer`; read-only
+planning reuses that same profile rather than defining another role.
+
+For `routine-implementer`, pass `model="gpt-5.6-luna"` and
+`reasoning_effort="low"`.
+For `implementer`, pass `model="gpt-5.6-sol"` and
+`reasoning_effort="low"` when spawning it.
+For `advanced-implementer`, pass `model="gpt-5.6-sol"` and
+`reasoning_effort="high"`.
 Use a different fresh agent for every verification verdict. Pass
 `model="gpt-5.6-sol"` and
-`reasoning_effort="high"`.
+`reasoning_effort="low"`.
 The current Codex session remains the coordinator and validates every envelope.
 
 <!-- zdev:generated-repository-guidance:start -->

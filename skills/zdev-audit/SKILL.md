@@ -32,7 +32,7 @@ checked becomes `BLOCKER zdev-audit`; it is never treated as a pass.
 
 Use a fresh Codex collaboration agent as the verifier. Pass
 `model="gpt-5.6-sol"` and
-`reasoning_effort="high"` when spawning it.
+`reasoning_effort="low"` when spawning it.
 Give it the boundary, repository guidance, applicable `AGENTS.md` instructions,
 and the audit contract above. With no explicit lenses, start exactly that one
 verifier. With one to four explicit lenses, use fresh verifier agents for the

@@ -6,18 +6,24 @@ defaults below were checked on 2026-08-20.
 
 ## Roles
 
-Zdev needs two worker roles. Their names describe responsibility, not model
-size or price.
+Zdev exposes four worker roles. `implementer` and `verifier` are the standard
+defaults; the other two are explicit implementation tiers rather than a role
+matrix.
 
-- `implementer` changes the task-owned source and tests, runs the agreed
-  validation, and reports what changed. It needs strong repository navigation,
-  instruction following, editing, and self-testing. Its main risks are a missed
-  requirement, an integration regression, and work outside the approved scope.
+- `routine-implementer` handles authored routine tasks: tightly specified,
+  low-risk mechanical work. It may edit only the selected task's exact
+  implementation paths and collect narrow read-only evidence. It never performs
+  final verification, coordinates lifecycle, stages, commits, or makes product
+  decisions. Routine is never inferred or selected by default.
+- `implementer` handles normal implementation and uses the standard profile.
 - `verifier` independently reads the brief, task, baseline, diff, and relevant
   source; runs required checks; and returns `PASS`, `REWORK`, or `BLOCKER`. It
   needs careful requirement accounting, defect finding, and evidence handling.
   Its main risks are confirmation bias, trusting the implementer's summary, and
   accepting tests as a substitute for inspecting the change.
+- `advanced-implementer` handles authored advanced implementation and explicit
+  advanced rework. A later planning workflow may reuse it read-only; there is
+  no separate planner or advanced-verifier key.
 
 The coordinator is not another worker profile. It owns task selection, user
 decisions, branch safety, dispatch, rework, completion, and commits. A verifier
@@ -106,9 +112,8 @@ the current releases have not all been compared under one zdev workflow.
   configuration](https://opencode.ai/docs/agents/) (accessed 2026-08-20).
 - Pi accepts `--model provider/id` and `--thinking`, with levels from `off`
   through `max`. Its model metadata can omit, hide, or clamp unsupported
-  levels. Zdev's current Pi extension forwards the parent's model but not its
-  thinking level, so applying the recommendation requires a small adapter
-  change. [Pi CLI model options](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md)
+  levels. Zdev's Pi extension exposes all four worker profiles and passes each
+  resolved model and thinking level to the isolated child process. [Pi CLI model options](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md)
   and [Pi model controls](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md)
   (accessed 2026-08-20).
 - Oh My Pi agent frontmatter accepts a prioritized model list and
@@ -120,20 +125,27 @@ the current releases have not all been compared under one zdev workflow.
 
 ## Suggested mappings
 
-These are quality-first suggestions dated 2026-08-20, not automatic choices.
-`high` is the common starting point: the roles need planning and checking, but
-the evidence does not justify paying for the highest setting on every task.
+These are editable suggestions dated 2026-08-20, not automatic choices.
+Standard is the normal default. Advanced uses the same frontier family at high
+reasoning. Routine uses a cheaper documented model only when authored task
+complexity explicitly requests it.
 Where a harness can use more than one provider, using a different model family
 for verification may reduce correlated misses. That is a zdev inference, not a
 benchmark result.
 
-| Harness | Implementer | Verifier | Known gap |
-| --- | --- | --- | --- |
-| Codex | `gpt-5.6-sol`, `high` | `gpt-5.6-sol`, `high` | Codex's normal integration cannot supply an Anthropic verifier; independence comes from a fresh agent, not a different family. |
-| Claude Code | `claude-opus-5`, `high` | `claude-opus-5`, `high` | Provider aliases and organization allowlists may substitute another allowed model. |
-| OpenCode | `openai/gpt-5.6-sol`, `high` | `anthropic/claude-opus-5`, effort inherited | Model selection is portable, but a single provider-neutral effort setting is not. `high` is therefore omitted for the Anthropic verifier until its configured provider documents a compatible option. |
-| Pi | `openai/gpt-5.6-sol`, `high` | `anthropic/claude-opus-5`, `high` | The model must exist in the user's Pi catalog; Pi may clamp an unsupported thinking level. The current zdev adapter does not yet pass the level. |
-| Oh My Pi | `openai/gpt-5.6-sol:high` | `anthropic/claude-opus-5:high` | Credentials and model catalogs vary. Oh My Pi settings can override these frontmatter suggestions. |
+| Harness | Routine implementer | Standard implementer | Standard verifier | Advanced implementer |
+| --- | --- | --- | --- | --- |
+| Codex | `gpt-5.6-luna`, `low` | `gpt-5.6-sol`, `low` | `gpt-5.6-sol`, `low` | `gpt-5.6-sol`, `high` |
+| Claude Code | `haiku`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `high` |
+| OpenCode | `openai/gpt-5.6-luna`, `low` | `openai/gpt-5.6-sol`, `low` | `anthropic/claude-opus-5`, effort inherited | `openai/gpt-5.6-sol`, `high` |
+| Pi | `openai/gpt-5.6-luna`, `low` | `openai/gpt-5.6-sol`, `low` | `anthropic/claude-opus-5`, `low` | `openai/gpt-5.6-sol`, `high` |
+| Oh My Pi | `openai/gpt-5.6-luna:low` | `openai/gpt-5.6-sol:low` | `anthropic/claude-opus-5:low` | `openai/gpt-5.6-sol:high` |
+
+OpenAI documents [Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+as its cost-sensitive, high-volume model. Claude Code documents the
+[`haiku` alias](https://code.claude.com/docs/en/model-config) as its fast,
+efficient choice for simple tasks (accessed 2026-08-22). Those facts support
+the routine defaults without creating a runtime catalog.
 
 The mixed-provider rows assume both providers are configured. A project that
 uses one provider should override both roles rather than depend on a hidden
@@ -154,10 +166,14 @@ schema_version = 1
 
 [codex.implementer]
 model = "gpt-5.6-sol"
-effort = "high"
+effort = "low"
 
 [codex.verifier]
 inherit = true
+
+[codex.advanced-implementer]
+model = "gpt-5.6-sol"
+effort = "high"
 
 [opencode.verifier]
 model = "anthropic/claude-opus-5"
@@ -165,11 +181,15 @@ effort = "inherit"
 ```
 
 Each optional table is named `<harness>.<role>`, using the five harness names
-`codex`, `claude`, `opencode`, `pi`, and `omp` and the two roles above. A table
+`codex`, `claude`, `opencode`, `pi`, and `omp` and the four roles above. A table
 must contain either `inherit = true`, or both a non-empty `model` and an
 `effort`. Effort is one of `inherit`, `low`, `medium`, `high`, `xhigh`, or
 `max`. `inherit` as a whole table omits both controls; `effort = "inherit"`
 sets the model but omits an effort control.
+
+The file remains at schema version 1 because all four role tables are optional.
+Existing files that contain only `implementer` and `verifier` keep their exact
+whole-profile behavior.
 
 Resolution is per harness and role:
 
@@ -204,8 +224,8 @@ table above records a gap.
 
 Keep the implementation inside integration generation:
 
-1. Add one strict data type and parser for the optional local and global worker
-   files. Resolve two complete role profiles for the requested harness before
+1. Use the strict parser for the optional local and global worker files. Resolve
+   four complete role profiles for the requested harness before
    rendering.
 2. Pass those resolved values into the existing canonical integration
    templates. Claude Code, OpenCode, and Oh My Pi write native agent metadata;

@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-041"
 key = "worker-tier-profiles"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Add routine, standard, and advanced worker profiles
@@ -27,13 +27,21 @@ Replace the earlier standard/complex profile proposal with routine, standard, an
 
 ## Done when
 
-- [ ] Built-in and layered config resolves routine-implementer, implementer, verifier, and advanced-implementer for all five harnesses with origin reporting.
-- [ ] Standard defaults use Sol/Opus at low reasoning where supported; advanced uses high reasoning; routine uses a documented cheaper model.
-- [ ] Install/check renders each profile into the native harness artifacts deterministically.
-- [ ] Legacy implementer/verifier configuration remains valid with whole-profile override semantics.
+- [x] Built-in and layered config resolves routine-implementer, implementer, verifier, and advanced-implementer for all five harnesses with origin reporting.
+- [x] Standard defaults use Sol/Opus at low reasoning where supported; advanced uses high reasoning; routine uses a documented cheaper model.
+- [x] Install/check renders each profile into the native harness artifacts deterministically.
+- [x] Legacy implementer/verifier configuration remains valid with whole-profile override semantics.
 
 ## Validation
 
 - Add focused strict parsing, layering, origin, default, adapter-validation, and realization tests.
 - Install and check all five harnesses in temporary destinations.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added routine, standard, verifier, and advanced implementer profiles with layered origins and deterministic native artifacts across all five harnesses.
+
+Validation:
+
+- Focused strict parsing, layering, origin, mutation, adapter, and realization tests; five-harness temp install/check; full 107-test suite; formatting; strict Clippy; build; diff check; and fresh independent verification passed.

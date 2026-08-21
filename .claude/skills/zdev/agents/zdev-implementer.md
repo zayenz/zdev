@@ -3,7 +3,7 @@ name: zdev-implementer
 description: Implement one selected zdev task in the current checkout with the agreed testing level and validation.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: "claude-opus-5"
-effort: "high"
+effort: "low"
 ---
 
 Implement exactly one selected zdev task. Read the brief, task, repository

@@ -3,7 +3,7 @@ name: zdev-verifier
 description: Independently verify one zdev task or check evidence for a read-only zdev audit.
 tools: Read, Bash, Grep, Glob
 model: "claude-opus-5"
-effort: "high"
+effort: "low"
 ---
 
 Verify one task from the current checkout. Read the brief, task, repository

@@ -139,15 +139,28 @@ struct RawWorkerProfile {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct HarnessProfiles {
+    #[serde(
+        rename = "routine-implementer",
+        skip_serializing_if = "Option::is_none"
+    )]
+    routine_implementer: Option<RawWorkerProfile>,
     #[serde(skip_serializing_if = "Option::is_none")]
     implementer: Option<RawWorkerProfile>,
     #[serde(skip_serializing_if = "Option::is_none")]
     verifier: Option<RawWorkerProfile>,
+    #[serde(
+        rename = "advanced-implementer",
+        skip_serializing_if = "Option::is_none"
+    )]
+    advanced_implementer: Option<RawWorkerProfile>,
 }
 
 impl HarnessProfiles {
     fn is_empty(&self) -> bool {
-        self.implementer.is_none() && self.verifier.is_none()
+        self.routine_implementer.is_none()
+            && self.implementer.is_none()
+            && self.verifier.is_none()
+            && self.advanced_implementer.is_none()
     }
 }
 
@@ -194,8 +207,10 @@ impl WorkerFile {
     fn set(&mut self, key: WorkerKey, value: Option<RawWorkerProfile>) -> bool {
         let profiles = self.profiles_mut(key.harness);
         let target = match key.role {
+            WorkerRole::RoutineImplementer => &mut profiles.routine_implementer,
             WorkerRole::Implementer => &mut profiles.implementer,
             WorkerRole::Verifier => &mut profiles.verifier,
+            WorkerRole::AdvancedImplementer => &mut profiles.advanced_implementer,
         };
         let existed = target.is_some();
         *target = value;
@@ -214,8 +229,10 @@ struct WorkerLayer {
 
 #[derive(Default)]
 struct RoleProfiles {
+    routine_implementer: Option<WorkerProfile>,
     implementer: Option<WorkerProfile>,
     verifier: Option<WorkerProfile>,
+    advanced_implementer: Option<WorkerProfile>,
 }
 
 impl WorkerLayer {
@@ -232,8 +249,10 @@ impl WorkerLayer {
     fn profile(&self, key: WorkerKey) -> Option<&WorkerProfile> {
         let roles = self.roles(key.harness);
         match key.role {
+            WorkerRole::RoutineImplementer => roles.routine_implementer.as_ref(),
             WorkerRole::Implementer => roles.implementer.as_ref(),
             WorkerRole::Verifier => roles.verifier.as_ref(),
+            WorkerRole::AdvancedImplementer => roles.advanced_implementer.as_ref(),
         }
     }
 }
@@ -288,8 +307,10 @@ impl ResolvedWorkerProfile {
 
 #[derive(Clone, Copy)]
 enum WorkerRole {
+    RoutineImplementer,
     Implementer,
     Verifier,
+    AdvancedImplementer,
 }
 
 #[derive(Clone, Copy)]
@@ -299,7 +320,12 @@ struct WorkerKey {
     role: WorkerRole,
 }
 
-const WORKER_KEYS: [WorkerKey; 10] = [
+const WORKER_KEYS: [WorkerKey; 20] = [
+    WorkerKey {
+        name: "worker.codex.routine-implementer",
+        harness: WorkerHarness::Codex,
+        role: WorkerRole::RoutineImplementer,
+    },
     WorkerKey {
         name: "worker.codex.implementer",
         harness: WorkerHarness::Codex,
@@ -309,6 +335,16 @@ const WORKER_KEYS: [WorkerKey; 10] = [
         name: "worker.codex.verifier",
         harness: WorkerHarness::Codex,
         role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.codex.advanced-implementer",
+        harness: WorkerHarness::Codex,
+        role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.claude.routine-implementer",
+        harness: WorkerHarness::Claude,
+        role: WorkerRole::RoutineImplementer,
     },
     WorkerKey {
         name: "worker.claude.implementer",
@@ -321,6 +357,16 @@ const WORKER_KEYS: [WorkerKey; 10] = [
         role: WorkerRole::Verifier,
     },
     WorkerKey {
+        name: "worker.claude.advanced-implementer",
+        harness: WorkerHarness::Claude,
+        role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.opencode.routine-implementer",
+        harness: WorkerHarness::Opencode,
+        role: WorkerRole::RoutineImplementer,
+    },
+    WorkerKey {
         name: "worker.opencode.implementer",
         harness: WorkerHarness::Opencode,
         role: WorkerRole::Implementer,
@@ -329,6 +375,16 @@ const WORKER_KEYS: [WorkerKey; 10] = [
         name: "worker.opencode.verifier",
         harness: WorkerHarness::Opencode,
         role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.opencode.advanced-implementer",
+        harness: WorkerHarness::Opencode,
+        role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.pi.routine-implementer",
+        harness: WorkerHarness::Pi,
+        role: WorkerRole::RoutineImplementer,
     },
     WorkerKey {
         name: "worker.pi.implementer",
@@ -341,6 +397,16 @@ const WORKER_KEYS: [WorkerKey; 10] = [
         role: WorkerRole::Verifier,
     },
     WorkerKey {
+        name: "worker.pi.advanced-implementer",
+        harness: WorkerHarness::Pi,
+        role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.omp.routine-implementer",
+        harness: WorkerHarness::Omp,
+        role: WorkerRole::RoutineImplementer,
+    },
+    WorkerKey {
         name: "worker.omp.implementer",
         harness: WorkerHarness::Omp,
         role: WorkerRole::Implementer,
@@ -349,6 +415,11 @@ const WORKER_KEYS: [WorkerKey; 10] = [
         name: "worker.omp.verifier",
         harness: WorkerHarness::Omp,
         role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.omp.advanced-implementer",
+        harness: WorkerHarness::Omp,
+        role: WorkerRole::AdvancedImplementer,
     },
 ];
 
@@ -712,8 +783,10 @@ fn parse_worker_value(key: &str, values: &[String]) -> Result<RawWorkerProfile, 
 
 fn worker_role_name(role: WorkerRole) -> &'static str {
     match role {
+        WorkerRole::RoutineImplementer => "routine-implementer",
         WorkerRole::Implementer => "implementer",
         WorkerRole::Verifier => "verifier",
+        WorkerRole::AdvancedImplementer => "advanced-implementer",
     }
 }
 
@@ -893,7 +966,7 @@ fn read_values(root: Option<&Path>, scope: ConfigReadScope) -> Result<Vec<Config
         .transpose()?
         .flatten();
 
-    let mut values = Vec::with_capacity(15);
+    let mut values = Vec::with_capacity(25);
     if let Some(project) = project.as_ref() {
         append_project_values(&mut values, project, scope);
     }
@@ -1103,22 +1176,32 @@ fn global_origin_value(path: &Path) -> Origin {
 fn built_in_profile(key: WorkerKey) -> WorkerProfile {
     let profiles = built_in_profiles(key.harness);
     match key.role {
-        WorkerRole::Implementer => profiles.0,
-        WorkerRole::Verifier => profiles.1,
+        WorkerRole::RoutineImplementer => profiles
+            .routine_implementer
+            .expect("built-in routine implementer"),
+        WorkerRole::Implementer => profiles.implementer.expect("built-in implementer"),
+        WorkerRole::Verifier => profiles.verifier.expect("built-in verifier"),
+        WorkerRole::AdvancedImplementer => profiles
+            .advanced_implementer
+            .expect("built-in advanced implementer"),
     }
 }
 
 #[derive(Clone, Debug)]
 pub(super) struct ResolvedWorkers {
+    pub(super) routine_implementer: ResolvedWorkerProfile,
     pub(super) implementer: ResolvedWorkerProfile,
     pub(super) verifier: ResolvedWorkerProfile,
+    pub(super) advanced_implementer: ResolvedWorkerProfile,
 }
 
 impl ResolvedWorkers {
     pub(super) fn value(&self) -> Value {
         json!({
+            "routine-implementer": self.routine_implementer.value(),
             "implementer": self.implementer.value(),
             "verifier": self.verifier.value(),
+            "advanced-implementer": self.advanced_implementer.value(),
         })
     }
 }
@@ -1140,17 +1223,37 @@ pub(super) fn resolve_worker_profiles(
     let global_roles = global.as_ref().map(|layer| layer.roles(harness));
 
     Ok(ResolvedWorkers {
+        routine_implementer: resolve_role(
+            local_roles.and_then(|roles| roles.routine_implementer.as_ref()),
+            global_roles.and_then(|roles| roles.routine_implementer.as_ref()),
+            built_in
+                .routine_implementer
+                .as_ref()
+                .expect("built-in routine implementer"),
+            local_path.as_deref(),
+            &global_path,
+        ),
         implementer: resolve_role(
             local_roles.and_then(|roles| roles.implementer.as_ref()),
             global_roles.and_then(|roles| roles.implementer.as_ref()),
-            &built_in.0,
+            built_in.implementer.as_ref().expect("built-in implementer"),
             local_path.as_deref(),
             &global_path,
         ),
         verifier: resolve_role(
             local_roles.and_then(|roles| roles.verifier.as_ref()),
             global_roles.and_then(|roles| roles.verifier.as_ref()),
-            &built_in.1,
+            built_in.verifier.as_ref().expect("built-in verifier"),
+            local_path.as_deref(),
+            &global_path,
+        ),
+        advanced_implementer: resolve_role(
+            local_roles.and_then(|roles| roles.advanced_implementer.as_ref()),
+            global_roles.and_then(|roles| roles.advanced_implementer.as_ref()),
+            built_in
+                .advanced_implementer
+                .as_ref()
+                .expect("built-in advanced implementer"),
             local_path.as_deref(),
             &global_path,
         ),
@@ -1159,18 +1262,30 @@ pub(super) fn resolve_worker_profiles(
 
 #[cfg(test)]
 pub(super) fn built_in_worker_profiles(harness: WorkerHarness) -> ResolvedWorkers {
-    let (implementer, verifier) = built_in_profiles(harness);
+    let profiles = built_in_profiles(harness);
     let origin = Origin {
         scope: "default",
         path: None,
     };
     ResolvedWorkers {
+        routine_implementer: ResolvedWorkerProfile {
+            profile: profiles
+                .routine_implementer
+                .expect("built-in routine implementer"),
+            origin: origin.clone(),
+        },
         implementer: ResolvedWorkerProfile {
-            profile: implementer,
+            profile: profiles.implementer.expect("built-in implementer"),
             origin: origin.clone(),
         },
         verifier: ResolvedWorkerProfile {
-            profile: verifier,
+            profile: profiles.verifier.expect("built-in verifier"),
+            origin: origin.clone(),
+        },
+        advanced_implementer: ResolvedWorkerProfile {
+            profile: profiles
+                .advanced_implementer
+                .expect("built-in advanced implementer"),
             origin,
         },
     }
@@ -1270,6 +1385,11 @@ fn validate_roles(
     profiles: &HarnessProfiles,
 ) -> Result<RoleProfiles, ZdevError> {
     Ok(RoleProfiles {
+        routine_implementer: profiles
+            .routine_implementer
+            .as_ref()
+            .map(|profile| validate_profile(path, harness, "routine-implementer", profile))
+            .transpose()?,
         implementer: profiles
             .implementer
             .as_ref()
@@ -1279,6 +1399,11 @@ fn validate_roles(
             .verifier
             .as_ref()
             .map(|profile| validate_profile(path, harness, "verifier", profile))
+            .transpose()?,
+        advanced_implementer: profiles
+            .advanced_implementer
+            .as_ref()
+            .map(|profile| validate_profile(path, harness, "advanced-implementer", profile))
             .transpose()?,
     })
 }
@@ -1340,28 +1465,36 @@ fn profile_error(path: &Path, table: &str, message: &str) -> ZdevError {
     ))
 }
 
-fn built_in_profiles(harness: WorkerHarness) -> (WorkerProfile, WorkerProfile) {
+fn built_in_profiles(harness: WorkerHarness) -> RoleProfiles {
     let profile = |model: &str, effort: Option<Effort>| WorkerProfile {
         model: Some(model.to_owned()),
         effort,
     };
     match harness {
-        WorkerHarness::Codex => (
-            profile("gpt-5.6-sol", Some(Effort::High)),
-            profile("gpt-5.6-sol", Some(Effort::High)),
-        ),
-        WorkerHarness::Claude => (
-            profile("claude-opus-5", Some(Effort::High)),
-            profile("claude-opus-5", Some(Effort::High)),
-        ),
-        WorkerHarness::Opencode => (
-            profile("openai/gpt-5.6-sol", Some(Effort::High)),
-            profile("anthropic/claude-opus-5", None),
-        ),
-        WorkerHarness::Pi | WorkerHarness::Omp => (
-            profile("openai/gpt-5.6-sol", Some(Effort::High)),
-            profile("anthropic/claude-opus-5", Some(Effort::High)),
-        ),
+        WorkerHarness::Codex => RoleProfiles {
+            routine_implementer: Some(profile("gpt-5.6-luna", Some(Effort::Low))),
+            implementer: Some(profile("gpt-5.6-sol", Some(Effort::Low))),
+            verifier: Some(profile("gpt-5.6-sol", Some(Effort::Low))),
+            advanced_implementer: Some(profile("gpt-5.6-sol", Some(Effort::High))),
+        },
+        WorkerHarness::Claude => RoleProfiles {
+            routine_implementer: Some(profile("haiku", Some(Effort::Low))),
+            implementer: Some(profile("claude-opus-5", Some(Effort::Low))),
+            verifier: Some(profile("claude-opus-5", Some(Effort::Low))),
+            advanced_implementer: Some(profile("claude-opus-5", Some(Effort::High))),
+        },
+        WorkerHarness::Opencode => RoleProfiles {
+            routine_implementer: Some(profile("openai/gpt-5.6-luna", Some(Effort::Low))),
+            implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::Low))),
+            verifier: Some(profile("anthropic/claude-opus-5", None)),
+            advanced_implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::High))),
+        },
+        WorkerHarness::Pi | WorkerHarness::Omp => RoleProfiles {
+            routine_implementer: Some(profile("openai/gpt-5.6-luna", Some(Effort::Low))),
+            implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::Low))),
+            verifier: Some(profile("anthropic/claude-opus-5", Some(Effort::Low))),
+            advanced_implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::High))),
+        },
     }
 }
 

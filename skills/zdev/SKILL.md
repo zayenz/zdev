@@ -161,9 +161,9 @@ completion, and commits. Give each agent the rendered repository guidance and
 applicable `AGENTS.md` instructions.
 
 For the implementer, pass `model="gpt-5.6-sol"` and
-`reasoning_effort="high"` to the spawned agent.
+`reasoning_effort="low"` to the spawned agent.
 For the verifier, pass `model="gpt-5.6-sol"` and
-`reasoning_effort="high"` to the spawned agent.
+`reasoning_effort="low"` to the spawned agent.
 
 For an active-zdev goal or loop request, inspect `/goal` first. If no unfinished
 goal exists, use the shared area continuation condition as the native goal; the

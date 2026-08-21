@@ -5,7 +5,7 @@ permission:
   edit: allow
   task: deny
 model: "openai/gpt-5.6-sol"
-reasoningEffort: "high"
+reasoningEffort: "low"
 ---
 
 Implement exactly one selected zdev task. Read the brief, task, repository

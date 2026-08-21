@@ -115,7 +115,7 @@ without mutation.
 
 Use one fresh read-only Codex collaboration agent with the configured verifier
 profile. Pass `model="gpt-5.6-sol"` and
-`reasoning_effort="high"` when spawning it.
+`reasoning_effort="low"` when spawning it.
 The current Codex session performs preflight, checks the explicit task ID, and
 validates the returned envelope without changing task or Git state.
 

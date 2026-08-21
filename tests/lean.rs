@@ -3656,7 +3656,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
     assert_eq!(installed["harness"], harness);
     assert_eq!(installed["scope"], "explicit");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 17);
+    assert_eq!(installed["files"], 19);
 
     let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
     assert_eq!(checked["status"], "ok");
@@ -3782,7 +3782,9 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
         file_inventory(&claude),
         [
             ".claude-plugin/plugin.json",
+            "agents/zdev-advanced-implementer.md",
             "agents/zdev-implementer.md",
+            "agents/zdev-routine-implementer.md",
             "agents/zdev-verifier.md",
             "skills/zdev/SKILL.md",
             "skills/zdev/references/discuss.md",
@@ -4171,7 +4173,7 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
         match harness {
             "codex" => {
                 assert!(audit.contains("model=\"gpt-5.6-sol\""));
-                assert!(audit.contains("reasoning_effort=\"high\""));
+                assert!(audit.contains("reasoning_effort=\"low\""));
             }
             "claude" => {
                 assert_eq!(audit.matches("agentType: 'zdev:zdev-verifier'").count(), 3);
@@ -4196,16 +4198,18 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
                 assert!(audit.contains("role `verifier`"));
                 let extension = fs::read_to_string(destination.join("extensions/zdev-subagent.ts"))
                     .expect("Pi verifier extension");
-                assert!(extension.contains(
-                    "verifier: { model: \"anthropic/claude-opus-5\", effort: \"high\" }"
-                ));
+                assert!(
+                    extension.contains(
+                        "verifier: { model: \"anthropic/claude-opus-5\", effort: \"low\" }"
+                    )
+                );
             }
             "omp" => {
                 assert!(audit.contains("blocking agent `zdev-verifier`"));
                 let verifier = fs::read_to_string(destination.join("agents/zdev-verifier.md"))
                     .expect("Oh My Pi verifier");
                 assert!(verifier.contains("model: \"anthropic/claude-opus-5\""));
-                assert!(verifier.contains("thinking-level: \"high\""));
+                assert!(verifier.contains("thinking-level: \"low\""));
             }
             _ => unreachable!(),
         }
@@ -4718,9 +4722,11 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
         );
         match harness {
             "codex" => {
-                let skill =
-                    fs::read_to_string(destination.join("zdev/SKILL.md")).expect("Codex skill");
+                let skill = fs::read_to_string(destination.join("zdev-implement/SKILL.md"))
+                    .expect("Codex implement skill");
                 assert!(skill.contains("`model=\"gpt-5.6-sol\"`"));
+                assert!(skill.contains("`model=\"gpt-5.6-luna\"`"));
+                assert!(skill.contains("`reasoning_effort=\"low\"`"));
                 assert!(skill.contains("`reasoning_effort=\"high\"`"));
             }
             "claude" => {
@@ -4728,14 +4734,28 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                     fs::read_to_string(destination.join("agents/zdev-implementer.md"))
                         .expect("Claude implementer");
                 assert!(implementer.contains("model: \"claude-opus-5\""));
-                assert!(implementer.contains("effort: \"high\""));
+                assert!(implementer.contains("effort: \"low\""));
+                let routine =
+                    fs::read_to_string(destination.join("agents/zdev-routine-implementer.md"))
+                        .expect("Claude routine implementer");
+                assert!(routine.contains("model: \"haiku\""));
+                assert!(routine.contains("only the exact task-owned implementation paths"));
+                let advanced =
+                    fs::read_to_string(destination.join("agents/zdev-advanced-implementer.md"))
+                        .expect("Claude advanced implementer");
+                assert!(advanced.contains("model: \"claude-opus-5\""));
+                assert!(advanced.contains("effort: \"high\""));
             }
             "opencode" => {
                 let implementer =
                     fs::read_to_string(destination.join("agents/zdev-implementer.md"))
                         .expect("OpenCode implementer");
                 assert!(implementer.contains("model: \"openai/gpt-5.6-sol\""));
-                assert!(implementer.contains("reasoningEffort: \"high\""));
+                assert!(implementer.contains("reasoningEffort: \"low\""));
+                let routine =
+                    fs::read_to_string(destination.join("agents/zdev-routine-implementer.md"))
+                        .expect("OpenCode routine implementer");
+                assert!(routine.contains("model: \"openai/gpt-5.6-luna\""));
                 let verifier = fs::read_to_string(destination.join("agents/zdev-verifier.md"))
                     .expect("OpenCode verifier");
                 assert!(verifier.contains("model: \"anthropic/claude-opus-5\""));
@@ -4746,11 +4766,19 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                     .expect("Pi extension");
                 assert!(
                     extension.contains(
-                        "implementer: { model: \"openai/gpt-5.6-sol\", effort: \"high\" }"
+                        "implementer: { model: \"openai/gpt-5.6-sol\", effort: \"low\" }"
+                    )
+                );
+                assert!(
+                    extension.contains(
+                        "verifier: { model: \"anthropic/claude-opus-5\", effort: \"low\" }"
                     )
                 );
                 assert!(extension.contains(
-                    "verifier: { model: \"anthropic/claude-opus-5\", effort: \"high\" }"
+                    "\"routine-implementer\": { model: \"openai/gpt-5.6-luna\", effort: \"low\" }"
+                ));
+                assert!(extension.contains(
+                    "\"advanced-implementer\": { model: \"openai/gpt-5.6-sol\", effort: \"high\" }"
                 ));
                 assert!(extension.contains("args.push(\"--model\", profile.model)"));
                 assert!(extension.contains("args.push(\"--thinking\", profile.effort)"));
@@ -4759,7 +4787,17 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                 let verifier = fs::read_to_string(destination.join("agents/zdev-verifier.md"))
                     .expect("Oh My Pi verifier");
                 assert!(verifier.contains("model: \"anthropic/claude-opus-5\""));
-                assert!(verifier.contains("thinking-level: \"high\""));
+                assert!(verifier.contains("thinking-level: \"low\""));
+                assert!(
+                    destination
+                        .join("agents/zdev-routine-implementer.md")
+                        .is_file()
+                );
+                assert!(
+                    destination
+                        .join("agents/zdev-advanced-implementer.md")
+                        .is_file()
+                );
             }
             _ => unreachable!(),
         }
@@ -4811,22 +4849,32 @@ project.trunk = null  [default]\n\
 project.default-area = \"payments\"  [local .zdev/config.toml]\n\
   shadows null  [default]\n\
 project.guidance = \"auto\"  [default]\n\
+worker.codex.routine-implementer = {{ model = \"gpt-5.6-luna\", effort = \"low\" }}  [default]\n\
 worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n\
   shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n\
-  shadows {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+  shadows {{ model = \"gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
 worker.codex.verifier = {{ model = \"gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
-  shadows {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
-worker.claude.implementer = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
+  shadows {{ model = \"gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
+worker.codex.advanced-implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.claude.routine-implementer = {{ model = \"haiku\", effort = \"low\" }}  [default]\n\
+worker.claude.implementer = {{ model = \"claude-opus-5\", effort = \"low\" }}  [default]\n\
 worker.claude.verifier = {{ inherit = true }}  [local .zdev/workers.toml]\n\
   shadows {{ model = \"claude-opus-5\", effort = \"medium\" }}  [global {global}]\n\
-  shadows {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
-worker.opencode.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+  shadows {{ model = \"claude-opus-5\", effort = \"low\" }}  [default]\n\
+worker.claude.advanced-implementer = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
+worker.opencode.routine-implementer = {{ model = \"openai/gpt-5.6-luna\", effort = \"low\" }}  [default]\n\
+worker.opencode.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
 worker.opencode.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"inherit\" }}  [default]\n\
+worker.opencode.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.pi.routine-implementer = {{ model = \"openai/gpt-5.6-luna\", effort = \"low\" }}  [default]\n\
 worker.pi.implementer = {{ model = \"openai/gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
-  shadows {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
-worker.pi.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"high\" }}  [default]\n\
-worker.omp.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
-worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"high\" }}  [default]\n"
+  shadows {{ model = \"openai/gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
+worker.pi.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
+worker.pi.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.omp.routine-implementer = {{ model = \"openai/gpt-5.6-luna\", effort = \"low\" }}  [default]\n\
+worker.omp.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
+worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
+worker.omp.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n"
     )
     .replace("\nshadows", "\n  shadows");
     assert_eq!(
@@ -4837,7 +4885,7 @@ worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"high\" 
     let effective = json_output_with_env(root, &["config", "show"], &environment);
     assert_eq!(effective["scope"], "effective");
     let values = effective["values"].as_array().expect("effective values");
-    assert_eq!(values.len(), 15);
+    assert_eq!(values.len(), 25);
     assert_eq!(
         values
             .iter()
@@ -4849,25 +4897,35 @@ worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"high\" 
             "project.trunk",
             "project.default-area",
             "project.guidance",
+            "worker.codex.routine-implementer",
             "worker.codex.implementer",
             "worker.codex.verifier",
+            "worker.codex.advanced-implementer",
+            "worker.claude.routine-implementer",
             "worker.claude.implementer",
             "worker.claude.verifier",
+            "worker.claude.advanced-implementer",
+            "worker.opencode.routine-implementer",
             "worker.opencode.implementer",
             "worker.opencode.verifier",
+            "worker.opencode.advanced-implementer",
+            "worker.pi.routine-implementer",
             "worker.pi.implementer",
             "worker.pi.verifier",
+            "worker.pi.advanced-implementer",
+            "worker.omp.routine-implementer",
             "worker.omp.implementer",
             "worker.omp.verifier",
+            "worker.omp.advanced-implementer",
         ]
     );
     assert_eq!(values[2]["value"], Value::Null);
     assert_eq!(values[3]["shadowed"][0]["value"], Value::Null);
-    assert_eq!(values[5]["origin"]["scope"], "local");
-    assert_eq!(values[5]["shadowed"][0]["origin"]["path"], global);
-    assert_eq!(values[8]["value"], json!({"inherit": true}));
+    assert_eq!(values[6]["origin"]["scope"], "local");
+    assert_eq!(values[6]["shadowed"][0]["origin"]["path"], global);
+    assert_eq!(values[11]["value"], json!({"inherit": true}));
     assert_eq!(
-        values[10]["value"],
+        values[15]["value"],
         json!({"model": "anthropic/claude-opus-5", "effort": "inherit"})
     );
 
@@ -4880,7 +4938,7 @@ worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"high\" 
     assert_eq!(
         String::from_utf8(got.stdout).expect("get output"),
         format!(
-            "worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n  shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n  shadows {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n"
+            "worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n  shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n  shadows {{ model = \"gpt-5.6-sol\", effort = \"low\" }}  [default]\n"
         )
     );
     let got_json = json_output_with_env(
@@ -5163,7 +5221,7 @@ fn config_worker_mutations_are_atomic_and_unset_exposes_the_next_layer() {
     assert_eq!(
         String::from_utf8(human_unset.stdout).expect("global unset output"),
         format!(
-            "Unset worker.codex.verifier from global {}.\nEffective value: {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\nRefresh integration: zdev skill install codex --scope user --force\n",
+            "Unset worker.codex.verifier from global {}.\nEffective value: {{ model = \"gpt-5.6-sol\", effort = \"low\" }}  [default]\nRefresh integration: zdev skill install codex --scope user --force\n",
             global_path.display()
         )
     );
@@ -5261,12 +5319,12 @@ fn worker_profiles_use_whole_profile_layering_and_native_inheritance() {
         .expect("global worker directory");
     fs::write(
         &global_path,
-        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-global\"\neffort = \"medium\"\n\n[claude.verifier]\ninherit = true\n",
+        "schema_version = 1\n\n[codex.routine-implementer]\nmodel = \"gpt-routine\"\neffort = \"medium\"\n\n[codex.implementer]\nmodel = \"gpt-global\"\neffort = \"medium\"\n\n[claude.verifier]\ninherit = true\n",
     )
     .expect("global workers");
     fs::write(
         root.join(".zdev/workers.toml"),
-        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-local\"\neffort = \"xhigh\"\n",
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-local\"\neffort = \"xhigh\"\n\n[codex.advanced-implementer]\ninherit = true\n",
     )
     .expect("local workers");
     let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
@@ -5293,9 +5351,22 @@ fn worker_profiles_use_whole_profile_layering_and_native_inheritance() {
         installed["workers"]["verifier"]["origin"]["scope"],
         "default"
     );
-    let skill = fs::read_to_string(codex_destination.join("zdev/SKILL.md")).expect("Codex skill");
+    assert_eq!(
+        installed["workers"]["routine-implementer"]["origin"]["scope"],
+        "global"
+    );
+    assert_eq!(
+        installed["workers"]["advanced-implementer"]["origin"]["scope"],
+        "local"
+    );
+    let skill = fs::read_to_string(codex_destination.join("zdev-implement/SKILL.md"))
+        .expect("Codex implement skill");
     assert!(skill.contains("`model=\"gpt-local\"`"));
     assert!(skill.contains("`reasoning_effort=\"xhigh\"`"));
+    assert!(skill.contains("`model=\"gpt-routine\"`"));
+    assert!(
+        skill.contains("For `advanced-implementer`, leave its model and reasoning effort unset")
+    );
     assert!(!skill.contains("gpt-global"));
     assert_eq!(
         json_output_with_env(
@@ -5694,14 +5765,16 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         ],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 16);
+    assert_eq!(installed["files"], 18);
     assert_eq!(
         fs::read_to_string(destination.join("opencode.json")).expect("preserved config"),
         "{\"theme\":\"system\"}\n"
     );
     for path in [
         "skills/zdev-opencode/SKILL.md",
+        "agents/zdev-advanced-implementer.md",
         "agents/zdev-implementer.md",
+        "agents/zdev-routine-implementer.md",
         "agents/zdev-verifier.md",
         "commands/zdev-implement.md",
         "commands/zdev-verify.md",
@@ -5957,11 +6030,13 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     );
     assert_eq!(installed["harness"], "omp");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 16);
+    assert_eq!(installed["files"], 18);
     assert_eq!(
         file_inventory(&destination),
         [
+            "agents/zdev-advanced-implementer.md",
             "agents/zdev-implementer.md",
+            "agents/zdev-routine-implementer.md",
             "agents/zdev-verifier.md",
             "prompts/zdev-audit.md",
             "prompts/zdev-implement.md",

@@ -1,7 +1,8 @@
 # Derived work handoffs
 
-> **Status: review implemented; publication remains design only.** Zdev parses
-> and reviews derived proposals but does not yet apply them.
+> **Status: review and publication implemented; workflow routing remains a
+> follow-up.** Zdev parses, reviews, and atomically applies derived proposals
+> through the contract below.
 
 Zdev may publish a small follow-up bundle without asking the user to approve
 work they have already approved. This exception applies only to direct work
@@ -200,8 +201,8 @@ eligibility without writing repository state. The coordinator still compares
 the retained handoff context and decides whether the work is directly in scope.
 The result includes the complete envelope, its opaque fingerprint, and the
 ordinary task-bundle rendering, so a semantic authority failure can use manual
-review without changing the proposal. The apply behavior below is not yet
-implemented.
+review without changing the proposal. The apply behavior below is implemented
+by `zdev tasks derive apply`.
 
 For automatic authority, the coordinator shows the exact proposal once with
 `Authority: automatic` and proceeds without asking a redundant question. For
@@ -224,11 +225,14 @@ and renders the canonical ownership boundary. It runs the same check before
 committing.
 
 For an investigation follow-up, the coordinator first stages only the verified
-task-owned artifact paths. The apply command requires the index to match that
-attributed set, then includes the completed source task, child task files, and
-`TASKS.md` in the same existing stable-change-ID commit. A split commits only
-the changed open source task, children, and index; any retained parent delta
-stays in its exact prior index and worktree state.
+task-owned artifact paths. Because the proposal has no artifact-path allowlist,
+the binary treats the entire pre-existing index as the coordinator-authorized
+artifact set; it does not prove semantic attribution. The coordinator must use
+retained verifier and baseline evidence to ensure that index exactly equals the
+verified artifact set. Apply then includes it with the completed source task,
+child task files, and `TASKS.md` in the same existing stable-change-ID commit.
+A split commits only the changed open source task, children, and index; any
+retained parent delta stays in its exact prior index and worktree state.
 Thus a successful investigation never has a committed Result without its
 follow-ups or committed follow-ups without its Result.
 
@@ -294,7 +298,7 @@ approval round without adding another confirmation turn.
 | Publication or commit failure | Restore every managed byte and the prior index; preserve unrelated work and report rollback failure explicitly if restoration is incomplete. |
 | Nested or repeated handoff proposal | Reject a nested object or second automatic apply from the same worker result; applying consumes that handoff. A later independently selected execution gets one new proposal only after all current gates pass again. |
 
-## Small implementation follow-ups
+## Implementation slices
 
 1. **Parse and review derived proposals.** Add the strict envelope parser,
    mode-specific validation, exact rendering, and optional full-envelope

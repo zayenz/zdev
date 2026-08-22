@@ -2501,6 +2501,268 @@ fn derived_review_routes_unsafe_or_ambiguous_split_authority_to_ordinary_review(
 }
 
 #[test]
+fn derived_apply_commits_investigation_result_and_children_together() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "finding.md", "draft\n", "seed finding");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "follow", "main");
+    create_slice(root, "follow", "focus", "Focused work");
+    create_slice(root, "follow", "delivery", "Delivery work");
+    let source = json!({
+        "schema_version": 1, "area": "follow", "tasks": [{
+            "key": "investigate", "title": "Investigate the boundary", "slice": "focus",
+            "outcome": "The boundary is known.", "done_when": ["The boundary is recorded."],
+            "validation": ["Check the finding."], "blocked_by": []
+        }]
+    });
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "follow", "--from", "-"],
+        &serde_json::to_vec(&source).unwrap(),
+    );
+    commit_all(root, "record investigation");
+    fs::write(root.join("finding.md"), "settled\n").expect("settled finding");
+    git(root, &["add", "finding.md"]);
+    let proposal = json!({
+        "schema_version": 1, "proposal": "investigation_follow_up", "area": "follow",
+        "source_task": "follow-001",
+        "source_result": {"status": "complete", "summary": "Settled the boundary.", "validation": ["Checked the finding."]},
+        "tasks": [{
+            "key": "implement", "title": "Implement the boundary", "slice": "delivery", "blocked_by": [],
+            "outcome": "The boundary is implemented.", "done_when": ["The implementation is complete."],
+            "validation": ["Run the focused check."]
+        }]
+    });
+    let applied = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "apply", "follow", "--from", "-"],
+        &derived_proposal_bytes("follow", "follow-001", proposal),
+    );
+    assert_eq!(applied["source_task"], "follow-001");
+    assert_eq!(applied["tasks"], json!(["follow-002"]));
+    assert_eq!(applied["ready"], json!(["follow-002"]));
+    assert_eq!(git(root, &["status", "--porcelain"]), "");
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), applied["commit"]);
+    let source =
+        fs::read_to_string(root.join(".zdev/follow/tasks/001-investigate-the-boundary.md"))
+            .unwrap();
+    assert!(source.contains("status = \"done\""));
+    assert!(source.contains("## Result\n\nSettled the boundary."));
+    let child =
+        fs::read_to_string(root.join(".zdev/follow/tasks/002-implement-the-boundary.md")).unwrap();
+    assert!(child.contains("slice = \"delivery\""));
+}
+
+#[test]
+fn derived_apply_rejects_control_ownership_and_staged_managed_state() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "guarded", "main");
+    create_area(root, "other", "other");
+    import_one_task(root, "guarded");
+    commit_all(root, "record guarded source");
+
+    let split = |retained: Vec<&str>, future: Vec<&str>| {
+        json!({
+            "schema_version": 1, "proposal": "implementation_split", "area": "guarded",
+            "source_task": "guarded-001",
+            "source_result": {"status": "split", "summary": "Split guarded work.", "validation": []},
+            "tasks": [{"key": "child", "title": "Implement child", "blocked_by": [], "outcome": "Child is complete.", "done_when": ["Done."], "validation": ["Check."]}],
+            "split_ownership": {"retained_parent_paths": retained, "child_future_paths": [{"key": "child", "paths": future}]}
+        })
+    };
+    for proposal in [
+        split(vec![], vec![".git/derived-child.rs"]),
+        split(vec![".zdev/other/brief.md"], vec!["child.rs"]),
+    ] {
+        let rejected = json_output_with_stdin_status(
+            root,
+            &["tasks", "derive", "apply", "guarded", "--from", "-"],
+            &derived_proposal_bytes("guarded", "guarded-001", proposal),
+        );
+        assert!(!rejected.status.success());
+        assert!(
+            String::from_utf8_lossy(&rejected.stderr)
+                .contains("repository control or zdev managed state")
+        );
+    }
+
+    let other_brief = root.join(".zdev/other/brief.md");
+    let mut contents = fs::read_to_string(&other_brief).unwrap();
+    contents.push_str("\nStaged managed state.\n");
+    fs::write(&other_brief, contents).unwrap();
+    git(root, &["add", ".zdev/other/brief.md"]);
+    let status_before = git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]);
+    let follow_up = json!({
+        "schema_version": 1, "proposal": "investigation_follow_up", "area": "guarded",
+        "source_task": "guarded-001",
+        "source_result": {"status": "complete", "summary": "Settled guarded work.", "validation": ["Checked it."]},
+        "tasks": [{"key": "next", "title": "Implement next", "blocked_by": [], "outcome": "Next is complete.", "done_when": ["Done."], "validation": ["Check."]}]
+    });
+    let rejected = json_output_with_stdin_status(
+        root,
+        &["tasks", "derive", "apply", "guarded", "--from", "-"],
+        &derived_proposal_bytes("guarded", "guarded-001", follow_up),
+    );
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("zdev managed state"));
+    assert_eq!(
+        git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]),
+        status_before
+    );
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/guarded/tasks"))
+            .unwrap()
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn derived_apply_split_preserves_retained_bytes_and_uses_ordinary_ready_order() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "parent.rs", "before\n", "seed parent");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "split", "main");
+    import_one_task(root, "split");
+    commit_all(root, "record split source");
+    fs::create_dir(root.join("src")).expect("src directory");
+    fs::create_dir(root.join("tests")).expect("tests directory");
+    fs::write(root.join("parent.rs"), "retained parent edit\n").expect("parent edit");
+    let proposal = json!({
+        "schema_version": 1, "proposal": "implementation_split", "area": "split",
+        "source_task": "split-001",
+        "source_result": {"status": "split", "summary": "Separated the work.", "validation": []},
+        "tasks": [{
+            "key": "first", "title": "Implement first child", "blocked_by": [],
+            "outcome": "The first child is complete.", "done_when": ["First is complete."], "validation": ["Check first."]
+        }, {
+            "key": "second", "title": "Implement second child", "blocked_by": ["first"],
+            "outcome": "The second child is complete.", "done_when": ["Second is complete."], "validation": ["Check second."]
+        }],
+        "split_ownership": {
+            "retained_parent_paths": ["parent.rs"],
+            "child_future_paths": [
+                {"key": "first", "paths": ["src/first.rs"]},
+                {"key": "second", "paths": ["src/second.rs", "tests/second.rs"]}
+            ]
+        }
+    });
+    let applied = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "apply", "split", "--from", "-"],
+        &derived_proposal_bytes("split", "split-001", proposal),
+    );
+    assert_eq!(applied["tasks"], json!(["split-002", "split-003"]));
+    assert_eq!(applied["ready"], json!(["split-002"]));
+    assert_eq!(
+        fs::read(root.join("parent.rs")).unwrap(),
+        b"retained parent edit\n"
+    );
+    assert_eq!(git(root, &["diff", "--name-only"]), "parent.rs");
+    assert_eq!(git(root, &["diff", "--cached", "--name-only"]), "");
+    let source =
+        fs::read_to_string(root.join(".zdev/split/tasks/001-complete-one-task.md")).unwrap();
+    assert!(source.contains("status = \"open\""));
+    assert!(source.contains("blocked_by = [\"split-002\", \"split-003\"]"));
+    let child =
+        fs::read_to_string(root.join(".zdev/split/tasks/003-implement-second-child.md")).unwrap();
+    assert!(child.contains("Task-owned paths (exact): [\"src/second.rs\",\"tests/second.rs\"]"));
+}
+
+#[test]
+fn derived_apply_accepts_a_pre_edit_split_with_no_retained_delta() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "pre-edit", "main");
+    import_one_task(root, "pre-edit");
+    commit_all(root, "record source");
+    let proposal = json!({
+        "schema_version": 1, "proposal": "implementation_split", "area": "pre-edit",
+        "source_task": "pre-edit-001",
+        "source_result": {"status": "split", "summary": "Split before edits.", "validation": []},
+        "tasks": [{"key": "child", "title": "Implement child", "blocked_by": [], "outcome": "Child is complete.", "done_when": ["Done."], "validation": ["Check."]}],
+        "split_ownership": {"retained_parent_paths": [], "child_future_paths": [{"key": "child", "paths": ["child.rs"]}]}
+    });
+    let applied = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "apply", "pre-edit", "--from", "-"],
+        &derived_proposal_bytes("pre-edit", "pre-edit-001", proposal),
+    );
+    assert_eq!(applied["tasks"], json!(["pre-edit-002"]));
+    assert_eq!(applied["ready"], json!(["pre-edit-002"]));
+    assert_eq!(git(root, &["status", "--porcelain"]), "");
+}
+
+#[cfg(unix)]
+#[test]
+fn failed_derived_apply_restores_tasks_index_and_retained_bytes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "parent.rs", "before\n", "seed parent");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "rollback-derived", "main");
+    import_one_task(root, "rollback-derived");
+    commit_all(root, "record source");
+    fs::write(root.join("parent.rs"), "retained\n").expect("parent edit");
+    let source_path = root.join(".zdev/rollback-derived/tasks/001-complete-one-task.md");
+    let index_path = root.join(".zdev/rollback-derived/TASKS.md");
+    let source_before = fs::read(&source_path).unwrap();
+    let index_before = fs::read(&index_path).unwrap();
+    let status_before = git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]);
+    let hook = root.join(".git/hooks/pre-commit");
+    fs::write(&hook, "#!/bin/sh\nexit 1\n").expect("hook");
+    let mut permissions = fs::metadata(&hook).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&hook, permissions).unwrap();
+    let proposal = json!({
+        "schema_version": 1, "proposal": "implementation_split", "area": "rollback-derived",
+        "source_task": "rollback-derived-001",
+        "source_result": {"status": "split", "summary": "Split it.", "validation": []},
+        "tasks": [{"key": "child", "title": "Implement child", "blocked_by": [], "outcome": "Child is complete.", "done_when": ["Done."], "validation": ["Check."]}],
+        "split_ownership": {"retained_parent_paths": ["parent.rs"], "child_future_paths": [{"key": "child", "paths": ["child.rs"]}]}
+    });
+    let rejected = json_output_with_stdin_status(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "rollback-derived",
+            "--from",
+            "-",
+        ],
+        &derived_proposal_bytes("rollback-derived", "rollback-derived-001", proposal),
+    );
+    assert!(!rejected.status.success());
+    assert_eq!(fs::read(&source_path).unwrap(), source_before);
+    assert_eq!(fs::read(&index_path).unwrap(), index_before);
+    assert!(
+        !root
+            .join(".zdev/rollback-derived/tasks/002-implement-child.md")
+            .exists()
+    );
+    assert_eq!(fs::read(root.join("parent.rs")).unwrap(), b"retained\n");
+    assert_eq!(
+        git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]),
+        status_before
+    );
+}
+
+#[test]
 fn explicit_task_complexity_round_trips_and_invalid_values_fail_closed() {
     let repository = repository();
     let root = repository.path();

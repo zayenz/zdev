@@ -418,6 +418,17 @@ enum DerivedTasksCommand {
         #[arg(long = "from", value_name = "PATH_OR_DASH")]
         source: PathBuf,
     },
+    /// Apply one authorized derived proposal as a managed commit
+    Apply {
+        /// Area that owns the source task and proposed tasks
+        area: String,
+        /// Derived proposal path, or - to read it from standard input
+        #[arg(long = "from", value_name = "PATH_OR_DASH")]
+        source: PathBuf,
+        /// Opaque review fingerprint carried from `zdev tasks derive review`
+        #[arg(long, value_name = "FINGERPRINT")]
+        approval: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -651,6 +662,11 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 DerivedTasksCommand::Review { area, source } => {
                     tasks::review_derived(&root, area, source)
                 }
+                DerivedTasksCommand::Apply {
+                    area,
+                    source,
+                    approval,
+                } => tasks::apply_derived(&root, area, source, approval.as_deref()),
             },
             TasksCommand::Review { area, source } => tasks::review(&root, area, source),
             TasksCommand::Import {

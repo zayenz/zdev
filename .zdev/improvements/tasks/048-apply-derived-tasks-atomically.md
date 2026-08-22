@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-048"
 key = "derived-proposal-apply"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-047", "improvements-036"]
 +++
 # Apply derived tasks atomically
@@ -26,13 +26,21 @@ Implement the transactional apply slice from docs/derived-work-handoffs.md by re
 
 ## Done when
 
-- [ ] Investigation follow-up completes the source and imports its children in one managed commit.
-- [ ] Implementation split creates children, adds all child IDs as blockers of the still-open source, and preserves disjoint retained edits.
-- [ ] Ready ordering and lifecycle invariants remain ordinary task-graph behavior.
-- [ ] Success JSON reports source, derived tasks, ready frontier, commit, change ID, and split ownership when applicable.
-- [ ] Hook, publication, graph, and commit failures leave the pre-apply state recoverable and unchanged.
+- [x] Investigation follow-up completes the source and imports its children in one managed commit.
+- [x] Implementation split creates children, adds all child IDs as blockers of the still-open source, and preserves disjoint retained edits.
+- [x] Ready ordering and lifecycle invariants remain ordinary task-graph behavior.
+- [x] Success JSON reports source, derived tasks, ready frontier, commit, change ID, and split ownership when applicable.
+- [x] Hook, publication, graph, and commit failures leave the pre-apply state recoverable and unchanged.
 
 ## Validation
 
 - Add focused black-box tests for follow-up, pre-edit split, post-edit split, ready ordering, and exact rollback under representative failures.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added atomic derived-task apply for investigation follow-ups and implementation splits with locked validation, managed commit, exact ownership, and rollback.
+
+Validation:
+
+- Independent verifier PASS after managed-path and slice corrections; focused apply/rollback tests and full fmt, clippy, test, build, and diff checks passed.

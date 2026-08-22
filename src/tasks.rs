@@ -112,7 +112,7 @@ struct TaskDraft {
     validation: Vec<String>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 enum DerivedProposalKind {
     #[serde(rename = "investigation_follow_up")]
     InvestigationFollowUp,
@@ -496,6 +496,11 @@ fn validate_derived_dependencies(tasks: &[TaskDraft]) -> Result<(), ZdevError> {
 
 fn validate_derived_path(root: &Path, value: &str, must_exist: bool) -> Result<(), ZdevError> {
     validate_nonempty_line(value, "Derived ownership path")?;
+    if matches!(value.split('/').next(), Some(".git" | ".zdev")) {
+        return Err(ZdevError::new(format!(
+            "Derived ownership path cannot name repository control or zdev managed state: {value}"
+        )));
+    }
     if value.contains('\\')
         || value.starts_with('/')
         || value.ends_with('/')
@@ -728,6 +733,390 @@ pub(super) fn review_derived(
             "markdown": markdown,
         }),
     ))
+}
+
+pub(super) fn apply_derived(
+    root: &Path,
+    area: &str,
+    source: &Path,
+    approval: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    let proposal = read_derived_proposal(source)?;
+    validate_derived_proposal(root, &proposal, area)?;
+    if let Some(approval) = approval
+        && approval != derived_approval_id(&proposal)?
+    {
+        return Err(ZdevError::new(
+            "Derived proposal differs from the reviewed content; run `zdev tasks derive review` again before applying it",
+        ));
+    }
+
+    let _lock = ZdevStateLock::acquire(root)?;
+    let bundle = validate_derived_proposal(root, &proposal, area)?;
+    if let Some(reason) = derived_mechanical_ineligibility(root, &proposal)? {
+        return Err(ZdevError::new(format!(
+            "Cannot apply derived proposal automatically: {reason}. Use `zdev tasks derive review` for manual review"
+        )));
+    }
+    if let Some(operation) = git_operation(root)? {
+        return Err(ZdevError::new(format!(
+            "Cannot apply derived proposal while a {operation} is in progress. Finish or abort it, then retry"
+        )));
+    }
+    git_output(root, &["rev-parse", "--verify", "HEAD"]).map_err(|_| {
+        ZdevError::new("Cannot apply derived proposal before the repository has a commit")
+    })?;
+
+    let (metadata, area_dir) = load_area(root, area)?;
+    require_checked_out_area_branch(root, &metadata)?;
+    let existing = load_tasks(root, area)?;
+    let source_task = find_task(&existing, &proposal.source_task)?;
+    if proposal.proposal == DerivedProposalKind::ImplementationSplit {
+        for draft in &bundle.tasks {
+            if draft.slice.as_ref() != source_task.header.slice.as_ref() && draft.slice.is_some() {
+                return Err(ZdevError::new(format!(
+                    "Split task {} must inherit source task slice {}",
+                    draft.key,
+                    source_task.header.slice.as_deref().unwrap_or("None")
+                )));
+            }
+        }
+    }
+
+    let prior_index = git_output(root, &["write-tree"])?;
+    let prior_staged = git_nul_paths(root, &["diff", "--cached", "--name-only", "-z"])?;
+    let mut unstaged = git_nul_paths(root, &["diff", "--name-only", "-z"])?;
+    unstaged.extend(git_nul_paths(
+        root,
+        &["ls-files", "--others", "--exclude-standard", "-z"],
+    )?);
+    if proposal.proposal == DerivedProposalKind::InvestigationFollowUp {
+        for path in &prior_staged {
+            validate_derived_path(root, path, true).map_err(|error| {
+                ZdevError::new(format!(
+                    "Cannot treat staged path {path} as a verified investigation artifact: {error}"
+                ))
+            })?;
+        }
+        if !unstaged.is_empty() {
+            return Err(ZdevError::new(
+                "Cannot apply investigation follow-up with unstaged or untracked paths; stage only its verified task-owned artifact paths first",
+            ));
+        }
+    }
+
+    let existing_ids = existing
+        .iter()
+        .map(|task| task.header.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let existing_keys = existing
+        .iter()
+        .map(|task| task.header.key.as_str())
+        .collect::<BTreeSet<_>>();
+    for task in &bundle.tasks {
+        if existing_keys.contains(task.key.as_str()) {
+            return Err(ZdevError::new(format!("Duplicate task key: {}", task.key)));
+        }
+    }
+    let mut next_number = existing
+        .iter()
+        .filter_map(|task| task.header.id.rsplit_once('-')?.1.parse::<u64>().ok())
+        .max()
+        .unwrap_or(0);
+    let mut allocated = BTreeMap::new();
+    for task in &bundle.tasks {
+        next_number += 1;
+        allocated.insert(task.key.as_str(), format!("{area}-{next_number:03}"));
+    }
+
+    let ownership_paths = proposal.split_ownership.as_ref().map(|ownership| {
+        ownership
+            .child_future_paths
+            .iter()
+            .map(|child| (child.key.as_str(), child.paths.as_slice()))
+            .collect::<BTreeMap<_, _>>()
+    });
+    let mut writes = Vec::new();
+    for draft in &bundle.tasks {
+        let id = allocated[draft.key.as_str()].clone();
+        let blockers = draft
+            .blocked_by
+            .iter()
+            .map(|blocker| {
+                if let Some(id) = allocated.get(blocker.as_str()) {
+                    Ok(id.clone())
+                } else if existing_ids.contains(blocker.as_str()) {
+                    Ok(blocker.clone())
+                } else {
+                    Err(ZdevError::new(format!(
+                        "Task {} has unknown blocker {blocker}",
+                        draft.key
+                    )))
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let header = TaskHeader {
+            schema_version: SCHEMA_VERSION,
+            id: id.clone(),
+            key: draft.key.clone(),
+            area: area.to_owned(),
+            status: TaskStatus::Open,
+            complexity: draft.complexity,
+            slice: match proposal.proposal {
+                DerivedProposalKind::InvestigationFollowUp => draft.slice.clone(),
+                DerivedProposalKind::ImplementationSplit => source_task.header.slice.clone(),
+            },
+            blocked_by: blockers,
+        };
+        let path = area_dir.join("tasks").join(format!(
+            "{number:03}-{}.md",
+            slug(&draft.title),
+            number = parse_number(&id)?
+        ));
+        let mut rendered = draft.clone();
+        if let Some(paths) = ownership_paths
+            .as_ref()
+            .and_then(|paths| paths.get(draft.key.as_str()))
+        {
+            let paths = serde_json::to_string(paths).map_err(|error| {
+                ZdevError::new(format!("Cannot render derived ownership paths: {error}"))
+            })?;
+            rendered
+                .boundaries
+                .push(format!("Task-owned paths (exact): {paths}"));
+        }
+        writes.push((path, render_draft(&header, &rendered)?));
+    }
+
+    let mut source_header = source_task.header.clone();
+    let source_body = match proposal.proposal {
+        DerivedProposalKind::InvestigationFollowUp => {
+            source_header.status = TaskStatus::Done;
+            let mut body = replace_markdown_section(
+                &source_task.body,
+                "Done when",
+                &source_task.path,
+                |section| section.replace("- [ ] ", "- [x] "),
+            )?;
+            if !body.ends_with('\n') {
+                body.push('\n');
+            }
+            body.push_str("\n## Result\n\n");
+            body.push_str(&proposal.source_result.summary);
+            body.push_str("\n\nValidation:\n\n");
+            for item in &proposal.source_result.validation {
+                body.push_str(&format!("- {item}\n"));
+            }
+            body
+        }
+        DerivedProposalKind::ImplementationSplit => {
+            source_header.blocked_by.extend(
+                bundle
+                    .tasks
+                    .iter()
+                    .map(|task| allocated[task.key.as_str()].clone()),
+            );
+            source_header.blocked_by.sort();
+            source_header.blocked_by.dedup();
+            source_task.body.clone()
+        }
+    };
+    let source_content = format!(
+        "+++\n{}+++\n{}",
+        toml::to_string(&source_header)
+            .map_err(|error| ZdevError::new(format!("Cannot render source task: {error}")))?,
+        source_body
+    );
+
+    let mut hypothetical = existing.clone();
+    let source_slot = hypothetical
+        .iter_mut()
+        .find(|task| task.header.id == proposal.source_task)
+        .expect("validated source task");
+    *source_slot = parse_task(&source_content, &source_task.path, area)?;
+    for (path, content) in &writes {
+        hypothetical.push(parse_task(content, path, area)?);
+    }
+    hypothetical.sort_by(compare_tasks_by_id);
+    let index_content = render_index(area, &hypothetical)?;
+    let ready = hypothetical
+        .iter()
+        .filter(|task| task_state(task, &hypothetical) == "ready")
+        .map(|task| task.header.id.clone())
+        .collect::<Vec<_>>();
+
+    let index_path = area_dir.join("TASKS.md");
+    let original_source = fs::read(&source_task.path).map_err(|error| {
+        ZdevError::io(format!("Cannot read {}", source_task.path.display()), error)
+    })?;
+    let original_index = fs::read(&index_path)
+        .map_err(|error| ZdevError::io(format!("Cannot read {}", index_path.display()), error))?;
+    let retained = proposal
+        .split_ownership
+        .as_ref()
+        .map(|ownership| {
+            ownership
+                .retained_parent_paths
+                .iter()
+                .map(|path| {
+                    fs::read(root.join(path))
+                        .map(|bytes| (path.clone(), bytes))
+                        .map_err(|error| {
+                            ZdevError::io(format!("Cannot read retained path {path}"), error)
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let staged_artifacts = prior_staged
+        .iter()
+        .map(|path| {
+            fs::read(root.join(path))
+                .map(|bytes| (path.clone(), bytes))
+                .map_err(|error| {
+                    ZdevError::io(format!("Cannot read staged artifact {path}"), error)
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let created = writes
+        .iter()
+        .map(|(path, _)| path.clone())
+        .collect::<Vec<_>>();
+    let apply = (|| -> Result<(String, String, Vec<PathBuf>), ZdevError> {
+        write_atomic(&source_task.path, source_content.as_bytes())?;
+        for (path, content) in &writes {
+            let mut file = OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(path)
+                .map_err(|error| {
+                    ZdevError::io(format!("Cannot create {}", path.display()), error)
+                })?;
+            file.write_all(content.as_bytes())
+                .and_then(|()| file.sync_all())
+                .map_err(|error| {
+                    ZdevError::io(format!("Cannot write {}", path.display()), error)
+                })?;
+        }
+        write_atomic(&index_path, index_content.as_bytes())?;
+        for (path, bytes) in &retained {
+            if fs::read(root.join(path)).ok().as_deref() != Some(bytes.as_slice()) {
+                return Err(ZdevError::new(format!(
+                    "Retained parent path changed before commit: {path}"
+                )));
+            }
+        }
+        for (path, bytes) in &staged_artifacts {
+            if fs::read(root.join(path)).ok().as_deref() != Some(bytes.as_slice()) {
+                return Err(ZdevError::new(format!(
+                    "Staged investigation artifact changed before commit: {path}"
+                )));
+            }
+        }
+        let mut paths = prior_staged
+            .iter()
+            .map(|path| root.join(path))
+            .collect::<Vec<_>>();
+        paths.push(source_task.path.clone());
+        paths.extend(created.iter().cloned());
+        paths.push(index_path.clone());
+        let (revision, change_id) = commit_task_import(root, area, &paths)?;
+        Ok((revision, change_id, paths))
+    })();
+
+    let (revision, change_id, paths) = match apply {
+        Ok(result) => result,
+        Err(error) => {
+            let mut rollback_errors = Vec::new();
+            for path in &created {
+                if let Err(rollback) = fs::remove_file(path)
+                    && rollback.kind() != io::ErrorKind::NotFound
+                {
+                    rollback_errors.push(format!("cannot remove {}: {rollback}", path.display()));
+                }
+            }
+            if let Err(rollback) = write_atomic(&source_task.path, &original_source) {
+                rollback_errors.push(format!("cannot restore source task: {rollback}"));
+            }
+            if let Err(rollback) = write_atomic(&index_path, &original_index) {
+                rollback_errors.push(format!("cannot restore task index: {rollback}"));
+            }
+            if let Err(rollback) = git_read_tree(root, &prior_index) {
+                rollback_errors.push(format!("cannot restore Git index: {rollback}"));
+            }
+            for (path, bytes) in &retained {
+                if fs::read(root.join(path)).ok().as_deref() != Some(bytes.as_slice())
+                    && let Err(rollback) = write_atomic(&root.join(path), bytes)
+                {
+                    rollback_errors.push(format!("cannot restore {path}: {rollback}"));
+                }
+            }
+            for (path, bytes) in &staged_artifacts {
+                if fs::read(root.join(path)).ok().as_deref() != Some(bytes.as_slice())
+                    && let Err(rollback) = write_atomic(&root.join(path), bytes)
+                {
+                    rollback_errors.push(format!("cannot restore {path}: {rollback}"));
+                }
+            }
+            if rollback_errors.is_empty() {
+                return Err(ZdevError::new(format!(
+                    "Could not apply derived proposal; all task, index, and retained bytes were restored. {error}"
+                )));
+            }
+            return Err(ZdevError::new(format!(
+                "Could not apply derived proposal, and rollback was incomplete. {error}. {}",
+                rollback_errors.join("; ")
+            )));
+        }
+    };
+
+    let ids = bundle
+        .tasks
+        .iter()
+        .map(|task| allocated[task.key.as_str()].clone())
+        .collect::<Vec<_>>();
+    let mut value = json!({
+        "schema_version": SCHEMA_VERSION,
+        "status": "committed",
+        "area": area,
+        "source_task": proposal.source_task,
+        "proposal": proposal.proposal.as_str(),
+        "source_result": proposal.source_result,
+        "tasks": ids,
+        "ready": ready,
+        "commit": revision,
+        "change_id": change_id,
+        "paths": relative_paths(root, &paths)?,
+    });
+    if let Some(ownership) = proposal.split_ownership {
+        value
+            .as_object_mut()
+            .expect("JSON object")
+            .insert("split_ownership".to_owned(), json!(ownership));
+    }
+    Ok(CommandOutput::new(
+        format!("Applied derived tasks to {area} ({revision})"),
+        value,
+    ))
+}
+
+fn git_read_tree(root: &Path, tree: &str) -> Result<(), ZdevError> {
+    let output = ProcessCommand::new("git")
+        .args(["read-tree", tree])
+        .current_dir(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .map_err(|error| ZdevError::io("Cannot restore Git index", error))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(ZdevError::new(format!(
+            "Cannot restore Git index: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )))
+    }
 }
 
 pub(super) fn import(

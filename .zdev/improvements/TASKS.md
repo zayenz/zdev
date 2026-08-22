@@ -4,8 +4,8 @@
 
 - Total: 54
 - Ready: 1
-- Blocked: 1
-- Done: 52
+- Blocked: 0
+- Done: 53
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -61,5 +61,5 @@
 | [improvements-050](tasks/050-add-explicit-trunk-area-metadata.md) | Add explicit trunk area metadata | done | — |
 | [improvements-051](tasks/051-implement-safe-trunk-area-transitions.md) | Implement safe trunk area transitions | done | improvements-050 |
 | [improvements-052](tasks/052-integrate-trunk-areas-with-task-workflows.md) | Integrate trunk areas with task workflows | done | improvements-051, improvements-034 |
-| [improvements-053](tasks/053-reconcile-final-release-documentation.md) | Reconcile final release documentation | ready | improvements-049, improvements-045, improvements-046, improvements-052, improvements-043, improvements-034, improvements-035, improvements-036, improvements-037, improvements-038, improvements-039 |
-| [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | blocked | improvements-053 |
+| [improvements-053](tasks/053-reconcile-final-release-documentation.md) | Reconcile final release documentation | done | improvements-049, improvements-045, improvements-046, improvements-052, improvements-043, improvements-034, improvements-035, improvements-036, improvements-037, improvements-038, improvements-039 |
+| [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | ready | improvements-053 |

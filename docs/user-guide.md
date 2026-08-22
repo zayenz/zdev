@@ -69,6 +69,12 @@ zdev init --record personal # or: project, pull-request
 Zdev records the current branch as trunk. If you need to correct it, run
 `zdev config trunk <branch>`.
 
+Inspect the fixed project and worker registry with `zdev config show` or
+`zdev config get <key>`. Use typed `config set` and `config unset` mutations;
+worker changes report the exact integration refresh command instead of
+rewriting installed files automatically. Run `zdev config --help` for the
+supported keys, scopes, and value grammar.
+
 If you prefer a checked-in integration, install it now that the repository is
 initialized:
 
@@ -281,16 +287,27 @@ tracked `brief.md`, leave it unstaged. The committed import validates and
 includes the brief with the new task files and regenerated `TASKS.md`; no
 separate brief commit is needed. Unrelated staged and unstaged changes are
 preserved. The JSON result includes task IDs, paths, the commit hash, and the
-stable change ID.
+stable change ID. It also includes the complete ready frontier in stable task
+order.
 
 ## 7. Run the task loop
 
-Check the branch relationship and select the next ready task:
+Inspect the branch relationship and next ready task directly when needed:
 
 ```sh
 zdev status scheduling --format json
 zdev next scheduling --format json
 ```
+
+The installed implementation workflow uses one read-only collection instead:
+
+```sh
+zdev work-context scheduling --format json
+```
+
+For open work this returns matching status and goal projections, HEAD, and the
+exact staged, unstaged, and untracked evidence. A validated closed area returns
+before branch and Git collection.
 
 Ask the harness to work on the returned task with zdev. It should:
 
@@ -323,6 +340,16 @@ zdev area close scheduling
 # If more approved work appears later:
 zdev area reopen scheduling
 ```
+
+Task bundles may author `complexity` as `routine`, `standard`, or `advanced`;
+omission means `standard`. The harness never infers routine work. Advanced work
+gets one read-only plan before its first edit, while every route keeps a fresh
+independent standard verifier.
+
+Use the installed `zdev-loop <area>` route, or its exact `zdev-goal` alias, when
+you explicitly want continuation across tasks. Codex, Claude Code, and Oh My Pi
+can continue natively. OpenCode and Pi complete at most one task per invocation
+and return `CONTINUE` only after a commit and a fresh ready work-context.
 
 Inspect or find a logical change after a rebase with:
 

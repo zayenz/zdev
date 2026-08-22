@@ -139,7 +139,7 @@ defaults above where applicable. Harness-native settings may later override or
 reject rendered model controls. Zdev reports its effective input to integration
 rendering, not the model that a provider ultimately runs.
 
-Both worker files retain the already proposed hand-editable TOML schema:
+Both worker files use this hand-editable TOML schema:
 
 ```toml
 schema_version = 1
@@ -758,7 +758,7 @@ Zdev rejects Git's system, worktree, command-line, arbitrary-file, and included
 configuration scopes. It also rejects multivalued keys, regex matching,
 open-ended type coercion, environment-injected values, and a config editor.
 Git needs a broad configuration language for many commands and repository
-layouts; zdev has fifteen typed keys and two useful preference layers. In
+layouts; zdev has twenty-five typed keys and two useful preference layers. In
 particular, a zdev worktree scope would make worker choice depend on checkout
 plumbing without improving task identity. Git's optional worktree file exists
 for genuinely worktree-specific Git settings, a distinction zdev does not
@@ -779,7 +779,7 @@ writer; they do not move project state into a preference file.
 The `.zdev/workers.toml` shape already specified in
 [Worker profiles](worker-profiles.md) becomes the canonical local layer without
 renaming or migration. A repository-local profile still wins exactly as
-previously proposed. The only added fallback is a global file before the dated
+documented earlier. The implemented fallback is a global file before the dated
 built-in. User-scoped integration install and check use global then built-in;
 project-scoped install and check use local, global, then built-in. Explicit
 `inherit` remains authoritative at either scope.
@@ -789,20 +789,20 @@ rendered. Existing repositories with neither worker file continue to render the
 same built-in profiles byte for byte. No command scans or imports harness-native
 configuration.
 
-## Narrow implementation seam
+## Implemented seam and acceptance record
 
-Implementation can stay in three places:
+The implementation stays in three places:
 
-1. Add one configuration module containing the fixed key registry, strict
+1. One configuration module contains the fixed key registry, strict
    worker-file parser, global-path resolution, whole-profile resolver, stable
    views, and atomic scoped mutation. Reuse the existing project config types,
    state lock, validators, and atomic writer rather than creating a general
    settings framework.
-2. Expand the existing `ConfigCommand` routing with `show`, `get`, `set`, and
+2. `ConfigCommand` routing includes `show`, `get`, `set`, and
    `unset`; retain `trunk` as the convenience alias. The command shell renders
    the fixed human views above and passes ordinary `serde_json::Value` objects
    to the existing success renderer.
-3. Give integration install and check the same resolved worker-profile input.
+3. Integration install and check receive the same resolved worker-profile input.
    The existing renderer remains responsible for adapter capability and
    all-or-nothing artifact publication.
 
@@ -810,13 +810,13 @@ No migration command, arbitrary TOML API, secret manager, provider credential
 store, environment override system, plugin schema, or harness configuration
 scanner belongs in this work.
 
-Implementation is complete when:
+The current contract requires:
 
-- the fifteen keys, scope restrictions, fixed ordering, and exact value grammar
+- the twenty-five keys, scope restrictions, fixed ordering, and exact value grammar
   above are enforced;
 - effective worker reads resolve local, global, then built-in whole profiles,
   while scoped reads return only stored values;
-- unscoped `show` reproduces the complete fifteen-key effective fixture above,
+- unscoped `show` returns the complete twenty-five-key effective view described above,
   including `scope: effective`, local, global, built-in, null/default values,
   shadowed candidates, fixed array order, and one final newline;
 - scoped `show` and `get` reproduce their byte-level human and JSON contracts;

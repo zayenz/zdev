@@ -1,5 +1,9 @@
 # Luna as a zdev coordinator
 
+> **Status: retained investigation.** The bounded recommendation remains
+> current: Luna is not a built-in coordinator profile. The work-context command
+> discussed near the end has since shipped.
+
 This investigation asks a narrow question: whether `gpt-5.6-luna` can safely
 coordinate zdev's existing implement and verify workflows. It does not rank
 models or change worker recommendations.
@@ -15,10 +19,16 @@ and the limited evidence do not justify a new zdev setting yet.
 
 Evidence and harness documentation were checked on 2026-08-20.
 
-## What the coordinator must do
+## Probe-time coordinator duties
 
 The coordinator is not an implementer or verifier profile. Its work divides
 cleanly only in principle; a safe workflow keeps the boundary explicit.
+
+The table records the 2026-08-20 probe-time baseline, when separate status,
+goal, and Git calls collected work state. Current workflows perform those first
+two collection duties through one fresh `zdev work-context <area> --format
+json` result; completion and commit remain separate mutations. The judgment
+duties are unchanged.
 
 | Duty | Kind | Safety-critical? |
 | --- | --- | --- |
@@ -152,21 +162,21 @@ session and remains available for stops. Keep all current gates:
 - model unavailability or a harness substitution is reported by the harness;
   zdev does not silently select another model;
 - fallback is an explicit new session or native model change chosen by the
-  user, followed by fresh status and goal collection. It is not an automatic
-  mid-workflow escalation.
+  user, followed by a fresh `zdev work-context <area> --format json` result. It
+  is not an automatic mid-workflow escalation.
 
 Do not make Luna a built-in default. Do not add a cross-harness coordinator
-profile: three installed entrypoints cannot apply it, Claude Code does not
-document Luna as a session model, and a setting that means “enforced” in one
-harness but “advisory” in another is unsafe. An OpenCode-only setting would add
-configuration and generated artifacts before the single probe has shown a
-practical benefit. There is therefore no follow-up implementation task from
-this investigation.
+profile: four of the five harness integrations cannot select it directly,
+including Claude Code, which does not document Luna as a session model. A
+setting that means “enforced” in one harness but “advisory” in another is
+unsafe. An OpenCode-only setting would add configuration and generated
+artifacts before the single probe has shown a practical benefit. There is
+therefore no follow-up implementation task from this investigation.
 
-Deterministic tooling can make a later reassessment narrower. A command such
-as the fail-closed work-context operation proposed in
-[Workflow round trips](workflow-round-trips.md) can collect complete zdev and
-Git evidence, preserve command errors, and return a fixed schema. Exact
+Deterministic tooling makes a later reassessment narrower. The fail-closed
+work-context operation now documented in
+[Workflow round trips](workflow-round-trips.md) collects complete zdev and
+Git evidence, preserves command errors, and returns a fixed schema. Exact
 envelope parsing and identity comparison also belong in code. These changes
 remove repeated collection and string handling; they do not classify unknown
 files, infer task ownership, choose compatibility policy, decide scope, or turn

@@ -106,15 +106,15 @@ enum Command {
         #[command(subcommand)]
         command: CleanupCommand,
     },
-    /// Inspect layered configuration or set the project trunk
+    /// Inspect or change layered project and worker configuration
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
-    /// Create areas and manage their branches
+    /// Create areas and manage where their work runs
     ///
-    /// An area groups one objective, its brief, its tasks, and the branch that
-    /// owns the work.
+    /// An area groups one objective, its brief, its tasks, and either an isolated
+    /// owning branch or the dynamically resolved project trunk.
     Area {
         #[command(subcommand)]
         command: AreaCommand,
@@ -275,10 +275,11 @@ enum CleanupCommand {
 
 #[derive(Debug, Subcommand)]
 enum AreaCommand {
-    /// Create an area for one objective on a branch
+    /// Create an area for one objective on an isolated branch or project trunk
     ///
     /// Writes area.toml, brief.md, TASKS.md, and an empty tasks directory under
-    /// .zdev/<TAG>. When --branch is omitted, the checked-out branch owns the area.
+    /// .zdev/<TAG>. By default the checked-out branch owns the area; --trunk follows
+    /// the configured project trunk instead.
     Create {
         /// Short identifier used in paths and task IDs (lowercase letters, digits, and hyphens)
         tag: String,
@@ -305,7 +306,7 @@ enum AreaCommand {
         /// Area tag to reopen
         area: String,
     },
-    /// Set the branch for an existing area
+    /// Set the branch mode for an existing area
     Bind {
         /// Area tag to update
         area: String,

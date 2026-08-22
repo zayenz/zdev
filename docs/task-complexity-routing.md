@@ -40,8 +40,8 @@ Bundle review displays complexity and includes an authored value in the review
 fingerprint. To preserve old review fingerprints, deserializing an omitted field
 must not add `standard` to the canonical bundle used for fingerprinting.
 `tasks list`, `tasks show`, `next`, selected-area `status`, and `goal` expose the
-effective value; goal projection is the coordinator's routing input. `TASKS.md`
-needs no new column.
+effective value. The coordinator reads it from the goal nested in a fresh
+work-context result. `TASKS.md` needs no new column.
 
 ### Routing builds on the current worker roles
 
@@ -68,8 +68,8 @@ add a durable role or configuration key.
 
 Before the first code edit for an `advanced` task, the coordinator starts a
 fresh read-only planner using `advanced-implementer`. The planner receives the
-same goal, brief, task, repository guidance, and three-part Git baseline as an
-implementer. It returns the strict nine-key worker object with
+same work-context, brief, task, and repository guidance as an implementer. It
+returns the strict nine-key worker object with
 `kind: "planner"`, `verdict: "plan"`, and `escalation: "none"`. A plan has
 exactly one non-empty `Approach: `, `Paths: `, and `Validation: ` evidence
 entry and no findings. `verdict: "blocker"` is the only alternative. The plan is a
@@ -109,7 +109,8 @@ advanced implementer and then to a new verifier.
 The coordinator retains branch checks, baseline ownership, task selection,
 user questions, envelope validation, lifecycle changes, and commits.
 
-1. Read the effective task complexity from `zdev goal`.
+1. Run `zdev work-context <area> --format json` and read the effective task
+   complexity from its nested goal.
 2. For `routine`, start `routine-implementer`. For `standard`, start
    `implementer`. For `advanced`, obtain the valid plan above, then start a
    fresh `advanced-implementer` with that plan.
@@ -155,7 +156,7 @@ The product-decision case stops in the coordinating session in all five
 harnesses. Native transport, resumption, background jobs, teams, and fan-out do
 not change the routing contract.
 
-## Smallest implementation seam
+## Implemented seam
 
 - `src/tasks.rs` and `src/goal.rs` currently own the strict three-value task
   schema, omitted-field compatibility, review fingerprints, and effective task

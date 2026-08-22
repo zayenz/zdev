@@ -123,7 +123,7 @@ zdev, not Oh My Pi's job system, remains the workflow owner.
 
 ## Public workflows
 
-Zdev should use one stable name for each user intent:
+Zdev uses one stable name for each user intent:
 
 - `zdev-implement <area>` selects and completes one ready task through
   implementation, independent verification, any task-owned rework, task
@@ -157,8 +157,8 @@ These are renderable files, not a new runtime. Install and check must render the
 same bytes through the existing integration renderer. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 
-The installed bundle includes all three entry points. Codex installation
-targets the shared `skills/` root so the existing `zdev/` skill and the three
+The installed bundle includes all five entry points. Codex installation
+targets the shared `skills/` root so the existing `zdev/` skill and five
 sibling workflow skills form one managed bundle while unrelated skills remain
 untouched.
 
@@ -173,35 +173,38 @@ reported as one ready installation. No other shared-root file is removed.
 
 ### Deterministic task selection
 
-`zdev-implement` runs `zdev goal <area> --format json` first. A validated closed
-goal returns no work before Git or task-work gates. For an open goal it runs
-`zdev status <area> --format json` in the coordinating session and requires
-`branch_status.task_work.safe`, reports `stale_advisory` once while continuing,
-records status with untracked files plus staged and unstaged diffs, and uses
-only the `ready` goal's task as its subject. Structurally unsafe branch state
-still blocks. The complete JSON goal is passed unchanged to every worker
-together with the brief, repository guidance, baseline, and task-owned paths.
+`zdev-implement` runs `zdev work-context <area> --format json` first. The
+command validates goal lifecycle before collecting branch or Git facts, so a
+validated closed result returns no work without those reads. Open results
+contain nested status and goal projections plus HEAD and exact staged,
+unstaged, and untracked evidence. The coordinator requires the projections to
+agree, requires `branch_status.task_work.safe`, reports `stale_advisory` once,
+and uses only the ready goal's task as its subject. Structurally unsafe state
+still blocks. The complete work-context JSON is passed unchanged to every
+worker with the brief, repository guidance, and task-owned paths.
 
-An implement goal that is `open` / `empty`, `open` / `exhausted`, or `closed`
+An implement context that is `open` / `empty`, `open` / `exhausted`, or `closed`
 is a successful no-work result. Closed requires no branch or Git evidence;
 open no-work retains the open-work gates. No worker is started, and no state
 changes. A malformed graph, unsafe open branch, changed focus
 task, or other validation error is a blocker. Before verification and before
-each rework handoff, the coordinator reruns the status and goal reads and
-requires the same task ID. This makes a stale long-running conversation fail
+each rework handoff, the coordinator reruns work-context and requires the same
+task ID. This makes a stale long-running conversation fail
 closed instead of implementing a newly selected task.
 
 `zdev-verify` requires the explicit task ID to equal the current ready focus
-task. Any no-work goal is a blocker and starts no worker. It uses the same
-preflight and baseline comparison but does not invoke an implementer.
+task. Any no-work context is a blocker and starts no worker. It uses the same
+preflight and baseline comparison but does not invoke an implementer. The
+verifier invokes work-context independently, then repeats the three Git reads
+after validation.
 `zdev-audit` has no area selection and does not call `zdev goal`.
 
-The native goal behavior described in [Deterministic goals across
-harnesses](harness-goals.md) remains optional. Codex and Oh My Pi apply the
-short native condition only when the user explicitly asks for a continuing
-harness goal and no conflicting native goal exists. Claude Code, OpenCode, and
-Pi always use the deterministic zdev goal as ordinary prompt context. Native
-goal support is never a prerequisite.
+The native goal behavior described in [Explicit area continuation across
+harnesses](area-loop.md) belongs only to explicit `zdev-loop` or `zdev-goal`
+continuation. Codex and Oh My Pi apply the short native condition when no
+conflicting native goal exists. Claude uses its standalone workflow; OpenCode
+and Pi use the bounded continuation. Ordinary implementation and verification
+use work-context regardless of native goal support.
 
 ### Ownership and delegation
 
@@ -220,14 +223,21 @@ brief, task, goal, baseline, full diff, and relevant source; runs required
 checks; and makes no intentional edits. A validation command that writes files
 is reported as `REWORK` and attributed before work continues.
 
-Role selection is fixed by intent. `zdev-implement` uses one `implementer` and
-then a fresh `verifier` for each verdict. `zdev-verify` uses only a fresh
-`verifier`. `zdev-audit` uses a verifier for the audit and a different fresh
-verifier to vet findings; when the boundary is small, the coordinator may omit
-the first delegation and ask one fresh verifier for the checked audit directly.
-An explicit multi-lens audit uses one verifier per lens and one more for final
-vetting. These workers use the resolved profiles; zdev does not invent an
-`auditor` model role.
+Implementation role selection follows the task's authored complexity.
+`routine` uses `routine-implementer`; `standard` and omitted complexity use
+`implementer`; and `advanced` first obtains one fresh read-only plan from
+`advanced-implementer`, then uses that role for the edits. Every verdict comes
+from a fresh standard `verifier`. Ordinary rework returns to the selected
+implementation tier without replanning. After standard implementation only, a
+verifier may recommend one move to `advanced-implementer` during the current
+in-memory task run; the repair is followed by another fresh standard verifier.
+Routine and already advanced work cannot escalate. `zdev-verify` uses only a
+fresh `verifier`. `zdev-audit` uses a verifier for the audit and a different
+fresh verifier to vet findings; when the boundary is small, the coordinator
+may omit the first delegation and ask one fresh verifier for the checked audit
+directly. An explicit multi-lens audit uses one verifier per lens and one more
+for final vetting. These workers use the resolved profiles; zdev does not
+invent an `auditor`, planner, or advanced-verifier model role.
 
 The harness runtime owns child execution, cancellation, and delivery only. A
 child session, job, transcript, or agent ID is not zdev state. Audit reviewers
@@ -324,33 +334,39 @@ coordinator enough evidence to complete and commit. The audit workflow keeps
 its review-and-vet pipeline. These are native advantages, not behavior other
 harnesses must reimplement in JavaScript.
 
-## Implementation seams
+## Implemented seams and retained acceptance record
 
-No shared product decision remains. The implementation can stay within the
+No shared product decision remains. The implementation stays within the
 existing integration renderer and five harness adapters:
 
-1. Define the three common workflow prompts once as canonical template input,
-   including goal refresh, ownership, envelopes, and rework rules.
+1. Define canonical sources for implementation, verification, audit, and
+   continuation, including goal refresh, ownership, envelopes, and rework
+   rules. Render the shared continuation source under both `zdev-loop` and its
+   exact `zdev-goal` alias, giving five public entry-point names.
 2. Render the exact entry-point files in the table above. Reuse the existing
    named agents and Pi extension, adding only the role controls settled in
    [Worker profiles](worker-profiles.md).
 3. Update each adapter's file manifest and destination layout. In particular,
    use OpenCode's documented `commands/` directory; for Claude, declare the
    plugin workflow path and retain/adapt the canonical JavaScript artifacts
-   under the three common names.
+   under the five public names.
 4. Keep install and check on the same all-or-nothing rendering path. Parse and
    render every artifact before replacing any destination.
 
-The work is complete when:
+The current contract requires:
 
-- all five harnesses install exactly one invocable entry point for each common
-  name, and install/check agree byte for byte;
-- Claude's manifest exposes all three plugin-root JavaScript workflows under
-  the `zdev:` namespace, and each script selects the named worker role while
-  preserving the common goal, envelope, and lifecycle contract;
+- all five harnesses install exactly one invocable entry point for each of
+  `zdev-implement`, `zdev-verify`, `zdev-audit`, `zdev-loop`, and `zdev-goal`,
+  and install/check agree byte for byte;
+- Claude's manifest exposes all five plugin-root JavaScript workflows under the
+  `zdev:` namespace. Three canonical sources render implementation,
+  verification, and audit; one shared continuation source renders both
+  `zdev-loop` and its exact `zdev-goal` alias. Each script preserves the common
+  identity, envelope, and lifecycle contract;
 - `zdev-implement` selects the deterministic ready focus, preserves its task ID
-  across every handoff, uses the configured implementer and fresh verifier,
-  and completes and commits only after `PASS`;
+  across every handoff, follows the authored complexity route and bounded
+  escalation rule above, uses a fresh standard verifier for every verdict, and
+  completes and commits only after `PASS`;
 - open empty, open exhausted, and closed areas return an implementation
   no-work pass without delegation or mutation; explicit verification returns
   a blocker for those states; invalid or unsafe state fails before a worker starts;
@@ -388,4 +404,4 @@ plugin references explicitly document the plugin-root `workflows/` directory,
 manifest field, and namespaced invocation, and issue 66032 is completed; those
 sources support retaining the canonical JavaScript route in 2.1.237. OpenCode
 background agents, Oh My Pi background jobs, and native session-goal behavior
-were not selected because the proposed sequential workflow does not need them.
+were not selected because the current sequential workflow does not need them.

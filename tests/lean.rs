@@ -4536,7 +4536,7 @@ fn every_help_page_explains_its_command_and_inputs() {
         ),
         (
             &["config", "--help"],
-            &["Inspect layered configuration or set the project trunk"],
+            &["Inspect or change layered project and worker configuration"],
         ),
         (
             &["config", "show", "--help"],
@@ -4578,12 +4578,12 @@ fn every_help_page_explains_its_command_and_inputs() {
         ),
         (
             &["area", "--help"],
-            &["groups one objective, its brief, its tasks, and the branch"],
+            &["either an isolated owning branch or the dynamically resolved project trunk"],
         ),
         (
             &["area", "create", "--help"],
             &[
-                "Create an area for one objective on a branch",
+                "Create an area for one objective on an isolated branch or project trunk",
                 "Short identifier used in paths and task IDs",
                 "Human-readable area name",
                 "One-line description of the outcome",

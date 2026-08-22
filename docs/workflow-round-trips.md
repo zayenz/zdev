@@ -1,5 +1,10 @@
 # Workflow round-trip audit
 
+> **Status: implemented reductions with retained baseline.** Work-context,
+> the small Claude audit path, and the import ready frontier have shipped. The
+> opening counts preserve the pre-change baseline; the realized counts below
+> describe current workflows.
+
 This audit counts the fixed orchestration in zdev's implement, verify, audit,
 and task-import workflows. It does not estimate latency. Task-specific file
 reads, validation commands, and provider-internal model turns vary with the
@@ -50,7 +55,7 @@ selected task and branch safety again under the state lock, and `zdev commit`
 delegates only the final Git commit (`src/lib.rs`, `src/goal.rs`,
 `src/tasks.rs`, and `src/project.rs`).
 
-## Baseline traces
+## Baseline traces before the reductions
 
 For Codex, OpenCode, Pi, and Oh My Pi, the prompt-driven coordinator runs the
 command groups directly:
@@ -121,10 +126,13 @@ different final vetter, so its W count is `lenses + 1` in every harness.
 
 ## Which repetition is load-bearing
 
+This table classifies the pre-change baseline. The implemented reductions that
+follow preserve the required boundaries while combining the repeated calls.
+
 | Repeated work | Classification | Reason |
 | --- | --- | --- |
 | Status, goal, and Git evidence before each implementation, verification, or rework handoff | **Required, but combinable** | The checkout and selected task may have changed. One fresh read-only command can collect the same point-in-time evidence without caching it. |
-| Verifier's own zdev status | **Required by `verify.md`, missing from installed worker prompts** | Independent verification should inspect branch safety itself. The current prompts require Git state but do not explicitly invoke zdev status. A shared context command can close the gap. |
+| Verifier's own zdev status | **Required by `verify.md`, missing from the baseline worker prompts** | Independent verification should inspect branch safety itself. Those prompts required Git state but did not explicitly invoke zdev status. Work-context closed the gap. |
 | Verifier's own pre-validation Git evidence | **Required, but combinable** | Independent verification must inspect the checkout itself. Coordinator evidence is context, not proof. |
 | Verifier's post-validation Git evidence | **Required** | It detects generated or otherwise unexpected validation writes. It cannot be reused from before validation. |
 | Goal task ID at every refreshed handoff | **Required** | It prevents a long-running workflow from acting on a newly selected task. |
@@ -137,7 +145,7 @@ different final vetter, so its W count is `lenses + 1` in every harness.
 | `check` after import | **Required under the current contract** | It checks the published area beyond the returned task IDs. Removing it would need equivalent pre-commit validation and more complicated rollback. |
 | `tasks list` after successful import | **Redundant presentation** | Import already has the validated hypothetical graph and allocated IDs. It can return the ready frontier directly. |
 | A second verifier for a small Claude audit | **Redundant** | The shared audit contract permits one fresh verifier to inspect and check a small boundary. Separate final vetting remains required after fan-out. |
-| Fresh Git evidence in Claude's completion agent | **Required, currently underspecified** | The agent receives earlier evidence and an attestation, not the latest structured snapshot. Closing this gap may add a call; it must not be counted as an existing call or optimized away. |
+| Fresh Git evidence in Claude's completion agent | **Required, underspecified at baseline** | The agent received earlier evidence and an attestation, not the latest structured snapshot. Work-context added the missing fresh evidence. |
 
 ## Representative failure traces
 
@@ -173,9 +181,9 @@ brief's exact prior index/worktree state, and leaves unrelated staged work
 alone. `failed_committed_task_import_rolls_back_planning_changes_and_preserves_index`
 exercises that recovery boundary.
 
-## Ranked reductions
+## Implemented reductions
 
-### 1. Fresh work-context command
+### 1. Fresh work-context command (implemented)
 
 The narrow read-only command is
 `zdev work-context <area> --format json`. It classifies the complete goal
@@ -286,13 +294,13 @@ not run an unused post-commit `next` or K. An explicit continuation or area
 goal/loop pays for a fresh K only when it will use that result to decide whether
 to dispatch another task.
 
-Implementation size is medium: one command, the exact schema above, shared use
+Implementation size was medium: one command, the exact schema above, shared use
 of existing status/goal renderers, template updates, generated integrations,
 and focused black-box and parser coverage. Risk is medium because snapshot
 completeness, subprocess errors, exact empty output, and byte preservation are
 safety properties.
 
-### 2. Use one checking verifier for a small Claude audit
+### 2. Use one checking verifier for a small Claude audit (implemented)
 
 When `lenses` is absent or empty, Claude can call one fresh verifier with the
 public audit contract and validate its final envelope directly. Keep the
@@ -306,12 +314,11 @@ fan-out before and after:  lens workers -> fresh vetter   W(lenses + 1)
 ```
 
 This saves one expensive worker handoff for the common small audit. It affects
-Claude only, is a small JavaScript/template change, and has low risk because it
-implements an option already stated in the shared contract. Focused coverage
-should prove the one-worker empty-lens path, the unchanged fan-out path, and
-fail-closed envelope validation.
+Claude only and is a small JavaScript/template change. Focused coverage proves
+the one-worker empty-lens path, the unchanged fan-out path, and fail-closed
+envelope validation.
 
-### 3. Return the ready frontier from task import
+### 3. Return the ready frontier from task import (implemented)
 
 Add a deterministic `ready` task-ID array to successful import JSON. It is the
 complete post-import area's ready frontier, not merely ready IDs from the
@@ -328,11 +335,11 @@ after:  tasks review -> approval -> tasks import --commit -> check
 ```
 
 This saves one zdev process and one coordinator turn for every import in all
-harnesses. The implementation is small and low risk. Existing import output is
-extended, approval remains stateless, import still rereads the bundle and
+harnesses. The implementation is small and low risk. Import output includes
+the frontier, approval remains stateless, import still rereads the bundle and
 checks its review fingerprint, `check` still validates the published area, and commit rollback is
-unchanged. Focused coverage should import a new task blocked by an existing
-open task and require the frontier to contain that existing task. This proves
+unchanged. Focused coverage imports a new task blocked by an existing open task
+and requires the frontier to contain that existing task. This proves
 the projection is area-wide and sufficient to replace the list call. A
 successful valid import cannot have an empty frontier: it adds open work to a
 finite acyclic graph, so at least one task is ready. No new transaction
@@ -357,28 +364,23 @@ abstraction is needed.
 - Do not remove post-import `check` merely because import validates its own
   writes. The broader published-area check is currently observable behavior.
 
-These three follow-up changes are independent. Implement the work-context
-command first because it removes the most repeated calls across the widest
-surface. The Claude audit fast path and import frontier can land in either
-order.
+These three changes landed independently. Work-context provides the shared
+collection boundary; the Claude audit fast path and import frontier do not
+depend on one another.
 
-## Follow-up task split
+## Implemented task split
 
-1. **Add a fresh work-context snapshot.** Implement the read-only command and
-   switch canonical implement/verify guidance plus generated integrations to
-   it. Give it the exact JSON and subprocess contract above. Preserve
+1. **Fresh work-context snapshot.** The read-only command and canonical
+   implement/verify guidance use the exact JSON and subprocess contract above. They preserve
    standalone status/goal output, exact task and branch gates, three-part Git
    evidence, verifier post-validation evidence, and invalid-envelope blockers.
-   Require independent verifier collection and a fresh Claude completion
-   collection. Prove clean, empty-output, command-error, stale-safe,
-   changed-focus, and validation-write behavior with focused black-box
-   coverage and all-harness generation checks.
-2. **Shorten small Claude audits.** Route an empty `lenses` input to one fresh
-   checking verifier, while retaining reviewer-plus-vetter fan-out for explicit
-   lenses. Prove both dispatch counts and the existing invalid-envelope
-   blocker in the executable workflow test.
-3. **Report import's ready frontier.** Return ready task IDs from the validated
-   post-import area graph in stable numeric order and remove only the
+   Independent verifier collection and fresh Claude completion collection are
+   covered by focused black-box and all-harness generation checks.
+2. **Shorter small Claude audits.** An empty `lenses` input routes to one fresh
+   checking verifier, while explicit lenses retain reviewer-plus-vetter fan-out.
+   Executable workflow tests cover both dispatch counts and invalid envelopes.
+3. **Import ready frontier.** Import returns ready task IDs from the validated
+   post-import area graph in stable numeric order, and canonical guidance removes only the
    guidance's `tasks list` follow-up. Preserve the opaque review-fingerprint drift check,
-   `check`, commit path ordering, locks, and rollback. Cover an imported task
-   blocked by an existing ready task in the existing import tests.
+   `check`, commit path ordering, locks, and rollback. Existing tests cover an
+   imported task blocked by an existing ready task.

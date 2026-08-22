@@ -4,9 +4,9 @@
 > Codex, Claude Code, and Oh My Pi continuation, and bounded OpenCode and Pi
 > fallback are implemented.
 
-This record defines an explicit zdev route that completes approved work one
+This record defines the explicit zdev route that completes approved work one
 task at a time while an area remains open and ready. Research was checked on
-2026-08-20. Observed harness behavior and proposed zdev behavior are kept
+2026-08-20. Observed harness capabilities and current zdev behavior remain
 separate.
 
 ## Current harness evidence
@@ -74,7 +74,7 @@ Both dedicated names always activate zdev. Codex skills set
 namespaced invocation. Shared skill guidance carries the active-context rule
 for natural-language synonyms.
 
-## Existing guidance used by this design
+## Current guidance
 
 Current Claude guidance routes both names to the packaged workflow and does not
 inspect or apply Claude Code's separate native goal. Codex and Oh My Pi retain
@@ -251,7 +251,7 @@ partial or unexplained state blocks and uses existing recovery guidance.
   without replacing, clearing, or layering over that goal. Claude does not use
   that state.
 
-## Implementation seams and acceptance
+## Implemented seams and acceptance
 
 Claude installs `workflows/zdev-loop.js` and `workflows/zdev-goal.js` from
 one canonical loop template. Install-time composition embeds the current
@@ -284,11 +284,12 @@ Claude, and Oh My Pi native integration confidence is otherwise moderate until
 their adapters are exercised on supported live surfaces (accessed 2026-08-20).
 
 This research did not execute provider-backed harness sessions. Claude users
-will receive a native zdev workflow, but its strict cycle and restart behavior
-are design conclusions validated against documentation and current source, not
-a live provider run.
+receive a native zdev workflow, but its strict cycle and restart behavior were
+validated against documentation, source, and local executable fixtures rather
+than a live provider run.
 
-This design does not add a scheduler, daemon, process manager, cross-harness
-session state, duplicate queue, branch switching, rebasing, round-trip
-optimization, coordinator model selection, derived-task execution, or trunk
-integration mode. Those concerns are outside this task.
+The loop contract adds no scheduler, daemon, process manager, cross-harness
+session state, duplicate queue, branch switching, rebasing, or coordinator
+model selection. Current round-trip, derived-work, and trunk-area behavior is
+defined in its own records and remains subject to the same one-task
+verification and commit boundary.

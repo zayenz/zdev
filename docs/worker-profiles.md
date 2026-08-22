@@ -1,5 +1,9 @@
 # Worker profiles
 
+> **Status: current behavior and dated defaults.** Zdev resolves and renders
+> all four profiles below. The model evidence remains a dated decision record,
+> not a permanent ranking.
+
 This note records a design decision, not a permanent model ranking. Model
 availability, aliases, and harness controls change. The evidence and suggested
 defaults below were checked on 2026-08-20.
@@ -220,9 +224,9 @@ zdev performs no automatic model search. The user can set that row to
 are not errors: they use the built-in row, then native inheritance where the
 table above records a gap.
 
-## Implementation seam
+## Implemented seam
 
-Keep the implementation inside integration generation:
+The implementation stays inside integration generation:
 
 1. Use the strict parser for the optional local and global worker files. Resolve
    four complete role profiles for the requested harness before
@@ -239,7 +243,7 @@ No evaluator, benchmark runner, task corpus, telemetry, leaderboard sync,
 automatic model selection, cost database, or new worker lifecycle belongs in
 this change.
 
-An implementation task is complete when:
+The implemented contract requires:
 
 - absent configuration produces the five mappings above, including the
   OpenCode verifier's omitted effort;

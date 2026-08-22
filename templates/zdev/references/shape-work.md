@@ -10,9 +10,11 @@ does not create tasks or a second lifecycle.
 
 ## Do
 
-1. For a new objective, initialize zdev on project trunk when needed, create or
-   switch to the area's branch, and create the area. For an existing area,
-   preserve its identity and recorded branch.
+1. For a new objective, initialize zdev on project trunk when needed. Use the
+   default isolated mode after creating or switching to the area's branch, or
+   use `--trunk` only when the user explicitly wants a personal/project area on
+   configured trunk. For an existing area, preserve its recorded mode and
+   resolved branch.
 2. Read the conversation, current brief, repository instructions, relevant
    source and tests, domain documentation, and applicable ADRs.
 3. Resolve repository facts directly. Ask the user only about choices that
@@ -71,6 +73,7 @@ General one-off work does not require a separate Explore or Investigate pass
 when the standing brief applies and discussion or the request already settles
 the task's product and testing choices.
 
-Most areas remain independent branches based on trunk. When a new area builds
-on another in-progress area, create its branch from the parent branch, create
-the area, then run `zdev area parent <child> <parent>`.
+Most areas remain isolated branches based on trunk. When a new isolated area
+builds on another in-progress isolated area, create its branch from the parent
+branch, create the area, then run `zdev area parent <child> <parent>`. Explicit
+trunk areas have no parent and need no managed rebase.

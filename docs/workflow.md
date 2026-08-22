@@ -221,12 +221,13 @@ still requires approval of the exact displayed bundle.
 
 ## Implementation
 
-Run `zdev status <area> --format json` before dispatch and require
-`branch_status.task_work.safe`. Report a stale-but-safe rebase advisory once and
-continue without asking for rebase consent. Stop on an unsafe branch, anchor,
-ancestry, history, or Git-operation state. Use the managed rebase flow when the
-task needs newer base changes or reaches an integration boundary, then rerun
-`zdev next <area> --format json`.
+Run `zdev work-context <area> --format json` before dispatch. For open work,
+require matching nested status and goal projections and
+`branch_status.task_work.safe`; retain its HEAD and exact Git evidence. Report a
+stale-but-safe rebase advisory once and continue without asking for rebase
+consent. Stop on an unsafe branch, anchor, ancestry, history, or Git-operation
+state. Use the managed rebase flow when the task needs newer base changes or
+reaches an integration boundary, then rerun work-context.
 
 For trunk mode, use dynamically resolved `project.trunk`, require it to be
 checked out and safe, and skip freshness and rebase steps. Sharing trunk never
@@ -264,7 +265,7 @@ retry count.
 
 ## Completion and commit
 
-Check area status again before completion. `zdev task done` permits a
+Collect fresh work-context again before completion. `zdev task done` permits a
 stale-but-safe relationship with one advisory, and refuses unsafe branch,
 anchor, ancestry, history, or Git-operation state.
 

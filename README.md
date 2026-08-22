@@ -100,6 +100,13 @@ zdev status scheduling --format json
 zdev next scheduling --format json
 ```
 
+Harness task workflows use `zdev work-context scheduling --format json` to
+collect the same task projection with matching branch and exact Git evidence in
+one read-only result. The installed `zdev-loop <area>` route and its exact
+`zdev-goal` alias continue one verified commit at a time where the harness supports native
+continuation; OpenCode and Pi stop after one task and report `CONTINUE` when
+fresh ready work remains.
+
 ### Complete and commit work
 
 After the harness has implemented and reviewed the task, record the result and
@@ -180,6 +187,21 @@ The skill does not replace the task record or make design decisions on behalf
 of the developer. It gives the harness a common route through the brief, task
 selection, implementation, verification, and completion steps that the binary
 records.
+
+Project topology and harness worker profiles use the fixed typed configuration
+surface:
+
+```sh
+zdev config show
+zdev config get project.trunk
+zdev config set worker.codex.implementer gpt-5.6-sol low
+zdev config unset worker.codex.implementer
+```
+
+Task complexity is authored as `routine`, `standard`, or `advanced`; omission
+means `standard`. Routine work uses the bounded routine implementer, advanced
+work gets one read-only plan before its first edit, and every route ends with a
+fresh standard verifier.
 
 ## Adapted skills
 

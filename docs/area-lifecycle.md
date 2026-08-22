@@ -1,5 +1,9 @@
 # Area lifecycle and task-queue state
 
+> **Status: current behavior.** The lifecycle field, queue vocabulary,
+> commands, projections, and workflow gates below are implemented. Baseline
+> and implementation sections are retained as design history.
+
 An area objective and its task queue answer different questions. The area is
 `open` until someone explicitly closes it. The queue is `empty`, `ready`, or
 `exhausted`; task validation rejects a blocked-only graph. Finishing the current
@@ -9,7 +13,7 @@ This contract adds one lifecycle bit. It does not add abandonment, execution,
 integration, branch deletion, switching, or rebasing behavior. Task status
 remains `open` or `done`, and slice progress remains derived from tasks.
 
-## Current behavior at the design baseline
+## Baseline before area lifecycle (retained history)
 
 At commit `2a8c451e48b9bcf22252a6111551f16f3f5fdbe1`, `AreaMetadata` has no
 lifecycle and rejects unknown TOML fields. Goal calls a zero-task area `empty`
@@ -288,9 +292,9 @@ Status includes closed areas and diagnoses their branches normally.
   goal is classified before status, Git, and task-work gates; open states retain
   their complete status, goal, and Git-baseline evidence requirements.
 
-## Narrow implementation task
+## Implemented seam and retained acceptance record
 
-Outcome: implement the two-value area lifecycle and make every queue projection
+The implementation added the two-value area lifecycle and made every queue projection
 distinguish exhaustion from explicit closure.
 
 Boundaries: add no state beyond `open` and `closed`; do not alter task or slice

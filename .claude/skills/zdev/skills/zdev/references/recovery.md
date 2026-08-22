@@ -22,18 +22,20 @@ If someone completed the operation with `git rebase --continue`, rerun the
 normal zdev area rebase command to verify the result and finalize the base
 anchor. For a longer chain, update one link at a time from parent to child.
 
-Run `zdev status <area> --format json` again before task completion. Completion
-requires `branch_status.task_work.safe` to be true. A stale-but-safe link is
-advisory: report `zdev area rebase <area>` once and continue. Rebase explicitly
+Run `zdev work-context <area> --format json` again before task completion. For
+open work, completion requires nested `branch_status.task_work.safe` to be
+true and the task and Git evidence to match the verified result. A
+stale-but-safe link is advisory: report `zdev area rebase <area>` once and continue. Rebase explicitly
 when the task needs newer base changes or is approaching integration. Wrong or
 detached branches, invalid or unavailable ancestry, nonlinear child history,
 and active Git recovery operations remain blockers.
 
 ## Resume task work
 
-Inspect area status and reconstruct the Git baseline: status with untracked
-files, cached diff, and unstaged diff. Finish or abort an active rebase first,
-or finalize a rebase completed directly through Git. Then rerun `zdev next`.
+Run work-context and use its exact HEAD, untracked status, cached diff, and
+unstaged diff as the reconstructed baseline. Finish or abort an active rebase
+first, or finalize a rebase completed directly through Git. Then rerun
+`zdev work-context <area> --format json`.
 
 Resume or verify an open task only after attributing its changes. Restart an
 open task without task-owned changes. Inspect a done task and the cached diff

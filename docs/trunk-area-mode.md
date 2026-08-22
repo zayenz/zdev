@@ -6,7 +6,7 @@
 This record defines an explicit way to run several areas on the configured
 project trunk while leaving branch-isolated areas as the default.
 
-## Current behavior
+## Baseline before trunk mode (retained history)
 
 An isolated `area.toml` has one mandatory `branch`; legacy records remain in
 that mode. Relationship validation normally allows only one area to own a
@@ -22,15 +22,15 @@ free of a Git recovery operation, but it does not require an anchor or inspect
 child history. This supports one area on trunk by accident. It does not express
 intent, permit a second such area, or say what happens when trunk changes.
 
-The commands do not all use the same gate:
+At that baseline, commands did not all use the same gate:
 
-| Operation | Current gate |
+| Operation | Baseline gate |
 | --- | --- |
 | Ordinary `tasks import` | Valid open area, bundle, slices, and complete task graph under the state lock; no branch check. |
 | `tasks import --commit` | Exact checked-out stored branch, no active Git operation, and the committed-import path/index rules. It does not use the anchor/freshness gate. |
 | Named `next`, implementation/verification preflight, task completion, and area close/reopen | `task_work.safe`, including the same-branch shortcut or a safe fresh/stale isolated relationship. |
 | `next --any` | `task_work.structurally_safe`; it may report an off-branch task and names the branch the user must check out. Matching candidates sort first. |
-| `goal` | Branch-independent deterministic projection of one area's next task. Workflows obtain branch facts from a separate `status` call. |
+| `goal` | Branch-independent deterministic projection of one area's next task. |
 | Task reopen | Open area and a valid dependency transition under the state lock; no branch check. |
 | Managed rebase | Exact checked-out branch, base and anchor, linear history, no active Git operation, and a clean worktree. Even a same-branch area reaches the anchor check. |
 | `zdev commit` | Commits the existing index with a stable change ID. It neither stages paths nor infers an area. The coordinator supplies branch, baseline, attribution, verification, and exact-staging checks. |
@@ -406,8 +406,8 @@ branch: <branch>)`.
 `zdev goal <area>` remains branch-independent. Its human and JSON output stay
 the deterministic one-task projection of area lifecycle, queue, and task
 context; neither form gains `mode`, `branch`, or `branch_status`. Harness
-workflows continue to run `status` separately and use only that result for
-branch safety.
+workflows obtain branch facts from the nested status projection in fresh
+`zdev work-context <area> --format json` output.
 
 ## Base, parents, and rebase
 
@@ -530,7 +530,7 @@ null/boolean changes; mode-transition failures use the exact errors above.
 | Unset trunk while trunk areas exist | trunk projections would become unbound | Reject with lexical area list | No mutation |
 | Configured trunk deleted outside zdev | trunk records unchanged; fresh null; structural/task safe false; missing diagnostic | Status succeeds; task work fails with details | Read-only |
 | Wrong branch or detached HEAD | fresh true if trunk exists; branch match false/null; task safe false | Status succeeds; named work fails; `next --any` may project off-branch work | Read-only |
-| Goal on wrong branch, detached HEAD, or unsafe trunk facts | task graph and lifecycle remain valid | `zdev goal` returns its unchanged branch-independent task projection; workflow status still blocks execution | Read-only |
+| Goal on wrong branch, detached HEAD, or unsafe trunk facts | task graph and lifecycle remain valid | `zdev goal` returns its unchanged branch-independent task projection; workflow work-context still blocks execution | Read-only |
 | Active rebase/merge/cherry-pick | operation diagnostic; both safety flags false | Create/bind mode change, reconfigure, committed import, selection, completion, lifecycle change, and managed rebase fail | No zdev mutation; Git recovery state preserved |
 | Ordinary import off trunk | branch status need not be safe | Existing transactional import succeeds if area/bundle/graph are valid | New tasks and owning index only |
 | Committed import with eligible brief and unrelated changes | trunk checked out; exact owning brief state valid | Import commits brief, new tasks, index; preserves unrelated state | Managed paths and one commit only |
@@ -564,8 +564,8 @@ topology framework.
 - Canonical `skills/zdev/references/{task-format,implement,verify,recovery}.md`,
   `templates/zdev/{shared-contract,task-workflows.md}`, workflow/user docs, and
   help text: explain explicit trunk intent, resolved required branch, no rebase
-  advisory/no-op, unchanged attribution, and the existing status-then-goal
-  separation. Regenerate every checked-in Codex, Claude, OpenCode, Pi, and Oh
+  advisory/no-op, unchanged attribution, and current work-context collection.
+  Regenerate every checked-in Codex, Claude, OpenCode, Pi, and Oh
   My Pi integration through `zdev skill install/check`; do not hand-edit
   generated copies.
 - Focused black-box coverage belongs in `tests/lean.rs`: strict old/new records,

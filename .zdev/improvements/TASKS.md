@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 53
+- Done: 54
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -62,4 +62,4 @@
 | [improvements-051](tasks/051-implement-safe-trunk-area-transitions.md) | Implement safe trunk area transitions | done | improvements-050 |
 | [improvements-052](tasks/052-integrate-trunk-areas-with-task-workflows.md) | Integrate trunk areas with task workflows | done | improvements-051, improvements-034 |
 | [improvements-053](tasks/053-reconcile-final-release-documentation.md) | Reconcile final release documentation | done | improvements-049, improvements-045, improvements-046, improvements-052, improvements-043, improvements-034, improvements-035, improvements-036, improvements-037, improvements-038, improvements-039 |
-| [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | ready | improvements-053 |
+| [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | done | improvements-053 |

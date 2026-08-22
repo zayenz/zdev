@@ -127,7 +127,7 @@ grep -Fq 'zdev:zdev-implementer' \
 grep -Fq 'tools: Read, Bash, Grep, Glob' \
     "$project/.claude/skills/zdev/agents/zdev-verifier.md" ||
     fail "Claude verifier gained write tools"
-grep -Fq 'while (verdict.split' \
+grep -Fq "while (verdict.result.verdict === 'rework')" \
     "$project/.claude/skills/zdev/workflows/zdev-implement.js" ||
     fail "Claude task workflow lost its repeated rework loop"
 [ -f "$project/.claude/skills/zdev/workflows/zdev-verify.js" ] ||

@@ -267,8 +267,10 @@ Status includes closed areas and diagnoses their branches normally.
 
 ## Other operations
 
-- `zdev tasks review` remains read-only and may review a bundle for a closed
-  area. `zdev tasks import`, with or without `--commit`, rejects a closed area
+- `zdev tasks review` may review a bundle for a closed area. It replaces only
+  the untracked current review in Git administrative state; it does not change
+  `.zdev`, the worktree, index, refs, or lifecycle. `zdev tasks import`, with or
+  without `--commit`, rejects a closed area
   before publication: `Cannot add tasks to closed area <area>. Run \`zdev area
   reopen <area>\` first`. It never reopens the area implicitly.
 - `zdev task reopen` rejects a closed area before changing the task:

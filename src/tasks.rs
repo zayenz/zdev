@@ -92,6 +92,22 @@ struct TaskBundle {
     tasks: Vec<TaskDraft>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct TaskReviewMetadata {
+    schema_version: u64,
+    area: String,
+    review: String,
+    fingerprint: String,
+}
+
+struct TaskReview {
+    metadata: TaskReviewMetadata,
+    bundle: TaskBundle,
+    markdown: String,
+    markdown_path: PathBuf,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TaskDraft {
@@ -252,6 +268,32 @@ fn task_bundle_approval_id(bundle: &TaskBundle) -> Result<String, ZdevError> {
     Ok(format!("T{hash:016x}"))
 }
 
+fn task_review_id(fingerprint: &str) -> String {
+    format!("R{}", fingerprint.strip_prefix('T').unwrap_or(fingerprint))
+}
+
+fn task_review_store(root: &Path, area: &str) -> Result<PathBuf, ZdevError> {
+    let name = format!("zdev/reviews/{area}");
+    let path = PathBuf::from(git_output(root, &["rev-parse", "--git-path", &name])?);
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    })
+}
+
+fn task_review_path_value(root: &Path, path: &Path) -> String {
+    relative(root, path)
+}
+
+fn valid_task_review_id(value: &str) -> bool {
+    value.len() == 17
+        && value.starts_with('R')
+        && value[1..]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 fn approval_value(value: Option<&str>) -> &str {
     value.filter(|value| !value.is_empty()).unwrap_or("None")
 }
@@ -311,16 +353,201 @@ pub(super) fn review(root: &Path, area: &str, source: &Path) -> Result<CommandOu
     load_area(root, area)?;
     let bundle = read_task_bundle(source)?;
     validate_task_bundle(root, &bundle, area)?;
-    let approval = task_bundle_approval_id(&bundle)?;
+    let fingerprint = task_bundle_approval_id(&bundle)?;
+    let review = task_review_id(&fingerprint);
     let markdown = render_task_bundle_approval(&bundle);
+    let metadata = TaskReviewMetadata {
+        schema_version: SCHEMA_VERSION,
+        area: area.to_owned(),
+        review: review.clone(),
+        fingerprint,
+    };
+    let mut bundle_bytes = serde_json::to_vec(&bundle)
+        .map_err(|error| ZdevError::new(format!("Cannot serialize task bundle: {error}")))?;
+    bundle_bytes.push(b'\n');
+    let mut metadata_bytes = serde_json::to_vec_pretty(&metadata)
+        .map_err(|error| ZdevError::new(format!("Cannot serialize task review: {error}")))?;
+    metadata_bytes.push(b'\n');
+    let _lock = ZdevStateLock::acquire(root)?;
+    load_area(root, area)?;
+    validate_task_bundle(root, &bundle, area)?;
+    let store = task_review_store(root, area)?;
+    let directory = store.join(&review);
+    fs::create_dir_all(&directory).map_err(|error| {
+        ZdevError::io(
+            format!(
+                "Cannot create task review directory {}",
+                directory.display()
+            ),
+            error,
+        )
+    })?;
+    let bundle_path = directory.join("bundle.json");
+    let metadata_path = directory.join("metadata.json");
+    let markdown_path = directory.join("review.md");
+    write_atomic(&bundle_path, &bundle_bytes)?;
+    write_atomic(&metadata_path, &metadata_bytes)?;
+    write_atomic(&markdown_path, markdown.as_bytes())?;
+    write_atomic(&store.join("current"), format!("{review}\n").as_bytes())?;
+    if let Ok(entries) = fs::read_dir(&store) {
+        for entry in entries.flatten() {
+            if entry.file_name() != OsStr::new(&review)
+                && entry.file_type().is_ok_and(|kind| kind.is_dir())
+            {
+                let _ = fs::remove_dir_all(entry.path());
+            }
+        }
+    }
     Ok(CommandOutput::new(
-        markdown.clone(),
+        markdown,
         json!({
             "schema_version": SCHEMA_VERSION,
             "status": "reviewed",
             "area": area,
-            "approval": approval,
-            "markdown": markdown,
+            "review": review,
+            "path": task_review_path_value(root, &markdown_path),
+        }),
+    ))
+}
+
+fn read_regular_file(path: &Path, area: &str) -> Result<Vec<u8>, ZdevError> {
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        ZdevError::io(
+            format!(
+                "Cannot inspect stored task review for area {area} at {}",
+                path.display()
+            ),
+            error,
+        )
+    })?;
+    if !metadata.file_type().is_file() {
+        return Err(ZdevError::new(format!(
+            "Stored task review path {} is not a regular file",
+            path.display()
+        )));
+    }
+    fs::read(path).map_err(|error| {
+        ZdevError::io(
+            format!(
+                "Cannot read stored task review for area {area} at {}",
+                path.display()
+            ),
+            error,
+        )
+    })
+}
+
+fn read_task_review(
+    root: &Path,
+    area: &str,
+    expected_review: Option<&str>,
+) -> Result<TaskReview, ZdevError> {
+    let store = task_review_store(root, area)?;
+    let current_path = store.join("current");
+    let current_metadata = fs::symlink_metadata(&current_path).map_err(|error| {
+        if error.kind() == io::ErrorKind::NotFound {
+            ZdevError::new(format!(
+                "No stored task review exists for area {area}; run `zdev tasks review {area} --from <PATH_OR_DASH>`"
+            ))
+        } else {
+            ZdevError::io(
+                format!("Cannot inspect task review pointer {}", current_path.display()),
+                error,
+            )
+        }
+    })?;
+    if !current_metadata.file_type().is_file() {
+        return Err(ZdevError::new(format!(
+            "Stored task review pointer for area {area} is corrupt; run `zdev tasks review {area} --from <PATH_OR_DASH>` again"
+        )));
+    }
+    let current_bytes = fs::read(&current_path).map_err(|error| {
+        ZdevError::io(
+            format!("Cannot read task review pointer {}", current_path.display()),
+            error,
+        )
+    })?;
+    let current = std::str::from_utf8(&current_bytes)
+        .ok()
+        .and_then(|value| value.strip_suffix('\n'));
+    let Some(current) = current.filter(|value| valid_task_review_id(value)) else {
+        return Err(ZdevError::new(format!(
+            "Stored task review pointer for area {area} is corrupt; run `zdev tasks review {area} --from <PATH_OR_DASH>` again"
+        )));
+    };
+    if let Some(expected) = expected_review
+        && expected != current
+    {
+        return Err(ZdevError::new(format!(
+            "Task review {expected} was replaced by {current}; show and approve the current review before importing"
+        )));
+    }
+    let directory = store.join(current);
+    let metadata_path = directory.join("metadata.json");
+    let bundle_path = directory.join("bundle.json");
+    let markdown_path = directory.join("review.md");
+    let metadata_bytes = read_regular_file(&metadata_path, area)?;
+    let metadata: TaskReviewMetadata = serde_json::from_slice(&metadata_bytes).map_err(|error| {
+        ZdevError::new(format!(
+            "Stored task review for area {area} is corrupt: {error}. Run `zdev tasks review {area} --from <PATH_OR_DASH>` again"
+        ))
+    })?;
+    if metadata.schema_version != SCHEMA_VERSION
+        || metadata.area != area
+        || metadata.review != current
+    {
+        return Err(ZdevError::new(format!(
+            "Stored task review does not match selected area {area}; run `zdev tasks review {area} --from <PATH_OR_DASH>` again"
+        )));
+    }
+    let bundle_bytes = read_regular_file(&bundle_path, area)?;
+    let bundle: TaskBundle = serde_json::from_slice(&bundle_bytes).map_err(|error| {
+        ZdevError::new(format!(
+            "Stored task bundle for area {area} is corrupt: {error}. Run `zdev tasks review {area} --from <PATH_OR_DASH>` again"
+        ))
+    })?;
+    validate_task_bundle(root, &bundle, area).map_err(|error| {
+        ZdevError::new(format!(
+            "Stored task review for area {area} is no longer valid: {error}"
+        ))
+    })?;
+    let markdown_bytes = read_regular_file(&markdown_path, area)?;
+    let markdown = String::from_utf8(markdown_bytes).map_err(|_| {
+        ZdevError::new(format!(
+            "Stored task review Markdown for area {area} is not valid UTF-8"
+        ))
+    })?;
+    let fingerprint = task_bundle_approval_id(&bundle)?;
+    let review = task_review_id(&fingerprint);
+    if metadata.fingerprint != fingerprint
+        || metadata.review != review
+        || markdown != render_task_bundle_approval(&bundle)
+    {
+        return Err(ZdevError::new(format!(
+            "Stored task review for area {area} does not match its bundle; run `zdev tasks review {area} --from <PATH_OR_DASH>` again"
+        )));
+    }
+    Ok(TaskReview {
+        metadata,
+        bundle,
+        markdown,
+        markdown_path,
+    })
+}
+
+pub(super) fn show_review(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    load_area(root, area)?;
+    let _lock = ZdevStateLock::acquire(root)?;
+    let artifact = read_task_review(root, area, None)?;
+    Ok(CommandOutput::new(
+        artifact.markdown.clone(),
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "status": "reviewed",
+            "area": area,
+            "review": artifact.metadata.review,
+            "path": task_review_path_value(root, &artifact.markdown_path),
+            "markdown": artifact.markdown,
         }),
     ))
 }
@@ -1122,21 +1349,33 @@ fn git_read_tree(root: &Path, tree: &str) -> Result<(), ZdevError> {
 pub(super) fn import(
     root: &Path,
     area: &str,
-    source: &Path,
+    source: Option<&Path>,
+    reviewed: Option<&str>,
     commit_changes: bool,
     approval: Option<&str>,
 ) -> Result<CommandOutput, ZdevError> {
-    let bundle = read_task_bundle(source)?;
-    validate_task_bundle(root, &bundle, area)?;
-    if let Some(approval) = approval {
-        let actual = task_bundle_approval_id(&bundle)?;
-        if approval != actual {
-            return Err(ZdevError::new(
-                "Task bundle differs from the reviewed content; run `zdev tasks review` again before importing it",
-            ));
+    let direct_bundle = if let Some(source) = source {
+        let bundle = read_task_bundle(source)?;
+        validate_task_bundle(root, &bundle, area)?;
+        if let Some(approval) = approval {
+            let actual = task_bundle_approval_id(&bundle)?;
+            if approval != actual {
+                return Err(ZdevError::new(
+                    "Task bundle differs from the reviewed content; run `zdev tasks review` again before importing it",
+                ));
+            }
         }
-    }
+        Some(bundle)
+    } else {
+        None
+    };
     let _lock = ZdevStateLock::acquire(root)?;
+    let bundle = if let Some(reviewed) = reviewed {
+        read_task_review(root, area, Some(reviewed))?.bundle
+    } else {
+        direct_bundle.expect("clap requires --from or --reviewed")
+    };
+    validate_task_bundle(root, &bundle, area)?;
     let (metadata, area_dir) = load_area(root, area)?;
     super::project::validate_area_relationships(root, &list_areas(root)?)?;
     if metadata.lifecycle == AreaLifecycle::Closed {

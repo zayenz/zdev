@@ -123,25 +123,26 @@ JSON to:
 <task-bundle-json> | zdev tasks review <area> --from - --format json
 ```
 
-The command validates the bundle shape and returns a complete `markdown`
-document plus an opaque review fingerprint in the existing `approval` field.
-The coordinator retains that field automatically. Show only the returned
-Markdown unchanged, then ask: `Approve this task bundle for import?` Never ask
-the user to read, copy, compare, or reason about the fingerprint.
+The command validates the bundle shape and returns a small opaque `review`
+identity plus the path to the complete Markdown file. It stores the Markdown,
+canonical bundle, and internal fingerprint under Git administrative state, not
+under `.zdev`. Run `zdev tasks review <area> --show` and show that Markdown
+unchanged, then ask: `Approve this task bundle for import?` The coordinator
+retains the returned identity automatically; the user never reads, copies, or
+reasons about it or the internal fingerprint.
 
-Keep the reviewed JSON unchanged. If any task content, order, or dependency
-changes, run `zdev tasks review` again, retain its replacement fingerprint,
-show the new Markdown, and request fresh approval. Pass the bundle through
-standard input or use a path supplied by the user; do not create a transport
-file.
+If any task content, order, or dependency changes, run `zdev tasks review`
+again. This atomically replaces the current stored review. Show the new stored
+Markdown and request fresh approval; do not reconstruct the document or create
+a transport file.
 
 ## Import
 
-After explicit approval, send the reviewed JSON and the retained fingerprint
-directly to zdev without another user step:
+After explicit approval, import the stored review with the retained identity
+without another user step:
 
 ```text
-<reviewed-task-bundle-json> | zdev tasks import <area> --from - --approval <review-fingerprint>
+zdev tasks import <area> --reviewed <review-id> --format json
 zdev check <area> --format json
 ```
 
@@ -159,7 +160,8 @@ current selection and consider additions at the next `zdev next` boundary.
 Review any other concurrent commit that changes existing tasks, `brief.md`, area
 metadata, lifecycle state, or source.
 
-If the user supplies a bundle path, pass it to both review and import unchanged.
+If the user supplies a bundle path, pass it to review unchanged; approved import
+still reads the stored artifact.
 Report allocated task IDs and the complete ready frontier returned by the import.
 Offer **Implement** and stop unless the user already authorized implementation
 of this approved bundle. When authorized, read `implement.md` completely and

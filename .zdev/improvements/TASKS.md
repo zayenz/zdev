@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 55
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 54
+- Done: 55
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -63,4 +63,4 @@
 | [improvements-052](tasks/052-integrate-trunk-areas-with-task-workflows.md) | Integrate trunk areas with task workflows | done | improvements-051, improvements-034 |
 | [improvements-053](tasks/053-reconcile-final-release-documentation.md) | Reconcile final release documentation | done | improvements-049, improvements-045, improvements-046, improvements-052, improvements-043, improvements-034, improvements-035, improvements-036, improvements-037, improvements-038, improvements-039 |
 | [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | done | improvements-053 |
-| [improvements-055](tasks/055-persist-and-present-task-review-artifacts.md) | Persist and present task review artifacts | ready | — |
+| [improvements-055](tasks/055-persist-and-present-task-review-artifacts.md) | Persist and present task review artifacts | done | — |

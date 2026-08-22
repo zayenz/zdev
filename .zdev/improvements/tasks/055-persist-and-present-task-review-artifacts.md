@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-055"
 key = "filesystem-review-artifacts"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -27,13 +27,21 @@ Zdev 1.0 and 1.1 return the complete review Markdown through command output. Lar
 
 ## Done when
 
-- [ ] zdev tasks review writes the current area review artifact and returns small identity/path metadata instead of embedding the full Markdown in JSON.
-- [ ] zdev can show the stored review Markdown on demand.
-- [ ] zdev can import the stored reviewed bundle directly while retaining drift validation and committed-import behavior.
-- [ ] Missing, mismatched, corrupt, replaced, and cross-area artifacts fail clearly without task publication.
-- [ ] Canonical guidance and user documentation use the filesystem artifact and no longer instruct agents to reconstruct or transport the review document or fingerprint.
+- [x] zdev tasks review writes the current area review artifact and returns small identity/path metadata instead of embedding the full Markdown in JSON.
+- [x] zdev can show the stored review Markdown on demand.
+- [x] zdev can import the stored reviewed bundle directly while retaining drift validation and committed-import behavior.
+- [x] Missing, mismatched, corrupt, replaced, and cross-area artifacts fail clearly without task publication.
+- [x] Canonical guidance and user documentation use the filesystem artifact and no longer instruct agents to reconstruct or transport the review document or fingerprint.
 
 ## Validation
 
 - Add focused black-box tests for review storage, show, replacement, reviewed import, failure cases, and linked-worktree-safe Git paths.
 - Run the area-wide validation from brief.md and regenerate affected harness artifacts.
+
+## Result
+
+Persisted task-bundle reviews as repository-local Markdown and canonical bundle artifacts that zdev can show and import without reconstruction or fingerprint transport.
+
+Validation:
+
+- Independent verifier PASS; focused review-store, replacement, linked-worktree, reviewed-import, corruption, compatibility, generation, package, and full validation passed.

@@ -78,16 +78,26 @@ If a harness wants to show a rendered bundle before importing it, use:
 zdev tasks review scheduling --from - --format json
 ```
 
-The result's `approval` field is an opaque review fingerprint that detects
-changes between review and import. A coordinating harness carries it through
-`--approval` automatically after the user approves the rendered bundle; it is
-not security authorization or another kind of task state. Direct import
-without it remains available. For example, the coordinator imports and commits
-an approved bundle with:
+Zdev stores the canonical bundle, an internal fingerprint, and an actual
+Markdown review file under repository-local Git administrative state. The
+small JSON result gives the harness an opaque review identity and the Markdown
+path. Show the current document on demand:
 
 ```sh
-zdev tasks import scheduling --from - --approval <review-fingerprint> --commit --format json
+zdev tasks review scheduling --show
 ```
+
+After approval, the harness imports that exact current review and may commit it
+in the same operation:
+
+```sh
+zdev tasks import scheduling --reviewed <review-id> --commit --format json
+```
+
+The harness carries the review identity automatically; the user never handles
+it or the internal fingerprint. A replacement review invalidates the old
+identity. Direct `--from` import remains available for compatibility and manual
+use.
 
 If the approved task work modified the area's tracked `brief.md`, leave it
 unstaged. The committed import validates and includes the brief with the new

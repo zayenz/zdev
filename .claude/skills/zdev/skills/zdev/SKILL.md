@@ -168,10 +168,12 @@ commit `82d2921c52370f23f29086de81ccfb600939c037`.
 ## State and reporting
 
 Store only metadata, `brief.md`, optional slice briefs, task files, and generated
-`TASKS.md` under `.zdev`. Keep transcripts and review evidence in the
-conversation. Existing domain documentation and ADRs remain authoritative
-across areas. Report what changed, what verification passed, and what remains;
-mention commands only when they help the user continue or recover.
+`TASKS.md` under `.zdev`. Task-bundle review artifacts live in repository-local
+Git administrative state and are accessed through `zdev tasks review`; keep
+other transcripts and review evidence in the conversation. Existing domain
+documentation and ADRs remain authoritative across areas. Report what changed,
+what verification passed, and what remains; mention commands only when they
+help the user continue or recover.
 
 ## Claude Code orchestration
 

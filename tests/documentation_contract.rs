@@ -32,14 +32,17 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
 
     let readme = normalized(README);
     assert!(readme.contains("zdev tasks review scheduling --from - --format json"));
-    assert!(readme.contains("--approval <review-fingerprint> --commit --format json"));
+    assert!(readme.contains("zdev tasks review scheduling --show"));
+    assert!(readme.contains("--reviewed <review-id> --commit --format json"));
+    assert!(readme.contains("user never handles it or the internal fingerprint"));
     assert!(readme.contains("does not interrupt the selected task"));
 
     let guide = normalized(USER_GUIDE);
     for public_contract in [
         "zdev tasks review scheduling --from - --format json",
-        "opaque review fingerprint",
-        "harness retains it automatically",
+        "zdev tasks review scheduling --show",
+        "zdev tasks import scheduling --reviewed <review-id>",
+        "you never read, copy, compare, or diagnose it or the internal fingerprint",
         "zdev tasks import scheduling --from -",
         "zdev tasks import scheduling --from - --commit --format json",
         "Use ordinary import for the initial task split",

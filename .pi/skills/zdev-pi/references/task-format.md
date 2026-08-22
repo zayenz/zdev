@@ -152,13 +152,15 @@ never an authored source.
 - optional `validation` strings.
 
 Run `zdev tasks review <area> --from - --format json` to validate a draft bundle
-and render its complete review document. The result includes an opaque review
-fingerprint in the existing `approval` field. The coordinator retains it
-automatically; the user approves the readable Markdown and is never asked to
-handle the fingerprint. After approval, the coordinator passes the unchanged
-JSON to `zdev tasks import <area> --from - --approval <review-fingerprint>`. Zdev
-rejects a bundle that differs from the reviewed content. The option remains
-compatible with manual callers, and direct import without it remains valid.
+and store its complete Markdown review, canonical bundle, and internal
+fingerprint in Git administrative state. The small JSON result names the actual
+Markdown path and an opaque `review` identity. Present the exact document with
+`zdev tasks review <area> --show`; the user never handles the identity or
+fingerprint. After approval, use `zdev tasks import <area> --reviewed
+<review-id>`. Zdev requires that identity to remain current and revalidates the
+stored bundle before publication. Direct `--from` import remains valid, and
+`--approval` remains compatible with callers that already use it for direct
+input.
 
 Review, import, and `zdev check` reject a task whose `slice` does not name an
 existing `.zdev/<area>/slices/<key>.md`. Unsliced tasks remain valid and appear

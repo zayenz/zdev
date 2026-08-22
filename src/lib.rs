@@ -382,18 +382,26 @@ enum TasksCommand {
         #[command(subcommand)]
         command: DerivedTasksCommand,
     },
-    /// Render a JSON task bundle for human review
+    /// Store or show a JSON task bundle for human review
     ///
-    /// Validates the bundle's shape, renders its complete Markdown review
-    /// document, and returns an opaque fingerprint for `tasks import --approval`.
+    /// With --from, validates the bundle and atomically stores its rendered
+    /// review in Git administrative state. With --show, prints the stored review.
     Review {
         /// Area tag that will own the reviewed tasks
         area: String,
         /// JSON bundle path, or - to read the bundle from standard input
-        #[arg(long = "from", value_name = "PATH_OR_DASH")]
-        source: PathBuf,
+        #[arg(
+            long = "from",
+            value_name = "PATH_OR_DASH",
+            required_unless_present = "show",
+            conflicts_with = "show"
+        )]
+        source: Option<PathBuf>,
+        /// Show the current stored review Markdown
+        #[arg(long, required_unless_present = "source", conflicts_with = "source")]
+        show: bool,
     },
-    /// Import a reviewed JSON task bundle into an area
+    /// Import a stored review or direct JSON task bundle into an area
     ///
     /// Creates one Markdown file per task and regenerates TASKS.md. Existing
     /// task files are preserved; conflicting task keys fail the import.
@@ -401,13 +409,26 @@ enum TasksCommand {
         /// Area tag that will own the imported tasks
         area: String,
         /// JSON bundle path, or - to read the bundle from standard input
-        #[arg(long = "from", value_name = "PATH_OR_DASH")]
-        source: PathBuf,
+        #[arg(
+            long = "from",
+            value_name = "PATH_OR_DASH",
+            required_unless_present = "reviewed",
+            conflicts_with = "reviewed"
+        )]
+        source: Option<PathBuf>,
+        /// Import the current stored review with this opaque review identity
+        #[arg(
+            long,
+            value_name = "REVIEW_ID",
+            required_unless_present = "source",
+            conflicts_with_all = ["source", "approval"]
+        )]
+        reviewed: Option<String>,
         /// Commit only the imported task files and regenerated summary
         #[arg(long)]
         commit: bool,
-        /// Opaque review fingerprint carried from `zdev tasks review`
-        #[arg(long, value_name = "FINGERPRINT")]
+        /// Compatibility fingerprint for a direct --from import
+        #[arg(long, value_name = "FINGERPRINT", requires = "source")]
         approval: Option<String>,
     },
     /// List every task in an area with its current state
@@ -704,13 +725,31 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                     approval,
                 } => tasks::apply_derived(&root, area, source, approval.as_deref()),
             },
-            TasksCommand::Review { area, source } => tasks::review(&root, area, source),
+            TasksCommand::Review { area, source, show } => {
+                if *show {
+                    tasks::show_review(&root, area)
+                } else {
+                    tasks::review(
+                        &root,
+                        area,
+                        source.as_deref().expect("clap requires --from or --show"),
+                    )
+                }
+            }
             TasksCommand::Import {
                 area,
                 source,
+                reviewed,
                 commit,
                 approval,
-            } => tasks::import(&root, area, source, *commit, approval.as_deref()),
+            } => tasks::import(
+                &root,
+                area,
+                source.as_deref(),
+                reviewed.as_deref(),
+                *commit,
+                approval.as_deref(),
+            ),
             TasksCommand::List { area } => tasks::list(&root, area),
             TasksCommand::Index { area } => tasks::index(&root, area),
         },

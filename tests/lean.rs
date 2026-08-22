@@ -126,6 +126,24 @@ fn git_stdout(root: &Path, arguments: &[&str]) -> String {
     String::from_utf8(output.stdout).expect("Git UTF-8")
 }
 
+fn git_path(root: &Path, name: &str) -> std::path::PathBuf {
+    let path = std::path::PathBuf::from(git(root, &["rev-parse", "--git-path", name]));
+    if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    }
+}
+
+fn reported_path(root: &Path, value: &Value) -> std::path::PathBuf {
+    let path = std::path::PathBuf::from(value.as_str().expect("reported path"));
+    if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    }
+}
+
 fn executable_on_path(name: &str) -> std::path::PathBuf {
     std::env::split_paths(&std::env::var_os("PATH").expect("PATH"))
         .map(|directory| directory.join(name))
@@ -2657,7 +2675,7 @@ fn task_import_returns_complete_ready_frontier_from_standard_input() {
 }
 
 #[test]
-fn reviewed_task_bundle_fingerprint_guards_the_import() {
+fn stored_task_review_can_be_shown_replaced_and_imported() {
     let repository = repository();
     let root = repository.path();
     json_output(root, &["init", "--record", "project"]);
@@ -2688,6 +2706,7 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
         }]
     });
     let bytes = serde_json::to_vec(&bundle).expect("task bundle");
+    let status_before = git(root, &["status", "--short", "--untracked-files=all"]);
 
     let reviewed = json_output_with_stdin(
         root,
@@ -2696,10 +2715,18 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
     );
     assert_eq!(reviewed["status"], "reviewed");
     assert_eq!(reviewed["area"], "approval");
-    let approval = reviewed["approval"].as_str().expect("approval ID");
-    assert_eq!(approval.len(), 17);
-    assert_eq!(approval, "Ta8f4067d67f0ef2b");
-    let markdown = reviewed["markdown"].as_str().expect("approval Markdown");
+    assert_eq!(reviewed.as_object().expect("review metadata").len(), 5);
+    assert!(reviewed.get("approval").is_none());
+    assert!(reviewed.get("markdown").is_none());
+    let review = reviewed["review"].as_str().expect("review ID");
+    assert_eq!(review, "Ra8f4067d67f0ef2b");
+    let markdown_path = reported_path(root, &reviewed["path"]);
+    assert_eq!(
+        markdown_path.extension().and_then(|value| value.to_str()),
+        Some("md")
+    );
+    assert!(!markdown_path.starts_with(root.join(".zdev")));
+    let markdown = fs::read_to_string(&markdown_path).expect("stored review Markdown");
     for value in [
         "approval",
         "one",
@@ -2712,13 +2739,40 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
     ] {
         assert!(markdown.contains(value));
     }
+    let shown = run_zdev(root, &["tasks", "review", "approval", "--show"]);
+    assert!(shown.status.success());
+    assert_eq!(
+        String::from_utf8(shown.stdout).expect("shown review"),
+        format!("{markdown}\n")
+    );
+    let shown_json = json_output(root, &["tasks", "review", "approval", "--show"]);
+    assert_eq!(shown_json["review"], review);
+    assert_eq!(shown_json["markdown"], markdown);
+    assert_eq!(
+        serde_json::from_slice::<Value>(
+            &fs::read(markdown_path.with_file_name("bundle.json")).expect("stored bundle")
+        )
+        .expect("canonical bundle JSON"),
+        bundle
+    );
+    let metadata: Value = serde_json::from_slice(
+        &fs::read(markdown_path.with_file_name("metadata.json")).expect("stored metadata"),
+    )
+    .expect("review metadata");
+    assert_eq!(metadata["fingerprint"], "Ta8f4067d67f0ef2b");
+    assert_eq!(
+        git(root, &["status", "--short", "--untracked-files=all"]),
+        status_before
+    );
+
     let pretty = serde_json::to_vec_pretty(&bundle).expect("pretty task bundle");
     let reviewed_pretty = json_output_with_stdin(
         root,
         &["tasks", "review", "approval", "--from", "-"],
         &pretty,
     );
-    assert_eq!(reviewed_pretty["approval"], reviewed["approval"]);
+    assert_eq!(reviewed_pretty["review"], reviewed["review"]);
+    assert_eq!(reviewed_pretty["path"], reviewed["path"]);
 
     let mut explicit_standard = bundle.clone();
     explicit_standard["tasks"][0]["complexity"] = json!("standard");
@@ -2728,31 +2782,21 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
         &["tasks", "review", "approval", "--from", "-"],
         &explicit_standard,
     );
-    assert_ne!(reviewed_standard["approval"], reviewed["approval"]);
+    let replacement = reviewed_standard["review"]
+        .as_str()
+        .expect("replacement review");
+    assert_ne!(replacement, review);
     assert!(
-        reviewed_standard["markdown"]
-            .as_str()
-            .expect("review markdown")
-            .contains("### Complexity\nstandard")
+        !markdown_path.exists(),
+        "replaced review directory is pruned"
     );
+    let replacement_markdown = fs::read_to_string(reported_path(root, &reviewed_standard["path"]))
+        .expect("replacement Markdown");
+    assert!(replacement_markdown.contains("### Complexity\nstandard"));
 
-    let mut changed = bundle.clone();
-    changed["tasks"][0]["title"] = json!("Changed after review");
-    let changed = serde_json::to_vec(&changed).expect("changed task bundle");
-    let rejected = json_output_with_stdin_status(
-        root,
-        &[
-            "tasks",
-            "import",
-            "approval",
-            "--from",
-            "-",
-            "--approval",
-            approval,
-        ],
-        &changed,
-    );
+    let rejected = run_zdev(root, &["tasks", "import", "approval", "--reviewed", review]);
     assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("was replaced"));
     assert_eq!(
         fs::read_dir(root.join(".zdev/approval/tasks"))
             .expect("tasks directory")
@@ -2760,20 +2804,152 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
         0
     );
 
-    let imported = json_output_with_stdin(
+    let imported = json_output(
+        root,
+        &["tasks", "import", "approval", "--reviewed", replacement],
+    );
+    assert_eq!(imported["tasks"], json!(["approval-001"]));
+}
+
+#[test]
+fn stored_task_review_failures_publish_no_tasks() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    for area in ["missing", "source", "other"] {
+        json_output(
+            root,
+            &[
+                "area",
+                "create",
+                area,
+                "--title",
+                area,
+                "--objective",
+                "Exercise stored review failures.",
+                "--trunk",
+            ],
+        );
+    }
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "source",
+        "tasks": [{
+            "key": "one", "title": "Keep review exact", "blocked_by": [],
+            "outcome": "Invalid review state publishes nothing.",
+            "done_when": ["No task is created on failure."],
+            "validation": ["Exercise stored review errors."]
+        }]
+    }))
+    .expect("task bundle");
+
+    let missing = run_zdev(
         root,
         &[
             "tasks",
             "import",
-            "approval",
-            "--from",
-            "-",
-            "--approval",
-            approval,
+            "missing",
+            "--reviewed",
+            "R0000000000000000",
         ],
-        &bytes,
     );
-    assert_eq!(imported["tasks"], json!(["approval-001"]));
+    assert!(!missing.status.success());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("No stored task review"));
+
+    let reviewed =
+        json_output_with_stdin(root, &["tasks", "review", "source", "--from", "-"], &bundle);
+    let markdown_path = reported_path(root, &reviewed["path"]);
+    fs::write(&markdown_path, "changed\n").expect("corrupt review Markdown");
+    let mismatch = run_zdev(root, &["tasks", "review", "source", "--show"]);
+    assert!(!mismatch.status.success());
+    assert!(String::from_utf8_lossy(&mismatch.stderr).contains("does not match its bundle"));
+
+    let reviewed =
+        json_output_with_stdin(root, &["tasks", "review", "source", "--from", "-"], &bundle);
+    let source_path = reported_path(root, &reviewed["path"]);
+    let review = reviewed["review"].as_str().expect("review ID");
+    let other_store = git_path(root, "zdev/reviews/other");
+    let other_directory = other_store.join(review);
+    fs::create_dir_all(&other_directory).expect("other review directory");
+    for name in ["bundle.json", "metadata.json", "review.md"] {
+        fs::copy(source_path.with_file_name(name), other_directory.join(name))
+            .expect("copy cross-area review");
+    }
+    fs::write(other_store.join("current"), format!("{review}\n")).expect("other current pointer");
+    let cross_area = run_zdev(root, &["tasks", "review", "other", "--show"]);
+    assert!(!cross_area.status.success());
+    assert!(String::from_utf8_lossy(&cross_area.stderr).contains("does not match selected area"));
+
+    fs::write(source_path.with_file_name("metadata.json"), b"{").expect("corrupt metadata");
+    let corrupt = run_zdev(root, &["tasks", "import", "source", "--reviewed", review]);
+    assert!(!corrupt.status.success());
+    assert!(String::from_utf8_lossy(&corrupt.stderr).contains("is corrupt"));
+    for area in ["missing", "source", "other"] {
+        assert_eq!(
+            fs::read_dir(root.join(format!(".zdev/{area}/tasks")))
+                .expect("tasks directory")
+                .count(),
+            0
+        );
+    }
+}
+
+#[test]
+fn stored_task_review_uses_the_linked_worktree_git_path() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "linked",
+            "--title",
+            "Linked",
+            "--objective",
+            "Store reviews in linked-worktree Git state.",
+        ],
+    );
+    commit_all(root, "record zdev area");
+    let linked_parent = tempfile::tempdir().expect("linked parent");
+    let linked = linked_parent.path().join("checkout");
+    git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "linked-review",
+            linked.to_str().expect("linked path"),
+        ],
+    );
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "linked",
+        "tasks": [{
+            "key": "one", "title": "Review from linked worktree", "blocked_by": [],
+            "outcome": "The review uses this worktree's Git administrative path.",
+            "done_when": ["The Markdown exists outside tracked state."],
+            "validation": ["Inspect git rev-parse --git-path."]
+        }]
+    }))
+    .expect("linked bundle");
+    let reviewed = json_output_with_stdin(
+        &linked,
+        &["tasks", "review", "linked", "--from", "-"],
+        &bundle,
+    );
+    let expected = git_path(&linked, "zdev/reviews/linked")
+        .join(reviewed["review"].as_str().expect("review ID"))
+        .join("review.md");
+    assert_eq!(reported_path(&linked, &reviewed["path"]), expected);
+    assert!(expected.is_file());
+    assert!(git(&linked, &["status", "--short", "--untracked-files=all"]).is_empty());
 }
 
 fn derived_proposal_bytes(area: &str, source_task: &str, proposal: Value) -> Vec<u8> {
@@ -3339,25 +3515,17 @@ fn explicit_task_complexity_round_trips_and_invalid_values_fail_closed() {
         &["tasks", "review", "complexity", "--from", "-"],
         &bytes,
     );
+    let shown = json_output(root, &["tasks", "review", "complexity", "--show"]);
     assert!(
-        reviewed["markdown"]
+        shown["markdown"]
             .as_str()
             .expect("review markdown")
             .contains("### Complexity\nadvanced")
     );
-    let approval = reviewed["approval"].as_str().expect("review fingerprint");
-    json_output_with_stdin(
+    let review = reviewed["review"].as_str().expect("review identity");
+    json_output(
         root,
-        &[
-            "tasks",
-            "import",
-            "complexity",
-            "--from",
-            "-",
-            "--approval",
-            approval,
-        ],
-        &bytes,
+        &["tasks", "import", "complexity", "--reviewed", review],
     );
 
     let task_path = root.join(".zdev/complexity/tasks/001-implement-advanced-work.md");
@@ -3617,10 +3785,21 @@ fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
     }))
     .expect("bundle");
 
-    let imported = json_output_with_stdin(
+    let reviewed = json_output_with_stdin(
         root,
-        &["tasks", "import", "concurrent", "--from", "-", "--commit"],
+        &["tasks", "review", "concurrent", "--from", "-"],
         &bundle,
+    );
+    let imported = json_output(
+        root,
+        &[
+            "tasks",
+            "import",
+            "concurrent",
+            "--reviewed",
+            reviewed["review"].as_str().expect("review ID"),
+            "--commit",
+        ],
     );
 
     assert_eq!(imported["status"], "committed");
@@ -4610,13 +4789,22 @@ fn every_help_page_explains_its_command_and_inputs() {
             ],
         ),
         (&["tasks", "--help"], &["review", "import", "list", "index"]),
-        (&["tasks", "review", "--help"], &["--from", "PATH_OR_DASH"]),
+        (
+            &["tasks", "review", "--help"],
+            &[
+                "Store or show a JSON task bundle for human review",
+                "--from",
+                "PATH_OR_DASH",
+                "--show",
+            ],
+        ),
         (
             &["tasks", "import", "--help"],
             &[
-                "reviewed JSON task bundle",
+                "stored review or direct JSON task bundle",
                 "Area tag that will own the imported tasks",
                 "or - to read the bundle from standard input",
+                "--reviewed",
             ],
         ),
         (
@@ -6177,6 +6365,21 @@ fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
             fs::read_to_string(destination.join(skill_root).join("references/to-tasks.md"))
                 .expect("task creation reference");
         let worker = fs::read_to_string(destination.join(worker_path)).expect("worker route");
+
+        for required in [
+            "zdev tasks review <area> --show",
+            "zdev tasks import <area> --reviewed <review-id>",
+            "user never reads, copies, or",
+        ] {
+            assert!(
+                to_tasks.contains(required),
+                "{harness} missing stored review guidance: {required}"
+            );
+        }
+        assert!(
+            !to_tasks.contains("zdev tasks import <area> --from - --approval <review-fingerprint>"),
+            "{harness} retains manual fingerprint transport"
+        );
 
         for text in [&implement, &investigate, &to_tasks] {
             assert!(text.contains("zdev tasks derive apply"), "{harness}");
@@ -9157,23 +9360,12 @@ fn task_slice_membership_flows_through_selection_and_derived_progress() {
         &["tasks", "review", "feature", "--from", "-"],
         &bundle,
     );
-    let markdown = reviewed["markdown"].as_str().expect("approval markdown");
+    let shown = json_output(root, &["tasks", "review", "feature", "--show"]);
+    let markdown = shown["markdown"].as_str().expect("approval markdown");
     assert!(markdown.contains("### Slice\nalpha"));
     assert!(markdown.contains("### Slice\nNone"));
-    let approval = reviewed["approval"].as_str().expect("approval");
-    json_output_with_stdin(
-        root,
-        &[
-            "tasks",
-            "import",
-            "feature",
-            "--from",
-            "-",
-            "--approval",
-            approval,
-        ],
-        &bundle,
-    );
+    let review = reviewed["review"].as_str().expect("review identity");
+    json_output(root, &["tasks", "import", "feature", "--reviewed", review]);
 
     let first_path = root.join(".zdev/feature/tasks/001-build-alpha-foundation.md");
     assert!(

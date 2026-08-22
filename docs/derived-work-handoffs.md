@@ -215,8 +215,9 @@ validates and renders the complete envelope and returns an opaque review
 fingerprint over its canonical form. The coordinator requires
 `mechanically_eligible` to remain true, shows that rendering, and asks for
 approval. Any change to the source result, mode, order, dependency, or task
-content requires a new opaque review fingerprint. Ordinary `zdev tasks review`
-and `tasks import --approval` remain available for manually authored bundles.
+content requires a new opaque review fingerprint. Manually authored bundles use
+ordinary stored `zdev tasks review` and `tasks import --reviewed`; direct
+`--from` and compatibility `--approval` input remain available.
 
 `zdev tasks derive apply` accepts the unchanged envelope and an optional
 opaque review fingerprint. Automatic use omits the fingerprint; reviewed use

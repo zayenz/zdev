@@ -24,7 +24,10 @@ This file records notable changes to zdev.
   use typed worker-result envelopes. Small audits use one verifier unless the
   user explicitly supplies bounded review lenses.
 - Task imports return their ready frontier, committed imports can include an
-  approved area brief, and review fingerprints are opaque coordinator handoffs.
+  approved area brief, and review identities are opaque coordinator handoffs.
+- Task review stores a presentable Markdown document and canonical bundle in
+  repository-local Git state, so zdev can show and import the current review
+  without reconstructing Markdown or asking users to transport a fingerprint.
 - Safe-but-stale isolated branches remain workable with one advisory; explicit
   trunk areas do not use freshness or rebase ceremony.
 

@@ -141,7 +141,7 @@ follow preserve the required boundaries while combining the repeated calls.
 | Implementer summary passed to the verifier | **Safely reusable only as a locator** | The verifier must open and check the cited evidence rather than trust the summary. |
 | Envelope parsing after every worker | **Required** | Missing, malformed, or mismatched subjects fail closed. Sharing parser code could reduce source duplication, but would save no round trip. |
 | `task done`, staged-diff inspection, and commit | **Required as separate gates** | Completion changes durable task state; explicit staging establishes ownership; inspection authorizes the exact commit. Failure must leave inspectable state. |
-| Bundle parsing at review and import | **Required** | Import must recompute the opaque review fingerprint from the supplied bundle. Reusing an in-memory review would make the drift check session-dependent. The fingerprint is not security authorization. |
+| Bundle parsing at review and import | **Required** | Review stores the canonical bundle and internal fingerprint outside tracked state. Import rereads and validates that artifact and requires its opaque review identity to remain current, so the drift check is not session-dependent. The fingerprint is not security authorization. |
 | `check` after import | **Required under the current contract** | It checks the published area beyond the returned task IDs. Removing it would need equivalent pre-commit validation and more complicated rollback. |
 | `tasks list` after successful import | **Redundant presentation** | Import already has the validated hypothetical graph and allocated IDs. It can return the ready frontier directly. |
 | A second verifier for a small Claude audit | **Redundant** | The shared audit contract permits one fresh verifier to inspect and check a small boundary. Separate final vetting remains required after fan-out. |
@@ -336,8 +336,9 @@ after:  tasks review -> approval -> tasks import --commit -> check
 
 This saves one zdev process and one coordinator turn for every import in all
 harnesses. The implementation is small and low risk. Import output includes
-the frontier, approval remains stateless, import still rereads the bundle and
-checks its review fingerprint, `check` still validates the published area, and commit rollback is
+the frontier, approval remains outside durable `.zdev` state, import still
+rereads the stored canonical bundle and checks its internal fingerprint,
+`check` still validates the published area, and commit rollback is
 unchanged. Focused coverage imports a new task blocked by an existing open task
 and requires the frontier to contain that existing task. This proves
 the projection is area-wide and sufficient to replace the list call. A

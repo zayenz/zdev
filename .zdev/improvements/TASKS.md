@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 54
-- Ready: 2
+- Ready: 1
 - Blocked: 4
-- Done: 48
+- Done: 49
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -57,7 +57,7 @@
 | [improvements-046](tasks/046-implement-native-goal-loop-adapters-for-codex-and-omp.md) | Implement native goal/loop adapters for Codex and OMP | done | improvements-044 |
 | [improvements-047](tasks/047-parse-and-review-derived-task-proposals.md) | Parse and review derived task proposals | done | improvements-033 |
 | [improvements-048](tasks/048-apply-derived-tasks-atomically.md) | Apply derived tasks atomically | done | improvements-047, improvements-036 |
-| [improvements-049](tasks/049-route-investigation-follow-ups-and-implementation-splits.md) | Route investigation follow-ups and implementation splits | ready | improvements-048 |
+| [improvements-049](tasks/049-route-investigation-follow-ups-and-implementation-splits.md) | Route investigation follow-ups and implementation splits | done | improvements-048 |
 | [improvements-050](tasks/050-add-explicit-trunk-area-metadata.md) | Add explicit trunk area metadata | ready | — |
 | [improvements-051](tasks/051-implement-safe-trunk-area-transitions.md) | Implement safe trunk area transitions | blocked | improvements-050 |
 | [improvements-052](tasks/052-integrate-trunk-areas-with-task-workflows.md) | Integrate trunk areas with task workflows | blocked | improvements-051, improvements-034 |

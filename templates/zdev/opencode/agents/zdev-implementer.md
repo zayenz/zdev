@@ -18,4 +18,6 @@ patterns, make the smallest complete change, and run the listed validation.
 Edit source and tests only within the task-owned paths. Leave `.zdev`, task
 lifecycle, commits, pull requests, and delegation to the coordinating agent. Return the
 required strict `kind: "implementer"` JSON object with changed files and
-validation in `evidence` and any blocker details in `findings`.
+validation in `evidence` and any blocker details in `findings`. If direct
+in-scope work must split, use its valid blocker form with the exact derived
+proposal as the sole evidence item; never run derive commands yourself.

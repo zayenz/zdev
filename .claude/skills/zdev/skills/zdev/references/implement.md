@@ -79,6 +79,37 @@ areas; do not infer project-wide selection from an omitted area.
    Stop only for verifier `pass`, a real blocker, unsafe scope expansion, or a
    user-owned decision.
 
+If the implementer discovers that the approved task must be split, it may
+return one strict transient `implementation_split` proposal instead of asking
+the user to perform a separate task import. It does so inside the unchanged
+typed implementer object: verdict `blocker`, escalation `none`, no findings,
+and the exact proposal as its sole evidence item. Before edits,
+`retained_parent_paths` is empty. After edits, it must equal the complete
+unstaged parent-owned path set, while every child has exact normalized future
+paths disjoint from the parent and every other child. The worker never reviews,
+applies, imports, or writes `.zdev` state.
+
+Recognize that alternative before ordinary blocker handling. Refresh
+work-context and keep the proposal unchanged. When the split is necessary
+direct work inside the brief and source task, with unchanged attributable
+context and no product, compatibility, destructive, ownership, cross-area, or
+uncertainty decision, run `zdev tasks derive apply <area> --from - --format
+json` directly without approval; apply revalidates mechanical authority under
+its lock. Only when semantic authority is unclear and the proposal, current
+state, and ownership are otherwise safe and mechanically eligible, run `zdev
+tasks derive review`. Require `mechanically_eligible` to remain true, show its
+ordinary task bundle, request ordinary approval, and after approval apply the
+unchanged proposal with its opaque fingerprint. Approval resolves only the
+semantic choice. An invalid proposal, unsafe or changed context, staged or
+incomplete ownership, or any mechanical apply failure stops without review or
+apply. Preserve the state, follow recovery, and obtain fresh work-context; a
+fingerprint cannot waive those gates. Never use ordinary task import for this
+path. A successful split commit leaves the source open and blocked by its
+children; report that commit and stop this one-task interaction. An active
+goal, loop, or explicit continuation refreshes work-context and uses the
+resulting normal graph. Do not apply another proposal from the same handoff; a
+later independently selected task may propose once under fresh gates.
+
 For verification, give a different agent the brief, task, actual checkout diff,
 relevant source and tests, and repository verification instructions. It checks
 every task requirement, inspects the touched code, runs task-listed validation,

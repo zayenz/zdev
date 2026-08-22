@@ -2412,7 +2412,7 @@ fn derived_review_rejects_malformed_nested_duplicate_and_mismatched_proposals() 
 }
 
 #[test]
-fn derived_review_routes_unsafe_or_ambiguous_split_authority_to_ordinary_review() {
+fn derived_review_reports_unsafe_or_ambiguous_split_as_mechanically_ineligible() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -4784,6 +4784,11 @@ fn claude_implementation_routes_complexity_planning_rework_and_escalation() {
             "{{repository_guidance}}",
             &serde_json::to_string("repository guidance").expect("repository guidance JSON"),
         );
+    assert!(source.contains("Only when semantic authority is unclear"));
+    assert!(source.contains("mechanically_eligible true"));
+    assert!(source.contains("direct apply mechanical failure stops without review or approval"));
+    assert!(source.contains("A fingerprint cannot waive those gates"));
+    assert!(!source.contains("semantic authority is unclear, or direct apply reports"));
     let probe = format!(
         r#"
 async function run(args, agent) {{
@@ -4828,7 +4833,7 @@ const passEvidence = [
   'git_diff: ""',
 ]
 const completion = 'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: abc123'
-const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS') => {{
+const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null) => {{
   const types = []
   const result = await run({{ area }}, async (_prompt, options) => {{
     if (options.agentType) {{
@@ -4836,11 +4841,18 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
       if (responses.length === 0) throw new Error(name + ': unexpected worker')
       return responses.shift()
     }}
+    if (options.label === 'zdev derived split coordination') {{
+      if (derived === null) throw new Error(name + ': unexpected derived coordination')
+      const result = derived
+      derived = null
+      return result
+    }}
     if (options.label === 'zdev completion and commit') return completion
     return context(complexity)
   }})
   if (!result.startsWith(expectedPrefix + ' zdev-implement')) throw new Error(name + ': ' + result)
   if (responses.length !== 0) throw new Error(name + ': unused responses')
+  if (derived !== null) throw new Error(name + ': unused derived response')
   if (JSON.stringify(types) !== JSON.stringify(expectedTypes)) {{
     throw new Error(name + ': ' + JSON.stringify(types))
   }}
@@ -4907,6 +4919,39 @@ await exercise(
   [worker('planner', 'blocker', 'none', [], ['public API choice belongs to the user'])],
   ['zdev:zdev-planner'],
   'BLOCKER',
+)
+const splitProposal = 'PROPOSE zdev-derived work work-001\n' + JSON.stringify({{
+  schema_version: 1,
+  proposal: 'implementation_split',
+  area,
+  source_task: taskId,
+  source_result: {{ status: 'split', summary: 'split direct work', validation: [] }},
+  tasks: [{{
+    key: 'child', title: 'Implement child', blocked_by: [],
+    outcome: 'Child completes direct work.', done_when: ['Child is complete.'],
+    validation: ['Check the child.'],
+  }}],
+  split_ownership: {{
+    retained_parent_paths: [],
+    child_future_paths: [{{ key: 'child', paths: ['src/child.rs'] }}],
+  }},
+}})
+const splitResult = worker('implementer', 'blocker', 'none', [splitProposal])
+await exercise(
+  'automatic derived split',
+  'standard',
+  [splitResult],
+  ['zdev:zdev-implementer'],
+  'PASS',
+  'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nDerived proposal: implementation_split\nSummary: split applied\nChanged files: task records\nValidation: derive apply\nVerifier evidence: source remains open\nCommit ID: ' + '3'.repeat(40),
+)
+await exercise(
+  'manual derived split',
+  'standard',
+  [splitResult],
+  ['zdev:zdev-implementer'],
+  'BLOCKER',
+  'BLOCKER zdev-implement work work-001\n\nArea: work\nTask: work-001\nFailed stage: derived review\nReason: approval required\nPreserved state: no apply; Approve this derived task bundle for apply?',
 )
 "#
     );
@@ -5043,7 +5088,7 @@ const completionPass = task =>
   + '\n\nArea: ' + area + '\nTask: ' + task
   + '\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed'
   + '\nVerifier evidence: checked\nCommit ID: ' + (task.endsWith('1') ? commit1 : commit2)
-const exercise = async (name, contexts, workers, completions, expectedPrefix) => {{
+const exercise = async (name, contexts, workers, completions, expectedPrefix, derived = []) => {{
   const calls = []
   const result = await run({{ area }}, async (_prompt, options) => {{
     calls.push({{ label: options.label, type: options.agentType ?? null }})
@@ -5055,6 +5100,10 @@ const exercise = async (name, contexts, workers, completions, expectedPrefix) =>
       if (workers.length === 0) throw new Error(name + ': unexpected worker')
       return workers.shift()
     }}
+    if (options.label === 'zdev derived split coordination') {{
+      if (derived.length === 0) throw new Error(name + ': unexpected derived coordination')
+      return derived.shift()
+    }}
     if (options.label === 'zdev completion and commit') {{
       if (completions.length === 0) throw new Error(name + ': unexpected completion')
       return completions.shift()
@@ -5062,7 +5111,7 @@ const exercise = async (name, contexts, workers, completions, expectedPrefix) =>
     throw new Error(name + ': unknown call ' + JSON.stringify(options))
   }})
   if (!result.startsWith(expectedPrefix + ' zdev-loop ' + area)) throw new Error(name + ': ' + result)
-  if (contexts.length || workers.length || completions.length) throw new Error(name + ': unused fixture values')
+  if (contexts.length || workers.length || completions.length || derived.length) throw new Error(name + ': unused fixture values')
   return {{ result, calls }}
 }}
 
@@ -5143,6 +5192,28 @@ const decision = await exercise(
   'BLOCKER',
 )
 if (decision.calls.at(-1)?.type !== 'zdev:zdev-planner') throw new Error(JSON.stringify(decision.calls))
+
+const splitProposal = 'PROPOSE zdev-derived work work-001\n' + JSON.stringify({{
+  schema_version: 1, proposal: 'implementation_split', area, source_task: 'work-001',
+  source_result: {{ status: 'split', summary: 'split direct work', validation: [] }},
+  tasks: [{{ key: 'child', title: 'Implement child', blocked_by: [], outcome: 'Child completes direct work.', done_when: ['Done.'], validation: ['Check.'] }}],
+  split_ownership: {{ retained_parent_paths: [], child_future_paths: [{{ key: 'child', paths: ['src/child.rs'] }}] }},
+}})
+const splitLoop = await exercise(
+  'derived split continuation',
+  [ready('work-001'), ready('work-002', 'standard', commit1), ready('work-002', 'standard', commit1), closed],
+  [
+    worker('work-001', 'implementer', 'blocker', 'none', [splitProposal]),
+    worker('work-002', 'implementer', 'ready'),
+    worker('work-002', 'verifier', 'pass', 'none', passEvidence(commit1)),
+  ],
+  [completionPass('work-002')],
+  'PASS',
+  ['PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nDerived proposal: implementation_split\nSummary: split applied\nChanged files: task records\nValidation: derive apply\nVerifier evidence: source remains open\nCommit ID: ' + commit1],
+)
+if (!splitLoop.result.includes('Tasks completed: work-002')) throw new Error(splitLoop.result)
+if (splitLoop.result.includes('Tasks completed: work-001')) throw new Error(splitLoop.result)
+if (!splitLoop.result.includes('Commits: ' + commit1 + ', ' + commit2)) throw new Error(splitLoop.result)
 "#
     );
     let output = Command::new("node")
@@ -5453,8 +5524,9 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
         }
         assert!(implement.contains("zdev task done"));
         assert!(implement.contains("zdev commit"));
-        assert!(implement.contains("`zdev-implement` completes one task"));
-        assert!(implement.contains("stops without querying `zdev next` or another `work-context`"));
+        assert!(implement.contains("An ordinary `zdev-implement` pass completes one task"));
+        assert!(implement.contains("stops without querying"));
+        assert!(implement.contains("`zdev next` or another `work-context`"));
         assert!(implement.contains("after the commit and before another"));
         assert!(implement.contains("worker dispatch"));
         assert!(!implement.contains("zdev next <area> --format json"));
@@ -5464,6 +5536,7 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
         assert!(!verify.contains("effective-base\nlink is fresh"));
         assert!(verify.contains("explicit ID"));
         assert!(verify.contains("never invokes an implementer"));
+        assert!(verify.contains("routes a derived proposal"));
         assert_eq!(
             json_output_with_env(
                 root,
@@ -5477,6 +5550,130 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
                 &environment,
             )["status"],
             "ok"
+        );
+    }
+}
+
+#[test]
+fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
+    let repository = repository();
+    let root = repository.path();
+    let config_home = root.join("empty-derived-worker-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    for (harness, implement_path, loop_path, skill_root, worker_path) in [
+        (
+            "codex",
+            "zdev-implement/SKILL.md",
+            "zdev-loop/SKILL.md",
+            "zdev",
+            "zdev-implement/SKILL.md",
+        ),
+        (
+            "claude",
+            "workflows/zdev-implement.js",
+            "workflows/zdev-loop.js",
+            "skills/zdev",
+            "agents/zdev-implementer.md",
+        ),
+        (
+            "opencode",
+            "commands/zdev-implement.md",
+            "commands/zdev-loop.md",
+            "skills/zdev-opencode",
+            "agents/zdev-implementer.md",
+        ),
+        (
+            "pi",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-loop.md",
+            "skills/zdev-pi",
+            "extensions/zdev-subagent.ts",
+        ),
+        (
+            "omp",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-loop.md",
+            "skills/zdev",
+            "agents/zdev-implementer.md",
+        ),
+    ] {
+        let destination = root.join(format!("derived-{harness}"));
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("destination"),
+            ],
+            &environment,
+        );
+        let implement =
+            fs::read_to_string(destination.join(implement_path)).expect("implement route");
+        let loop_route = fs::read_to_string(destination.join(loop_path)).expect("loop route");
+        let investigate = fs::read_to_string(
+            destination
+                .join(skill_root)
+                .join("references/investigate.md"),
+        )
+        .expect("investigate reference");
+        let recovery =
+            fs::read_to_string(destination.join(skill_root).join("references/recovery.md"))
+                .expect("recovery reference");
+        let to_tasks =
+            fs::read_to_string(destination.join(skill_root).join("references/to-tasks.md"))
+                .expect("task creation reference");
+        let worker = fs::read_to_string(destination.join(worker_path)).expect("worker route");
+
+        for text in [&implement, &investigate, &to_tasks] {
+            assert!(text.contains("zdev tasks derive apply"), "{harness}");
+            assert!(
+                text.contains("zdev tasks derive review")
+                    || text.contains("zdev tasks derive\nreview"),
+                "{harness}"
+            );
+            assert!(text.contains("fingerprint"), "{harness}");
+            assert!(text.contains("semantic authority"), "{harness}");
+            assert!(text.contains("mechanical apply failure"), "{harness}");
+            assert!(text.contains("fingerprint cannot waive"), "{harness}");
+            assert!(
+                !text.contains("semantic authority is unclear, or direct apply reports"),
+                "{harness} routes mechanical failure to review"
+            );
+        }
+        assert!(
+            implement.contains("apply revalidates mechanical"),
+            "{harness}"
+        );
+        assert!(
+            implement.contains("task import for a derived proposal"),
+            "{harness}"
+        );
+        assert!(
+            (worker.contains("derived") && worker.contains("sole evidence item"))
+                || worker.contains("one evidence item containing the complete transient"),
+            "{harness}"
+        );
+        assert!(
+            (loop_route.contains("second proposal")
+                || loop_route.contains("second or nested proposal"))
+                && loop_route.contains("handoff"),
+            "{harness}"
+        );
+        assert!(
+            loop_route.contains("independently selected") && loop_route.contains("propose once"),
+            "{harness}"
+        );
+        assert!(
+            recovery.contains("Do not reconstruct automatic derived-work authority"),
+            "{harness}"
+        );
+        assert!(
+            recovery.contains("obtain fresh work-context")
+                && recovery.contains("fingerprint cannot waive"),
+            "{harness}"
         );
     }
 }

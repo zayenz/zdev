@@ -1,8 +1,7 @@
 # Derived work handoffs
 
-> **Status: review and publication implemented; workflow routing remains a
-> follow-up.** Zdev parses, reviews, and atomically applies derived proposals
-> through the contract below.
+> **Status: implemented.** Zdev parses, reviews, atomically applies, and routes
+> derived proposals through the contract below.
 
 Zdev may publish a small follow-up bundle without asking the user to approve
 work they have already approved. This exception applies only to direct work
@@ -83,8 +82,8 @@ An implementation split also requires this top-level object after
 keys. `retained_parent_paths` equals, as a set, the paths in the coordinator's
 captured attributed unstaged parent delta; neither side may omit or add a path.
 Automatic apply also requires that delta to be the checkout's complete
-unstaged path set and requires an empty index; other existing changes route the
-split to manual review.
+unstaged path set and requires an empty index; other existing changes stop the
+handoff for recovery and fresh context.
 `child_future_paths` names every proposed key exactly once and no other key,
 and each child has at least one path. Duplicate paths, overlap between children,
 and overlap with a retained parent path are invalid.
@@ -94,12 +93,12 @@ no absolute path, empty segment, `.`, `..`, duplicate separator, directory, or
 symlink is allowed. A retained path and an existing future path must be a
 regular file. An absent future path is valid only when its existing parent is a
 real directory, not a symlink, and the child explicitly creates a regular file
-there. Deleted or renamed parent paths require manual review because they
-cannot satisfy the retained regular-file check.
+there. Deleted or renamed parent paths fail the retained regular-file check.
 
 Staged, overlapping, incomplete, or uncertain assignments cannot apply
-automatically. The coordinator shows the failure and sends a corrected proposal
-through manual review; approval never makes an invalid path assignment valid.
+automatically. The coordinator shows the failure and stops for recovery and
+fresh context. A corrected proposal is reconsidered through the ordinary gates;
+approval never makes an invalid path assignment valid.
 
 Drafts use the existing TaskDraft fields, including optional `complexity` and
 `slice`. A declared slice must already exist in the area and passes the same
@@ -136,23 +135,27 @@ coordinator reads the proposal and repository evidence. It never infers safety
 from filenames, a confidence score, or a worker's assertion that work is
 in-scope.
 
-Any failed statement routes the unchanged proposal through manual review before
-mutation. Applying a proposal consumes that worker result's automatic authority;
-a second object, nested proposal, or second apply in the same handoff cannot run
-automatically. After an interruption the old handoff has no automatic
-authority.
+Failure of a mechanical, identity, current-state, graph, or ownership statement
+stops for recovery and fresh context. Only uncertainty about whether otherwise
+eligible work is necessary and semantically inside the approved brief and task
+uses manual review before mutation. Applying a proposal consumes that worker
+result's automatic authority; a second object, nested proposal, or second apply
+in the same handoff cannot run automatically. After an interruption the old
+handoff has no automatic authority.
 
 A later independently selected execution, including a derived child or the
 resumed parent, may produce one new proposal and automatic apply if it passes
 the same current scope, ownership, branch, graph, and safety gates. Each
 proposal must add zero scope: any wider outcome, product choice, destructive
-work, or uncertainty uses manual review. Zdev stores no global or cross-session
-derivation count and does not infer lineage from task content or Git history.
+work, or uncertainty cannot apply automatically. A safe, mechanically eligible
+semantic choice may use manual review; unsafe or destructive state stops. Zdev
+stores no global or cross-session derivation count and does not infer lineage
+from task content or Git history.
 
 Malformed proposals, unsafe or closed areas, duplicate keys, invalid graphs,
 ambiguous ownership, destructive work, widened scope, and unresolved product
 choices all stop before publication. A malformed handoff is shown as received;
-only a corrected envelope can enter manual review. Reopening an area, changing
+only a corrected envelope can be reconsidered. Reopening an area, changing
 scope, or resolving a product choice remains a user decision. Duplicate
 detection compares exact keys only; zdev neither guesses semantic equivalence
 nor renames a key.
@@ -191,8 +194,8 @@ ordinary baseline rules and may change only its rendered path set.
 
 If a child must change a path already changed by the parent, any path is
 staged, another unstaged path exists, or attribution is uncertain, the split
-needs manual review. The coordinator does not divide hunks, alter the index,
-stash, reset, or assign partial work by guessing.
+stops for recovery and fresh context. The coordinator does not divide hunks,
+alter the index, stash, reset, or assign partial work by guessing.
 
 ## Review, publication, and rollback
 
@@ -204,14 +207,16 @@ ordinary task-bundle rendering, so a semantic authority failure can use manual
 review without changing the proposal. The apply behavior below is implemented
 by `zdev tasks derive apply`.
 
-For automatic authority, the coordinator shows the exact proposal once with
-`Authority: automatic` and proceeds without asking a redundant question. For
-manual authority, `zdev tasks derive review` validates and renders the complete
-envelope and returns an opaque review fingerprint over its canonical form. The
-coordinator shows that rendering and asks for approval. Any change to the
-source result, mode, order, dependency, or task content requires a new opaque
-review fingerprint. Ordinary `zdev tasks review` and `tasks import --approval`
-remain available for manually authored bundles.
+For automatic authority, the coordinator sends the exact proposal directly to
+apply and proceeds without asking a redundant question. Only semantic authority
+uncertainty uses manual review, after the proposal, current state, and ownership
+are otherwise safe and mechanically eligible. `zdev tasks derive review`
+validates and renders the complete envelope and returns an opaque review
+fingerprint over its canonical form. The coordinator requires
+`mechanically_eligible` to remain true, shows that rendering, and asks for
+approval. Any change to the source result, mode, order, dependency, or task
+content requires a new opaque review fingerprint. Ordinary `zdev tasks review`
+and `tasks import --approval` remain available for manually authored bundles.
 
 `zdev tasks derive apply` accepts the unchanged envelope and an optional
 opaque review fingerprint. Automatic use omits the fingerprint; reviewed use
@@ -222,7 +227,9 @@ hypothetical graph and index. For a split it also requires an empty index,
 recaptures the complete unstaged path set, requires exact equality with
 `retained_parent_paths`, validates every path and disjoint child assignment,
 and renders the canonical ownership boundary. It runs the same check before
-committing.
+committing. An invalid proposal, unsafe or drifted state, staged or incomplete
+ownership, or another mechanical failure stops without review or publication;
+the optional fingerprint cannot waive any of these gates.
 
 For an investigation follow-up, the coordinator first stages only the verified
 task-owned artifact paths. Because the proposal has no artifact-path allowlist,
@@ -298,7 +305,7 @@ approval round without adding another confirmation turn.
 | Publication or commit failure | Restore every managed byte and the prior index; preserve unrelated work and report rollback failure explicitly if restoration is incomplete. |
 | Nested or repeated handoff proposal | Reject a nested object or second automatic apply from the same worker result; applying consumes that handoff. A later independently selected execution gets one new proposal only after all current gates pass again. |
 
-## Implementation slices
+## Implemented slices
 
 1. **Parse and review derived proposals.** Add the strict envelope parser,
    mode-specific validation, exact rendering, and optional full-envelope

@@ -75,7 +75,9 @@ while (true) {
     if (!/^[0-9a-f]{40}$/.test(commit ?? '')) {
       return block(state, task, 'result validation', 'the one-task PASS omitted its commit ID.', 'the task result was not counted and no next task was started.')
     }
-    completedTasks.push(task)
+    if (loopField(result, 'Derived proposal') !== 'implementation_split') {
+      completedTasks.push(task)
+    }
     commits.push(commit)
     latestCompletedTask = task
     latestCommit = commit

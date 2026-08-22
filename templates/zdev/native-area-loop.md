@@ -41,13 +41,21 @@ the one-task contract below.
 
 {{task_workflow_contract}}
 
-One iteration selects, implements, independently verifies, completes, and
-commits at most one task. Concrete task-owned `rework` remains inside that
+One ordinary iteration selects, implements, independently verifies, completes,
+and commits at most one task. The split exception below commits the derived
+graph change without completing or claiming verification of its source.
+Concrete task-owned `rework` remains inside that
 iteration with no fixed retry count. After an exact committed
 `PASS zdev-implement <area> <task-id>`, obtain fresh work-context before the
 native runtime continues. Stop on terminal state, malformed worker output,
 worker blocker, unsafe refresh, user-owned decision, or failed completion or
 commit. Never combine tasks in one verification or commit.
+
+A successful derived apply is one managed commit and an iteration boundary.
+An investigation follow-up completes its source; a split leaves its source open
+and blocked by its children. Refresh work-context and continue only from the
+updated ordinary graph. Never apply a second proposal from the same handoff; a
+later independently selected task may propose once under fresh gates.
 
 If successful inspection proved that native goal state is clear but the
 model-facing creation operation is absent, disabled, or fails before creating

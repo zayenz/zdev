@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-049"
 key = "derived-proposal-guidance"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-048"]
 +++
 # Route investigation follow-ups and implementation splits
@@ -25,13 +25,21 @@ Update investigate, implement, loop, recovery, and task-creation guidance to use
 
 ## Done when
 
-- [ ] Investigation workers are invited to propose necessary follow-up tasks as a normal result.
-- [ ] Implementation workers can propose a split before or after edits under the exact ownership rules.
-- [ ] Automatic apply proceeds without review/import ceremony; rejected authority routes to the existing fingerprinted review flow.
-- [ ] Loop behavior handles new ready children deterministically without recursive proposal application.
+- [x] Investigation workers are invited to propose necessary follow-up tasks as a normal result.
+- [x] Implementation workers can propose a split before or after edits under the exact ownership rules.
+- [x] Automatic apply proceeds without review/import ceremony; rejected authority routes to the existing fingerprinted review flow.
+- [x] Loop behavior handles new ready children deterministically without recursive proposal application.
 
 ## Validation
 
 - Add focused all-harness guidance and routing fixtures for automatic and manual paths.
 - Install and check all five integrations.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Integrated derived follow-up and split proposals across all harness guidance with direct automatic apply, semantic-only manual review, and mechanical safety stops.
+
+Validation:
+
+- Independent verifier PASS after fallback correction; focused Claude/all-harness routes and full fmt, clippy, test, build, install/check, and diff validation passed.

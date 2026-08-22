@@ -161,6 +161,41 @@ Review, import, and `zdev check` reject a task whose `slice` does not name an
 existing `.zdev/<area>/slices/<key>.md`. Unsliced tasks remain valid and appear
 only in area-wide progress totals.
 
+## Derived proposal
+
+A worker may return one transient proposal for direct follow-up work instead of
+editing task state. The first line is exact:
+
+```text
+PROPOSE zdev-derived <area> <source-task-id>
+```
+
+One JSON object follows. It contains only `schema_version: 1`, `proposal`,
+`area`, `source_task`, `source_result`, `tasks`, and, for a split,
+`split_ownership`. Proposal is `investigation_follow_up` or
+`implementation_split`. The source result is `{status, summary, validation}`:
+follow-up uses `complete` with non-empty validation; split uses `split` with an
+empty validation list. `tasks` contains one through five ordinary TaskDraft
+objects from the bundle format above, including optional complexity and slice.
+It cannot contain another proposal.
+
+A split requires `split_ownership` with `retained_parent_paths` and
+`child_future_paths`. Each child entry is `{key, paths}`, names every proposed
+key exactly once, and has at least one normalized repository-relative future
+path. Retained and child paths are exact and pairwise disjoint. Before edits,
+the retained list is empty; after edits it equals the complete unstaged
+parent-owned path set. Unknown or duplicate fields, a second object, missing or
+extra ownership, invalid dependencies, and nested proposals are invalid.
+
+The worker never runs derive commands. The coordinator applies clear direct
+work with `zdev tasks derive apply <area> --from -` and no approval. Only
+semantic authority uncertainty uses `zdev tasks derive review`, after every
+mechanical and current-state gate passes, to show the ordinary bundle and
+obtain manual fingerprinted approval before applying the unchanged proposal.
+Invalid, unsafe, drifted, staged, incomplete-ownership, and mechanical-failure
+states stop; a fingerprint cannot waive those gates. Derived work never uses
+ordinary task import.
+
 A path is accepted for manual use and remains in place after review or import.
 When adding tasks to an existing task list, add `--commit --format json` to the
 import command. Use ordinary import for the initial split or when the user

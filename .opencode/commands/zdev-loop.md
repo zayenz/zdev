@@ -88,6 +88,51 @@ malformed JSON. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict. When the stale advisory applies,
 the verifier includes its exact text once in `evidence`; otherwise it omits it.
 
+An implementer that cannot finish the source without splitting direct,
+already-approved work may use one narrow exception to the ordinary blocker
+path. It returns a valid implementer object with verdict `blocker`, escalation
+`none`, no findings, and one evidence item containing the complete transient
+proposal. That evidence string begins
+`PROPOSE zdev-derived <area> <source-task-id>\n` and continues with exactly one
+JSON object. It proposes one through five ordinary TaskDraft children and no
+nested proposal. A pre-edit split has an empty `retained_parent_paths`; a
+post-edit split names the exact complete unstaged parent-owned path set and
+assigns every child exact, normalized, path-disjoint future paths. The worker
+never runs derive review, apply, import, or any other `.zdev` mutation.
+
+The coordinator recognizes this strict alternative before treating the worker
+result as an ordinary blocker. It refreshes work-context and requires unchanged
+area, source task, HEAD, safety, and attributable Git state. Automatic authority
+also requires every child to be necessary, direct work inside the brief and
+source task, with no product, compatibility, destructive, ownership,
+cross-area, or uncertainty decision. When those semantic and retained-context
+checks pass, send the unchanged proposal directly to `zdev tasks derive apply
+<area> --from - --format json` with no approval; apply revalidates mechanical
+authority under its lock.
+
+Only when semantic authority is unclear, and the proposal, current state, and
+path ownership are otherwise safe and mechanically eligible, send the proposal
+to `zdev tasks derive review <area> --from - --format json`. Require its
+`mechanically_eligible` result to remain true, show the returned ordinary
+bundle, ask for ordinary approval, and only after approval run apply with the
+returned opaque fingerprint. Approval resolves only the semantic choice.
+
+An invalid proposal, unsafe or changed context, staged or incomplete ownership,
+or any mechanical apply failure stops without review or apply. Preserve and
+report the state, follow recovery, and obtain fresh work-context before
+reconsidering it; a fingerprint cannot waive those gates. Never use ordinary
+task import for a derived proposal.
+
+One successful apply consumes this uninterrupted handoff. Do not accept a
+second or nested proposal from it. An investigation follow-up completes its
+source and may expose ready children. A split keeps its source open and blocked
+by its children; retained parent edits stay with that source. Report the
+derived commit and stop the one-task interaction. A goal, loop, or explicit
+continuation obtains fresh work-context before selecting from the updated
+ordinary graph. A later independently selected child or resumed source may
+propose once under the same current gates; no derivation count or lineage is
+stored.
+
 Every verifier independently runs
 `zdev work-context <area> --format json` before inspecting or validating. It
 requires the same open, ready, safe area and task, compares that fresh context
@@ -131,16 +176,18 @@ files, validation, verifier evidence, and commit ID on pass, or the failed
 stage, reason, and preserved state on blocker. It omits the advisory field when
 no stale advisory was observed.
 
-`zdev-implement` completes one task. After reporting its verified commit, it
-stops without querying `zdev next` or another `work-context`. A goal, loop, or
-explicit continuation owns the next iteration and must collect a fresh
+An ordinary `zdev-implement` pass completes one task. A successful split uses
+the derived exception above and leaves its source open. After reporting the
+ordinary verified commit or derived managed commit, it stops without querying
+`zdev next` or another `work-context`. A goal, loop, or explicit continuation
+owns the next iteration and must collect a fresh
 `zdev work-context <area> --format json` after the commit and before another
 worker dispatch. It never reuses the completed task's pre-commit selection.
 
 `zdev-verify <area> <task-id>` performs the same read-only preflight and requires
 the explicit ID to equal the current ready goal task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,
-stages, or commits. Its public result is the accepted verifier object above. Empty,
+stages, commits, or routes a derived proposal. Its public result is the accepted verifier object above. Empty,
 exhausted, or closed goals, a different ready task, unsafe state, unavailable
 independent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`
 without mutation.
@@ -148,8 +195,17 @@ without mutation.
 Concrete task-owned `rework` remains inside that one task cycle with fresh
 independent verification and no fixed retry count. A malformed worker result,
 worker blocker, unsafe refresh, failed completion, or failed commit returns
-`BLOCKER` and stops. Each successful invocation completes and commits at most
-one selected task through exactly one independently accepted verification.
+`BLOCKER` and stops. Each ordinary successful invocation completes and commits
+at most one selected task through exactly one independently accepted
+verification. The split exception below commits the derived graph change
+without completing or claiming verification of its source.
+
+A successful derived apply is also an iteration boundary. An investigation
+follow-up completes its source; a split leaves its source open and blocked by
+the new children. In either case, collect fresh work-context from the updated
+ordinary graph before deciding whether to continue. Do not apply a second
+proposal from the same handoff. A later independently selected task may propose
+again under fresh authority checks.
 
 After an exact committed `PASS zdev-implement <area> <task-id>`, run one fresh
 `zdev work-context <area> --format json` before deciding the public result. If

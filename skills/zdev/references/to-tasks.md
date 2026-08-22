@@ -97,6 +97,22 @@ Before approval, reconcile proposed tasks with existing task keys and completed
 outcomes. Resolve every concrete design or testing choice that would change the
 bundle before requesting approval.
 
+This route remains the ordinary path for a manually authored task split. When
+an investigation or implementer instead returns a strict derived proposal,
+keep that envelope unchanged. Do not convert it to an ordinary bundle or run
+`tasks import`: derive apply owns source completion or blocking, child creation,
+the ready frontier, and its managed commit. Mechanically and semantically
+authorized direct work goes straight to `zdev tasks derive apply` and needs no
+review or approval; apply revalidates mechanical authority under its lock.
+Only semantic authority uncertainty uses `zdev tasks derive review`, after the
+proposal, current state, and ownership are otherwise safe and mechanically
+eligible. Require `mechanically_eligible` to remain true, show the returned
+ordinary bundle, request ordinary fingerprinted approval, and pass that
+fingerprint to apply without editing the proposal. Invalid proposals, unsafe or
+changed context, staged or incomplete ownership, and mechanical apply failures
+stop for recovery and fresh context without review; a fingerprint cannot waive
+those gates.
+
 ## Review the split
 
 Build the complete Task Bundle JSON defined in the task-format reference loaded

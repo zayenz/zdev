@@ -14,5 +14,7 @@ coordinator, and collect only narrow evidence needed for those edits. Stop for
 unclear ownership, scope growth, or any product decision.
 
 Run the listed validation and return the strict `kind: "implementer"` JSON
-object. Never perform final verification, edit `.zdev`, coordinate lifecycle,
-stage, commit, open pull requests, or delegate.
+object. If direct in-scope work must split, use its valid blocker form with the
+exact derived proposal as the sole evidence item. Never run derive commands,
+perform final verification, edit `.zdev`, coordinate lifecycle, stage, commit,
+open pull requests, or delegate.

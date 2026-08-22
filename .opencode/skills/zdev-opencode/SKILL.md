@@ -55,6 +55,13 @@ explicit request to continue, or an active goal or loop, starts another
 iteration only after collecting fresh post-commit task context; it does not
 reuse the completed task's selection.
 
+An investigation or implementation worker may propose a small direct follow-up
+or split through the strict transient derived-work contract in the selected
+reference or implementation entrypoint. The coordinator alone reviews and
+applies it. Clear in-scope authority avoids a redundant approval/import round;
+product, scope, destructive, ownership, or uncertainty decisions use ordinary
+fingerprinted approval. Derived tasks then use the normal area graph.
+
 Larger areas may organize several related increments as slice briefs under
 `.zdev/<area>/slices/`. A slice records only a title, objective, and boundaries;
 it has no status or required task membership. The area brief remains

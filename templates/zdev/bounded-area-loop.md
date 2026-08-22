@@ -28,8 +28,17 @@ Classify the result as follows:
 Concrete task-owned `rework` remains inside that one task cycle with fresh
 independent verification and no fixed retry count. A malformed worker result,
 worker blocker, unsafe refresh, failed completion, or failed commit returns
-`BLOCKER` and stops. Each successful invocation completes and commits at most
-one selected task through exactly one independently accepted verification.
+`BLOCKER` and stops. Each ordinary successful invocation completes and commits
+at most one selected task through exactly one independently accepted
+verification. The split exception below commits the derived graph change
+without completing or claiming verification of its source.
+
+A successful derived apply is also an iteration boundary. An investigation
+follow-up completes its source; a split leaves its source open and blocked by
+the new children. In either case, collect fresh work-context from the updated
+ordinary graph before deciding whether to continue. Do not apply a second
+proposal from the same handoff. A later independently selected task may propose
+again under fresh authority checks.
 
 After an exact committed `PASS zdev-implement <area> <task-id>`, run one fresh
 `zdev work-context <area> --format json` before deciding the public result. If

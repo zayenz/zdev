@@ -2228,6 +2228,278 @@ fn reviewed_task_bundle_fingerprint_guards_the_import() {
     assert_eq!(imported["tasks"], json!(["approval-001"]));
 }
 
+fn derived_proposal_bytes(area: &str, source_task: &str, proposal: Value) -> Vec<u8> {
+    let mut bytes = format!("PROPOSE zdev-derived {area} {source_task}\n").into_bytes();
+    bytes.extend(serde_json::to_vec(&proposal).expect("derived proposal"));
+    bytes
+}
+
+#[test]
+fn derived_review_accepts_follow_up_and_exact_post_edit_split_ownership() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "derived",
+            "--title",
+            "Derived",
+            "--objective",
+            "Review direct derived work.",
+        ],
+    );
+    create_slice(root, "derived", "focused", "Focused derived work");
+    let source = json!({
+        "schema_version": 1,
+        "area": "derived",
+        "tasks": [{
+            "key": "investigate",
+            "title": "Investigate the boundary",
+            "outcome": "The implementation boundary is settled.",
+            "done_when": ["The boundary is recorded."],
+            "validation": ["Compare it with the implementation."],
+            "blocked_by": []
+        }]
+    });
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "derived", "--from", "-"],
+        &serde_json::to_vec(&source).expect("source bundle"),
+    );
+
+    let follow_up = json!({
+        "schema_version": 1,
+        "proposal": "investigation_follow_up",
+        "area": "derived",
+        "source_task": "derived-001",
+        "source_result": {
+            "status": "complete",
+            "summary": "Settled the implementation boundary.",
+            "validation": ["Compared it with the implementation."]
+        },
+        "tasks": [{
+            "key": "implement",
+            "title": "Implement the settled boundary",
+            "complexity": "advanced",
+            "slice": "focused",
+            "blocked_by": [],
+            "outcome": "The implementation uses the settled boundary.",
+            "context": "The investigation removed the design uncertainty.",
+            "boundaries": ["Keep the public behavior unchanged."],
+            "done_when": ["The settled boundary is implemented."],
+            "validation": ["Run the focused behavior checks."]
+        }]
+    });
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "derived", "--from", "-"],
+        &derived_proposal_bytes("derived", "derived-001", follow_up),
+    );
+    assert_eq!(reviewed["mechanically_eligible"], true);
+    assert_eq!(reviewed["coordinator_authority_required"], true);
+    assert!(reviewed["approval"].as_str().is_some());
+    assert_eq!(reviewed["envelope"]["tasks"][0]["complexity"], "advanced");
+
+    commit_all(root, "record source task");
+    fs::write(root.join("parent.rs"), "retained parent work\n").expect("edit parent path");
+    git(root, &["add", "parent.rs"]);
+    git(root, &["commit", "-q", "-m", "add parent path"]);
+    fs::write(root.join("parent.rs"), "retained edited parent work\n").expect("retain edit");
+    let split = json!({
+        "schema_version": 1,
+        "proposal": "implementation_split",
+        "area": "derived",
+        "source_task": "derived-001",
+        "source_result": {
+            "status": "split",
+            "summary": "Separated disjoint implementation work.",
+            "validation": []
+        },
+        "tasks": [{
+            "key": "child-a",
+            "title": "Implement child A",
+            "blocked_by": [],
+            "outcome": "Child A owns its exact future file.",
+            "done_when": ["Child A is complete."],
+            "validation": ["Check child A."]
+        }, {
+            "key": "child-b",
+            "title": "Implement child B",
+            "blocked_by": ["child-a"],
+            "outcome": "Child B owns its exact future file.",
+            "done_when": ["Child B is complete."],
+            "validation": ["Check child B."]
+        }],
+        "split_ownership": {
+            "retained_parent_paths": ["parent.rs"],
+            "child_future_paths": [
+                {"key": "child-a", "paths": ["child_a.rs"]},
+                {"key": "child-b", "paths": ["child_b.rs"]}
+            ]
+        }
+    });
+    let before = git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]);
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "derived", "--from", "-"],
+        &derived_proposal_bytes("derived", "derived-001", split),
+    );
+    assert_eq!(reviewed["mechanically_eligible"], true);
+    assert_eq!(
+        git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]),
+        before
+    );
+}
+
+#[test]
+fn derived_review_rejects_malformed_nested_duplicate_and_mismatched_proposals() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "strict",
+            "--title",
+            "Strict",
+            "--objective",
+            "Reject malformed derived proposals.",
+        ],
+    );
+    import_one_task(root, "strict");
+    let valid = json!({
+        "schema_version": 1,
+        "proposal": "investigation_follow_up",
+        "area": "strict",
+        "source_task": "strict-001",
+        "source_result": {"status": "complete", "summary": "Done.", "validation": ["Checked."]},
+        "tasks": [{
+            "key": "next", "title": "Do the next task", "blocked_by": [],
+            "outcome": "The next task is complete.", "done_when": ["It is complete."],
+            "validation": ["Check it."]
+        }]
+    });
+    let mut cases = Vec::new();
+    let mut unknown = valid.clone();
+    unknown["tasks"][0]["proposal"] = json!({"nested": true});
+    cases.push(derived_proposal_bytes("strict", "strict-001", unknown));
+    let mut oversized = valid.clone();
+    oversized["tasks"] = Value::Array(vec![valid["tasks"][0].clone(); 6]);
+    cases.push(derived_proposal_bytes("strict", "strict-001", oversized));
+    cases.push(derived_proposal_bytes(
+        "strict",
+        "strict-999",
+        valid.clone(),
+    ));
+    cases.push(
+        "PROPOSE zdev-derived strict strict-001\n{\"schema_version\":1,\"schema_version\":1,\"proposal\":\"investigation_follow_up\",\"area\":\"strict\",\"source_task\":\"strict-001\",\"source_result\":{\"status\":\"complete\",\"summary\":\"Done.\",\"validation\":[\"Checked.\"]},\"tasks\":[]}"
+            .as_bytes()
+            .to_vec(),
+    );
+    for input in cases {
+        let rejected = json_output_with_stdin_status(
+            root,
+            &["tasks", "derive", "review", "strict", "--from", "-"],
+            &input,
+        );
+        assert!(!rejected.status.success());
+    }
+}
+
+#[test]
+fn derived_review_routes_unsafe_or_ambiguous_split_authority_to_ordinary_review() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "parent.rs", "parent\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "manual", "work");
+    import_one_task(root, "manual");
+    commit_all(root, "record task");
+    let split = json!({
+        "schema_version": 1,
+        "proposal": "implementation_split",
+        "area": "manual",
+        "source_task": "manual-001",
+        "source_result": {"status": "split", "summary": "Split direct work.", "validation": []},
+        "tasks": [{
+            "key": "child", "title": "Implement the child", "blocked_by": [],
+            "outcome": "The child owns future work.", "done_when": ["The child is complete."],
+            "validation": ["Check the child."]
+        }],
+        "split_ownership": {
+            "retained_parent_paths": ["parent.rs"],
+            "child_future_paths": [{"key": "child", "paths": ["child.rs"]}]
+        }
+    });
+    let input = derived_proposal_bytes("manual", "manual-001", split);
+
+    let wrong_branch = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "manual", "--from", "-"],
+        &input,
+    );
+    assert_eq!(wrong_branch["mechanically_eligible"], false);
+    assert!(
+        wrong_branch["approval"]
+            .as_str()
+            .is_some_and(|value| value.starts_with('D'))
+    );
+    assert!(
+        wrong_branch["markdown"]
+            .as_str()
+            .expect("ordinary review")
+            .contains("# Task Bundle")
+    );
+
+    git(root, &["switch", "-q", "-c", "work"]);
+    json_output(root, &["area", "rebase", "manual"]);
+    fs::write(root.join("parent.rs"), "edited parent\n").expect("edit parent");
+    git(root, &["add", "parent.rs"]);
+    let staged = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "manual", "--from", "-"],
+        &input,
+    );
+    assert_eq!(staged["mechanically_eligible"], false);
+    assert!(
+        staged["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("index is not empty"),
+        "{staged}"
+    );
+    git(root, &["reset", "-q", "HEAD", "--", "parent.rs"]);
+    fs::write(root.join("unrelated.txt"), "unrelated\n").expect("unrelated path");
+    let incomplete = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "manual", "--from", "-"],
+        &input,
+    );
+    assert_eq!(incomplete["mechanically_eligible"], false);
+    assert!(
+        incomplete["reason"]
+            .as_str()
+            .expect("reason")
+            .contains("complete unstaged path set")
+    );
+    assert_ne!(
+        git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]),
+        ""
+    );
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/manual/tasks"))
+            .expect("tasks")
+            .count(),
+        1
+    );
+}
+
 #[test]
 fn explicit_task_complexity_round_trips_and_invalid_values_fail_closed() {
     let repository = repository();

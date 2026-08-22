@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-047"
 key = "derived-proposal-review"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-033"]
 +++
 # Parse and review derived task proposals
@@ -26,12 +26,20 @@ Implement the first slice of docs/derived-work-handoffs.md. A worker may return 
 
 ## Done when
 
-- [ ] A strict parser accepts follow-up and split envelopes and rejects unknown, nested, oversized, duplicate, or mismatched content.
-- [ ] Authority failures produce the ordinary rendered review bundle and fingerprint without mutation.
-- [ ] Valid post-edit split ownership covers the exact unstaged retained-parent set and path-disjoint child futures.
-- [ ] Child drafts use existing task fields including complexity and optional slice; no new routing metadata is invented.
+- [x] A strict parser accepts follow-up and split envelopes and rejects unknown, nested, oversized, duplicate, or mismatched content.
+- [x] Authority failures produce the ordinary rendered review bundle and fingerprint without mutation.
+- [x] Valid post-edit split ownership covers the exact unstaged retained-parent set and path-disjoint child futures.
+- [x] Child drafts use existing task fields including complexity and optional slice; no new routing metadata is invented.
 
 ## Validation
 
 - Add focused parser and authority tests for accepted follow-up/split and every manual-review boundary.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added strict read-only derived proposal review with mechanical eligibility, ordinary task-bundle fallback, and exact split path ownership validation.
+
+Validation:
+
+- Independent verifier PASS; focused parser/authority tests and full fmt, clippy, test, build, and diff checks passed.

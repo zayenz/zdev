@@ -92,7 +92,7 @@ struct TaskBundle {
     tasks: Vec<TaskDraft>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TaskDraft {
     key: String,
@@ -110,6 +110,58 @@ struct TaskDraft {
     done_when: Vec<String>,
     #[serde(default)]
     validation: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+enum DerivedProposalKind {
+    #[serde(rename = "investigation_follow_up")]
+    InvestigationFollowUp,
+    #[serde(rename = "implementation_split")]
+    ImplementationSplit,
+}
+
+impl DerivedProposalKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::InvestigationFollowUp => "investigation_follow_up",
+            Self::ImplementationSplit => "implementation_split",
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DerivedSourceResult {
+    status: String,
+    summary: String,
+    validation: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DerivedChildPaths {
+    key: String,
+    paths: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SplitOwnership {
+    retained_parent_paths: Vec<String>,
+    child_future_paths: Vec<DerivedChildPaths>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DerivedProposal {
+    schema_version: u64,
+    proposal: DerivedProposalKind,
+    area: String,
+    source_task: String,
+    source_result: DerivedSourceResult,
+    tasks: Vec<TaskDraft>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    split_ownership: Option<SplitOwnership>,
 }
 
 #[derive(Serialize)]
@@ -267,6 +319,411 @@ pub(super) fn review(root: &Path, area: &str, source: &Path) -> Result<CommandOu
             "schema_version": SCHEMA_VERSION,
             "status": "reviewed",
             "area": area,
+            "approval": approval,
+            "markdown": markdown,
+        }),
+    ))
+}
+
+fn read_derived_proposal(source: &Path) -> Result<DerivedProposal, ZdevError> {
+    let bytes = if source == Path::new("-") {
+        let mut bytes = Vec::new();
+        io::stdin().read_to_end(&mut bytes).map_err(|error| {
+            ZdevError::io("Cannot read derived proposal from standard input", error)
+        })?;
+        bytes
+    } else {
+        fs::read(source)
+            .map_err(|error| ZdevError::io(format!("Cannot read {}", source.display()), error))?
+    };
+    let input = std::str::from_utf8(&bytes)
+        .map_err(|error| ZdevError::new(format!("Invalid derived proposal UTF-8: {error}")))?;
+    let (first_line, json) = input.split_once('\n').ok_or_else(|| {
+        ZdevError::new("Invalid derived proposal: expected an identity line and one JSON object")
+    })?;
+    let proposal: DerivedProposal = serde_json::from_str(json)
+        .map_err(|error| ZdevError::new(format!("Invalid derived proposal: {error}")))?;
+    let expected = format!(
+        "PROPOSE zdev-derived {} {}",
+        proposal.area, proposal.source_task
+    );
+    if first_line != expected {
+        return Err(ZdevError::new(format!(
+            "Derived proposal identity line does not match its area and source task; expected `{expected}`"
+        )));
+    }
+    Ok(proposal)
+}
+
+fn validate_derived_proposal(
+    root: &Path,
+    proposal: &DerivedProposal,
+    area: &str,
+) -> Result<TaskBundle, ZdevError> {
+    if proposal.schema_version != SCHEMA_VERSION || proposal.area != area {
+        return Err(ZdevError::new(
+            "Derived proposal does not match the selected area",
+        ));
+    }
+    if proposal.tasks.is_empty() || proposal.tasks.len() > 5 {
+        return Err(ZdevError::new(
+            "Derived proposal must contain between one and five tasks",
+        ));
+    }
+    validate_nonempty_line(&proposal.source_result.summary, "Source result summary")?;
+    for validation in &proposal.source_result.validation {
+        validate_nonempty_line(validation, "Source result validation")?;
+    }
+    match proposal.proposal {
+        DerivedProposalKind::InvestigationFollowUp => {
+            if proposal.source_result.status != "complete"
+                || proposal.source_result.validation.is_empty()
+                || proposal.split_ownership.is_some()
+            {
+                return Err(ZdevError::new(
+                    "Investigation follow-up requires a complete validated source result and forbids split ownership",
+                ));
+            }
+        }
+        DerivedProposalKind::ImplementationSplit => {
+            if proposal.source_result.status != "split"
+                || !proposal.source_result.validation.is_empty()
+                || proposal.split_ownership.is_none()
+            {
+                return Err(ZdevError::new(
+                    "Implementation split requires a split source result with empty validation and exact split ownership",
+                ));
+            }
+        }
+    }
+
+    let bundle = TaskBundle {
+        schema_version: proposal.schema_version,
+        area: proposal.area.clone(),
+        tasks: proposal.tasks.clone(),
+    };
+    validate_task_bundle(root, &bundle, area)?;
+    let existing = load_tasks(root, area)?;
+    let existing_ids = existing
+        .iter()
+        .map(|task| task.header.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let existing_keys = existing
+        .iter()
+        .map(|task| task.header.key.as_str())
+        .collect::<BTreeSet<_>>();
+    if !existing_ids.contains(proposal.source_task.as_str()) {
+        return Err(ZdevError::new(format!(
+            "Derived proposal source task {} does not exist in area {area}",
+            proposal.source_task
+        )));
+    }
+    let proposed_keys = bundle
+        .tasks
+        .iter()
+        .map(|task| task.key.as_str())
+        .collect::<BTreeSet<_>>();
+    for task in &bundle.tasks {
+        if existing_keys.contains(task.key.as_str()) {
+            return Err(ZdevError::new(format!("Duplicate task key: {}", task.key)));
+        }
+        for blocker in &task.blocked_by {
+            if blocker == &proposal.source_task {
+                return Err(ZdevError::new(format!(
+                    "Derived task {} cannot be blocked by its source task",
+                    task.key
+                )));
+            }
+            if !existing_ids.contains(blocker.as_str()) && !proposed_keys.contains(blocker.as_str())
+            {
+                return Err(ZdevError::new(format!(
+                    "Derived task {} has unknown blocker {blocker}",
+                    task.key
+                )));
+            }
+        }
+    }
+    validate_derived_dependencies(&bundle.tasks)?;
+    if let Some(ownership) = &proposal.split_ownership {
+        validate_split_ownership(root, &bundle.tasks, ownership)?;
+    }
+    Ok(bundle)
+}
+
+fn validate_derived_dependencies(tasks: &[TaskDraft]) -> Result<(), ZdevError> {
+    let proposed = tasks
+        .iter()
+        .map(|task| task.key.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut remaining = tasks
+        .iter()
+        .map(|task| {
+            (
+                task.key.as_str(),
+                task.blocked_by
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|blocker| proposed.contains(blocker))
+                    .collect::<BTreeSet<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let ready = remaining
+            .iter()
+            .filter_map(|(key, blockers)| blockers.is_empty().then_some(*key))
+            .collect::<Vec<_>>();
+        if ready.is_empty() {
+            break;
+        }
+        for key in &ready {
+            remaining.remove(key);
+        }
+        for blockers in remaining.values_mut() {
+            for key in &ready {
+                blockers.remove(key);
+            }
+        }
+    }
+    if remaining.is_empty() {
+        Ok(())
+    } else {
+        Err(ZdevError::new(
+            "Derived proposal contains a cyclic or self dependency",
+        ))
+    }
+}
+
+fn validate_derived_path(root: &Path, value: &str, must_exist: bool) -> Result<(), ZdevError> {
+    validate_nonempty_line(value, "Derived ownership path")?;
+    if value.contains('\\')
+        || value.starts_with('/')
+        || value.ends_with('/')
+        || value.contains("//")
+        || value
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Err(ZdevError::new(format!(
+            "Derived ownership path is not normalized and repository-relative: {value}"
+        )));
+    }
+    let path = root.join(value);
+    let mut current = root.to_path_buf();
+    let parts = value.split('/').collect::<Vec<_>>();
+    for part in &parts[..parts.len().saturating_sub(1)] {
+        current.push(part);
+        let metadata = fs::symlink_metadata(&current).map_err(|error| {
+            ZdevError::io(
+                format!("Cannot inspect ownership path parent {}", current.display()),
+                error,
+            )
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(ZdevError::new(format!(
+                "Derived ownership path has a non-directory or symlinked parent: {value}"
+            )));
+        }
+    }
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err(ZdevError::new(format!(
+                "Derived ownership path is not a regular file: {value}"
+            )))
+        }
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound && !must_exist => Ok(()),
+        Err(error) => Err(ZdevError::io(
+            format!("Cannot inspect derived ownership path {}", path.display()),
+            error,
+        )),
+    }
+}
+
+fn validate_split_ownership(
+    root: &Path,
+    tasks: &[TaskDraft],
+    ownership: &SplitOwnership,
+) -> Result<(), ZdevError> {
+    let task_keys = tasks
+        .iter()
+        .map(|task| task.key.as_str())
+        .collect::<BTreeSet<_>>();
+    let child_keys = ownership
+        .child_future_paths
+        .iter()
+        .map(|child| child.key.as_str())
+        .collect::<BTreeSet<_>>();
+    if child_keys.len() != ownership.child_future_paths.len() || child_keys != task_keys {
+        return Err(ZdevError::new(
+            "Split ownership must name every proposed task key exactly once",
+        ));
+    }
+    let mut paths = BTreeSet::new();
+    for path in &ownership.retained_parent_paths {
+        if !paths.insert(path.as_str()) {
+            return Err(ZdevError::new(format!(
+                "Duplicate split ownership path: {path}"
+            )));
+        }
+        validate_derived_path(root, path, true)?;
+    }
+    for child in &ownership.child_future_paths {
+        if child.paths.is_empty() {
+            return Err(ZdevError::new(format!(
+                "Split ownership for {} contains no future paths",
+                child.key
+            )));
+        }
+        for path in &child.paths {
+            if !paths.insert(path.as_str()) {
+                return Err(ZdevError::new(format!(
+                    "Split ownership path is duplicated or overlaps another owner: {path}"
+                )));
+            }
+            validate_derived_path(root, path, false)?;
+        }
+    }
+    Ok(())
+}
+
+fn git_nul_paths(root: &Path, arguments: &[&str]) -> Result<BTreeSet<String>, ZdevError> {
+    let output = ProcessCommand::new("git")
+        .args(arguments)
+        .current_dir(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .map_err(|error| ZdevError::io("Cannot inspect Git paths for derived proposal", error))?;
+    if !output.status.success() {
+        return Err(ZdevError::new(format!(
+            "Cannot inspect Git paths for derived proposal: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    let stdout = std::str::from_utf8(&output.stdout)
+        .map_err(|error| ZdevError::new(format!("Git returned a non-UTF-8 path: {error}")))?;
+    Ok(stdout
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
+fn derived_mechanical_ineligibility(
+    root: &Path,
+    proposal: &DerivedProposal,
+) -> Result<Option<String>, ZdevError> {
+    let (area, _) = load_area(root, &proposal.area)?;
+    if area.lifecycle == AreaLifecycle::Closed {
+        return Ok(Some(format!("area {} is closed", proposal.area)));
+    }
+    let tasks = load_tasks(root, &proposal.area)?;
+    let source = tasks
+        .iter()
+        .find(|task| task.header.id == proposal.source_task)
+        .expect("validated derived source task");
+    if source.header.status != TaskStatus::Open {
+        return Ok(Some(format!(
+            "source task {} is not open",
+            proposal.source_task
+        )));
+    }
+    if next_task(&tasks).map(|task| task.header.id.as_str()) != Some(proposal.source_task.as_str())
+    {
+        return Ok(Some(format!(
+            "source task {} is not the current ready task",
+            proposal.source_task
+        )));
+    }
+    if let Err(error) = require_task_work_area_link(root, &proposal.area) {
+        return Ok(Some(error.to_string()));
+    }
+    if let Some(ownership) = &proposal.split_ownership {
+        let staged = git_nul_paths(root, &["diff", "--cached", "--name-only", "-z"])?;
+        if !staged.is_empty() {
+            return Ok(Some(
+                "the index is not empty, so split ownership needs manual review".to_owned(),
+            ));
+        }
+        let mut unstaged = git_nul_paths(root, &["diff", "--name-only", "-z"])?;
+        unstaged.extend(git_nul_paths(
+            root,
+            &["ls-files", "--others", "--exclude-standard", "-z"],
+        )?);
+        let retained = ownership
+            .retained_parent_paths
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if unstaged != retained {
+            return Ok(Some(
+                "retained parent paths do not equal the checkout's complete unstaged path set"
+                    .to_owned(),
+            ));
+        }
+    }
+    Ok(None)
+}
+
+fn derived_approval_id(proposal: &DerivedProposal) -> Result<String, ZdevError> {
+    let canonical = serde_json::to_vec(proposal)
+        .map_err(|error| ZdevError::new(format!("Cannot fingerprint derived proposal: {error}")))?;
+    let hash = canonical.iter().fold(0xcbf29ce484222325_u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    });
+    Ok(format!("D{hash:016x}"))
+}
+
+pub(super) fn review_derived(
+    root: &Path,
+    area: &str,
+    source: &Path,
+) -> Result<CommandOutput, ZdevError> {
+    let proposal = read_derived_proposal(source)?;
+    let bundle = validate_derived_proposal(root, &proposal, area)?;
+    let reason = derived_mechanical_ineligibility(root, &proposal)?;
+    let approval = derived_approval_id(&proposal)?;
+    let markdown = render_task_bundle_approval(&bundle);
+    let canonical = serde_json::to_string_pretty(&proposal)
+        .map_err(|error| ZdevError::new(format!("Cannot render derived proposal: {error}")))?;
+    if let Some(reason) = reason {
+        let text = format!(
+            "Mechanical authority unavailable: {reason}\n\nPROPOSE zdev-derived {} {}\n{}\n\n{markdown}\n\nApproval: {approval}",
+            proposal.area, proposal.source_task, canonical
+        );
+        return Ok(CommandOutput::new(
+            text,
+            json!({
+                "schema_version": SCHEMA_VERSION,
+                "status": "reviewed",
+                "area": area,
+                "source_task": proposal.source_task,
+                "proposal": proposal.proposal.as_str(),
+                "envelope": proposal,
+                "mechanically_eligible": false,
+                "coordinator_authority_required": true,
+                "reason": reason,
+                "approval": approval,
+                "markdown": markdown,
+            }),
+        ));
+    }
+    let text = format!(
+        "Mechanically eligible for automatic authority. The coordinator must still confirm unchanged handoff evidence and direct in-scope authority.\n\nPROPOSE zdev-derived {} {}\n{}",
+        proposal.area, proposal.source_task, canonical
+    );
+    Ok(CommandOutput::new(
+        text,
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "status": "reviewed",
+            "area": area,
+            "source_task": proposal.source_task,
+            "proposal": proposal.proposal.as_str(),
+            "envelope": proposal,
+            "mechanically_eligible": true,
+            "coordinator_authority_required": true,
             "approval": approval,
             "markdown": markdown,
         }),

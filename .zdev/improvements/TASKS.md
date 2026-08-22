@@ -4,8 +4,8 @@
 
 - Total: 54
 - Ready: 2
-- Blocked: 6
-- Done: 46
+- Blocked: 5
+- Done: 47
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -55,8 +55,8 @@
 | [improvements-044](tasks/044-add-common-goal-loop-routing-and-bounded-fallbacks.md) | Add common goal/loop routing and bounded fallbacks | done | improvements-034, improvements-043, improvements-040 |
 | [improvements-045](tasks/045-implement-claude-goal-and-loop-workflows.md) | Implement Claude goal and loop workflows | done | improvements-044 |
 | [improvements-046](tasks/046-implement-native-goal-loop-adapters-for-codex-and-omp.md) | Implement native goal/loop adapters for Codex and OMP | done | improvements-044 |
-| [improvements-047](tasks/047-parse-and-review-derived-task-proposals.md) | Parse and review derived task proposals | ready | improvements-033 |
-| [improvements-048](tasks/048-apply-derived-tasks-atomically.md) | Apply derived tasks atomically | blocked | improvements-047, improvements-036 |
+| [improvements-047](tasks/047-parse-and-review-derived-task-proposals.md) | Parse and review derived task proposals | done | improvements-033 |
+| [improvements-048](tasks/048-apply-derived-tasks-atomically.md) | Apply derived tasks atomically | ready | improvements-047, improvements-036 |
 | [improvements-049](tasks/049-route-investigation-follow-ups-and-implementation-splits.md) | Route investigation follow-ups and implementation splits | blocked | improvements-048 |
 | [improvements-050](tasks/050-add-explicit-trunk-area-metadata.md) | Add explicit trunk area metadata | ready | — |
 | [improvements-051](tasks/051-implement-safe-trunk-area-transitions.md) | Implement safe trunk area transitions | blocked | improvements-050 |

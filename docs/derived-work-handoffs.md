@@ -1,7 +1,7 @@
 # Derived work handoffs
 
-> **Status: design only.** Zdev does not implement automatic derived-work
-> handoffs.
+> **Status: review implemented; publication remains design only.** Zdev parses
+> and reviews derived proposals but does not yet apply them.
 
 Zdev may publish a small follow-up bundle without asking the user to approve
 work they have already approved. This exception applies only to direct work
@@ -100,13 +100,13 @@ Staged, overlapping, incomplete, or uncertain assignments cannot apply
 automatically. The coordinator shows the failure and sends a corrected proposal
 through manual review; approval never makes an invalid path assignment valid.
 
-Drafts use the existing task-bundle fields except `slice`, which is forbidden.
-The coordinator copies the source task's slice to every child; an unsliced
-source produces unsliced children. The proposal cannot create or select a
-different slice. `blocked_by` may name another proposed key or an existing task
-ID in the same area. It may not name the source task. Existing bundle and graph
-validation still reject missing dependencies, cycles, self-blocking tasks, and
-invalid task bodies.
+Drafts use the existing TaskDraft fields, including optional `complexity` and
+`slice`. A declared slice must already exist in the area and passes the same
+slice validation as an ordinary task bundle; a proposal cannot create a slice.
+`blocked_by` may name another proposed key or an existing task ID in the same
+area. It may not name the source task. Existing bundle and graph validation
+still reject missing dependencies, cycles, self-blocking tasks, and invalid
+task bodies.
 
 The source identity, proposal, result, and drafts live only in the handoff and
 command input. Task files keep their current schema.
@@ -194,6 +194,14 @@ needs manual review. The coordinator does not divide hunks, alter the index,
 stash, reset, or assign partial work by guessing.
 
 ## Review, publication, and rollback
+
+The implemented `zdev tasks derive review` command reports mechanical
+eligibility without writing repository state. The coordinator still compares
+the retained handoff context and decides whether the work is directly in scope.
+The result includes the complete envelope, its opaque fingerprint, and the
+ordinary task-bundle rendering, so a semantic authority failure can use manual
+review without changing the proposal. The apply behavior below is not yet
+implemented.
 
 For automatic authority, the coordinator shows the exact proposal once with
 `Authority: automatic` and proceeds without asking a redundant question. For

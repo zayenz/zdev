@@ -363,6 +363,11 @@ enum SliceCommand {
 
 #[derive(Debug, Subcommand)]
 enum TasksCommand {
+    /// Parse and review a transient derived-task proposal
+    Derive {
+        #[command(subcommand)]
+        command: DerivedTasksCommand,
+    },
     /// Render a JSON task bundle for human review
     ///
     /// Validates the bundle's shape, renders its complete Markdown review
@@ -400,6 +405,18 @@ enum TasksCommand {
     Index {
         /// Area tag whose task index to regenerate
         area: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DerivedTasksCommand {
+    /// Validate a worker proposal and report its current mechanical eligibility
+    Review {
+        /// Area that owns the source task and proposed tasks
+        area: String,
+        /// Derived proposal path, or - to read it from standard input
+        #[arg(long = "from", value_name = "PATH_OR_DASH")]
+        source: PathBuf,
     },
 }
 
@@ -630,6 +647,11 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             SliceCommand::Show { area, key } => project::show_slice(&root, area, key),
         },
         Command::Tasks { command } => match command {
+            TasksCommand::Derive { command } => match command {
+                DerivedTasksCommand::Review { area, source } => {
+                    tasks::review_derived(&root, area, source)
+                }
+            },
             TasksCommand::Review { area, source } => tasks::review(&root, area, source),
             TasksCommand::Import {
                 area,

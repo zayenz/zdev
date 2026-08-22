@@ -1929,7 +1929,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
     let metadata = load_area(root, &area)?.0;
     if metadata.lifecycle == AreaLifecycle::Closed {
         validate_brief(&root.join(".zdev").join(&area).join("brief.md"))?;
-        super::project::validate_area_relationships(&list_areas(root)?)?;
+        super::project::validate_area_relationships(root, &list_areas(root)?)?;
         super::project::validate_slices(root, &area)?;
         validate_index(root, &area)?;
         let summary = summary(root, &area)?;
@@ -2109,6 +2109,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
     };
 
     let branch_matches = branch_status["branch_matches"] == Value::Bool(true);
+    let required_branch = branch_status["branch"].as_str().unwrap_or("unbound");
     let branch_note = if branch_matches {
         " (checked out)".to_owned()
     } else if let Some(checked_out) = &checked_out {
@@ -2133,7 +2134,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         task.title,
         task.complexity().as_str(),
         area.tag,
-        area.branch,
+        required_branch,
         branch_note,
         view.path
     );
@@ -2156,7 +2157,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             "area": area.tag,
             "lifecycle": "open",
             "queue": "ready",
-            "branch": area.branch,
+            "branch": branch_status["branch"],
             "branch_matches": branch_matches,
             "task": view,
             "branch_status": branch_status,

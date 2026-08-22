@@ -283,8 +283,11 @@ enum AreaCommand {
         #[arg(long)]
         objective: String,
         /// Area branch; omit to use the checked-out branch
-        #[arg(long)]
+        #[arg(long, conflicts_with = "trunk")]
         branch: Option<String>,
+        /// Follow the configured project trunk without storing a branch copy
+        #[arg(long)]
+        trunk: bool,
     },
     /// Close an area whose task queue is empty or exhausted
     Close {
@@ -629,7 +632,8 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 title,
                 objective,
                 branch,
-            } => project::create_area(&root, tag, title, objective, branch.as_deref()),
+                trunk,
+            } => project::create_area(&root, tag, title, objective, branch.as_deref(), *trunk),
             AreaCommand::Close { area } => project::close_area(&root, area),
             AreaCommand::Reopen { area } => project::reopen_area(&root, area),
             AreaCommand::Bind { area, branch } => {
@@ -861,14 +865,10 @@ impl ZdevStateLock {
 }
 
 fn render_area_branch_line(area: &project::AreaMetadata, status: &Value) -> String {
-    let branch = &area.branch;
+    let branch = status["branch"].as_str().unwrap_or("unbound");
     let base = status["effective_base"]["branch"]
         .as_str()
         .unwrap_or("unbound");
-    let relationship = match area.parent.as_deref() {
-        Some(parent) => format!("parent {parent} on {base}"),
-        None => format!("trunk {base}"),
-    };
     let diagnostics = status["diagnostics"]
         .as_array()
         .into_iter()
@@ -876,6 +876,13 @@ fn render_area_branch_line(area: &project::AreaMetadata, status: &Value) -> Stri
         .filter_map(Value::as_str)
         .collect::<Vec<_>>()
         .join(", ");
+    if area.mode == project::AreaMode::Trunk {
+        return format!("{}: trunk mode on {branch} [{diagnostics}]", area.tag);
+    }
+    let relationship = match area.parent.as_deref() {
+        Some(parent) => format!("parent {parent} on {base}"),
+        None => format!("trunk {base}"),
+    };
     format!("{}: {branch} -> {relationship} [{diagnostics}]", area.tag)
 }
 
@@ -1052,6 +1059,7 @@ fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevErr
 fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, ZdevError> {
     let config = project::read_config(root)?;
     let all_areas = project::list_areas(root)?;
+    project::validate_area_relationships(root, &all_areas)?;
     let by_tag = all_areas
         .iter()
         .map(|area| (area.tag.as_str(), area))
@@ -1096,9 +1104,22 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
             text.push('\n');
             text.push_str(advisory);
         }
+        let mut area_view = serde_json::to_value(&metadata)
+            .map_err(|error| ZdevError::new(format!("Cannot render area status: {error}")))?;
+        let fields = area_view
+            .as_object_mut()
+            .expect("area metadata is an object");
+        fields.insert("mode".to_owned(), json!(metadata.mode.as_str()));
+        fields.insert(
+            "branch".to_owned(),
+            json!(metadata.resolved_branch(&config)),
+        );
+        if metadata.mode == project::AreaMode::Trunk {
+            fields.insert("base_commit".to_owned(), Value::Null);
+        }
         return Ok(CommandOutput::new(
             text,
-            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": metadata, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "next_complexity": tasks.next_complexity, "advisory": advisory}),
+            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": area_view, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "next_complexity": tasks.next_complexity, "advisory": advisory}),
         ));
     }
     let mut summaries = Vec::new();
@@ -1127,6 +1148,7 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
         summaries.push(json!({
             "tag": area.tag,
             "title": area.title,
+            "mode": area.mode.as_str(),
             "lifecycle": lifecycle,
             "queue": queue,
             "branch_status": branch_status,
@@ -1156,7 +1178,7 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
 
 fn check_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, ZdevError> {
     project::read_config(root)?;
-    project::validate_area_relationships(&project::list_areas(root)?)?;
+    project::validate_area_relationships(root, &project::list_areas(root)?)?;
     let areas = if let Some(area) = requested {
         vec![project::load_area(root, area)?.0]
     } else {

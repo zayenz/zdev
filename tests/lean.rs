@@ -894,7 +894,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
         &selected_status,
         json!({
             "advisory": Value::Null,
-            "area": {"base_commit":selected["area"]["base_commit"].clone(),"branch":"main","lifecycle":"closed","objective":"Exercise managed area branches.","schema_version":1,"tag":"general","title":"general"},
+            "area": {"base_commit":selected["area"]["base_commit"].clone(),"branch":"main","lifecycle":"closed","mode":"isolated","objective":"Exercise managed area branches.","schema_version":1,"tag":"general","title":"general"},
             "branch_status": selected["branch_status"].clone(),
             "counts": {"blocked":0,"done":0,"ready":0,"total":0},
             "lifecycle":"closed","next":Value::Null,"next_complexity":Value::Null,"project":selected["project"].clone(),"queue":"empty","schema_version":1,"slices":[],"trunk":"main"
@@ -912,7 +912,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
     assert_pretty_json(
         &project_status,
         json!({
-            "areas":[{"blocked":0,"branch_status":project["areas"][0]["branch_status"].clone(),"done":0,"lifecycle":"closed","next":Value::Null,"next_complexity":Value::Null,"queue":"empty","ready":0,"tag":"general","title":"general","total":0}],
+            "areas":[{"blocked":0,"branch_status":project["areas"][0]["branch_status"].clone(),"done":0,"lifecycle":"closed","mode":"isolated","next":Value::Null,"next_complexity":Value::Null,"queue":"empty","ready":0,"tag":"general","title":"general","total":0}],
             "checked_out_branch":"main","project":project["project"].clone(),"schema_version":1,"trunk":"main"
         }),
     );
@@ -1085,6 +1085,171 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
     let rejected = run_zdev(root, &["status", "general"]);
     assert!(!rejected.status.success());
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("unknown variant"));
+}
+
+#[test]
+fn trunk_area_create_projects_mode_and_allows_explicit_trunk_sharing() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    let isolated = json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "legacy",
+            "--title",
+            "Legacy",
+            "--objective",
+            "Keep legacy bytes.",
+            "--branch",
+            "feature",
+        ],
+    );
+    assert_eq!(isolated["mode"], "isolated");
+    let legacy_bytes = fs::read_to_string(root.join(".zdev/legacy/area.toml")).unwrap();
+    assert!(legacy_bytes.contains("branch = \"feature\""));
+    assert!(!legacy_bytes.contains("mode ="));
+
+    for area in ["docs", "quality"] {
+        let created = json_output(
+            root,
+            &[
+                "area",
+                "create",
+                area,
+                "--title",
+                area,
+                "--objective",
+                "Work directly on trunk.",
+                "--trunk",
+            ],
+        );
+        assert_eq!(created["mode"], "trunk");
+        assert_eq!(created["branch"], "main");
+        assert_eq!(created["base_commit"], Value::Null);
+        let metadata = fs::read_to_string(root.join(format!(".zdev/{area}/area.toml"))).unwrap();
+        assert!(metadata.contains("mode = \"trunk\""));
+        assert!(!metadata.contains("branch ="));
+        assert!(!metadata.contains("parent ="));
+        assert!(!metadata.contains("base_commit ="));
+    }
+
+    let status = json_output(root, &["status", "docs"]);
+    assert_eq!(status["area"]["mode"], "trunk");
+    assert_eq!(status["area"]["branch"], "main");
+    assert_eq!(status["area"]["base_commit"], Value::Null);
+    assert_eq!(status["branch_status"]["mode"], "trunk");
+    assert_eq!(status["branch_status"]["branch"], "main");
+    assert_eq!(status["branch_status"]["fresh"], true);
+    assert_eq!(status["branch_status"]["anchor_valid"], Value::Null);
+    assert_eq!(status["branch_status"]["task_work"]["safe"], true);
+    assert!(
+        String::from_utf8(run_zdev(root, &["status", "docs"]).stdout)
+            .unwrap()
+            .contains("docs: trunk mode on main [fresh]")
+    );
+    let project = json_output(root, &["status"]);
+    assert_eq!(project["areas"][0]["tag"], "docs");
+    assert_eq!(project["areas"][0]["mode"], "trunk");
+    assert_eq!(project["areas"][1]["tag"], "legacy");
+    assert_eq!(project["areas"][2]["tag"], "quality");
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+
+    let collision = run_zdev(
+        root,
+        &[
+            "area",
+            "create",
+            "isolated-main",
+            "--title",
+            "Collision",
+            "--objective",
+            "Must remain exclusive.",
+            "--branch",
+            "main",
+        ],
+    );
+    assert!(!collision.status.success());
+    let error = String::from_utf8_lossy(&collision.stderr);
+    assert!(
+        error.contains("already owned by trunk area docs"),
+        "{error}"
+    );
+
+    git(root, &["branch", "stable"]);
+    let config_path = root.join(".zdev/config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    fs::write(
+        &config_path,
+        config.replace("trunk = \"main\"", "trunk = \"stable\""),
+    )
+    .unwrap();
+    let moved = json_output(root, &["status", "docs"]);
+    assert_eq!(moved["area"]["branch"], "stable");
+    assert_eq!(moved["branch_status"]["branch"], "stable");
+    assert!(
+        !fs::read_to_string(root.join(".zdev/docs/area.toml"))
+            .unwrap()
+            .contains("stable")
+    );
+}
+
+#[test]
+fn area_mode_parser_rejects_contradictions_and_legacy_owner_blocks_trunk() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "legacy-main", "main");
+    let metadata_path = root.join(".zdev/legacy-main/area.toml");
+    let metadata = fs::read_to_string(&metadata_path).unwrap();
+    fs::write(
+        &metadata_path,
+        metadata.replace(
+            "branch = \"main\"",
+            "mode = \"isolated\"\nbranch = \"main\"",
+        ),
+    )
+    .unwrap();
+    assert_eq!(
+        json_output(root, &["status", "legacy-main"])["area"]["mode"],
+        "isolated"
+    );
+    fs::write(&metadata_path, &metadata).unwrap();
+    let collision = run_zdev(
+        root,
+        &[
+            "area",
+            "create",
+            "trunk",
+            "--title",
+            "Trunk",
+            "--objective",
+            "Use explicit trunk.",
+            "--trunk",
+        ],
+    );
+    assert!(!collision.status.success());
+    assert!(
+        String::from_utf8_lossy(&collision.stderr)
+            .contains("already owned by isolated area legacy-main")
+    );
+
+    fs::write(
+        &metadata_path,
+        metadata.replace("branch = \"main\"", "mode = \"trunk\"\nbranch = \"main\""),
+    )
+    .unwrap();
+    let invalid = run_zdev(root, &["check"]);
+    assert!(!invalid.status.success());
+    assert!(
+        String::from_utf8_lossy(&invalid.stderr)
+            .contains("trunk area forbids branch, parent, and base_commit")
+    );
 }
 
 #[test]
@@ -4325,7 +4490,10 @@ fn current_schema_rejects_unknown_and_missing_fields() {
     fs::write(&area_path, format!("{missing_branch}\n")).expect("remove required branch");
     let rejected_missing_branch = run_zdev(root, &["status", "strict-schema"]);
     assert!(!rejected_missing_branch.status.success());
-    assert!(String::from_utf8_lossy(&rejected_missing_branch.stderr).contains("missing field"));
+    assert!(
+        String::from_utf8_lossy(&rejected_missing_branch.stderr)
+            .contains("isolated area requires branch")
+    );
 }
 
 #[test]

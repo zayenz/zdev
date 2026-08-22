@@ -1,6 +1,9 @@
 # Trunk-based area work
 
-> **Status: design only.** Zdev does not implement trunk-based area mode.
+> **Status: schema foundation implemented; transitions and task-work integration
+> remain design only.** Zdev stores, creates, validates, and reports explicit
+> trunk areas. The later transition and workflow sections remain the settled
+> design for follow-up implementation.
 
 This design adds an explicit way to run several areas on the configured project
 trunk. It leaves branch-isolated areas as the default. It is a design record,
@@ -8,8 +11,10 @@ not an implementation.
 
 ## Current behavior
 
-Every `area.toml` has one mandatory `branch`. Relationship validation allows
-only one area to own a branch. An area without a parent uses `project.trunk` as
+An isolated `area.toml` has one mandatory `branch`; legacy records remain in
+that mode. Relationship validation normally allows only one area to own a
+branch, while explicit trunk records may share configured trunk. An isolated
+area without a parent uses `project.trunk` as
 its effective base and normally records `base_commit` as the boundary between
 base and area commits.
 

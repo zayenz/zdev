@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-050"
 key = "trunk-area-schema"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = []
 +++
 # Add explicit trunk area metadata
@@ -25,12 +25,20 @@ Implement the schema foundation from docs/trunk-area-mode.md. Optional `mode = "
 
 ## Done when
 
-- [ ] Area parsing, creation, show, list, status, and check support explicit trunk mode and legacy isolated mode.
-- [ ] Trunk areas resolve their current branch from project.trunk.
-- [ ] Invalid trunk metadata and isolated/trunk ownership collisions fail with actionable errors.
-- [ ] Multiple explicit trunk areas coexist deterministically.
+- [x] Area parsing, creation, show, list, status, and check support explicit trunk mode and legacy isolated mode.
+- [x] Trunk areas resolve their current branch from project.trunk.
+- [x] Invalid trunk metadata and isolated/trunk ownership collisions fail with actionable errors.
+- [x] Multiple explicit trunk areas coexist deterministically.
 
 ## Validation
 
 - Add focused parser, legacy compatibility, creation, collision, and multi-area tests.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added explicit schema-v1 trunk area metadata with dynamic project.trunk resolution, legacy isolated compatibility, and strict ownership validation.
+
+Validation:
+
+- Independent verifier PASS; focused parser/create/collision/projection tests and full fmt, clippy, test, build, and diff checks passed.

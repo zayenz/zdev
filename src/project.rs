@@ -62,13 +62,46 @@ pub(super) struct AreaMetadata {
     pub(super) tag: String,
     pub(super) title: String,
     pub(super) objective: String,
-    pub(super) branch: String,
+    #[serde(default, skip_serializing_if = "AreaMode::is_isolated")]
+    pub(super) mode: AreaMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) branch: Option<String>,
     #[serde(default)]
     pub(super) lifecycle: AreaLifecycle,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) parent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) base_commit: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum AreaMode {
+    #[default]
+    Isolated,
+    Trunk,
+}
+
+impl AreaMode {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::Isolated => "isolated",
+            Self::Trunk => "trunk",
+        }
+    }
+
+    fn is_isolated(mode: &Self) -> bool {
+        *mode == Self::Isolated
+    }
+}
+
+impl AreaMetadata {
+    pub(super) fn resolved_branch<'a>(&'a self, config: &'a Config) -> Option<&'a str> {
+        match self.mode {
+            AreaMode::Isolated => self.branch.as_deref(),
+            AreaMode::Trunk => config.project.trunk.as_deref(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -403,6 +436,7 @@ pub(super) fn create_area(
     title: &str,
     objective: &str,
     requested_branch: Option<&str>,
+    trunk: bool,
 ) -> Result<CommandOutput, ZdevError> {
     let config = read_config(root)?;
     validate_nonempty_line(title, "Area title")?;
@@ -417,20 +451,52 @@ pub(super) fn create_area(
         .map_err(|error| ZdevError::io("Cannot stage area", error))?;
     fs::create_dir(stage.path().join("tasks"))
         .map_err(|error| ZdevError::io("Cannot create task directory", error))?;
-    let branch = required_requested_branch(root, requested_branch)?;
-    ensure_branch_available(root, &branch, None)?;
-    let base_commit = config
-        .project
-        .trunk
-        .as_deref()
-        .map(|base| compute_base_anchor(root, &branch, base))
-        .transpose()?
-        .flatten();
+    let (mode, branch, resolved_branch, base_commit) = if trunk {
+        if config.project.record == RecordPolicy::PullRequest {
+            return Err(ZdevError::new(
+                "Trunk areas are not supported with pull-request records; use an isolated area branch",
+            ));
+        }
+        if let Some(operation) = git_operation(root)? {
+            return Err(ZdevError::new(format!(
+                "Cannot create a trunk area while a {operation} is in progress. Finish or abort it, then retry"
+            )));
+        }
+        let configured = config.project.trunk.as_deref().ok_or_else(|| {
+            ZdevError::new(
+                "Project trunk is not configured; set it with `zdev config trunk <branch>`",
+            )
+        })?;
+        if !local_branch_exists(root, configured) {
+            return Err(ZdevError::new(format!(
+                "Cannot use trunk mode because configured trunk {configured} is missing locally"
+            )));
+        }
+        ensure_branch_available(root, configured, AreaMode::Trunk, None)?;
+        (AreaMode::Trunk, None, configured.to_owned(), None)
+    } else {
+        let branch = required_requested_branch(root, requested_branch)?;
+        ensure_branch_available(root, &branch, AreaMode::Isolated, None)?;
+        let base_commit = config
+            .project
+            .trunk
+            .as_deref()
+            .map(|base| compute_base_anchor(root, &branch, base))
+            .transpose()?
+            .flatten();
+        (
+            AreaMode::Isolated,
+            Some(branch.clone()),
+            branch,
+            base_commit,
+        )
+    };
     let metadata = AreaMetadata {
         schema_version: SCHEMA_VERSION,
         tag: tag.to_owned(),
         title: title.to_owned(),
         objective: objective.to_owned(),
+        mode,
         branch,
         lifecycle: AreaLifecycle::Open,
         parent: None,
@@ -453,9 +519,14 @@ pub(super) fn create_area(
         .map_err(|error| ZdevError::io("Cannot write task summary", error))?;
     fs::rename(stage.keep(), &path)
         .map_err(|error| ZdevError::io(format!("Cannot publish area {tag}"), error))?;
+    let text = if mode == AreaMode::Trunk {
+        format!("Created trunk area {tag} on configured trunk {resolved_branch}")
+    } else {
+        format!("Created area {tag}")
+    };
     Ok(CommandOutput::new(
-        format!("Created area {tag}"),
-        json!({"schema_version": SCHEMA_VERSION, "status": "created", "area": tag, "branch": metadata.branch, "path": relative(root, &path)}),
+        text,
+        json!({"schema_version": SCHEMA_VERSION, "status": "created", "area": tag, "mode": mode.as_str(), "branch": resolved_branch, "base_commit": metadata.base_commit, "path": relative(root, &path)}),
     ))
 }
 
@@ -469,6 +540,25 @@ pub(super) fn load_area(root: &Path, tag: &str) -> Result<(AreaMetadata, PathBuf
         .map_err(|error| ZdevError::new(format!("Invalid {}: {error}", metadata_path.display())))?;
     if metadata.schema_version != SCHEMA_VERSION || metadata.tag != tag {
         return Err(ZdevError::new(format!("Invalid area identity for {tag}")));
+    }
+    match metadata.mode {
+        AreaMode::Isolated if metadata.branch.is_none() => {
+            return Err(ZdevError::new(format!(
+                "Invalid {}: isolated area requires branch",
+                metadata_path.display()
+            )));
+        }
+        AreaMode::Trunk
+            if metadata.branch.is_some()
+                || metadata.parent.is_some()
+                || metadata.base_commit.is_some() =>
+        {
+            return Err(ZdevError::new(format!(
+                "Invalid {}: trunk area forbids branch, parent, and base_commit",
+                metadata_path.display()
+            )));
+        }
+        _ => {}
     }
     Ok((metadata, path))
 }
@@ -770,7 +860,7 @@ fn set_area_lifecycle(
     lifecycle: AreaLifecycle,
 ) -> Result<CommandOutput, ZdevError> {
     let _lock = ZdevStateLock::acquire(root)?;
-    validate_area_relationships(&list_areas(root)?)?;
+    validate_area_relationships(root, &list_areas(root)?)?;
     let (mut area, area_dir) = load_area(root, tag)?;
     validate_brief(&area_dir.join("brief.md"))?;
     validate_slices(root, tag)?;
@@ -818,14 +908,20 @@ pub(super) fn reopen_area(root: &Path, tag: &str) -> Result<CommandOutput, ZdevE
 fn ensure_branch_available(
     root: &Path,
     branch: &str,
+    mode: AreaMode,
     owner: Option<&str>,
 ) -> Result<(), ZdevError> {
-    if let Some(area) = list_areas(root)?
-        .into_iter()
-        .find(|area| area.branch == branch && owner != Some(area.tag.as_str()))
-    {
+    let config = read_config(root)?;
+    for area in list_areas(root)? {
+        if owner == Some(area.tag.as_str()) || area.resolved_branch(&config) != Some(branch) {
+            continue;
+        }
+        if mode == AreaMode::Trunk && area.mode == AreaMode::Trunk {
+            continue;
+        }
         return Err(ZdevError::new(format!(
-            "Branch {branch} is already owned by area {}",
+            "Branch {branch} is already owned by {} area {}",
+            area.mode.as_str(),
             area.tag
         )));
     }
@@ -840,8 +936,13 @@ pub(super) fn bind_area(
     let config = read_config(root)?;
     let (mut area, _) = load_area(root, tag)?;
     let branch = required_requested_branch(root, requested)?;
-    ensure_branch_available(root, &branch, Some(tag))?;
-    area.branch = branch.clone();
+    if area.mode == AreaMode::Trunk {
+        return Err(ZdevError::new(
+            "Changing a trunk area binding is not available yet",
+        ));
+    }
+    ensure_branch_available(root, &branch, AreaMode::Isolated, Some(tag))?;
+    area.branch = Some(branch.clone());
     if let Some(anchor) = &area.base_commit {
         if local_branch_exists(root, &branch)
             && commit_is_ancestor(root, anchor, &format!("refs/heads/{branch}")) != Some(true)
@@ -863,17 +964,32 @@ pub(super) fn bind_area(
     ))
 }
 
-pub(super) fn validate_area_relationships(areas: &[AreaMetadata]) -> Result<(), ZdevError> {
+pub(super) fn validate_area_relationships(
+    root: &Path,
+    areas: &[AreaMetadata],
+) -> Result<(), ZdevError> {
+    let config = read_config(root)?;
     let by_tag = areas
         .iter()
         .map(|area| (area.tag.as_str(), area))
         .collect::<BTreeMap<_, _>>();
-    let mut branches = BTreeMap::new();
+    let mut branches: BTreeMap<&str, &AreaMetadata> = BTreeMap::new();
     for area in areas {
-        if let Some(other) = branches.insert(area.branch.as_str(), area.tag.as_str()) {
+        if config.project.record == RecordPolicy::PullRequest && area.mode == AreaMode::Trunk {
+            return Err(ZdevError::new(
+                "Trunk areas are not supported with pull-request records; use an isolated area branch",
+            ));
+        }
+        if let Some(branch) = area.resolved_branch(&config)
+            && let Some(other) = branches.insert(branch, area)
+            && (area.mode != AreaMode::Trunk || other.mode != AreaMode::Trunk)
+        {
             return Err(ZdevError::new(format!(
-                "Branch {} is owned by both {other} and {}",
-                area.branch, area.tag
+                "Branch {branch} cannot be shared by {} area {} and {} area {}",
+                other.mode.as_str(),
+                other.tag,
+                area.mode.as_str(),
+                area.tag
             )));
         }
         if area.parent.as_deref() == Some(area.tag.as_str()) {
@@ -919,24 +1035,35 @@ pub(super) fn configure_parent(
         ));
     }
     let (mut area, _) = load_area(root, tag)?;
+    if area.mode == AreaMode::Trunk {
+        return Err(ZdevError::new("Trunk areas cannot have a parent"));
+    }
     let previous_parent = area.parent.clone();
     let (parent, parent_area) = if remove {
         (None, None)
     } else {
         let parent = requested_parent.unwrap();
         let parent_area = load_area(root, parent)?.0;
+        if parent_area.mode == AreaMode::Trunk {
+            return Err(ZdevError::new(
+                "An isolated area cannot use a trunk area as its parent; bind it directly to configured trunk instead",
+            ));
+        }
         (Some(parent.to_owned()), Some(parent_area))
     };
     area.parent = parent.clone();
     if let Some(parent_area) = &parent_area {
-        let child_branch = area.branch.clone();
-        let parent_branch = parent_area.branch.clone();
-        require_existing_branch(root, &child_branch, "area")?;
-        require_existing_branch(root, &parent_branch, "parent-area")?;
+        let child_branch = area.branch.as_deref().expect("validated isolated branch");
+        let parent_branch = parent_area
+            .branch
+            .as_deref()
+            .expect("validated isolated branch");
+        require_existing_branch(root, child_branch, "area")?;
+        require_existing_branch(root, parent_branch, "parent-area")?;
         if previous_parent.is_none()
-            && base_is_ancestor(root, &parent_branch, &child_branch) == Some(true)
+            && base_is_ancestor(root, parent_branch, child_branch) == Some(true)
         {
-            area.base_commit = branch_tip(root, &parent_branch)?;
+            area.base_commit = branch_tip(root, parent_branch)?;
         } else {
             let anchor = require_base_anchor(&area)?;
             if !commit_exists(root, anchor)
@@ -955,7 +1082,7 @@ pub(super) fn configure_parent(
         .find(|candidate| candidate.tag == tag)
         .ok_or_else(|| ZdevError::new(format!("Unknown area: {tag}")))?;
     *candidate = area.clone();
-    validate_area_relationships(&areas)?;
+    validate_area_relationships(root, &areas)?;
     write_area_metadata(root, &area)?;
     let text = match &parent {
         Some(parent) => format!("Set parent of {tag} to {parent}"),
@@ -974,7 +1101,7 @@ fn configured_effective_base(
 ) -> Result<Option<String>, ZdevError> {
     if let Some(parent) = &area.parent {
         let parent_area = load_area(root, parent)?.0;
-        return Ok(Some(parent_area.branch));
+        return Ok(parent_area.branch);
     }
     Ok(config.project.trunk.clone())
 }
@@ -1049,14 +1176,17 @@ pub(super) fn require_checked_out_area_branch(
     root: &Path,
     area: &AreaMetadata,
 ) -> Result<String, ZdevError> {
-    let branch = &area.branch;
+    let config = read_config(root)?;
+    let branch = area.resolved_branch(&config).ok_or_else(|| {
+        ZdevError::new("Project trunk is not configured; set it with `zdev config trunk <branch>`")
+    })?;
     let checked_out = current_branch(root)?.ok_or_else(|| {
         ZdevError::new(format!(
             "Cannot use area {} while HEAD is detached. Check out branch {branch} and retry",
             area.tag
         ))
     })?;
-    if checked_out != *branch {
+    if checked_out != branch {
         return Err(ZdevError::new(format!(
             "Cannot use area {} on branch {checked_out}. Switch to {branch} and retry",
             area.tag
@@ -1258,7 +1388,12 @@ fn continue_managed_rebase(root: &Path, tag: &str) -> Result<CommandOutput, Zdev
     })?;
     let config = read_config(root)?;
     let area = load_area(root, tag)?.0;
-    let branch = &area.branch;
+    if area.mode == AreaMode::Trunk {
+        return Err(ZdevError::new(
+            "Managed rebase continuation is not available for a trunk area",
+        ));
+    }
+    let branch = area.branch.as_deref().expect("validated isolated branch");
     if state.head_name != format!("refs/heads/{branch}") {
         return Err(ZdevError::new(format!(
             "Cannot continue area {tag}: Git is rebasing {}, not branch {branch}. Finish or abort that rebase first",
@@ -1316,7 +1451,12 @@ fn abort_managed_rebase(root: &Path, tag: &str) -> Result<CommandOutput, ZdevErr
         ))
     })?;
     let area = load_area(root, tag)?.0;
-    let branch = &area.branch;
+    if area.mode == AreaMode::Trunk {
+        return Err(ZdevError::new(
+            "Managed rebase abort is not available for a trunk area",
+        ));
+    }
+    let branch = area.branch.as_deref().expect("validated isolated branch");
     if state.head_name != format!("refs/heads/{branch}") {
         return Err(ZdevError::new(format!(
             "Cannot abort area {tag}: Git is rebasing {}, not branch {branch}. Finish or abort that rebase directly",
@@ -1470,7 +1610,50 @@ pub(super) fn area_branch_status(
     if operation.is_some() {
         diagnostics.push("git-operation-in-progress");
     }
-    let branch_matches = checked_out.map(|checked_out| area.branch == checked_out);
+    let resolved_branch = area.resolved_branch(config);
+    if area.mode == AreaMode::Trunk {
+        let branch_matches =
+            resolved_branch.and_then(|branch| checked_out.map(|checked_out| checked_out == branch));
+        if branch_matches == Some(false) {
+            diagnostics.push("wrong-branch");
+        } else if resolved_branch.is_some() && checked_out.is_none() {
+            diagnostics.push("detached-head");
+        }
+        let branch_exists = resolved_branch.is_some_and(|branch| local_branch_exists(root, branch));
+        let fresh = if resolved_branch.is_none() {
+            diagnostics.push("project-trunk-unbound");
+            None
+        } else if !branch_exists {
+            diagnostics.push("trunk-branch-missing");
+            None
+        } else {
+            diagnostics.push("fresh");
+            Some(true)
+        };
+        let structurally_safe = branch_exists && git_state_inspectable && operation.is_none();
+        return json!({
+            "mode": area.mode.as_str(),
+            "branch": resolved_branch,
+            "checked_out_branch": checked_out,
+            "branch_matches": branch_matches,
+            "parent_area": Value::Null,
+            "base_commit": Value::Null,
+            "effective_base": {"kind": "trunk", "area": Value::Null, "branch": resolved_branch},
+            "fresh": fresh,
+            "anchor_valid": Value::Null,
+            "finalized": Value::Null,
+            "linear_history": Value::Null,
+            "task_work": {
+                "safe": branch_matches == Some(true) && structurally_safe,
+                "structurally_safe": structurally_safe,
+                "stale_advisory": false,
+                "git_operation": operation,
+            },
+            "diagnostics": diagnostics,
+        });
+    }
+    let branch = area.branch.as_deref().expect("validated isolated branch");
+    let branch_matches = checked_out.map(|checked_out| branch == checked_out);
     if branch_matches == Some(false) {
         diagnostics.push("wrong-branch");
     } else if checked_out.is_none() {
@@ -1479,11 +1662,7 @@ pub(super) fn area_branch_status(
 
     let (base_kind, base_area, effective_base) = if let Some(parent) = &area.parent {
         match areas.get(parent.as_str()) {
-            Some(parent_area) => (
-                "area",
-                Some(parent.as_str()),
-                Some(parent_area.branch.as_str()),
-            ),
+            Some(parent_area) => ("area", Some(parent.as_str()), parent_area.branch.as_deref()),
             None => {
                 diagnostics.push("parent-area-missing");
                 ("area", Some(parent.as_str()), None)
@@ -1499,7 +1678,7 @@ pub(super) fn area_branch_status(
             "effective-base-unbound"
         });
     }
-    let branch_exists = local_branch_exists(root, &area.branch);
+    let branch_exists = local_branch_exists(root, branch);
     if area.base_commit.is_none() {
         diagnostics.push("base-anchor-unbound");
     } else if area
@@ -1512,7 +1691,7 @@ pub(super) fn area_branch_status(
 
     let anchor_valid = match area.base_commit.as_deref() {
         Some(anchor) if branch_exists && commit_exists(root, anchor) => {
-            commit_is_ancestor(root, anchor, &format!("refs/heads/{}", area.branch))
+            commit_is_ancestor(root, anchor, &format!("refs/heads/{branch}"))
         }
         _ => None,
     };
@@ -1521,7 +1700,7 @@ pub(super) fn area_branch_status(
     }
     let linear_history = match area.base_commit.as_deref() {
         Some(anchor) if branch_exists && commit_exists(root, anchor) => {
-            match child_side_has_merges(root, anchor, &area.branch) {
+            match child_side_has_merges(root, anchor, branch) {
                 Ok(has_merges) => {
                     if has_merges {
                         diagnostics.push("merge-history");
@@ -1539,7 +1718,6 @@ pub(super) fn area_branch_status(
     let mut finalized = None;
     let fresh = match effective_base {
         Some(base) => {
-            let branch = area.branch.as_str();
             let base_exists = local_branch_exists(root, base);
             if !base_exists {
                 diagnostics.push("effective-base-missing");
@@ -1569,7 +1747,7 @@ pub(super) fn area_branch_status(
         }
         None => None,
     };
-    let same_branch = effective_base == Some(area.branch.as_str());
+    let same_branch = effective_base == Some(branch);
     let stale_structure_safe = git_state_inspectable
         && operation.is_none()
         && anchor_valid == Some(true)
@@ -1588,7 +1766,8 @@ pub(super) fn area_branch_status(
     let task_work_safe = branch_matches == Some(true) && structurally_safe;
 
     json!({
-        "branch": area.branch,
+        "mode": area.mode.as_str(),
+        "branch": branch,
         "checked_out_branch": checked_out,
         "branch_matches": branch_matches,
         "parent_area": area.parent,

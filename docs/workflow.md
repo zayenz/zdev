@@ -33,15 +33,18 @@ commit the accepted files.
 
 ## Branch orientation
 
-One area owns one Git branch. An independent area's effective base is project
-trunk. A dependent area names one parent area, whose branch becomes its
-effective base.
+Areas are isolated by default: one area owns one stored Git branch. An
+independent isolated area's effective base is project trunk; a dependent area
+names one parent area, whose branch becomes its effective base. Personal and
+project records may instead create an explicit trunk area with `--trunk`.
+Several explicit trunk areas may share configured trunk, but task ownership
+remains area- and task-specific.
 
 Initialization records trunk when HEAD names a branch; configure it before
-managed work when initialization occurred on detached HEAD. Area creation
-requires an owning branch and records an initial base anchor when its effective
-base is available. Area metadata without its required `branch` field is
-invalid. Correct an existing binding or establish its base anchor explicitly:
+managed work when initialization occurred on detached HEAD. Isolated area
+creation records an owning branch and an initial base anchor when available. A
+trunk area stores no branch or anchor and resolves current configured trunk
+dynamically. Correct an existing binding or choose trunk mode explicitly:
 
 Before the first initialization, the harness asks whether `.zdev` is a personal,
 project, or pull-request record. Personal state uses the exact clone-local
@@ -55,11 +58,14 @@ another question.
 ```text
 zdev config trunk <trunk-branch>
 zdev area bind <area> <area-branch>
+zdev area bind <area> --trunk
 ```
 
 Read `branch_status` from `zdev status <area> --format json` during orientation:
 
 - `branch_matches` says whether the area's branch is checked out.
+- `mode` distinguishes a stored isolated branch from an explicit trunk area;
+  `branch` is the resolved required branch in either case.
 - `fresh` says whether the current effective-base tip is in the area branch.
 - `anchor_valid` says whether the durable boundary between inherited and
   area-owned commits still exists.
@@ -75,6 +81,8 @@ and ancestry remain inspectable, the anchor is contained, child history after
 it is linear, and no Git recovery operation is active. Status reports one
 explicit rebase advisory in that case. Wrong or detached branches, missing or
 invalid facts, nonlinear history, and active Git operations remain blockers.
+Trunk areas require resolved trunk to be checked out and inspectable, but never
+require an anchor, freshness check, or rebase advisory.
 
 For an occasional two-area stack, create the parent branch and area first.
 Create the child branch from the parent, then record the link:
@@ -98,6 +106,9 @@ on the area's branch with a clean worktree:
 ```text
 zdev area rebase <area>
 ```
+
+For an explicit trunk area this command is an unchanged result: the area
+already follows configured trunk, so no rebase or freshness ceremony applies.
 
 Zdev uses the stored anchor as the old boundary and the current effective-base
 tip as the new boundary. It never merges, changes branches, rebases another
@@ -159,14 +170,16 @@ agent-ready implementation work enters the task queue.
 
 Use `general` as a conventional standing area when small, unrelated
 improvements do not justify a new area each time. It has no special lifecycle
-rules. Create or switch to its ordinary persistent branch, then use the
-existing command:
+rules. Create or switch to its isolated branch, then use the existing command:
 
 ```sh
 zdev area create general \
   --title "General work" \
   --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
+
+When a personal/project record should keep several areas on configured trunk,
+add `--trunk` instead of creating a separate branch.
 
 Keep its brief short and reusable: shared engineering boundaries, the agreed
 testing level, and repository validation. Put each one-off outcome, context,
@@ -214,6 +227,10 @@ continue without asking for rebase consent. Stop on an unsafe branch, anchor,
 ancestry, history, or Git-operation state. Use the managed rebase flow when the
 task needs newer base changes or reaches an integration boundary, then rerun
 `zdev next <area> --format json`.
+
+For trunk mode, use dynamically resolved `project.trunk`, require it to be
+checked out and safe, and skip freshness and rebase steps. Sharing trunk never
+grants ownership of another area or unrelated changes.
 
 The implementation agent receives the brief, one task, and relevant repository
 context. It reads the brief first, then selectively loads task-relevant sources.

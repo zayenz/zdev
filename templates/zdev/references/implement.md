@@ -12,8 +12,9 @@ areas; do not infer project-wide selection from an omitted area.
    lifecycle first. A closed result is branch-independent no-work. For open
    work, require its nested status and goal to agree, task work to be safe, and
    retain its exact staged, unstaged, and untracked Git evidence. When
-   `stale_advisory` is true, report the single rebase advisory once and
-   continue; do not ask for rebase consent. If the command reports unsafe
+   `stale_advisory` is true for an isolated area, report the single rebase
+   advisory once and continue; do not ask for rebase consent. Trunk mode never
+   needs freshness or rebase ceremony. If the command reports unsafe
    state, return to the root **Recover** route. Recommend the explicit managed
    rebase when the task needs newer base changes or is approaching an
    integration boundary.
@@ -134,7 +135,8 @@ inspect `git status --short --untracked-files=all` and the full cached diff
 against the baseline and verified evidence. The index must contain only the
 intended task changes. Stop if pre-existing staged content, unexplained changes,
 or ambiguous ownership would enter the commit. Do not rearrange the user's
-index automatically. `zdev commit` adds the stable change ID. Return control
+index automatically. Sharing trunk with other explicit areas does not broaden
+the selected task's ownership. `zdev commit` adds the stable change ID. Return control
 with the verified commit and stop without querying the next task. If the user
 explicitly asks to continue, or an authorized goal or loop is active, begin a
 new iteration with a fresh `zdev work-context <area> --format json` before

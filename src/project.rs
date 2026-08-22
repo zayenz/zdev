@@ -1484,6 +1484,7 @@ pub(super) fn require_task_work_area_link(
     let config = read_config(root)?;
     let area = load_area(root, tag)?.0;
     let areas = list_areas(root)?;
+    validate_area_relationships_for_config(&config, &areas)?;
     let by_tag = areas
         .iter()
         .map(|area| (area.tag.as_str(), area))

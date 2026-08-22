@@ -63,10 +63,11 @@ The brief and selected task define the outcome, boundaries, testing level, and
 done conditions throughout this process.
 
 Use `general` as the conventional tag for recurring one-off work when the user
-wants one standing area instead of a new area for each small improvement. It is
-an ordinary area on an ordinary persistent branch, with a minimal brief that
-keeps shared boundaries, testing, and validation. Unsliced tasks are normal;
-use slice briefs only when several tasks share one narrower objective.
+wants one standing area instead of a new area for each small improvement. It
+may use the default isolated branch or explicit `--trunk` mode when the user
+wants several areas to share configured trunk. Keep a minimal brief with shared
+boundaries, testing, and validation. Unsliced tasks are normal; use slice briefs
+only when several tasks share one narrower objective.
 
 When discussion leaves no unresolved product or testing choice, an explicit
 request may proceed directly to **Create tasks** and exact task-bundle review.
@@ -80,12 +81,16 @@ setup route only when the user asks to create durable work. If several areas
 have open work and none is selected, show their tags and ask the user to
 choose; do not infer an area from unrelated chat history.
 
-For area planning interactions, report the selected area's branch and base
-diagnostics. Require its recorded branch before changing area state, but never
-run a managed rebase without explicit consent. Read-only interactions never
-rebase.
+For area planning interactions, report the selected area's mode, resolved
+required branch, and base diagnostics. An isolated area owns its stored branch;
+an explicit trunk area dynamically follows `project.trunk` and may share it
+only with other explicit trunk areas. Require the resolved branch before
+changing task or lifecycle state. Never request freshness or a managed rebase
+for trunk mode; read-only interactions never rebase.
 
 For ordinary task work, use `branch_status.task_work.safe` as the branch gate.
+Mode does not grant ownership of other areas or unrelated trunk changes: retain
+the exact Git baseline and stage only the selected area/task paths.
 Report a stale-but-safe rebase advisory once and continue without requesting a
 rebase. Unsafe branch, anchor, ancestry, history, or Git-operation state still
 stops implementation, verification, completion, and commit preparation.

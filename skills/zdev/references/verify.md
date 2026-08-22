@@ -15,6 +15,8 @@ Require the verifier to:
    requested task to remain open, ready, and safe in its nested status and goal
    projections. When `stale_advisory` is true, report the single rebase
    advisory once and continue verification; staleness alone is not a blocker.
+   Trunk mode has no rebase or freshness ceremony; its resolved configured
+   trunk must simply remain safe and checked out.
    A command failure or unsafe context is `BLOCKER`; report its structured
    diagnostics.
 2. Read `brief.md` first and confirm that it has a concrete `Testing` section
@@ -32,6 +34,8 @@ Require the verifier to:
    they do not appear in either diff. Compare this evidence with the
    pre-implementation baseline and identify every task-owned change; return
    `BLOCKER` when ownership or overlap with existing user changes is ambiguous.
+   Other areas sharing trunk and unrelated trunk paths remain outside this
+   task's ownership.
 4. **Check the task requirements:** evaluate every `Done when` condition, task
    boundary, area decision, and the brief's `Testing` section against the implementation.
    Check that any tests called for exercise the requested behavior rather than

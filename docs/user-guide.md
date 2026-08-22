@@ -99,7 +99,8 @@ not implement history-preserving cleanup.
 
 ## 4. Create an area
 
-An area groups one objective and its tasks. Create its feature branch first:
+An area groups one objective and its tasks. By default it owns an isolated
+feature branch, which you create first:
 
 ```sh
 git switch -c scheduling
@@ -107,6 +108,21 @@ zdev area create scheduling \
   --title "Scheduling support" \
   --objective "Add a tested scheduling API."
 ```
+
+For a personal or project record, use `--trunk` when the area should explicitly
+share configured project trunk with other trunk areas:
+
+```sh
+git switch main
+zdev area create scheduling \
+  --title "Scheduling support" \
+  --objective "Add a tested scheduling API." \
+  --trunk
+```
+
+Trunk mode follows later `project.trunk` configuration changes dynamically. It
+does not weaken task ownership or stage unrelated trunk changes. Pull-request
+records remain isolated.
 
 Zdev creates this structure:
 
@@ -144,8 +160,8 @@ selection reports the slice brief to read after the authoritative area brief.
 ### Keep one-off work in a general area
 
 If you often have small, unrelated improvements, keep them in an ordinary area
-with the conventional tag `general`. Create its persistent branch yourself,
-then create the area with the existing command:
+with the conventional tag `general`. Create its isolated branch yourself, then
+create the area with the existing command:
 
 ```sh
 git switch -c general
@@ -153,6 +169,9 @@ zdev area create general \
   --title "General work" \
   --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
+
+For a personal/project record that deliberately shares configured trunk, omit
+the new branch and add `--trunk` to the area command.
 
 Maintain a short standing `brief.md` with the shared engineering boundaries,
 testing level, and validation commands. Each one-off task still needs its own
@@ -328,6 +347,11 @@ integrate:
 ```sh
 zdev area rebase scheduling
 ```
+
+An explicit trunk area instead resolves current `project.trunk` on every
+operation. Require that branch to be checked out and safe, but do not request a
+rebase or freshness step. Keep exact area/task attribution when inspecting and
+staging changes shared on trunk.
 
 If Git stops on a conflict, resolve and stage the files, then continue or
 abort:

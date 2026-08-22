@@ -993,7 +993,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
     let ready: Value = serde_json::from_slice(&ready_next.stdout).expect("ready next JSON");
     assert_pretty_json(
         &ready_next,
-        json!({"advisory":Value::Null,"area":"general","branch_status":ready["branch_status"].clone(),"lifecycle":"open","queue":"ready","schema_version":1,"task":{"blocked_by":[],"complexity":"standard","id":"general-001","path":".zdev/general/tasks/001-complete-one-task.md","slice":Value::Null,"slice_brief":Value::Null,"state":"ready","status":"open","title":"Complete one task"}}),
+        json!({"advisory":Value::Null,"area":"general","branch":"main","branch_matches":true,"branch_status":ready["branch_status"].clone(),"lifecycle":"open","mode":"isolated","queue":"ready","schema_version":1,"task":{"blocked_by":[],"complexity":"standard","id":"general-001","path":".zdev/general/tasks/001-complete-one-task.md","slice":Value::Null,"slice_brief":Value::Null,"state":"ready","status":"open","title":"Complete one task"}}),
     );
     let rejected_close = run_zdev(root, &["area", "close", "general"]);
     assert!(!rejected_close.status.success());
@@ -1024,7 +1024,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
         serde_json::from_slice(&exhausted_next.stdout).expect("exhausted next JSON");
     assert_pretty_json(
         &exhausted_next,
-        json!({"advisory":Value::Null,"area":"general","branch_status":exhausted["branch_status"].clone(),"lifecycle":"open","queue":"exhausted","schema_version":1,"task":Value::Null}),
+        json!({"advisory":Value::Null,"area":"general","branch":"main","branch_matches":true,"branch_status":exhausted["branch_status"].clone(),"lifecycle":"open","mode":"isolated","queue":"exhausted","schema_version":1,"task":Value::Null}),
     );
     json_output(root, &["area", "close", "general"]);
     let reopen_task = run_zdev(root, &["task", "reopen", "general", "general-001"]);
@@ -1195,6 +1195,103 @@ fn trunk_area_create_projects_mode_and_allows_explicit_trunk_sharing() {
             .unwrap()
             .contains("stable")
     );
+}
+
+#[test]
+fn trunk_task_workflows_resolve_config_and_isolate_shared_area_lifecycle() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    git(root, &["branch", "stable"]);
+
+    for area in ["quality", "docs"] {
+        json_output(
+            root,
+            &[
+                "area",
+                "create",
+                area,
+                "--title",
+                area,
+                "--objective",
+                "Work directly on trunk.",
+                "--trunk",
+            ],
+        );
+    }
+    json_output(root, &["config", "trunk", "stable"]);
+
+    // Ordinary import remains branch-independent even after trunk moves.
+    import_one_task(root, "quality");
+    import_one_task(root, "docs");
+    let off_branch = json_output(root, &["next", "--any"]);
+    assert_eq!(off_branch["area"], "docs");
+    assert_eq!(off_branch["area_mode"], "trunk");
+    assert_eq!(off_branch["branch"], "stable");
+    assert_eq!(off_branch["branch_matches"], false);
+    assert_eq!(off_branch["task"]["id"], "docs-001");
+
+    let blocked = run_zdev(root, &["next", "docs", "--format", "json"]);
+    assert!(!blocked.status.success());
+    let blocked: Value = serde_json::from_slice(&blocked.stderr).expect("next error JSON");
+    assert_eq!(blocked["details"]["branch_status"]["branch"], "stable");
+    git(root, &["switch", "-q", "stable"]);
+
+    let selected = json_output(root, &["next", "docs"]);
+    assert_eq!(selected["mode"], "trunk");
+    assert_eq!(selected["branch"], "stable");
+    assert_eq!(selected["branch_matches"], true);
+    let context = json_output(root, &["work-context", "docs"]);
+    assert_eq!(context["status"]["area"]["mode"], "trunk");
+    assert_eq!(context["status"]["area"]["branch"], "stable");
+    assert_eq!(context["goal"]["task"]["id"], "docs-001");
+    assert_eq!(context["goal"].get("mode"), None);
+    assert_eq!(context["goal"].get("branch"), None);
+
+    commit_all(root, "configure shared trunk work");
+    let before_cleanup = git(root, &["status", "--short", "--untracked-files=all"]);
+    let cleanup = run_zdev(root, &["cleanup", "squash"]);
+    assert!(!cleanup.status.success());
+    assert!(String::from_utf8_lossy(&cleanup.stderr).contains("not pull-request"));
+    assert_eq!(
+        git(root, &["status", "--short", "--untracked-files=all"]),
+        before_cleanup
+    );
+
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "docs",
+            "docs-001",
+            "--summary",
+            "Done.",
+            "--validation",
+            "Checked.",
+        ],
+    );
+    let changed = git_stdout(root, &["status", "--short", "--untracked-files=all"]);
+    assert_eq!(
+        changed.lines().collect::<Vec<_>>(),
+        vec![
+            " M .zdev/docs/TASKS.md",
+            " M .zdev/docs/tasks/001-complete-one-task.md"
+        ]
+    );
+    json_output(root, &["area", "close", "docs"]);
+    let quality = json_output(root, &["next", "--any"]);
+    assert_eq!(quality["area"], "quality");
+    assert_eq!(quality["task"]["id"], "quality-001");
+    assert_eq!(quality["closed_areas"], json!(["docs"]));
+
+    json_output(root, &["area", "reopen", "docs"]);
+    json_output(root, &["task", "reopen", "docs", "docs-001"]);
+    let docs_again = json_output(root, &["next", "--any"]);
+    assert_eq!(docs_again["area"], "docs");
+    assert_eq!(docs_again["task"]["id"], "docs-001");
 }
 
 #[test]

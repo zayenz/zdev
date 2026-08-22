@@ -1138,6 +1138,7 @@ pub(super) fn import(
     }
     let _lock = ZdevStateLock::acquire(root)?;
     let (metadata, area_dir) = load_area(root, area)?;
+    super::project::validate_area_relationships(root, &list_areas(root)?)?;
     if metadata.lifecycle == AreaLifecycle::Closed {
         return Err(ZdevError::new(format!(
             "Cannot add tasks to closed area {area}. Run `zdev area reopen {area}` first"
@@ -1967,7 +1968,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         }
         return Ok(CommandOutput::new(
             text,
-            json!({"schema_version": SCHEMA_VERSION, "area": area, "lifecycle": "open", "queue": queue, "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory}),
+            json!({"schema_version": SCHEMA_VERSION, "area": area, "mode": metadata.mode.as_str(), "branch": branch.branch_status["branch"], "branch_matches": branch.branch_status["branch_matches"], "lifecycle": "open", "queue": queue, "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory}),
         ));
     };
     let view = TaskView {
@@ -1997,13 +1998,14 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
     }
     Ok(CommandOutput::new(
         text,
-        json!({"schema_version": SCHEMA_VERSION, "area": area, "lifecycle": "open", "queue": "ready", "task": view, "branch_status": branch.branch_status, "advisory": branch.advisory}),
+        json!({"schema_version": SCHEMA_VERSION, "area": area, "mode": metadata.mode.as_str(), "branch": branch.branch_status["branch"], "branch_matches": branch.branch_status["branch_matches"], "lifecycle": "open", "queue": "ready", "task": view, "branch_status": branch.branch_status, "advisory": branch.advisory}),
     ))
 }
 
 pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
     let config = read_config(root)?;
     let areas = list_areas(root)?;
+    super::project::validate_area_relationships(root, &areas)?;
     let by_tag = areas
         .iter()
         .map(|area| (area.tag.as_str(), area))
@@ -2042,7 +2044,8 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             unsafe_open_work |= open;
             skipped.push(json!({
                 "area": area.tag,
-                "branch": area.branch,
+                "branch": branch_status["branch"],
+                "area_mode": area.mode.as_str(),
                 "branch_matches": branch_status["branch_matches"],
                 "diagnostics": branch_status["diagnostics"],
                 "branch_status": branch_status,
@@ -2155,6 +2158,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             "mode": "any",
             "selection": "ready",
             "area": area.tag,
+            "area_mode": area.mode.as_str(),
             "lifecycle": "open",
             "queue": "ready",
             "branch": branch_status["branch"],
@@ -2254,12 +2258,12 @@ pub(super) fn complete(
     summary: &str,
     validation: &[String],
 ) -> Result<CommandOutput, ZdevError> {
-    let branch = require_task_work_area_link(root, area)?;
     validate_nonempty_line(summary, "Completion summary")?;
     for item in validation {
         validate_nonempty_line(item, "Validation result")?;
     }
     let _lock = ZdevStateLock::acquire(root)?;
+    let branch = require_task_work_area_link(root, area)?;
     let tasks = load_tasks(root, area)?;
     let task = find_task(&tasks, id)?;
     if task.header.status == TaskStatus::Done {
@@ -2302,6 +2306,7 @@ pub(super) fn complete(
 
 pub(super) fn reopen(root: &Path, area: &str, id: &str) -> Result<CommandOutput, ZdevError> {
     let _lock = ZdevStateLock::acquire(root)?;
+    super::project::validate_area_relationships(root, &list_areas(root)?)?;
     let metadata = load_area(root, area)?.0;
     if metadata.lifecycle == AreaLifecycle::Closed {
         return Err(ZdevError::new(format!(

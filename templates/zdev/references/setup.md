@@ -44,14 +44,20 @@ Confirm the selected record policy and installed integrations. Continue with
 the interaction that required durable state.
 
 When the user wants a standing home for one-off work, offer the conventional
-tag `general`. It uses the normal area command on an ordinary persistent branch:
+tag `general`. Use the normal isolated form on its own persistent branch:
 
 ```sh
 zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
 
-The user creates or switches to that branch before the command, just as for any
-other area. Zdev does not create or switch branches automatically. Keep the
-area's brief minimal and standing: record shared boundaries, the testing level,
-and validation that should apply across its work. Do not create `general`
-unless the user asks for durable one-off work.
+Or, for personal/project records when the user explicitly wants several areas
+to share configured trunk, offer:
+
+```sh
+zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks." --trunk
+```
+
+Zdev does not create or switch branches automatically. Pull-request records
+use isolated areas. Keep the area's brief minimal and standing: record shared
+boundaries, the testing level, and validation that should apply across its
+work. Do not create `general` unless the user asks for durable one-off work.

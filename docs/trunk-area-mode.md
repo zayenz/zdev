@@ -1,13 +1,10 @@
 # Trunk-based area work
 
-> **Status: schema and safe transitions implemented; task-work integration
-> remains design only.** Zdev stores, creates, validates, transitions, and
-> safely reconfigures explicit trunk areas. The later workflow sections remain
-> the settled design for follow-up implementation.
+> **Status: implemented.** Zdev stores, creates, validates, transitions,
+> reconfigures, selects, and safely runs task work for explicit trunk areas.
 
 This record defines an explicit way to run several areas on the configured
-project trunk while leaving branch-isolated areas as the default. The status
-above distinguishes implemented behavior from the remaining design.
+project trunk while leaving branch-isolated areas as the default.
 
 ## Current behavior
 
@@ -545,10 +542,10 @@ null/boolean changes; mode-transition failures use the exact errors above.
 | Pull-request project requests trunk mode | unsupported record/mode pair | Create/bind/check rejects and points to isolated work | No mutation |
 | Cleanup on configured trunk or legacy isolated-on-trunk | existing cleanup guard | Reject | No mutation |
 
-## Implementation seams
+## Implemented seams
 
-The implementation should remain a mode branch in the existing modules, not a
-new topology framework.
+The implementation remains a mode branch in the existing modules, not a new
+topology framework.
 
 - `src/project.rs`: add `AreaMode`, conditional parsing/validation, resolved
   branch helpers, mode-aware ownership and effective-base logic, locked
@@ -578,23 +575,23 @@ new topology framework.
   record policy, and generated integration consistency. Reuse existing import,
   rollback, stale, lifecycle, and commit tests instead of duplicating them.
 
-## Thin implementation tasks
+## Implementation slices
 
-1. **Add the area mode and project transitions.** Implement the strict v1
-   representation, resolved branch, create/bind grammar and transitions,
+1. **Added the area mode and project transitions.** This slice implemented the
+   strict v1 representation, resolved branch, create/bind grammar and transitions,
    ownership/parent validation, record-policy rule, ancestry evidence and
    override, and atomic trunk set/unset behavior. Cover legacy records and
    failure preservation.
-2. **Apply trunk mode to status and work gates.** Implement the exact status
-   projection, human rendering, task-work/committed-import branch resolution,
+2. **Applied trunk mode to status and work gates.** This slice implemented the
+   exact status projection, human rendering, task-work/committed-import branch resolution,
    deterministic mixed/multiple-area `next --any`, lifecycle gates, and managed
    rebase no-op. Keep goal branch-independent. Add focused gate and projection
    tests; retain the existing task/import/commit transactions.
-3. **Update and regenerate workflow guidance.** Revise canonical docs and
-   templates for explicit trunk orientation, attribution, verification, and
+3. **Updated and regenerated workflow guidance.** This slice revised canonical
+   docs and templates for explicit trunk orientation, attribution, verification, and
    recovery; regenerate all harness artifacts through the established install
    path and run integration-consistency tests.
 
-The split leaves no independent schema, policy, CLI, status, lifecycle, or Git
-ownership choice to the implementation tasks. Independent verification remains
+These completed slices left no independent schema, policy, CLI, status,
+lifecycle, or Git ownership choice. Independent verification remained
 mandatory for each task.

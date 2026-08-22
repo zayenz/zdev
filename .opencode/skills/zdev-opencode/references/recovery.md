@@ -6,6 +6,11 @@ Use `zdev area rebase <area>` for ordinary trunk updates and parent-area updates
 Zdev rebases only the checked-out area branch. It does not merge or recursively
 update descendant areas.
 
+An explicit trunk area follows configured `project.trunk` directly. It never
+needs rebase recovery or freshness ceremony; `zdev area rebase <area>` is a
+read-only unchanged result. Resolve a wrong, detached, missing, or reconfigured
+trunk through the reported status instead of rebasing the area.
+
 If conflicts stop Git, resolve and stage them, then continue or abort:
 
 ```text

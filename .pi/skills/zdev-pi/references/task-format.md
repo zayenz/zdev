@@ -2,18 +2,18 @@
 
 ## Project and area metadata
 
-`.zdev/config.toml` records project `trunk` when HEAD names a branch. Each
-`.zdev/<area>/area.toml` requires the area's owning `branch`; `parent` and
-`base_commit` are optional until their branches and boundary are available. The
-parent area replaces trunk as the effective base. `base_commit` is the exact
-base commit last incorporated into the area branch; zdev uses it as the
-boundary before area-owned commits during a managed rebase.
+`.zdev/config.toml` records project `trunk`. An isolated
+`.zdev/<area>/area.toml` stores its owning `branch`; optional `parent` and
+`base_commit` describe its managed base relationship. An explicit trunk area
+stores only `mode = "trunk"` and dynamically resolves its branch from
+`project.trunk`; it stores no branch, parent, or base commit. Several explicit
+trunk areas may share configured trunk, but an isolated area remains its
+branch's sole owner. Never infer mode from a branch name.
 
-Area metadata without `branch` is invalid. Configure an unbound trunk and
-establish the area's base anchor before selecting, completing, or rebasing
-work. Use `zdev area bind` to correct an existing branch binding or establish its
-anchor. Add a parent only after both local branches exist and the child has a
-trustworthy base boundary.
+Use the default create form or `--branch` for isolated work. Use `--trunk` only
+when the user explicitly wants a personal/project area on configured trunk;
+pull-request records remain isolated. Trunk work requires the resolved trunk
+checked out and safe, but never requires freshness or rebase ceremony.
 
 Task dependencies never cross areas. Use an area parent for branch ancestry
 and `blocked_by` for task sequencing within one area.
@@ -21,11 +21,14 @@ and `blocked_by` for task sequencing within one area.
 ## General area convention
 
 `general` is the conventional tag for recurring one-off work. It is an ordinary
-area, not an area kind: create or switch to its persistent branch, then run:
+area, not an area kind. Create or switch to its isolated branch and run:
 
 ```sh
 zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
+
+When the user explicitly prefers shared-trunk work, the same command may add
+`--trunk`; this changes only area branch mode, not task lifecycle or ownership.
 
 Keep `brief.md` minimal and reusable. It records shared engineering boundaries,
 the testing level, and validation; each task records its own concrete outcome,

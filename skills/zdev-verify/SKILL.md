@@ -9,6 +9,12 @@ The coordinating session owns task selection, branch safety, Git ownership,
 lifecycle changes, and commits. Workers never edit `.zdev`, complete tasks,
 commit, delegate, or change the selected task.
 
+An isolated area uses its stored branch and managed base relationship. An
+explicit trunk area dynamically uses configured `project.trunk`, may share it
+with other explicit trunk areas, and never needs a rebase or freshness step.
+In both modes, `task_work.safe` and the exact selected area/task govern work;
+sharing trunk never grants ownership of another area's or unrelated paths.
+
 Before starting an implementer or verifier, run
 `zdev work-context <area> --format json` and retain the complete result. The
 command classifies goal lifecycle first. A validated closed context contains

@@ -164,7 +164,9 @@ mention commands only when they help the user continue or recover.
 ## Codex orchestration
 
 Use `$zdev-implement` for one complete task cycle, `$zdev-verify` for explicit
-read-only task verification, and `$zdev-audit` for a read-only audit.
+read-only task verification, and `$zdev-audit` for a read-only audit. Use
+`$zdev-loop <area>` for native area continuation; `$zdev-goal <area>` is its
+exact alias.
 
 Use one Codex collaboration agent to implement a task and a different agent to
 verify it. The coordinating agent owns zdev state, user decisions, task
@@ -176,11 +178,12 @@ For the implementer, pass `model="gpt-5.6-sol"` and
 For the verifier, pass `model="gpt-5.6-sol"` and
 `reasoning_effort="low"` to the spawned agent.
 
-For an active-zdev goal or loop request, inspect `/goal` first. If no unfinished
-goal exists, use the shared area continuation condition as the native goal; the
-selected task's `native_goal` remains task context and is not the area goal. If
-native continuation is unavailable, complete at most one task and report the
-fresh next state. Never replace or layer work over an unfinished goal.
+For an active-zdev goal or loop request, use either paired skill. It calls
+`get_goal` before repository work, never replaces or layers over an unfinished
+goal, and calls `create_goal` with the shared condition only when native goal state is clear.
+Native unavailability falls back to at most one verified committed task and
+returns canonical `CONTINUE zdev-loop <area>` only when fresh ready work
+remains.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

@@ -140,20 +140,18 @@ Zdev should use one stable name for each user intent:
   only after a verified commit when fresh ready work remains.
 
 The names do not change with the harness. Only native invocation syntax does:
-Codex uses `$zdev-implement`, `$zdev-verify`, and `$zdev-audit`; OpenCode, Pi,
-and Oh My Pi use `/zdev-implement`, `/zdev-verify`, and `/zdev-audit`; Claude
-Code's workflow namespace produces `/zdev:zdev-implement`,
-`/zdev:zdev-verify`, and `/zdev:zdev-audit`.
+Codex uses `$zdev-*`; OpenCode, Pi, and Oh My Pi use `/zdev-*`; Claude Code's
+workflow namespace produces `/zdev:zdev-*`.
 
 ### Installed artifacts
 
 | Harness | Installed entry points | Native workers |
 | --- | --- | --- |
-| Codex | `skills/zdev-implement/SKILL.md`, `skills/zdev-verify/SKILL.md`, `skills/zdev-audit/SKILL.md` under the selected Codex scope | The skills pass the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning the corresponding native Codex subagent. Advanced planning uses a fresh read-only subagent with the advanced profile; no separate planner artifact or durable child ID is installed. |
+| Codex | `skills/zdev-implement/SKILL.md`, `skills/zdev-verify/SKILL.md`, `skills/zdev-audit/SKILL.md`, `skills/zdev-loop/SKILL.md`, and `skills/zdev-goal/SKILL.md` under the selected Codex scope | The skills pass the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning the corresponding native Codex subagent. The paired continuation skills use Codex's native goal when clear and an honest bounded fallback only after clear inspection when creation is unavailable. |
 | Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects the scoped native agent type; the existing zdev skill remains shared guidance and an ordinary-agent fallback. |
 | OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; commands use the native task tool. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` exposes `planner`, `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer` with their resolved model and thinking controls; the installed zdev skill supplies the shared contract. |
-| Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`, invoked through native `task`; `hub` may resume an implementer for rework. |
+| Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`, invoked through native `task`; paired continuation prompts use OMP's native goal when clear. |
 
 These are renderable files, not a new runtime. Install and check must render the
 same bytes through the existing integration renderer. The worker model and

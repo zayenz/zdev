@@ -3263,7 +3263,7 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
         &["skill", "install", "codex", "--to", destination_text],
     );
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 15);
+    assert_eq!(installed["files"], 19);
     let rendered = fs::read_to_string(destination.join("zdev/SKILL.md")).expect("installed skill");
     assert_eq!(rendered, packaged_skill);
     assert_eq!(
@@ -3911,7 +3911,11 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
         file_inventory(&codex),
         [
             "zdev-audit/SKILL.md",
+            "zdev-goal/SKILL.md",
+            "zdev-goal/agents/openai.yaml",
             "zdev-implement/SKILL.md",
+            "zdev-loop/SKILL.md",
+            "zdev-loop/agents/openai.yaml",
             "zdev-verify/SKILL.md",
             "zdev/SKILL.md",
             "zdev/agents/openai.yaml",
@@ -4993,6 +4997,98 @@ fn bounded_area_loop_aliases_share_one_stop_and_restart_contract() {
                     harness,
                     "--to",
                     destination.to_str().expect("loop destination"),
+                ],
+                &environment,
+            )["status"],
+            "ok"
+        );
+    }
+}
+
+#[test]
+fn codex_and_omp_native_loop_aliases_preserve_goals_and_fall_back_honestly() {
+    let repository = repository();
+    let root = repository.path();
+    let config_home = root.join("native-loop-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    for harness in ["codex", "omp"] {
+        let destination = root.join(format!("native-loop-{harness}"));
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("native loop destination"),
+            ],
+            &environment,
+        );
+        let (loop_path, goal_path) = if harness == "codex" {
+            ("zdev-loop/SKILL.md", "zdev-goal/SKILL.md")
+        } else {
+            ("prompts/zdev-loop.md", "prompts/zdev-goal.md")
+        };
+        let canonical = fs::read_to_string(destination.join(loop_path)).expect("native loop");
+        let alias = fs::read_to_string(destination.join(goal_path)).expect("native goal alias");
+        if harness == "codex" {
+            let normalized = alias
+                .replacen("name: zdev-goal", "name: zdev-loop", 1)
+                .replacen("$zdev-goal invocation", "$zdev-loop invocation", 1);
+            assert_eq!(
+                canonical, normalized,
+                "Codex aliases differ beyond identity"
+            );
+            let metadata =
+                fs::read(destination.join("zdev-loop/agents/openai.yaml")).expect("loop metadata");
+            assert_eq!(
+                metadata,
+                fs::read(destination.join("zdev-goal/agents/openai.yaml")).expect("goal metadata")
+            );
+            assert!(
+                String::from_utf8(metadata)
+                    .expect("metadata text")
+                    .contains("allow_implicit_invocation: false")
+            );
+            assert!(canonical.contains("`routine-implementer`"));
+            assert!(canonical.contains("Call `get_goal({})`"));
+            assert!(canonical.contains("`create_goal({ objective: condition })`"));
+            assert!(canonical.contains("Codex exposes no\nmodel-callable resume operation"));
+            assert!(!canonical.contains("`/goal"));
+        } else {
+            assert_eq!(canonical, alias, "OMP aliases must be byte-identical");
+            assert!(canonical.contains("`zdev-routine-implementer`"));
+            assert!(canonical.contains("`zdev-advanced-implementer`"));
+            assert!(canonical.contains("`goal({ op: \"get\" })`"));
+            assert!(canonical.contains("`goal({ op: \"create\", objective: condition })`"));
+            assert!(canonical.contains("`goal({ op: \"resume\" })`"));
+            assert!(!canonical.contains("`/goal"));
+        }
+        for required in [
+            "Before reading or changing repository state, use the adapter's named\nmodel-callable operation",
+            "Do not replace, clear, edit, or layer this\nroute over it",
+            "If inspection is unavailable or does not authoritatively\nshow that no unfinished goal exists",
+            "run fresh\n`zdev work-context <area> --format json`",
+            "Validated `closed` returns `PASS` immediately",
+            "Open `empty` or `exhausted` returns `PASS`",
+            "Open `ready` with `branch_status.task_work.safe: true`",
+            "Complete and commit exactly one independently verified task per iteration",
+            "Complete at most one verified task",
+            "CONTINUE zdev-loop <area>",
+            "Task records and commits are the only durable checkpoint",
+        ] {
+            assert!(canonical.contains(required), "{harness} missing {required}");
+        }
+        assert_eq!(
+            json_output_with_env(
+                root,
+                &[
+                    "skill",
+                    "check",
+                    harness,
+                    "--to",
+                    destination.to_str().expect("native loop destination"),
                 ],
                 &environment,
             )["status"],
@@ -6181,7 +6277,7 @@ fn codex_skill_check_and_force_install_manage_ui_metadata() {
         root,
         &["skill", "install", "codex", "--to", destination_text],
     );
-    assert_eq!(installed["files"], 15);
+    assert_eq!(installed["files"], 19);
 
     let metadata = destination.join("zdev/agents/openai.yaml");
     fs::remove_file(&metadata).expect("remove Codex UI metadata");
@@ -6283,7 +6379,7 @@ fn harness_roots_make_every_active_zdev_route_discoverable_once() {
         (
             "codex",
             include_str!("../templates/zdev/codex-skill.md"),
-            "For an active-zdev goal or loop request, inspect `/goal` first.",
+            "For an active-zdev goal or loop request, use either paired skill.",
         ),
         (
             "claude",
@@ -6303,7 +6399,7 @@ fn harness_roots_make_every_active_zdev_route_discoverable_once() {
         (
             "omp",
             include_str!("../templates/zdev/omp-skill.md"),
-            "For an active-zdev goal or loop request, inspect `/goal show` first.",
+            "For an active-zdev goal or loop request, use either paired prompt.",
         ),
     ] {
         assert!(
@@ -6647,7 +6743,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
     );
     assert_eq!(installed["harness"], "omp");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 19);
+    assert_eq!(installed["files"], 21);
     assert_eq!(
         file_inventory(&destination),
         [
@@ -6657,7 +6753,9 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "agents/zdev-routine-implementer.md",
             "agents/zdev-verifier.md",
             "prompts/zdev-audit.md",
+            "prompts/zdev-goal.md",
             "prompts/zdev-implement.md",
+            "prompts/zdev-loop.md",
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev/SKILL.md",

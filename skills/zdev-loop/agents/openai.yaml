@@ -1,0 +1,6 @@
+interface:
+  display_name: "Zdev area loop"
+  short_description: "Continue a zdev area one verified commit at a time"
+  default_prompt: "Continue the named zdev area under the installed native goal/loop contract."
+policy:
+  allow_implicit_invocation: false

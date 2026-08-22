@@ -63,12 +63,16 @@ const SHARED_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/shared-co
 const AUDIT_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/audit.md");
 const TASK_WORKFLOW_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/task-workflows.md");
 const BOUNDED_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/bounded-area-loop.md");
+const NATIVE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/native-area-loop.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
 const CODEX_AUDIT_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-audit-skill.md");
 const CODEX_IMPLEMENT_SKILL_TEMPLATE: &str =
     include_str!("../templates/zdev/codex-implement-skill.md");
 const CODEX_VERIFY_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-verify-skill.md");
+const CODEX_LOOP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-loop-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
+const CODEX_LOOP_OPENAI_YAML: &str =
+    include_str!("../templates/zdev/codex/agents/loop-openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
 const CLAUDE_IMPLEMENTER: &str =
@@ -118,6 +122,7 @@ const OMP_VERIFIER: &str = include_str!("../templates/zdev/omp/agents/zdev-verif
 const OMP_AUDIT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-audit.md");
 const OMP_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-implement.md");
 const OMP_VERIFY_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-verify.md");
+const OMP_LOOP_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-loop.md");
 const OPENCODE_LEGACY_FILES: &[&str] = &["command/zdev-audit.md", "command/zdev-task.md"];
 const PI_LEGACY_FILES: &[&str] = &["prompts/zdev-task.md"];
 const OMP_RELOCATED_USER_WARNING: &str = "Oh My Pi 17.2.15 discovers the zdev skill at this PI_CODING_AGENT_DIR location but may not discover its user task agents. Unset PI_CODING_AGENT_DIR to use ~/.omp/agent, or install with --scope project under .omp, until upstream task-agent discovery is fixed.";
@@ -215,6 +220,16 @@ impl Harness {
                     path: "zdev-verify/SKILL.md".to_owned(),
                     content: CODEX_VERIFY_SKILL_TEMPLATE.to_owned(),
                 });
+                for name in ["zdev-loop", "zdev-goal"] {
+                    files.push(IntegrationFile {
+                        path: format!("{name}/SKILL.md"),
+                        content: native_loop_artifact(CODEX_LOOP_SKILL_TEMPLATE, Some(name))?,
+                    });
+                    files.push(IntegrationFile {
+                        path: format!("{name}/agents/openai.yaml"),
+                        content: CODEX_LOOP_OPENAI_YAML.to_owned(),
+                    });
+                }
             }
             Self::Claude => {
                 files.push(IntegrationFile {
@@ -410,6 +425,14 @@ impl Harness {
                         path: "prompts/zdev-verify.md".to_owned(),
                         content: OMP_VERIFY_PROMPT.to_owned(),
                     },
+                    IntegrationFile {
+                        path: "prompts/zdev-loop.md".to_owned(),
+                        content: native_loop_artifact(OMP_LOOP_PROMPT, None)?,
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-goal.md".to_owned(),
+                        content: native_loop_artifact(OMP_LOOP_PROMPT, None)?,
+                    },
                 ]);
             }
         }
@@ -431,6 +454,19 @@ impl Harness {
             workers,
         })
     }
+}
+
+fn native_loop_artifact(wrapper: &str, name: Option<&str>) -> Result<String, ZdevError> {
+    let mut rendered = wrapper.replace("__ZDEV_NATIVE_AREA_LOOP_BODY__", NATIVE_AREA_LOOP_TEMPLATE);
+    if let Some(name) = name {
+        rendered = rendered.replace("__ZDEV_SKILL_NAME__", name);
+    }
+    if rendered.contains("__ZDEV_") {
+        return Err(ZdevError::new(
+            "Cannot compose the canonical native area-loop artifact",
+        ));
+    }
+    Ok(rendered)
 }
 
 fn claude_loop_workflow(name: &str) -> Result<String, ZdevError> {

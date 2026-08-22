@@ -345,7 +345,9 @@ verification responsibilities, and recovery.
 ### Codex
 
 Codex uses collaboration agents and a fresh verification context. A project
-integration lives under `.codex/skills/zdev`.
+integration lives under `.codex/skills/zdev`. `$zdev-loop <area>` and its exact
+`$zdev-goal <area>` alias use Codex's native goal when clear and fall back to
+one verified task only when inspection proved clear but native creation is unavailable.
 
 ### Claude Code
 
@@ -374,6 +376,11 @@ bounded one-task continuation prompt. A user installation goes to
 
 Oh My Pi is separate from plain Pi. It installs a skill and constrained native
 task agents under `.omp` and uses OMP's built-in `task` and `hub` facilities.
+A `/zdev-loop <area>` prompt and its exact `/zdev-goal <area>` alias use OMP's
+native goal when clear and fall back to one verified task when creation is
+unavailable after that clear inspection.
+A fallback requires a successful clear-goal inspection; ambiguous native goal
+state blocks.
 A user installation goes to `$PI_CODING_AGENT_DIR`, or `~/.omp/agent` when the
 variable is unset.
 

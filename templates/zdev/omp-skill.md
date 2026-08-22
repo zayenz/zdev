@@ -10,7 +10,9 @@ description: Zdev manages durable software work through briefs, tasks, implement
 ## Oh My Pi orchestration
 
 Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
-read-only task verification, and `/zdev-audit` for a read-only audit.
+read-only task verification, and `/zdev-audit` for a read-only audit. Use
+`/zdev-loop <area>` for native area continuation; `/zdev-goal <area>` is its
+exact alias.
 
 Use `zdev-routine-implementer` only for authored routine,
 `zdev-implementer` for standard/default, and `zdev-advanced-implementer` for
@@ -20,12 +22,12 @@ selected profile with `hub` when possible; one valid standard-work escalation
 starts an advanced replacement without replanning. The coordinator retains
 task completion and commits.
 
-For an active-zdev goal or loop request, inspect `/goal show` first. If no
-unfinished goal exists, use the shared area continuation condition as the
-native goal; the selected task's `native_goal` remains task context and is not
-the area goal. If native continuation is unavailable, complete at most one task
-and report the fresh next state. Never drop, replace, or layer work over an
-unfinished Oh My Pi goal.
+For an active-zdev goal or loop request, use either paired prompt. It calls the
+model-facing `goal` tool with `op: "get"` before repository work, never drops,
+replaces, or layers over an unfinished goal, and calls `op: "create"` with the
+shared condition only when native goal state is clear. Native unavailability falls back to at most one verified committed task
+and returns canonical `CONTINUE zdev-loop <area>` only when fresh ready work
+remains.
 
 {{repository_guidance}}
 

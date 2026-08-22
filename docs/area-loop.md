@@ -1,8 +1,8 @@
 # Explicit area continuation across harnesses
 
-> **Status: partially implemented.** Shared routing, bounded OpenCode and Pi
-> aliases, and native Claude Code continuation are current. Native Codex and
-> Oh My Pi continuation adapters remain design.
+> **Status: current behavior.** Shared routing, all paired aliases, native
+> Codex, Claude Code, and Oh My Pi continuation, and bounded OpenCode and Pi
+> fallback are implemented.
 
 This record defines an explicit zdev route that completes approved work one
 task at a time while an area remains open and ready. Research was checked on
@@ -166,11 +166,11 @@ those in [Harness orchestration](harness-orchestration.md).
 
 | Harness | Installed artifacts | Continuation behavior |
 | --- | --- | --- |
-| Codex | Bundle siblings `zdev-loop/SKILL.md` and `zdev-goal/SKILL.md`, each with `agents/openai.yaml`. | Both skills implement the same continuation contract. They inspect `/goal`, attach the area condition when clear, and fall back to one task with `CONTINUE` if native continuation is unavailable. |
+| Codex | Bundle siblings `zdev-loop/SKILL.md` and `zdev-goal/SKILL.md`, each with `agents/openai.yaml`. | Both skills call `get_goal`, create the area condition with `create_goal` when clear, and fall back to one task with `CONTINUE` only when inspection proved clear but creation is unavailable. They never use interactive composer commands. |
 | Claude Code | Plugin workflows `workflows/zdev-loop.js` and `workflows/zdev-goal.js`, rendered from one canonical loop source with only `meta.name` differing. | Both workflows run the same standalone JavaScript loop. They do not read or use `/goal`. If dynamic workflows are disabled or unsupported, the shared zdev skill handles an active-context natural goal/loop request as one bounded task, returns `CONTINUE`, and says the named workflow command was unavailable. |
 | OpenCode | `commands/zdev-loop.md` and `commands/zdev-goal.md`, rendered from one command source. | Both prompt commands perform one committed task at most and return `CONTINUE` for refreshed ready work. Session resume is a convenience, not a continuation guarantee. |
 | Pi | `prompts/zdev-loop.md` and `prompts/zdev-goal.md`, rendered from one prompt source. | Both prompt templates use the existing zdev skill and subagent extension, perform one committed task at most, and return `CONTINUE`. |
-| Oh My Pi | `prompts/zdev-loop.md` and `prompts/zdev-goal.md`, rendered from one prompt source. | Both inspect the current goal, create the area condition when clear, and use the native runtime to continue. If it is unavailable, they perform one task and return `CONTINUE`. |
+| Oh My Pi | `prompts/zdev-loop.md` and `prompts/zdev-goal.md`, rendered from one prompt source. | Both call the model-facing `goal` tool with `get`, `create`, and same-goal `resume` operations, and use the native runtime to continue. They never call interactive composer commands. If inspection proved clear but creation is unavailable, they perform one task and return `CONTINUE`; unavailable inspection blocks. |
 
 The common sources belong beside `templates/zdev/task-workflows.md`; adapters
 render the files above through the existing all-or-nothing integration path.
@@ -232,8 +232,9 @@ partial or unexplained state blocks and uses existing recovery guidance.
 
 ## Required scenario behavior
 
-- **Ready to ready:** Claude refreshes after the first verified task commit and
-  starts the next task. OpenCode and Pi return `CONTINUE` naming it.
+- **Ready to ready:** Codex, Claude, and Oh My Pi refresh after the first
+  verified task commit and continue natively. OpenCode and Pi return
+  `CONTINUE` naming the next task.
 - **Ready to exhausted or empty:** the task commits, fresh context reports no
   ready work, and the loop returns `PASS` without closing the area.
 - **Closed:** record validation succeeds and returns `PASS` without status,
@@ -246,7 +247,7 @@ partial or unexplained state blocks and uses existing recovery guidance.
   collect or dispatch the next task.
 - **Claude resume:** a live or cached completion PASS is followed by a fresh
   work-context call before another worker.
-- **Active native goal:** future Codex and Oh My Pi adapters return `BLOCKER`
+- **Active native goal:** Codex and Oh My Pi adapters return `BLOCKER`
   without replacing, clearing, or layering over that goal. Claude does not use
   that state.
 
@@ -259,11 +260,11 @@ one-task workflow body once; the two rendered files differ only in
 Focused executable fixtures cover two-task continuation, closed no-work,
 REWORK, cached-result freshness, completion failure, and a user-owned decision.
 
-The remaining Codex and Oh My Pi work keeps its existing native-goal
-requirements: paired aliases, unfinished-goal preservation, the fixed area
-condition, one independently verified commit per task, and a bounded
-`CONTINUE` fallback when native continuation is unavailable. It must not
-change Claude's standalone workflow or the bounded OpenCode/Pi behavior.
+Codex and Oh My Pi install their paired aliases from one native-loop contract.
+They preserve unfinished goals, use the fixed area condition, keep one
+independently verified commit per task, and return bounded `CONTINUE` when
+native continuation is unavailable. They do not change Claude's standalone
+workflow or the bounded OpenCode/Pi behavior.
 
 Across all adapters, closed no-work remains branch-independent, every open
 state keeps the complete task-work and Git gate, stale base remains advisory,

@@ -1253,6 +1253,292 @@ fn area_mode_parser_rejects_contradictions_and_legacy_owner_blocks_trunk() {
 }
 
 #[test]
+fn area_bind_transitions_preserve_reachable_history_and_prior_bytes() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+
+    git(root, &["branch", "feature"]);
+    create_area(root, "docs", "feature");
+    let to_trunk = json_output(root, &["area", "bind", "docs", "--trunk"]);
+    assert_eq!(to_trunk["status"], "updated");
+    assert_eq!(to_trunk["mode"], "trunk");
+    assert_eq!(to_trunk["branch"], "main");
+    assert_eq!(to_trunk["base_commit"], Value::Null);
+    let trunk_bytes = fs::read_to_string(root.join(".zdev/docs/area.toml")).unwrap();
+    assert!(trunk_bytes.contains("mode = \"trunk\""));
+    assert!(!trunk_bytes.contains("branch ="));
+    assert_eq!(
+        json_output(root, &["area", "bind", "docs", "--trunk"])["status"],
+        "unchanged"
+    );
+    let no_rebase = json_output(root, &["area", "rebase", "docs"]);
+    assert_eq!(no_rebase["status"], "unchanged");
+    assert_eq!(no_rebase["mode"], "trunk");
+    for arguments in [
+        vec!["area", "parent", "docs", "missing"],
+        vec!["area", "rebase", "docs", "--continue"],
+        vec!["area", "rebase", "docs", "--abort"],
+    ] {
+        let rejected = run_zdev(root, &arguments);
+        assert!(!rejected.status.success());
+    }
+
+    git(root, &["branch", "docs-work"]);
+    let to_isolated = json_output(root, &["area", "bind", "docs", "docs-work"]);
+    assert_eq!(to_isolated["status"], "updated");
+    assert_eq!(to_isolated["mode"], "isolated");
+    assert_eq!(to_isolated["branch"], "docs-work");
+    assert_eq!(
+        to_isolated["base_commit"],
+        git(root, &["rev-parse", "main"])
+    );
+    let isolated_bytes = fs::read_to_string(root.join(".zdev/docs/area.toml")).unwrap();
+    assert!(!isolated_bytes.contains("mode ="));
+    assert!(isolated_bytes.contains("branch = \"docs-work\""));
+    assert_eq!(
+        json_output(root, &["area", "bind", "docs", "docs-work"])["status"],
+        "unchanged"
+    );
+
+    git(root, &["branch", "unmerged"]);
+    create_area(root, "unmerged", "unmerged");
+    git(root, &["switch", "-q", "unmerged"]);
+    commit_file(root, "unmerged.txt", "work\n", "unmerged work");
+    git(root, &["switch", "-q", "main"]);
+    let unmerged_path = root.join(".zdev/unmerged/area.toml");
+    let unmerged_before = fs::read(&unmerged_path).unwrap();
+    let rejected = run_zdev(root, &["area", "bind", "unmerged", "--trunk"]);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("has commits not contained"));
+    assert_eq!(fs::read(&unmerged_path).unwrap(), unmerged_before);
+
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "quality",
+            "--title",
+            "Quality",
+            "--objective",
+            "Work on trunk.",
+            "--trunk",
+        ],
+    );
+    git(root, &["branch", "behind"]);
+    commit_file(root, "advance.txt", "advance\n", "advance trunk");
+    let quality_path = root.join(".zdev/quality/area.toml");
+    let quality_before = fs::read(&quality_path).unwrap();
+    let rejected = run_zdev(root, &["area", "bind", "quality", "behind"]);
+    assert!(!rejected.status.success());
+    assert!(
+        String::from_utf8_lossy(&rejected.stderr).contains("does not contain configured trunk")
+    );
+    assert_eq!(fs::read(&quality_path).unwrap(), quality_before);
+
+    let conflict = run_zdev(root, &["area", "bind", "quality", "main", "--trunk"]);
+    assert!(!conflict.status.success());
+}
+
+#[test]
+fn trunk_reconfiguration_requires_resolved_containment_or_explicit_divergence() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    for area in ["quality", "docs"] {
+        json_output(
+            root,
+            &[
+                "area",
+                "create",
+                area,
+                "--title",
+                area,
+                "--objective",
+                "Work on trunk.",
+                "--trunk",
+            ],
+        );
+    }
+    let area_bytes = ["docs", "quality"]
+        .map(|area| fs::read(root.join(format!(".zdev/{area}/area.toml"))).expect("area metadata"));
+    let old_tip = git(root, &["rev-parse", "main"]);
+    git(root, &["switch", "-q", "-c", "stable"]);
+    commit_file(root, "stable.txt", "stable\n", "advance stable");
+    let stable_tip = git(root, &["rev-parse", "stable"]);
+    git(root, &["switch", "-q", "main"]);
+
+    let moved = json_output(root, &["config", "trunk", "stable"]);
+    assert_eq!(moved["status"], "updated");
+    assert_eq!(moved["previous_trunk"], "main");
+    assert_eq!(moved["trunk"], "stable");
+    assert_eq!(moved["affected_areas"], json!(["docs", "quality"]));
+    assert_eq!(moved["ancestry"]["old_tip"], old_tip);
+    assert_eq!(moved["ancestry"]["new_tip"], stable_tip);
+    assert_eq!(moved["ancestry"]["old_is_ancestor"], true);
+    assert_eq!(moved["ancestry"]["override"], false);
+    assert_eq!(
+        json_output(root, &["config", "trunk", "stable"])["status"],
+        "unchanged"
+    );
+    for (area, before) in ["docs", "quality"].into_iter().zip(&area_bytes) {
+        assert_eq!(
+            fs::read(root.join(format!(".zdev/{area}/area.toml"))).unwrap(),
+            *before
+        );
+    }
+
+    let config_path = root.join(".zdev/config.toml");
+    let stable_config = fs::read(&config_path).unwrap();
+    let behind = run_zdev(root, &["config", "trunk", "main"]);
+    assert!(!behind.status.success());
+    assert!(String::from_utf8_lossy(&behind.stderr).contains("is not an ancestor"));
+    assert_eq!(fs::read(&config_path).unwrap(), stable_config);
+
+    git(root, &["switch", "-q", "-c", "divergent", "main"]);
+    commit_file(root, "divergent.txt", "divergent\n", "divergent trunk");
+    let divergent_tip = git(root, &["rev-parse", "divergent"]);
+    git(root, &["switch", "-q", "main"]);
+    let rejected = run_zdev(root, &["config", "set", "project.trunk", "divergent"]);
+    assert!(!rejected.status.success());
+    assert_eq!(fs::read(&config_path).unwrap(), stable_config);
+    let stable_ref = git(root, &["rev-parse", "stable"]);
+    let overridden = json_output(
+        root,
+        &[
+            "config",
+            "set",
+            "--allow-divergent",
+            "project.trunk",
+            "divergent",
+        ],
+    );
+    assert_eq!(overridden["ancestry"]["old_is_ancestor"], false);
+    assert_eq!(overridden["ancestry"]["override"], true);
+    assert_eq!(overridden["ancestry"]["new_tip"], divergent_tip);
+    assert_eq!(git(root, &["rev-parse", "stable"]), stable_ref);
+
+    let divergent_config = fs::read(&config_path).unwrap();
+    git(root, &["branch", "collision", "main"]);
+    create_area(root, "isolated-owner", "collision");
+    let collision = run_zdev(root, &["config", "trunk", "collision", "--allow-divergent"]);
+    assert!(!collision.status.success());
+    assert!(String::from_utf8_lossy(&collision.stderr).contains("cannot be shared"));
+    assert_eq!(fs::read(&config_path).unwrap(), divergent_config);
+
+    git(root, &["branch", "-D", "divergent"]);
+    let missing_old = run_zdev(root, &["config", "trunk", "stable", "--allow-divergent"]);
+    assert!(!missing_old.status.success());
+    assert!(
+        String::from_utf8_lossy(&missing_old.stderr).contains("missing or cannot be inspected")
+    );
+    assert_eq!(fs::read(&config_path).unwrap(), divergent_config);
+
+    let missing_candidate = run_zdev(root, &["config", "trunk", "missing"]);
+    assert!(!missing_candidate.status.success());
+    assert_eq!(fs::read(&config_path).unwrap(), divergent_config);
+    let unset = run_zdev(root, &["config", "unset", "project.trunk"]);
+    assert!(!unset.status.success());
+    assert!(
+        String::from_utf8_lossy(&unset.stderr)
+            .contains("Cannot unset project.trunk while trunk areas exist: docs, quality")
+    );
+    assert_eq!(fs::read(&config_path).unwrap(), divergent_config);
+}
+
+#[cfg(unix)]
+#[test]
+fn trunk_reconfiguration_does_not_override_uninspectable_ancestry() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "docs",
+            "--title",
+            "Docs",
+            "--objective",
+            "Work on trunk.",
+            "--trunk",
+        ],
+    );
+    git(root, &["branch", "stable"]);
+    let config_path = root.join(".zdev/config.toml");
+    let before = fs::read(&config_path).unwrap();
+
+    let fake_path = tempfile::tempdir().expect("fake PATH");
+    let fake_git = fake_path.path().join("git");
+    fs::write(
+        &fake_git,
+        "#!/bin/sh\nif [ \"$1\" = merge-base ] && [ \"$2\" = --is-ancestor ]; then\n  exit 2\nfi\nexec \"$REAL_GIT\" \"$@\"\n",
+    )
+    .expect("fake git");
+    let mut permissions = fs::metadata(&fake_git).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_git, permissions).unwrap();
+    let real_git = executable_on_path("git");
+    let failed = run_zdev_with_env(
+        root,
+        &["config", "trunk", "stable", "--allow-divergent"],
+        &[("PATH", fake_path.path()), ("REAL_GIT", real_git.as_path())],
+    );
+    assert!(!failed.status.success());
+    let error = String::from_utf8_lossy(&failed.stderr);
+    assert!(error.contains("ancestry from previous trunk main to stable could not be inspected"));
+    assert!(!error.contains("Re-run with --allow-divergent"));
+    assert_eq!(fs::read(&config_path).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn trunk_reconfiguration_publication_failure_preserves_config_bytes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "docs",
+            "--title",
+            "Docs",
+            "--objective",
+            "Work on trunk.",
+            "--trunk",
+        ],
+    );
+    git(root, &["branch", "stable"]);
+    let config_path = root.join(".zdev/config.toml");
+    let before = fs::read(&config_path).unwrap();
+    let state_dir = root.join(".zdev");
+    let original_permissions = fs::metadata(&state_dir).unwrap().permissions();
+    let mut read_only = original_permissions.clone();
+    read_only.set_mode(0o555);
+    fs::set_permissions(&state_dir, read_only).unwrap();
+    let failed = run_zdev(root, &["config", "trunk", "stable"]);
+    fs::set_permissions(&state_dir, original_permissions).unwrap();
+    assert!(!failed.status.success());
+    assert_eq!(fs::read(&config_path).unwrap(), before);
+}
+
+#[test]
 fn stale_independent_base_is_advisory_for_task_work() {
     let repository = repository();
     let root = repository.path();
@@ -6687,6 +6973,14 @@ fn config_set_validates_typed_project_values_and_preserves_trunk_alias() {
         vec!["config", "set", "project.default-area", "missing"],
         vec!["config", "set", "project.guidance", "../outside.md"],
         vec!["config", "set", "project.trunk", "one", "two"],
+        vec![
+            "config",
+            "set",
+            "--allow-divergent",
+            "project.guidance",
+            "auto",
+        ],
+        vec!["config", "trunk", "main", "--allow-divergent"],
         vec!["config", "set", "project.name", "replacement"],
         vec!["config", "set", "--global", "project.trunk", "main"],
     ] {

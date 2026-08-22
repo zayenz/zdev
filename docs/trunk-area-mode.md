@@ -1,13 +1,13 @@
 # Trunk-based area work
 
-> **Status: schema foundation implemented; transitions and task-work integration
-> remain design only.** Zdev stores, creates, validates, and reports explicit
-> trunk areas. The later transition and workflow sections remain the settled
-> design for follow-up implementation.
+> **Status: schema and safe transitions implemented; task-work integration
+> remains design only.** Zdev stores, creates, validates, transitions, and
+> safely reconfigures explicit trunk areas. The later workflow sections remain
+> the settled design for follow-up implementation.
 
-This design adds an explicit way to run several areas on the configured project
-trunk. It leaves branch-isolated areas as the default. It is a design record,
-not an implementation.
+This record defines an explicit way to run several areas on the configured
+project trunk while leaving branch-isolated areas as the default. The status
+above distinguishes implemented behavior from the remaining design.
 
 ## Current behavior
 
@@ -248,8 +248,8 @@ When at least one explicit trunk area exists, the command:
 
 The ancestry rule accepts the same tip, a second branch name at that tip, and a
 fast-forward descendant. If the old configured branch is missing or its tip or
-ancestry cannot be inspected, the default fails. A candidate on divergent or
-older history also fails. Both failures name every affected trunk area in
+ancestry cannot be inspected, reconfiguration fails even with the override. A
+candidate on divergent or older history fails by default. Both failures name every affected trunk area in
 lexical order and leave config unchanged:
 
 ```text
@@ -257,27 +257,24 @@ Cannot reconfigure trunk from main to stable for trunk areas docs, quality: main
 ```
 
 ```text
-Cannot reconfigure trunk from main to stable for trunk areas docs, quality: previous trunk main is missing or cannot be inspected. Restore it, or re-run with --allow-divergent after confirming the move
+Cannot reconfigure trunk from main to stable for trunk areas docs, quality: previous trunk main is missing or cannot be inspected. Restore it before reconfiguring trunk
 ```
 
 An actual external rename normally removes the old ref, so the second failure
 applies even when the user knows both names refer to the same former tip. A
 same-tip name change is automatic only while both refs remain inspectable.
 
-`--allow-divergent` is the one user-owned escape. It waives only the old-tip
-containment result (`false` or unavailable). Candidate existence, candidate-tip
-inspection, ownership, record policy, active-operation, schema, and locking
-checks still apply. It performs no Git operation. Success reports the decision:
+`--allow-divergent` is the one user-owned escape. It waives only a resolved
+false old-tip containment result. The old and candidate tips must both remain
+inspectable. Candidate existence, ownership, record policy, active-operation,
+schema, and locking checks still apply. It performs no Git operation. Success reports the decision:
 
 ```text
 Configured project trunk stable (previous: main; affected trunk areas: docs, quality)
 Ancestry override: previous trunk main is not contained in stable
 ```
 
-For a missing or unconfigured previous branch, the second line is
-`Ancestry override: previous trunk main could not be inspected` or
-`Ancestry override: no previous trunk was configured`. JSON is exact apart from
-the commit values:
+JSON is exact apart from the commit values:
 
 ```json
 {
@@ -295,10 +292,8 @@ the commit values:
 }
 ```
 
-`previous_trunk` and `old_is_ancestor` are null when no old trunk exists;
-`old_tip` and `old_is_ancestor` are null when the old branch is unavailable.
-When no old trunk exists, the first human line uses `previous: unbound`.
-A normal contained move returns the same object with `override = false` and
+Successful reconfiguration always reports resolved old and new tips. A normal
+contained move returns the same object with `override = false` and
 `old_is_ancestor = true`, and human output omits the ancestry-override line. An
 exact repeat returns `status = "unchanged"`, identical old/new branch and tip,
 `old_is_ancestor = true`, and performs no write.
@@ -532,7 +527,7 @@ null/boolean changes; mode-transition failures use the exact errors above.
 | Reconfigure `main` to descendant `stable` with open/closed trunk areas | old tip is ancestor; area files unchanged; all resolve `stable`; old checkout makes open work unsafe | Config command succeeds with old/new branches, tips, lexical areas, and no override; named work waits for checkout; `next --any` may report required `stable` | Atomic config write only |
 | Reconfigure `main` to divergent `stable` by default | ancestry is false; all areas still resolve `main` | Reject with lexical affected areas and `--allow-divergent` recovery | No mutation |
 | Reconfigure divergent history with `--allow-divergent` | area files unchanged; all open/closed areas resolve `stable`; old checkout is off-branch | Success records `old_is_ancestor = false`, `override = true`, old/new branches and lexical affected areas | Atomic config write only; no Git ref operation |
-| Previous configured trunk is missing | old tip/ancestry are null; areas still resolve the old name | Default rejects; explicit `--allow-divergent` succeeds only if every other candidate check passes | No mutation by default; override writes config only |
+| Previous configured trunk is missing | old tip/ancestry are null; areas still resolve the old name | Reject even with `--allow-divergent`; restore the old branch first | No mutation |
 | Reconfigure to missing branch while trunk areas exist | candidate cannot produce inspectable operating branch | Reject `configured trunk <name> is missing locally` | No mutation |
 | Reconfigure onto isolated-owned branch | candidate graph has mixed ownership | Reject naming isolated owner and trunk areas | No mutation |
 | Unset trunk while trunk areas exist | trunk projections would become unbound | Reject with lexical area list | No mutation |

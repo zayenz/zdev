@@ -571,9 +571,24 @@ pub(super) fn set(
     scope: ConfigWriteScope,
     key: &str,
     values: &[String],
+    allow_divergent: bool,
 ) -> Result<CommandOutput, ZdevError> {
     let kind = writable_key(scope, key)?;
+    if allow_divergent
+        && (scope != ConfigWriteScope::Local
+            || !matches!(kind, ConfigKey::Project(ProjectKey::Trunk)))
+    {
+        return Err(ZdevError::new(
+            "--allow-divergent is available only for a local project.trunk write",
+        ));
+    }
     match kind {
+        ConfigKey::Project(ProjectKey::Trunk) => {
+            let root = root
+                .ok_or_else(|| ZdevError::new("A local configuration write requires a project"))?;
+            let requested = require_one_value(key, values)?;
+            super::project::configure_trunk(root, Some(requested), allow_divergent)
+        }
         ConfigKey::Project(project) => set_project(
             root.ok_or_else(|| ZdevError::new("A local configuration write requires a project"))?,
             project,
@@ -663,6 +678,9 @@ fn unset_project(root: &Path, project: ProjectKey, key: &str) -> Result<CommandO
     let _lock = ZdevStateLock::acquire(root)?;
     let mut config = read_config(root)?;
     validate_local_workers(root)?;
+    if matches!(project, ProjectKey::Trunk) {
+        super::project::validate_trunk_unset(root)?;
+    }
     let removed = match project {
         ProjectKey::Trunk => config.project.trunk.take(),
         ProjectKey::DefaultArea => config.project.default_area.take(),
@@ -790,7 +808,7 @@ fn worker_role_name(role: WorkerRole) -> &'static str {
     }
 }
 
-fn validate_local_workers(root: &Path) -> Result<(), ZdevError> {
+pub(super) fn validate_local_workers(root: &Path) -> Result<(), ZdevError> {
     read_worker_file(&root.join(".zdev/workers.toml")).map(|_| ())
 }
 

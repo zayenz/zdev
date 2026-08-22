@@ -166,9 +166,9 @@ The public surface is:
 ```text
 zdev config show [--global | --local]
 zdev config get [--global | --local] <key>
-zdev config set [--global | --local] <key> <value>...
+zdev config set [--global | --local] [--allow-divergent] <key> <value>...
 zdev config unset [--global | --local] <key>
-zdev config trunk [<branch>]
+zdev config trunk [<branch>] [--allow-divergent]
 ```
 
 `--global` and `--local` are mutually exclusive. The existing global
@@ -217,7 +217,11 @@ worker controls.
 `zdev config trunk [<branch>]` remains supported. It is the existing
 branch-aware convenience command: omission means the checked-out branch. With
 an explicit branch it has the same stored result as `zdev config set
-project.trunk <branch>`. The generic form never infers a value.
+project.trunk <branch>`. The generic form never infers a value. When explicit
+trunk areas exist, both forms use the locked ancestry and ownership checks in
+[Trunk-based area work](trunk-area-mode.md). `--allow-divergent` is accepted
+only for these local trunk writes and waives only a resolved false ancestry
+result.
 
 ## Stable output
 
@@ -692,8 +696,12 @@ express. Project values retain their current strict schema.
 
 Additional key validation is narrow:
 
-- `project.trunk` uses the existing Git branch-name canonicalization. It does
-  not require the branch to exist, preserving `zdev config trunk` behavior.
+- `project.trunk` uses the existing Git branch-name canonicalization. Without
+  explicit trunk areas it retains the existing ability to name a branch that
+  does not exist. With trunk areas, old and candidate tips must exist and be
+  inspectable, the complete area ownership graph must remain valid, and the old
+  tip must be contained by the candidate unless `--allow-divergent` explicitly
+  waives a resolved false result.
 - `project.default-area` must be a valid segment naming an existing area.
 - `project.guidance` accepts the three named modes or the integration code's
   existing safe repository-relative Markdown path rules. File presence and

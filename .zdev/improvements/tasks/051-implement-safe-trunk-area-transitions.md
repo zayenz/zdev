@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-051"
 key = "trunk-area-transitions"
 area = "improvements"
-status = "open"
+status = "done"
 blocked_by = ["improvements-050"]
 +++
 # Implement safe trunk area transitions
@@ -26,12 +26,20 @@ Implement the transition and project.trunk mutation rules from docs/trunk-area-m
 
 ## Done when
 
-- [ ] Create/bind grammar supports explicit trunk mode and safe isolated-to-trunk and trunk-to-isolated transitions.
-- [ ] Project trunk set/unset validates every affected area and reports old/new branches, tips, affected areas, and ancestry result.
-- [ ] Descendant changes succeed by default; behind, divergent, missing-old, collision, and invalid-unset cases fail without mutation.
-- [ ] The explicit divergence override is recorded in output but adds no persistent waiver state.
+- [x] Create/bind grammar supports explicit trunk mode and safe isolated-to-trunk and trunk-to-isolated transitions.
+- [x] Project trunk set/unset validates every affected area and reports old/new branches, tips, affected areas, and ancestry result.
+- [x] Descendant changes succeed by default; behind, divergent, missing-old, collision, and invalid-unset cases fail without mutation.
+- [x] The explicit divergence override is recorded in output but adds no persistent waiver state.
 
 ## Validation
 
 - Add focused transition, reconfiguration, rollback, ancestry, and override tests.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added locked safe trunk-area transitions and project.trunk reconfiguration with containment checks, atomic publication, and explicit divergence override.
+
+Validation:
+
+- Independent verifier PASS after ancestry recovery correction; focused transition/reconfiguration tests and full fmt, clippy, test, build, and diff checks passed.

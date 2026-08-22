@@ -35,14 +35,14 @@ impl RecordPolicy {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Config {
     pub(super) schema_version: u64,
     pub(super) project: ProjectConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ProjectConfig {
     pub(super) name: String,
@@ -410,15 +410,148 @@ fn required_requested_branch(root: &Path, requested: Option<&str>) -> Result<Str
 pub(super) fn configure_trunk(
     root: &Path,
     requested: Option<&str>,
+    allow_divergent: bool,
 ) -> Result<CommandOutput, ZdevError> {
+    let _lock = ZdevStateLock::acquire(root)?;
     let mut config = read_config(root)?;
+    super::config::validate_local_workers(root)?;
     let branch = required_requested_branch(root, requested)?;
+    let areas = list_areas(root)?;
+    let affected = areas
+        .iter()
+        .filter(|area| area.mode == AreaMode::Trunk)
+        .map(|area| area.tag.clone())
+        .collect::<Vec<_>>();
+    if allow_divergent && affected.is_empty() {
+        return Err(ZdevError::new(
+            "--allow-divergent is available only when trunk areas exist",
+        ));
+    }
+    let previous = config.project.trunk.clone();
+    let (old_tip, new_tip, old_is_ancestor, override_used) = if affected.is_empty() {
+        let old_tip = previous
+            .as_deref()
+            .map(|old| branch_tip(root, old))
+            .transpose()?
+            .flatten();
+        let new_tip = branch_tip(root, &branch)?;
+        let old_is_ancestor = match (old_tip.as_deref(), new_tip.as_deref()) {
+            (Some(old_tip), Some(new_tip)) => commit_is_ancestor(root, old_tip, new_tip),
+            _ => None,
+        };
+        (old_tip, new_tip, old_is_ancestor, false)
+    } else {
+        if let Some(operation) = git_operation(root)? {
+            return Err(ZdevError::new(format!(
+                "Cannot reconfigure project trunk while a {operation} is in progress. Finish or abort it, then retry"
+            )));
+        }
+        let new_tip = branch_tip(root, &branch)?.ok_or_else(|| {
+            ZdevError::new(format!(
+                "Cannot use trunk mode because configured trunk {branch} is missing locally"
+            ))
+        })?;
+        let mut candidate = config.clone();
+        candidate.project.trunk = Some(branch.clone());
+        validate_area_relationships_for_config(&candidate, &areas)?;
+        let old_tip = previous
+            .as_deref()
+            .map(|old| branch_tip(root, old))
+            .transpose()?
+            .flatten();
+        let old_is_ancestor = match (previous.as_deref(), old_tip.as_deref()) {
+            (Some(_), Some(old_tip)) => commit_is_ancestor(root, old_tip, &new_tip),
+            _ => None,
+        };
+        let override_used = allow_divergent && old_is_ancestor == Some(false);
+        if old_is_ancestor != Some(true) && !override_used {
+            let tags = affected.join(", ");
+            let reason = match (
+                previous.as_deref(),
+                old_tip.as_deref(),
+                old_is_ancestor,
+            ) {
+                (Some(old), None, _) => format!(
+                    "previous trunk {old} is missing or cannot be inspected. Restore it before reconfiguring trunk"
+                ),
+                (Some(old), Some(_), None) => format!(
+                    "ancestry from previous trunk {old} to {branch} could not be inspected. Restore Git ancestry inspection before reconfiguring trunk"
+                ),
+                (Some(old), Some(_), Some(false)) => format!(
+                    "{old} is not an ancestor of {branch}. Re-run with --allow-divergent only after deciding to move these areas without ancestry continuity"
+                ),
+                (None, _, _) => "no previous trunk is configured. Restore project.trunk before reconfiguring trunk areas".to_owned(),
+                (_, _, Some(true)) => unreachable!("contained ancestry does not fail"),
+            };
+            return Err(ZdevError::new(format!(
+                "Cannot reconfigure trunk from {} to {branch} for trunk areas {tags}: {reason}",
+                previous.as_deref().unwrap_or("unbound")
+            )));
+        }
+        (old_tip, Some(new_tip), old_is_ancestor, override_used)
+    };
+    let unchanged = previous.as_deref() == Some(branch.as_str());
     config.project.trunk = Some(branch.clone());
-    write_config(root, &config)?;
+    if !unchanged {
+        write_config(root, &config)?;
+    }
+    let previous_text = previous.as_deref().unwrap_or("unbound");
+    let affected_text = if affected.is_empty() {
+        "none".to_owned()
+    } else {
+        affected.join(", ")
+    };
+    let mut text = if unchanged {
+        format!(
+            "Project trunk {branch} is already configured (affected trunk areas: {affected_text})"
+        )
+    } else {
+        format!(
+            "Configured project trunk {branch} (previous: {previous_text}; affected trunk areas: {affected_text})"
+        )
+    };
+    if override_used {
+        text.push_str("\nAncestry override: ");
+        match (previous.as_deref(), old_tip.as_deref(), old_is_ancestor) {
+            (Some(old), Some(_), Some(false)) => {
+                text.push_str(&format!(
+                    "previous trunk {old} is not contained in {branch}"
+                ));
+            }
+            _ => unreachable!("override requires a resolved false ancestry result"),
+        }
+    }
     Ok(CommandOutput::new(
-        format!("Configured project trunk {branch}"),
-        json!({"schema_version": SCHEMA_VERSION, "status": "updated", "trunk": branch}),
+        text,
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "status": if unchanged { "unchanged" } else { "updated" },
+            "previous_trunk": previous,
+            "trunk": branch,
+            "affected_areas": affected,
+            "ancestry": {
+                "old_tip": old_tip,
+                "new_tip": new_tip,
+                "old_is_ancestor": old_is_ancestor,
+                "override": override_used,
+            }
+        }),
     ))
+}
+
+pub(super) fn validate_trunk_unset(root: &Path) -> Result<(), ZdevError> {
+    let tags = list_areas(root)?
+        .into_iter()
+        .filter(|area| area.mode == AreaMode::Trunk)
+        .map(|area| area.tag)
+        .collect::<Vec<_>>();
+    if tags.is_empty() {
+        return Ok(());
+    }
+    Err(ZdevError::new(format!(
+        "Cannot unset project.trunk while trunk areas exist: {}",
+        tags.join(", ")
+    )))
 }
 
 fn area_path(root: &Path, tag: &str) -> Result<PathBuf, ZdevError> {
@@ -438,6 +571,7 @@ pub(super) fn create_area(
     requested_branch: Option<&str>,
     trunk: bool,
 ) -> Result<CommandOutput, ZdevError> {
+    let _lock = ZdevStateLock::acquire(root)?;
     let config = read_config(root)?;
     validate_nonempty_line(title, "Area title")?;
     validate_nonempty_line(objective, "Area objective")?;
@@ -932,35 +1066,143 @@ pub(super) fn bind_area(
     root: &Path,
     tag: &str,
     requested: Option<&str>,
+    trunk: bool,
 ) -> Result<CommandOutput, ZdevError> {
+    let _lock = ZdevStateLock::acquire(root)?;
     let config = read_config(root)?;
     let (mut area, _) = load_area(root, tag)?;
-    let branch = required_requested_branch(root, requested)?;
-    if area.mode == AreaMode::Trunk {
-        return Err(ZdevError::new(
-            "Changing a trunk area binding is not available yet",
-        ));
-    }
-    ensure_branch_available(root, &branch, AreaMode::Isolated, Some(tag))?;
-    area.branch = Some(branch.clone());
-    if let Some(anchor) = &area.base_commit {
-        if local_branch_exists(root, &branch)
-            && commit_is_ancestor(root, anchor, &format!("refs/heads/{branch}")) != Some(true)
-        {
+    let previous = area.clone();
+    let branch = if trunk {
+        if config.project.record == RecordPolicy::PullRequest {
+            return Err(ZdevError::new(
+                "Trunk areas are not supported with pull-request records; use an isolated area branch",
+            ));
+        }
+        if let Some(parent) = &area.parent {
             return Err(ZdevError::new(format!(
-                "Branch {branch} does not contain area {tag}'s recorded base commit {anchor}"
+                "Cannot bind area {tag} to trunk while it has parent {parent}; remove the parent first"
             )));
         }
+        if let Some(operation) = git_operation(root)? {
+            return Err(ZdevError::new(format!(
+                "Cannot bind area {tag} to trunk while a {operation} is in progress. Finish or abort it, then retry"
+            )));
+        }
+        let configured = config.project.trunk.as_deref().ok_or_else(|| {
+            ZdevError::new(
+                "Project trunk is not configured; set it with `zdev config trunk <branch>`",
+            )
+        })?;
+        let trunk_tip = branch_tip(root, configured)?.ok_or_else(|| {
+            ZdevError::new(format!(
+                "Cannot use trunk mode because configured trunk {configured} is missing locally"
+            ))
+        })?;
+        ensure_branch_available(root, configured, AreaMode::Trunk, Some(tag))?;
+        if area.mode == AreaMode::Isolated {
+            let old_branch = area.branch.as_deref().expect("validated isolated branch");
+            let old_tip = branch_tip(root, old_branch)?.ok_or_else(|| {
+                ZdevError::new(format!(
+                    "Cannot bind area {tag} to trunk: branch {old_branch} is missing locally"
+                ))
+            })?;
+            if commit_is_ancestor(root, &old_tip, &trunk_tip) != Some(true) {
+                return Err(ZdevError::new(format!(
+                    "Cannot bind area {tag} to trunk: branch {old_branch} has commits not contained in {configured}"
+                )));
+            }
+        }
+        area.mode = AreaMode::Trunk;
+        area.branch = None;
+        area.parent = None;
+        area.base_commit = None;
+        configured.to_owned()
     } else {
-        area.base_commit = configured_effective_base(root, &config, &area)?
-            .map(|base| compute_base_anchor(root, &branch, &base))
-            .transpose()?
-            .flatten();
+        let branch = required_requested_branch(root, requested)?;
+        ensure_branch_available(root, &branch, AreaMode::Isolated, Some(tag))?;
+        if area.mode == AreaMode::Trunk {
+            if let Some(operation) = git_operation(root)? {
+                return Err(ZdevError::new(format!(
+                    "Cannot bind trunk area {tag} while a {operation} is in progress. Finish or abort it, then retry"
+                )));
+            }
+            let configured = config.project.trunk.as_deref().ok_or_else(|| {
+                ZdevError::new(
+                    "Project trunk is not configured; set it with `zdev config trunk <branch>`",
+                )
+            })?;
+            let trunk_tip = branch_tip(root, configured)?.ok_or_else(|| {
+                ZdevError::new(format!(
+                    "Cannot use trunk mode because configured trunk {configured} is missing locally"
+                ))
+            })?;
+            let target_tip = branch_tip(root, &branch)?.ok_or_else(|| {
+                ZdevError::new(format!(
+                    "Cannot bind trunk area {tag} to {branch}: the branch is missing locally"
+                ))
+            })?;
+            if commit_is_ancestor(root, &trunk_tip, &target_tip) != Some(true) {
+                return Err(ZdevError::new(format!(
+                    "Cannot bind trunk area {tag} to {branch}: the branch does not contain configured trunk {configured}"
+                )));
+            }
+            area.mode = AreaMode::Isolated;
+            area.branch = Some(branch.clone());
+            area.parent = None;
+            area.base_commit = Some(trunk_tip);
+        } else {
+            area.branch = Some(branch.clone());
+            if let Some(anchor) = &area.base_commit {
+                if local_branch_exists(root, &branch)
+                    && commit_is_ancestor(root, anchor, &format!("refs/heads/{branch}"))
+                        != Some(true)
+                {
+                    return Err(ZdevError::new(format!(
+                        "Branch {branch} does not contain area {tag}'s recorded base commit {anchor}"
+                    )));
+                }
+            } else {
+                area.base_commit = configured_effective_base(root, &config, &area)?
+                    .map(|base| compute_base_anchor(root, &branch, &base))
+                    .transpose()?
+                    .flatten();
+            }
+        }
+        branch
+    };
+    let mut areas = list_areas(root)?;
+    let candidate = areas
+        .iter_mut()
+        .find(|candidate| candidate.tag == tag)
+        .ok_or_else(|| ZdevError::new(format!("Unknown area: {tag}")))?;
+    *candidate = area.clone();
+    validate_area_relationships_for_config(&config, &areas)?;
+    let unchanged = previous.mode == area.mode
+        && previous.branch == area.branch
+        && previous.parent == area.parent
+        && previous.base_commit == area.base_commit;
+    if !unchanged {
+        write_area_metadata(root, &area)?;
     }
-    write_area_metadata(root, &area)?;
+    let text = if unchanged && area.mode == AreaMode::Trunk {
+        format!("Area {tag} is already bound to configured trunk {branch}")
+    } else if unchanged {
+        format!("Area {tag} is already bound to branch {branch}")
+    } else if area.mode == AreaMode::Trunk {
+        format!("Bound area {tag} to configured trunk {branch}")
+    } else {
+        format!("Bound area {tag} to branch {branch}")
+    };
     Ok(CommandOutput::new(
-        format!("Bound area {tag} to branch {branch}"),
-        json!({"schema_version": SCHEMA_VERSION, "status": "updated", "area": tag, "branch": branch}),
+        text,
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "status": if unchanged { "unchanged" } else { "updated" },
+            "area": tag,
+            "mode": area.mode.as_str(),
+            "branch": branch,
+            "base_commit": area.base_commit,
+        }),
     ))
 }
 
@@ -969,6 +1211,13 @@ pub(super) fn validate_area_relationships(
     areas: &[AreaMetadata],
 ) -> Result<(), ZdevError> {
     let config = read_config(root)?;
+    validate_area_relationships_for_config(&config, areas)
+}
+
+fn validate_area_relationships_for_config(
+    config: &Config,
+    areas: &[AreaMetadata],
+) -> Result<(), ZdevError> {
     let by_tag = areas
         .iter()
         .map(|area| (area.tag.as_str(), area))
@@ -980,7 +1229,7 @@ pub(super) fn validate_area_relationships(
                 "Trunk areas are not supported with pull-request records; use an isolated area branch",
             ));
         }
-        if let Some(branch) = area.resolved_branch(&config)
+        if let Some(branch) = area.resolved_branch(config)
             && let Some(other) = branches.insert(branch, area)
             && (area.mode != AreaMode::Trunk || other.mode != AreaMode::Trunk)
         {
@@ -1381,18 +1630,18 @@ fn finalize_managed_rebase(
 }
 
 fn continue_managed_rebase(root: &Path, tag: &str) -> Result<CommandOutput, ZdevError> {
-    let state = read_git_rebase_state(root)?.ok_or_else(|| {
-        ZdevError::new(format!(
-            "Cannot continue: no rebase is in progress for area {tag}"
-        ))
-    })?;
-    let config = read_config(root)?;
     let area = load_area(root, tag)?.0;
     if area.mode == AreaMode::Trunk {
         return Err(ZdevError::new(
             "Managed rebase continuation is not available for a trunk area",
         ));
     }
+    let state = read_git_rebase_state(root)?.ok_or_else(|| {
+        ZdevError::new(format!(
+            "Cannot continue: no rebase is in progress for area {tag}"
+        ))
+    })?;
+    let config = read_config(root)?;
     let branch = area.branch.as_deref().expect("validated isolated branch");
     if state.head_name != format!("refs/heads/{branch}") {
         return Err(ZdevError::new(format!(
@@ -1445,17 +1694,17 @@ fn continue_managed_rebase(root: &Path, tag: &str) -> Result<CommandOutput, Zdev
 }
 
 fn abort_managed_rebase(root: &Path, tag: &str) -> Result<CommandOutput, ZdevError> {
-    let state = read_git_rebase_state(root)?.ok_or_else(|| {
-        ZdevError::new(format!(
-            "Cannot abort: no rebase is in progress for area {tag}"
-        ))
-    })?;
     let area = load_area(root, tag)?.0;
     if area.mode == AreaMode::Trunk {
         return Err(ZdevError::new(
             "Managed rebase abort is not available for a trunk area",
         ));
     }
+    let state = read_git_rebase_state(root)?.ok_or_else(|| {
+        ZdevError::new(format!(
+            "Cannot abort: no rebase is in progress for area {tag}"
+        ))
+    })?;
     let branch = area.branch.as_deref().expect("validated isolated branch");
     if state.head_name != format!("refs/heads/{branch}") {
         return Err(ZdevError::new(format!(
@@ -1500,6 +1749,14 @@ pub(super) fn rebase_area(
         return Err(ZdevError::new(format!(
             "Cannot rebase area {tag} while a {operation} is in progress. Finish or abort it, then retry"
         )));
+    }
+    if area.mode == AreaMode::Trunk {
+        let branch = require_checked_out_area_branch(root, &area)?;
+        require_existing_branch(root, &branch, "configured trunk")?;
+        return Ok(CommandOutput::new(
+            format!("Area {tag} runs on configured trunk {branch}; no rebase is needed"),
+            json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "area": tag, "mode": "trunk", "branch": branch, "effective_base": branch, "base_commit": Value::Null, "fresh": true}),
+        ));
     }
     let branch = require_checked_out_area_branch(root, &area)?;
     let base = effective_base(root, &config, &area)?;

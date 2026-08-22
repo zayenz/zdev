@@ -4,8 +4,8 @@
 
 - Total: 54
 - Ready: 1
-- Blocked: 3
-- Done: 50
+- Blocked: 2
+- Done: 51
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -59,7 +59,7 @@
 | [improvements-048](tasks/048-apply-derived-tasks-atomically.md) | Apply derived tasks atomically | done | improvements-047, improvements-036 |
 | [improvements-049](tasks/049-route-investigation-follow-ups-and-implementation-splits.md) | Route investigation follow-ups and implementation splits | done | improvements-048 |
 | [improvements-050](tasks/050-add-explicit-trunk-area-metadata.md) | Add explicit trunk area metadata | done | — |
-| [improvements-051](tasks/051-implement-safe-trunk-area-transitions.md) | Implement safe trunk area transitions | ready | improvements-050 |
-| [improvements-052](tasks/052-integrate-trunk-areas-with-task-workflows.md) | Integrate trunk areas with task workflows | blocked | improvements-051, improvements-034 |
+| [improvements-051](tasks/051-implement-safe-trunk-area-transitions.md) | Implement safe trunk area transitions | done | improvements-050 |
+| [improvements-052](tasks/052-integrate-trunk-areas-with-task-workflows.md) | Integrate trunk areas with task workflows | ready | improvements-051, improvements-034 |
 | [improvements-053](tasks/053-reconcile-final-release-documentation.md) | Reconcile final release documentation | blocked | improvements-049, improvements-045, improvements-046, improvements-052, improvements-043, improvements-034, improvements-035, improvements-036, improvements-037, improvements-038, improvements-039 |
 | [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | blocked | improvements-053 |

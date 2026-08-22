@@ -242,6 +242,9 @@ enum ConfigCommand {
         /// Write this repository's configuration
         #[arg(long, conflicts_with = "global")]
         local: bool,
+        /// Permit only a project-trunk ancestry discontinuity
+        #[arg(long, conflicts_with = "global")]
+        allow_divergent: bool,
     },
     /// Remove one value from its selected scope
     Unset {
@@ -258,6 +261,9 @@ enum ConfigCommand {
     Trunk {
         /// Trunk branch name; omit to use the checked-out branch
         branch: Option<String>,
+        /// Permit only a project-trunk ancestry discontinuity
+        #[arg(long)]
+        allow_divergent: bool,
     },
 }
 
@@ -304,7 +310,11 @@ enum AreaCommand {
         /// Area tag to update
         area: String,
         /// Area branch; omit to use the checked-out branch
+        #[arg(conflicts_with = "trunk")]
         branch: Option<String>,
+        /// Follow the configured project trunk without storing a branch copy
+        #[arg(long)]
+        trunk: bool,
     },
     /// Set or remove the area whose branch provides this area's base
     Parent {
@@ -582,10 +592,17 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             ConfigCommand::Set {
                 key,
                 values,
+                allow_divergent,
                 global: true,
                 ..
             } => {
-                return config::set(None, config::ConfigWriteScope::Global, key, values);
+                return config::set(
+                    None,
+                    config::ConfigWriteScope::Global,
+                    key,
+                    values,
+                    *allow_divergent,
+                );
             }
             ConfigCommand::Unset {
                 key, global: true, ..
@@ -618,13 +635,25 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 },
                 key,
             ),
-            ConfigCommand::Set { key, values, .. } => {
-                config::set(Some(&root), config::ConfigWriteScope::Local, key, values)
-            }
+            ConfigCommand::Set {
+                key,
+                values,
+                allow_divergent,
+                ..
+            } => config::set(
+                Some(&root),
+                config::ConfigWriteScope::Local,
+                key,
+                values,
+                *allow_divergent,
+            ),
             ConfigCommand::Unset { key, .. } => {
                 config::unset(Some(&root), config::ConfigWriteScope::Local, key)
             }
-            ConfigCommand::Trunk { branch } => project::configure_trunk(&root, branch.as_deref()),
+            ConfigCommand::Trunk {
+                branch,
+                allow_divergent,
+            } => project::configure_trunk(&root, branch.as_deref(), *allow_divergent),
         },
         Command::Area { command } => match command {
             AreaCommand::Create {
@@ -636,9 +665,11 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             } => project::create_area(&root, tag, title, objective, branch.as_deref(), *trunk),
             AreaCommand::Close { area } => project::close_area(&root, area),
             AreaCommand::Reopen { area } => project::reopen_area(&root, area),
-            AreaCommand::Bind { area, branch } => {
-                project::bind_area(&root, area, branch.as_deref())
-            }
+            AreaCommand::Bind {
+                area,
+                branch,
+                trunk,
+            } => project::bind_area(&root, area, branch.as_deref(), *trunk),
             AreaCommand::Parent {
                 area,
                 parent,

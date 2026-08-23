@@ -234,7 +234,7 @@ a checkout, branch status, or Git cleanliness.
 Collect goal, status, HEAD, and the three Git results freshly and sequentially
 in one zdev process. This is not an atomic filesystem snapshot: its value is
 that one command owns a complete fail-closed collection, not that concurrent
-writes become impossible. It must not cache or persist any result. Run Git
+writes become impossible. The ordinary command does not persist its result. Run Git
 directly with process argv—`git rev-parse HEAD`, `git status --short
 --untracked-files=all`, `git diff --cached`, and `git diff`—without a shell.
 HEAD must be one full lowercase commit ID; preserve the other stdout strings
@@ -243,11 +243,38 @@ parsing failure fails the whole command without partial JSON. Successful empty
 Git stdout is the explicit empty string. Existing `status` and `goal` output
 remain unchanged.
 
-Coordinator snapshots use it. The verifier invokes it
-independently for its pre-validation snapshot, closing the installed-prompt
-status gap; the verifier still runs the three Git reads after validation. In
-Claude, also require the completion agent to invoke it immediately before
-completion and use that fresh envelope instead of the original `prepared.raw`.
+An optional transport stores those exact pretty-JSON stdout bytes, including
+the terminal newline, under the path resolved by `git rev-parse --git-path
+zdev/work-context/<area>/<snapshot>.json`:
+
+```sh
+zdev work-context <area> --store --format json
+zdev work-context <area> --show <snapshot> --format json
+zdev work-context <area> --compare <snapshot> --format json
+```
+
+Store returns only the area, opaque ID, path, lifecycle, queue, task ID, and
+HEAD when present. Show validates and reproduces the stored document. Compare
+validates it, collects fresh ordinary work-context, and returns a compact
+boolean without echoing either document. It is a successful comparison when
+the values differ. Missing or expired, corrupt, and cross-area files are
+errors. Files are immutable and content-addressed; each area retains eight
+distinct snapshots using first-publication time and filename as the stable
+tie-break. There is no current pointer, history, approval, or cleanup UI.
+
+This storage lowers handoff context, not freshness requirements. A later
+decision still needs a new collection or `--compare`; no stored snapshot is
+current authority. This task adds only the optional file transport; existing
+workflow prompts continue to carry complete inline work-context JSON. Task 058
+will decide where verifier evidence should use the stored transport.
+
+The rest of this subsection describes the already implemented use of ordinary
+inline work-context, not use of the new snapshot IDs. Coordinators collect the
+inline result. The verifier independently invokes the ordinary command for its
+pre-validation context, closing the installed-prompt status gap; it still runs
+the three Git reads after validation. In Claude, the completion agent also
+invokes the ordinary command immediately before completion and uses that fresh
+envelope instead of the original `prepared.raw`.
 This closes the observed completion gap but consumes one of Claude's process
 savings. The HEAD read plus three repository-state evidence reads inside K (four total) remain
 internal child processes under the counting method above.
@@ -296,9 +323,9 @@ to dispatch another task.
 
 Implementation size was medium: one command, the exact schema above, shared use
 of existing status/goal renderers, template updates, generated integrations,
-and focused black-box and parser coverage. Risk is medium because snapshot
-completeness, subprocess errors, exact empty output, and byte preservation are
-safety properties.
+and focused black-box and parser coverage. Risk is medium because inline
+context completeness, subprocess errors, exact empty output, and byte
+preservation are safety properties.
 
 ### 2. Use one checking verifier for a small Claude audit (implemented)
 

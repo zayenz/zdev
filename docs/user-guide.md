@@ -316,6 +316,22 @@ For open work this returns matching status and goal projections, HEAD, and the
 exact staged, unstaged, and untracked evidence. A validated closed area returns
 before branch and Git collection.
 
+When that complete JSON would be expensive to carry between workers, use its
+optional filesystem transport:
+
+```sh
+zdev work-context scheduling --store --format json
+zdev work-context scheduling --show <snapshot-id> --format json
+zdev work-context scheduling --compare <snapshot-id> --format json
+```
+
+Store returns a compact reference and writes the exact ordinary JSON under
+repository-local Git administrative state. Show emits those bytes exactly.
+Compare collects a new ordinary work-context and returns only whether it is
+equal. Always compare or collect fresh state at a new decision boundary: the
+stored file is an immutable handoff, not permission to act on later. Zdev keeps
+at most eight distinct snapshots per area, so an older ID can expire.
+
 Ask the harness to work on the returned task with zdev. It should:
 
 1. implement against the task, area brief, and repository guidance;

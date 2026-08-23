@@ -394,6 +394,287 @@ fn work_context_returns_nested_ready_context_and_untrimmed_git_stdout() {
 }
 
 #[test]
+fn work_context_snapshots_round_trip_exact_json_and_compare_fresh_state() {
+    let checkout = repository();
+    let root = checkout.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+    commit_all(root, "record area");
+    import_one_task(root, "general");
+    fs::write(root.join("notes.txt"), "untracked\n").expect("untracked file");
+
+    let inline = run_zdev(root, &["work-context", "general", "--format", "json"]);
+    assert!(inline.status.success());
+    let stored = json_output(root, &["work-context", "general", "--store"]);
+    let keys = stored
+        .as_object()
+        .expect("compact stored context")
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        keys,
+        std::collections::BTreeSet::from([
+            "area",
+            "head",
+            "lifecycle",
+            "path",
+            "queue",
+            "schema_version",
+            "snapshot",
+            "task_id",
+        ])
+    );
+    let snapshot = stored["snapshot"].as_str().expect("snapshot ID");
+    let path = reported_path(root, &stored["path"]);
+    assert_eq!(fs::read(&path).expect("snapshot bytes"), inline.stdout);
+    assert!(!path.starts_with(root.join(".zdev")));
+    let published = fs::metadata(&path)
+        .expect("snapshot metadata")
+        .modified()
+        .expect("snapshot publication time");
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    let stored_again = json_output(root, &["work-context", "general", "--store"]);
+    assert_eq!(stored_again["snapshot"], stored["snapshot"]);
+    assert_eq!(stored_again["path"], stored["path"]);
+    assert_eq!(
+        fs::metadata(&path)
+            .expect("unchanged snapshot metadata")
+            .modified()
+            .expect("unchanged publication time"),
+        published,
+        "an identical snapshot must not be rewritten"
+    );
+
+    for arguments in [
+        vec!["work-context", "general", "--show", snapshot],
+        vec![
+            "work-context",
+            "general",
+            "--show",
+            snapshot,
+            "--format",
+            "json",
+        ],
+    ] {
+        let shown = run_zdev(root, &arguments);
+        assert!(shown.status.success());
+        assert_eq!(shown.stdout, inline.stdout);
+    }
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot]),
+        json!({
+            "schema_version": 1,
+            "area": "general",
+            "snapshot": snapshot,
+            "equal": true,
+        })
+    );
+    let files_before = fs::read_dir(path.parent().expect("snapshot store"))
+        .expect("snapshot store")
+        .count();
+    fs::write(root.join("seed.txt"), "changed\n").expect("change tracked state");
+    let compared = json_output(root, &["work-context", "general", "--compare", snapshot]);
+    assert_eq!(compared["equal"], false);
+    assert_eq!(
+        fs::read_dir(path.parent().expect("snapshot store"))
+            .expect("snapshot store")
+            .count(),
+        files_before,
+        "comparison must not create another artifact"
+    );
+
+    let closed_repository = repository();
+    let closed_root = closed_repository.path();
+    git(closed_root, &["branch", "-m", "main"]);
+    commit_file(closed_root, "seed.txt", "seed\n", "seed");
+    json_output(closed_root, &["init", "--record", "project"]);
+    json_output(
+        closed_root,
+        &[
+            "area",
+            "create",
+            "closed",
+            "--title",
+            "Closed",
+            "--objective",
+            "Remain closed.",
+            "--trunk",
+        ],
+    );
+    json_output(closed_root, &["area", "close", "closed"]);
+    let closed = json_output(closed_root, &["work-context", "closed", "--store"]);
+    assert_eq!(closed["lifecycle"], "closed");
+    assert_eq!(closed["task_id"], Value::Null);
+    assert!(closed.get("head").is_none());
+}
+
+#[test]
+fn work_context_snapshots_fail_closed_and_expire_deterministically() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    for area in ["source", "other"] {
+        json_output(
+            root,
+            &[
+                "area",
+                "create",
+                area,
+                "--title",
+                area,
+                "--objective",
+                "Exercise stored work-context failures.",
+                "--trunk",
+            ],
+        );
+    }
+    commit_all(root, "record areas");
+
+    let first = json_output(root, &["work-context", "source", "--store"]);
+    let first_id = first["snapshot"]
+        .as_str()
+        .expect("first snapshot")
+        .to_owned();
+    let first_path = reported_path(root, &first["path"]);
+    let other_store = git_path(root, "zdev/work-context/other");
+    fs::create_dir_all(&other_store).expect("other snapshot store");
+    fs::copy(&first_path, other_store.join(format!("{first_id}.json")))
+        .expect("copy cross-area snapshot");
+    let cross_area = run_zdev(root, &["work-context", "other", "--show", &first_id]);
+    assert!(!cross_area.status.success());
+    assert!(String::from_utf8_lossy(&cross_area.stderr).contains("does not match selected area"));
+
+    fs::write(&first_path, b"{\n").expect("corrupt snapshot");
+    let corrupt = run_zdev(root, &["work-context", "source", "--show", &first_id]);
+    assert!(!corrupt.status.success());
+    assert!(String::from_utf8_lossy(&corrupt.stderr).contains("is corrupt"));
+    fs::remove_file(&first_path).expect("remove corrupt snapshot");
+
+    let mut snapshots = Vec::new();
+    for number in 0..9 {
+        fs::write(root.join("seed.txt"), format!("state {number}\n")).expect("distinct state");
+        let stored = json_output(root, &["work-context", "source", "--store"]);
+        snapshots.push(stored["snapshot"].as_str().expect("snapshot ID").to_owned());
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let store = git_path(root, "zdev/work-context/source");
+    let retained = fs::read_dir(&store)
+        .expect("source snapshot store")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("json"))
+        .count();
+    assert_eq!(retained, 8);
+    let expired = run_zdev(root, &["work-context", "source", "--show", &snapshots[0]]);
+    assert!(!expired.status.success());
+    assert!(String::from_utf8_lossy(&expired.stderr).contains("unavailable or expired"));
+    let latest = run_zdev(root, &["work-context", "source", "--show", &snapshots[8]]);
+    assert!(latest.status.success());
+}
+
+#[test]
+fn work_context_snapshots_use_the_linked_worktree_git_path() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "linked",
+            "--title",
+            "Linked",
+            "--objective",
+            "Store context in linked-worktree Git state.",
+            "--trunk",
+        ],
+    );
+    import_one_task(root, "linked");
+    commit_all(root, "record area");
+    git(root, &["switch", "-q", "-c", "parking"]);
+    let linked_parent = tempfile::tempdir().expect("linked parent");
+    let linked = linked_parent.path().join("checkout");
+    git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            linked.to_str().expect("linked path"),
+            "main",
+        ],
+    );
+
+    let stored = json_output(&linked, &["work-context", "linked", "--store"]);
+    let expected = git_path(&linked, "zdev/work-context/linked").join(format!(
+        "{}.json",
+        stored["snapshot"].as_str().expect("snapshot ID")
+    ));
+    assert_eq!(reported_path(&linked, &stored["path"]), expected);
+    assert!(expected.is_file());
+    assert!(git(&linked, &["status", "--short", "--untracked-files=all"]).is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn work_context_snapshot_publication_failure_preserves_existing_store() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "general",
+            "--title",
+            "General",
+            "--objective",
+            "Exercise publication failure.",
+            "--trunk",
+        ],
+    );
+    commit_all(root, "record area");
+    let stored = json_output(root, &["work-context", "general", "--store"]);
+    let store = reported_path(root, &stored["path"])
+        .parent()
+        .expect("snapshot store")
+        .to_path_buf();
+    let before = fs::read_dir(&store)
+        .expect("snapshot store")
+        .map(|entry| entry.expect("snapshot entry").file_name())
+        .collect::<std::collections::BTreeSet<_>>();
+    fs::write(root.join("seed.txt"), "changed\n").expect("new context");
+    let original_permissions = fs::metadata(&store).expect("store metadata").permissions();
+    let mut read_only = original_permissions.clone();
+    read_only.set_mode(0o555);
+    fs::set_permissions(&store, read_only).expect("read-only store");
+    let failed = run_zdev(root, &["work-context", "general", "--store"]);
+    fs::set_permissions(&store, original_permissions).expect("restore store permissions");
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("Cannot stage"));
+    let after = fs::read_dir(&store)
+        .expect("snapshot store")
+        .map(|entry| entry.expect("snapshot entry").file_name())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(after, before);
+    assert_eq!(
+        git(root, &["status", "--short", "--untracked-files=all"]),
+        "M seed.txt"
+    );
+}
+
+#[test]
 fn work_context_returns_open_empty_and_exhausted_contexts() {
     let repository = repository();
     let root = repository.path();

@@ -13,6 +13,8 @@ This file records notable changes to zdev.
   area closure, and `zdev next --any` for deterministic cross-area discovery.
 - Read-only `zdev goal` and `zdev work-context` projections, plus installed
   implement, verify, audit, and goal/loop entrypoints for all five harnesses.
+- Optional content-addressed work-context files with exact show and compact
+  fresh-compare commands for large worker handoffs.
 - Layered worker configuration and routine, standard, and advanced task
   complexity with fresh independent verification and bounded escalation.
 - Atomic derived-task review and application for authorized investigation

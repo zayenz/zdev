@@ -36,6 +36,10 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
     assert!(readme.contains("--reviewed <review-id> --commit --format json"));
     assert!(readme.contains("user never handles it or the internal fingerprint"));
     assert!(readme.contains("does not interrupt the selected task"));
+    assert!(readme.contains("zdev work-context scheduling --store --format json"));
+    assert!(readme.contains("zdev work-context scheduling --show <snapshot-id> --format json"));
+    assert!(readme.contains("zdev work-context scheduling --compare <snapshot-id> --format json"));
+    assert!(readme.contains("immutable handoff evidence, not reusable current state"));
 
     let guide = normalized(USER_GUIDE);
     for public_contract in [
@@ -49,6 +53,10 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
         "task IDs, paths, the commit hash, and the stable change ID",
         "zdev status scheduling --format json",
         "zdev next scheduling --format json",
+        "zdev work-context scheduling --store --format json",
+        "zdev work-context scheduling --show <snapshot-id> --format json",
+        "zdev work-context scheduling --compare <snapshot-id> --format json",
+        "stored file is an immutable handoff, not permission to act on later",
         "zdev task done scheduling scheduling-001",
         "zdev area rebase scheduling --continue",
         "zdev area rebase scheduling --abort",

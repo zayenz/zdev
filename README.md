@@ -112,7 +112,21 @@ zdev next scheduling --format json
 
 Harness task workflows use `zdev work-context scheduling --format json` to
 collect the same task projection with matching branch and exact Git evidence in
-one read-only result. The installed `zdev-loop <area>` route and its exact
+one read-only result. For a large handoff, store those exact JSON bytes outside
+the worktree and pass only the compact reference:
+
+```sh
+zdev work-context scheduling --store --format json
+zdev work-context scheduling --show <snapshot-id> --format json
+zdev work-context scheduling --compare <snapshot-id> --format json
+```
+
+`--show` reproduces the stored document exactly. `--compare` collects fresh
+state and reports only `equal`; a snapshot is immutable handoff evidence, not
+reusable current state. Zdev retains the eight most recently published distinct
+snapshots per area in linked-worktree-local Git administrative storage.
+
+The installed `zdev-loop <area>` route and its exact
 `zdev-goal` alias continue one verified commit at a time where the harness supports native
 continuation; OpenCode and Pi stop after one task and report `CONTINUE` when
 fresh ready work remains.

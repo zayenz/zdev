@@ -4,8 +4,8 @@
 
 - Total: 63
 - Ready: 6
-- Blocked: 1
-- Done: 56
+- Blocked: 0
+- Done: 57
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -65,8 +65,8 @@
 | [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | done | improvements-053 |
 | [improvements-055](tasks/055-persist-and-present-task-review-artifacts.md) | Persist and present task review artifacts | done | — |
 | [improvements-056](tasks/056-trim-duplicate-claude-task-handoffs.md) | Trim duplicate Claude task handoffs | done | — |
-| [improvements-057](tasks/057-store-immutable-work-context-snapshots.md) | Store immutable work-context snapshots | ready | — |
-| [improvements-058](tasks/058-route-verifier-evidence-through-work-context-snapshots.md) | Route verifier evidence through work-context snapshots | blocked | improvements-057 |
+| [improvements-057](tasks/057-store-immutable-work-context-snapshots.md) | Store immutable work-context snapshots | done | — |
+| [improvements-058](tasks/058-route-verifier-evidence-through-work-context-snapshots.md) | Route verifier evidence through work-context snapshots | ready | improvements-057 |
 | [improvements-059](tasks/059-persist-and-present-derived-task-reviews.md) | Persist and present derived-task reviews | ready | — |
 | [improvements-060](tasks/060-reference-installed-worker-contract-files.md) | Reference installed worker-contract files | ready | — |
 | [improvements-061](tasks/061-challenge-task-drafts-through-stored-reviews.md) | Challenge task drafts through stored reviews | ready | — |

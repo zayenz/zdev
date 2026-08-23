@@ -117,6 +117,13 @@ validated `closed`. Closed is classified before Git and branch gates. Open work
 still requires `branch_status.task_work.safe`; a stale-but-safe base is one
 advisory, not a blocker.
 
+When a workflow uses `zdev work-context <area> --store --format json`, pass its
+compact filesystem reference instead of copying the complete JSON. Read exact
+handoff bytes with `--show <snapshot>` and use `--compare <snapshot>` at a later
+boundary. A stored snapshot is immutable evidence from its collection point,
+never current authority: comparison collects fresh work-context, and an expired
+ID requires a new snapshot. Do not add approval or history ceremony around it.
+
 The fixed results begin `PASS zdev-loop <area>`, `CONTINUE zdev-loop <area>`,
 or `BLOCKER zdev-loop <area>`. `CONTINUE` is valid only after one independently
 verified task was completed and committed and fresh work-context reports

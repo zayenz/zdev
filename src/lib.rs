@@ -21,6 +21,7 @@ use integrations::{SkillCommand, run_skill_command};
 
 const SCHEMA_VERSION: u64 = 1;
 const CHANGE_ID_TRAILER: &str = "Zdev-Change-Id";
+const WORK_CONTEXT_SNAPSHOT_RETENTION: usize = 8;
 const AGENT_INSTRUCTIONS: &str = "Zdev stores durable plans and tasks in `.zdev`; the coding harness shapes, implements, and independently verifies the work. Use the harness's zdev integration for work tracked there: `zdev status` and `zdev next` orient and select work, `zdev check` validates state, and `zdev commit` records verified staged changes. Do not edit generated task indexes. If the integration is unavailable or conflicts with repository setup, ask the user how to configure it.";
 
 #[derive(Debug)]
@@ -150,14 +151,25 @@ enum Command {
         /// Area tag whose next ready task to project
         area: String,
     },
-    /// Capture the validated task-work context for one area
+    /// Capture or use the validated task-work context for one area
     ///
     /// Closed areas return branch-independent goal context. Open areas also
     /// include matching status and complete staged, unstaged, and untracked Git
-    /// evidence. This command does not change repository state.
+    /// evidence. --store writes an immutable handoff under Git administrative
+    /// state; the ordinary command and --show/--compare do not change tracked,
+    /// index, or worktree state.
     WorkContext {
         /// Area tag whose task-work context to capture
         area: String,
+        /// Store the exact JSON context and return a compact reference
+        #[arg(long, conflicts_with_all = ["show", "compare"])]
+        store: bool,
+        /// Show an exact stored JSON snapshot
+        #[arg(long, value_name = "SNAPSHOT", conflicts_with_all = ["store", "compare"])]
+        show: Option<String>,
+        /// Compare a stored snapshot with freshly collected context
+        #[arg(long, value_name = "SNAPSHOT", conflicts_with_all = ["store", "show"])]
+        compare: Option<String>,
     },
     /// Show task counts and branch health
     ///
@@ -771,7 +783,18 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             }
         }
         Command::Goal { area } => goal::show(&root, area),
-        Command::WorkContext { area } => work_context_output(&root, area),
+        Command::WorkContext {
+            area,
+            store,
+            show,
+            compare,
+        } => match (store, show.as_deref(), compare.as_deref()) {
+            (true, None, None) => store_work_context(&root, area),
+            (false, Some(snapshot), None) => show_work_context(&root, area, snapshot),
+            (false, None, Some(snapshot)) => compare_work_context(&root, area, snapshot),
+            (false, None, None) => work_context_output(&root, area),
+            _ => unreachable!("clap enforces mutually exclusive work-context modes"),
+        },
         Command::Status { area } => status_output(&root, area.as_deref()),
         Command::Check { area } => check_output(&root, area.as_deref()),
         Command::Skill { .. } => unreachable!(),
@@ -1123,6 +1146,306 @@ fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevErr
             "git_status": git_status,
             "git_diff_cached": git_diff_cached,
             "git_diff": git_diff,
+        }),
+    ))
+}
+
+fn work_context_json_bytes(output: &CommandOutput) -> Result<Vec<u8>, ZdevError> {
+    let mut bytes = serde_json::to_vec_pretty(&output.value)
+        .map_err(|error| ZdevError::new(format!("Cannot serialize work-context: {error}")))?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
+fn work_context_snapshot_id(bytes: &[u8]) -> String {
+    let hash = bytes.iter().fold(0xcbf29ce484222325_u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    });
+    format!("W{hash:016x}")
+}
+
+fn valid_work_context_snapshot_id(value: &str) -> bool {
+    value.len() == 17
+        && value.starts_with('W')
+        && value[1..]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn work_context_snapshot_store(root: &Path, area: &str) -> Result<PathBuf, ZdevError> {
+    let name = format!("zdev/work-context/{area}");
+    let path = PathBuf::from(git_output(root, &["rev-parse", "--git-path", &name])?);
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    })
+}
+
+fn unavailable_work_context_snapshot(area: &str, snapshot: &str) -> ZdevError {
+    ZdevError::new(format!(
+        "Work-context snapshot {snapshot} for area {area} is unavailable or expired; capture a fresh snapshot with `zdev work-context {area} --store --format json`"
+    ))
+}
+
+fn validate_work_context_snapshot_bytes(
+    bytes: &[u8],
+    area: &str,
+    snapshot: &str,
+) -> Result<Value, ZdevError> {
+    if work_context_snapshot_id(bytes) != snapshot {
+        return Err(ZdevError::new(format!(
+            "Stored work-context snapshot {snapshot} for area {area} is corrupt"
+        )));
+    }
+    let value: Value = serde_json::from_slice(bytes).map_err(|error| {
+        ZdevError::new(format!(
+            "Stored work-context snapshot {snapshot} for area {area} is corrupt: {error}"
+        ))
+    })?;
+    let mut canonical = serde_json::to_vec_pretty(&value).map_err(|error| {
+        ZdevError::new(format!(
+            "Stored work-context snapshot {snapshot} for area {area} is corrupt: {error}"
+        ))
+    })?;
+    canonical.push(b'\n');
+    if canonical != bytes {
+        return Err(ZdevError::new(format!(
+            "Stored work-context snapshot {snapshot} for area {area} is not exact canonical work-context JSON"
+        )));
+    }
+    let object = value.as_object().ok_or_else(|| {
+        ZdevError::new(format!(
+            "Stored work-context snapshot {snapshot} for area {area} has an invalid JSON shape"
+        ))
+    })?;
+    let lifecycle = object.get("lifecycle").and_then(Value::as_str);
+    let expected_keys: &[&str] = match lifecycle {
+        Some("closed") => &[
+            "area",
+            "goal",
+            "lifecycle",
+            "queue",
+            "schema_version",
+            "task_id",
+        ],
+        Some("open") => &[
+            "area",
+            "git_diff",
+            "git_diff_cached",
+            "git_status",
+            "goal",
+            "head",
+            "lifecycle",
+            "queue",
+            "schema_version",
+            "stale_advisory",
+            "status",
+            "task_id",
+        ],
+        _ => &[],
+    };
+    let actual_keys = object.keys().map(String::as_str).collect::<Vec<_>>();
+    if actual_keys != expected_keys
+        || object.get("schema_version").and_then(Value::as_u64) != Some(SCHEMA_VERSION)
+        || object.get("area").and_then(Value::as_str) != Some(area)
+        || !object.get("queue").is_some_and(Value::is_string)
+        || !object.contains_key("task_id")
+        || !object.get("goal").is_some_and(Value::is_object)
+    {
+        return Err(ZdevError::new(format!(
+            "Stored work-context snapshot {snapshot} does not match selected area {area} or has an invalid JSON shape"
+        )));
+    }
+    Ok(value)
+}
+
+fn read_work_context_snapshot(
+    root: &Path,
+    area: &str,
+    snapshot: &str,
+) -> Result<(PathBuf, Vec<u8>, Value), ZdevError> {
+    if !valid_work_context_snapshot_id(snapshot) {
+        return Err(ZdevError::new(format!(
+            "Invalid work-context snapshot ID {snapshot}; expected W followed by sixteen lowercase hexadecimal digits"
+        )));
+    }
+    let path = work_context_snapshot_store(root, area)?.join(format!("{snapshot}.json"));
+    let metadata = fs::symlink_metadata(&path).map_err(|error| {
+        if error.kind() == io::ErrorKind::NotFound {
+            unavailable_work_context_snapshot(area, snapshot)
+        } else {
+            ZdevError::io(
+                format!("Cannot inspect work-context snapshot {}", path.display()),
+                error,
+            )
+        }
+    })?;
+    if !metadata.file_type().is_file() {
+        return Err(ZdevError::new(format!(
+            "Stored work-context snapshot path {} is not a regular file",
+            path.display()
+        )));
+    }
+    let bytes = fs::read(&path).map_err(|error| {
+        ZdevError::io(
+            format!("Cannot read work-context snapshot {}", path.display()),
+            error,
+        )
+    })?;
+    let value = validate_work_context_snapshot_bytes(&bytes, area, snapshot)?;
+    Ok((path, bytes, value))
+}
+
+fn prune_work_context_snapshots(store: &Path, area: &str, protected: &str) {
+    let Ok(entries) = fs::read_dir(store) else {
+        return;
+    };
+    let mut snapshots = entries
+        .flatten()
+        .filter_map(|entry| {
+            let filename = entry.file_name().to_str()?.to_owned();
+            let snapshot = filename.strip_suffix(".json")?.to_owned();
+            if !valid_work_context_snapshot_id(&snapshot) {
+                return None;
+            }
+            let metadata = entry.metadata().ok()?;
+            if !metadata.is_file() {
+                return None;
+            }
+            let bytes = fs::read(entry.path()).ok()?;
+            validate_work_context_snapshot_bytes(&bytes, area, &snapshot).ok()?;
+            Some((metadata.modified().ok()?, filename, snapshot, entry.path()))
+        })
+        .collect::<Vec<_>>();
+    snapshots.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+    let mut excess = snapshots
+        .len()
+        .saturating_sub(WORK_CONTEXT_SNAPSHOT_RETENTION);
+    for (_, _, snapshot, path) in snapshots {
+        if excess == 0 {
+            break;
+        }
+        if snapshot != protected && fs::remove_file(path).is_ok() {
+            excess -= 1;
+        }
+    }
+}
+
+fn work_context_snapshot_projection(
+    root: &Path,
+    area: &str,
+    snapshot: &str,
+    path: &Path,
+    context: &Value,
+) -> Value {
+    let mut projection = serde_json::Map::from_iter([
+        ("schema_version".to_owned(), json!(SCHEMA_VERSION)),
+        ("area".to_owned(), json!(area)),
+        ("snapshot".to_owned(), json!(snapshot)),
+        ("path".to_owned(), json!(relative(root, path))),
+        ("lifecycle".to_owned(), context["lifecycle"].clone()),
+        ("queue".to_owned(), context["queue"].clone()),
+        ("task_id".to_owned(), context["task_id"].clone()),
+    ]);
+    if let Some(head) = context.get("head") {
+        projection.insert("head".to_owned(), head.clone());
+    }
+    Value::Object(projection)
+}
+
+fn store_work_context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    let context = work_context_output(root, area)?;
+    let bytes = work_context_json_bytes(&context)?;
+    let snapshot = work_context_snapshot_id(&bytes);
+    let _lock = ZdevStateLock::acquire(root)?;
+    let store = work_context_snapshot_store(root, area)?;
+    fs::create_dir_all(&store).map_err(|error| {
+        ZdevError::io(
+            format!(
+                "Cannot create work-context snapshot directory {}",
+                store.display()
+            ),
+            error,
+        )
+    })?;
+    let path = store.join(format!("{snapshot}.json"));
+    if path.exists() {
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            ZdevError::io(
+                format!("Cannot inspect work-context snapshot {}", path.display()),
+                error,
+            )
+        })?;
+        if !metadata.file_type().is_file() {
+            return Err(ZdevError::new(format!(
+                "Work-context snapshot path {} is not a regular file",
+                path.display()
+            )));
+        }
+        let existing = fs::read(&path).map_err(|error| {
+            ZdevError::io(
+                format!("Cannot read work-context snapshot {}", path.display()),
+                error,
+            )
+        })?;
+        if existing != bytes {
+            return Err(ZdevError::new(format!(
+                "Work-context snapshot ID collision at {}",
+                path.display()
+            )));
+        }
+    } else {
+        write_atomic(&path, &bytes)?;
+    }
+    prune_work_context_snapshots(&store, area, &snapshot);
+    let value = work_context_snapshot_projection(root, area, &snapshot, &path, &context.value);
+    Ok(CommandOutput::new(
+        format!(
+            "Stored work-context snapshot {snapshot} for area {area} at {}",
+            path.display()
+        ),
+        value,
+    ))
+}
+
+fn show_work_context(root: &Path, area: &str, snapshot: &str) -> Result<CommandOutput, ZdevError> {
+    project::load_area(root, area)?;
+    let _lock = ZdevStateLock::acquire(root)?;
+    let (_, bytes, value) = read_work_context_snapshot(root, area, snapshot)?;
+    let exact = String::from_utf8(bytes)
+        .map_err(|_| ZdevError::new("Stored work-context snapshot is not valid UTF-8"))?;
+    let exact = exact.strip_suffix('\n').ok_or_else(|| {
+        ZdevError::new(format!(
+            "Stored work-context snapshot {snapshot} for area {area} is corrupt"
+        ))
+    })?;
+    Ok(CommandOutput::new(exact, value).with_json(exact.to_owned()))
+}
+
+fn compare_work_context(
+    root: &Path,
+    area: &str,
+    snapshot: &str,
+) -> Result<CommandOutput, ZdevError> {
+    project::load_area(root, area)?;
+    let stored = {
+        let _lock = ZdevStateLock::acquire(root)?;
+        let (_, bytes, _) = read_work_context_snapshot(root, area, snapshot)?;
+        bytes
+    };
+    let fresh = work_context_json_bytes(&work_context_output(root, area)?)?;
+    let equal = stored == fresh;
+    Ok(CommandOutput::new(
+        format!(
+            "Work-context snapshot {snapshot} for area {area}: {} fresh state",
+            if equal { "matches" } else { "differs from" }
+        ),
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            "area": area,
+            "snapshot": snapshot,
+            "equal": equal,
         }),
     ))
 }

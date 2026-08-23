@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-063"
 key = "investigate-multilens-file-handoffs"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -27,11 +27,19 @@ Claude concatenates up to four reviewer outputs into the final vetter prompt; ot
 
 ## Done when
 
-- [ ] The investigation records reproducible structural measurements for the current canonical and generated audit flows.
-- [ ] The conclusion distinguishes prompt transport savings from text merely moved into a file and states confidence and limitations.
-- [ ] A worthwhile design produces only the necessary derived implementation task or tasks; a rejected design records why no task was added.
+- [x] The investigation records reproducible structural measurements for the current canonical and generated audit flows.
+- [x] The conclusion distinguishes prompt transport savings from text merely moved into a file and states confidence and limitations.
+- [x] A worthwhile design produces only the necessary derived implementation task or tasks; a rejected design records why no task was added.
 
 ## Validation
 
 - Run the measurement or inspection commands recorded by the investigation.
 - Run documentation checks for any updated decision record.
+
+## Result
+
+Structural measurements show that file-backed multi-lens audit handoffs would add writes and reads without reducing evidence consumption, workers, or coordinator rounds, so no implementation task was added.
+
+Validation:
+
+- Independent verification reproduced all byte and one-through-four-lens measurements; brief indexing, documentation, full cargo checks, diff check, and fresh work-context comparison passed.

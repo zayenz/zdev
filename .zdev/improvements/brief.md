@@ -67,6 +67,12 @@ Every implementation must pass the focused checks relevant to it. Before task
 completion, run the repository's standard full validation unless the task
 records a concrete reason that a check is unavailable.
 
+## Background
+
+- [Multi-lens audit handoff measurements](background/multi-lens-audit-handoffs.md)
+  records why transient files do not currently reduce total reviewer-evidence
+  transport and therefore are not recommended for audit fan-out.
+
 ## Validation
 
 - `cargo fmt --all -- --check`

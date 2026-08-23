@@ -377,8 +377,8 @@ omission means `standard`. The harness never infers routine work. Advanced work
 gets one read-only plan before its first edit, while every route keeps a fresh
 independent standard verifier.
 
-Use the installed `zdev-loop <area>` route, or its exact `zdev-goal` alias, when
-you explicitly want continuation across tasks. Codex, Claude Code, and Oh My Pi
+Activate zdev and ask it to loop or set a goal for an area when you explicitly
+want continuation across tasks. Both words select the same route. Codex, Claude Code, and Oh My Pi
 can continue natively. OpenCode and Pi complete at most one task per invocation
 and return `CONTINUE` only after a commit and a fresh ready work-context.
 
@@ -426,23 +426,21 @@ verification responsibilities, and recovery.
 
 ### Codex
 
-Codex uses collaboration agents and a fresh verification context. A project
-integration lives under `.codex/skills/zdev`. `$zdev-loop <area>` and its exact
-`$zdev-goal <area>` alias use Codex's native goal when clear and fall back to
-one verified task only when inspection proved clear but native creation is unavailable.
+Codex uses one `$zdev` skill, collaboration agents, and a fresh verification
+context. A project integration lives under `.codex/skills/zdev`. Asking zdev to
+loop or set a goal uses Codex's native goal when clear and falls back to one
+verified task only when inspection proved clear but native creation is unavailable.
 
 ### Claude Code
 
 Start Claude Code from the repository root and accept workspace trust for a
-project installation. The integration provides scoped implementer and verifier
-agents. Claude Code 2.1.154 or later can also use `/zdev:zdev-implement`,
-`/zdev:zdev-verify`, and `/zdev:zdev-audit`.
+project installation. The integration provides one zdev skill, scoped
+implementer and verifier agents, and packaged workflows used by the skill.
 
 ### OpenCode
 
-OpenCode installs its skill, agents, and `/zdev-implement`, `/zdev-verify`, and
-`/zdev-audit` commands under `.opencode`. `/zdev-loop <area>` and its exact
-`/zdev-goal <area>` alias complete at most one task and return `CONTINUE` only
+OpenCode installs one skill plus agents and route commands under `.opencode`.
+Asking zdev to loop or set a goal completes at most one task and returns `CONTINUE` only
 after a verified commit when ready work remains. OpenCode discovers project
 skills when started from a subdirectory in the worktree.
 
@@ -450,16 +448,16 @@ skills when started from a subdirectory in the worktree.
 
 Pi installs a skill, prompt templates, and the `zdev_subagent` extension under
 `.pi`. The extension starts a fresh child Pi process for each implementation or
-verification handoff. `/zdev-loop <area>` and `/zdev-goal <area>` are the same
-bounded one-task continuation prompt. A user installation goes to
+verification handoff. Goal and loop are the same bounded one-task continuation
+route. A user installation goes to
 `$PI_CODING_AGENT_DIR`, or `~/.pi/agent` when the variable is unset.
 
 ### Oh My Pi
 
 Oh My Pi is separate from plain Pi. It installs a skill and constrained native
 task agents under `.omp` and uses OMP's built-in `task` and `hub` facilities.
-A `/zdev-loop <area>` prompt and its exact `/zdev-goal <area>` alias use OMP's
-native goal when clear and fall back to one verified task when creation is
+The root skill's goal and loop route uses OMP's native goal when clear and falls
+back to one verified task when creation is
 unavailable after that clear inspection.
 A fallback requires a successful clear-goal inspection; ambiguous native goal
 state blocks.

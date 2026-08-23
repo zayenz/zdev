@@ -1,10 +1,3 @@
----
-name: zdev-verify
-description: "Independently verifies the explicit current ready zdev task while preserving lifecycle and Git state. Use when the user invokes $zdev-verify or asks active zdev to verify a named ready task."
----
-
-# Zdev verify for Codex
-
 # Explicit verification contract
 
 `zdev-verify <area> <task-id>` is a read-only review of the explicit current
@@ -88,21 +81,3 @@ The coordinating session validates the complete envelope. On a valid worker
 result, return that object unchanged as the public read-only result. Invalid or
 unavailable independent verification returns
 `BLOCKER zdev-verify <area> <task-id>` with no mutation.
-
-Use one fresh read-only Codex collaboration agent with the configured verifier
-profile and set `fork_turns="none"`. Give it a compact filesystem-backed
-message containing the verifier role, exact area and task ID, expected HEAD,
-and exact paths to the installed verification contract, applicable repository
-guidance, `AGENTS.md` files, area brief, slice when present, and task. It creates
-and returns the opaque work-context snapshot required by the contract.
-Pass `model="gpt-5.6-sol"` and
-`reasoning_effort="low"` together with
-`fork_turns="none"` when spawning it.
-The current Codex session performs preflight, checks the explicit task ID, and
-validates the returned envelope without changing task or Git state.
-
-<!-- zdev:generated-repository-guidance:start -->
-## Repository guidance discovery
-
-Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
-<!-- zdev:generated-repository-guidance:end -->

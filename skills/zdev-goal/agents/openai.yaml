@@ -1,6 +1,0 @@
-interface:
-  display_name: "Zdev goal alias"
-  short_description: "Explicit alias for the native zdev area loop"
-  default_prompt: "Use $zdev-goal to continue the named zdev area under the native area-loop contract."
-policy:
-  allow_implicit_invocation: false

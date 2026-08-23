@@ -1,4 +1,0 @@
-interface:
-  display_name: "Zdev verify"
-  short_description: "Independently verify one ready zdev task"
-  default_prompt: "Use $zdev-verify to independently verify the named current ready zdev task while preserving lifecycle and Git state."

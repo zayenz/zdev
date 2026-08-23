@@ -66,23 +66,9 @@ const VERIFY_WORKFLOW_CONTRACT_TEMPLATE: &str =
     include_str!("../templates/zdev/verify-workflow.md");
 const BOUNDED_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/bounded-area-loop.md");
 const NATIVE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/native-area-loop.md");
+const CLAUDE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/claude-area-loop.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
-const CODEX_AUDIT_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-audit-skill.md");
-const CODEX_IMPLEMENT_SKILL_TEMPLATE: &str =
-    include_str!("../templates/zdev/codex-implement-skill.md");
-const CODEX_VERIFY_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-verify-skill.md");
-const CODEX_LOOP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-loop-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
-const CODEX_AUDIT_OPENAI_YAML: &str =
-    include_str!("../templates/zdev/codex/agents/audit-openai.yaml");
-const CODEX_IMPLEMENT_OPENAI_YAML: &str =
-    include_str!("../templates/zdev/codex/agents/implement-openai.yaml");
-const CODEX_VERIFY_OPENAI_YAML: &str =
-    include_str!("../templates/zdev/codex/agents/verify-openai.yaml");
-const CODEX_LOOP_OPENAI_YAML: &str =
-    include_str!("../templates/zdev/codex/agents/loop-openai.yaml");
-const CODEX_GOAL_OPENAI_YAML: &str =
-    include_str!("../templates/zdev/codex/agents/goal-openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
 const CLAUDE_IMPLEMENTER: &str =
@@ -133,6 +119,18 @@ const OMP_AUDIT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-
 const OMP_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-implement.md");
 const OMP_VERIFY_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-verify.md");
 const OMP_LOOP_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-loop.md");
+const CODEX_LEGACY_FILES: &[&str] = &[
+    "zdev-audit/SKILL.md",
+    "zdev-audit/agents/openai.yaml",
+    "zdev-implement/SKILL.md",
+    "zdev-implement/agents/openai.yaml",
+    "zdev-verify/SKILL.md",
+    "zdev-verify/agents/openai.yaml",
+    "zdev-loop/SKILL.md",
+    "zdev-loop/agents/openai.yaml",
+    "zdev-goal/SKILL.md",
+    "zdev-goal/agents/openai.yaml",
+];
 const OPENCODE_LEGACY_FILES: &[&str] = &["command/zdev-audit.md", "command/zdev-task.md"];
 const PI_LEGACY_FILES: &[&str] = &["prompts/zdev-task.md"];
 const OMP_RELOCATED_USER_WARNING: &str = "Oh My Pi 17.2.15 discovers the zdev skill at this PI_CODING_AGENT_DIR location but may not discover its user task agents. Unset PI_CODING_AGENT_DIR to use ~/.omp/agent, or install with --scope project under .omp, until upstream task-agent discovery is fixed.";
@@ -218,44 +216,7 @@ impl Harness {
                         content: (*content).to_owned(),
                     }
                 }));
-                files.push(IntegrationFile {
-                    path: "zdev-audit/SKILL.md".to_owned(),
-                    content: CODEX_AUDIT_SKILL_TEMPLATE.to_owned(),
-                });
-                files.push(IntegrationFile {
-                    path: "zdev-audit/agents/openai.yaml".to_owned(),
-                    content: CODEX_AUDIT_OPENAI_YAML.to_owned(),
-                });
-                files.push(IntegrationFile {
-                    path: "zdev-implement/SKILL.md".to_owned(),
-                    content: CODEX_IMPLEMENT_SKILL_TEMPLATE.to_owned(),
-                });
-                files.push(IntegrationFile {
-                    path: "zdev-implement/agents/openai.yaml".to_owned(),
-                    content: CODEX_IMPLEMENT_OPENAI_YAML.to_owned(),
-                });
-                files.push(IntegrationFile {
-                    path: "zdev-verify/SKILL.md".to_owned(),
-                    content: CODEX_VERIFY_SKILL_TEMPLATE.to_owned(),
-                });
-                files.push(IntegrationFile {
-                    path: "zdev-verify/agents/openai.yaml".to_owned(),
-                    content: CODEX_VERIFY_OPENAI_YAML.to_owned(),
-                });
-                for name in ["zdev-loop", "zdev-goal"] {
-                    files.push(IntegrationFile {
-                        path: format!("{name}/SKILL.md"),
-                        content: native_loop_artifact(CODEX_LOOP_SKILL_TEMPLATE, Some(name))?,
-                    });
-                    files.push(IntegrationFile {
-                        path: format!("{name}/agents/openai.yaml"),
-                        content: if name == "zdev-loop" {
-                            CODEX_LOOP_OPENAI_YAML.to_owned()
-                        } else {
-                            CODEX_GOAL_OPENAI_YAML.to_owned()
-                        },
-                    });
-                }
+                add_route_references(&mut files, "zdev", NATIVE_AREA_LOOP_TEMPLATE);
             }
             Self::Claude => {
                 files.push(IntegrationFile {
@@ -276,6 +237,7 @@ impl Harness {
                         content: (*content).to_owned(),
                     }
                 }));
+                add_route_references(&mut files, "skills/zdev", CLAUDE_AREA_LOOP_TEMPLATE);
                 files.extend([
                     IntegrationFile {
                         path: "agents/zdev-routine-implementer.md".to_owned(),
@@ -330,6 +292,11 @@ impl Harness {
                         content: (*content).to_owned(),
                     }
                 }));
+                add_route_references(
+                    &mut files,
+                    "skills/zdev-opencode",
+                    BOUNDED_AREA_LOOP_TEMPLATE,
+                );
                 files.extend([
                     IntegrationFile {
                         path: "agents/zdev-routine-implementer.md".to_owned(),
@@ -384,6 +351,7 @@ impl Harness {
                         content: (*content).to_owned(),
                     }
                 }));
+                add_route_references(&mut files, "skills/zdev-pi", BOUNDED_AREA_LOOP_TEMPLATE);
                 files.extend([
                     IntegrationFile {
                         path: "prompts/zdev-implement.md".to_owned(),
@@ -422,6 +390,7 @@ impl Harness {
                         content: (*content).to_owned(),
                     }
                 }));
+                add_route_references(&mut files, "skills/zdev", NATIVE_AREA_LOOP_TEMPLATE);
                 files.extend([
                     IntegrationFile {
                         path: "agents/zdev-routine-implementer.md".to_owned(),
@@ -457,11 +426,11 @@ impl Harness {
                     },
                     IntegrationFile {
                         path: "prompts/zdev-loop.md".to_owned(),
-                        content: native_loop_artifact(OMP_LOOP_PROMPT, None)?,
+                        content: native_loop_artifact(OMP_LOOP_PROMPT)?,
                     },
                     IntegrationFile {
                         path: "prompts/zdev-goal.md".to_owned(),
-                        content: native_loop_artifact(OMP_LOOP_PROMPT, None)?,
+                        content: native_loop_artifact(OMP_LOOP_PROMPT)?,
                     },
                 ]);
             }
@@ -476,6 +445,7 @@ impl Harness {
                 IntegrationLayout::ExactTree
             },
             legacy_files: match self {
+                Self::Codex => CODEX_LEGACY_FILES,
                 Self::Opencode => OPENCODE_LEGACY_FILES,
                 Self::Pi => PI_LEGACY_FILES,
                 _ => &[],
@@ -486,18 +456,22 @@ impl Harness {
     }
 }
 
-fn native_loop_artifact(wrapper: &str, name: Option<&str>) -> Result<String, ZdevError> {
-    let mut rendered = wrapper.replace("__ZDEV_NATIVE_AREA_LOOP_BODY__", NATIVE_AREA_LOOP_TEMPLATE);
-    if let Some(name) = name {
-        let description = if name == "zdev-loop" {
-            "Continues a named zdev area through Codex's native goal, one independently verified task and commit at a time. Use when the user invokes $zdev-loop or asks active zdev to continue, loop, or keep working through a named area."
-        } else {
-            "Provides the explicit goal alias for zdev's native Codex area loop. Use when the user invokes $zdev-goal for a named area."
-        };
-        rendered = rendered
-            .replace("__ZDEV_SKILL_NAME__", name)
-            .replace("__ZDEV_SKILL_DESCRIPTION__", description);
+fn add_route_references(files: &mut Vec<IntegrationFile>, root: &str, area_loop: &str) {
+    for (name, content) in [
+        ("audit.md", AUDIT_CONTRACT_TEMPLATE),
+        ("task-workflows.md", TASK_WORKFLOW_CONTRACT_TEMPLATE),
+        ("verify-workflow.md", VERIFY_WORKFLOW_CONTRACT_TEMPLATE),
+        ("area-loop.md", area_loop),
+    ] {
+        files.push(IntegrationFile {
+            path: format!("{root}/references/{name}"),
+            content: content.to_owned(),
+        });
     }
+}
+
+fn native_loop_artifact(wrapper: &str) -> Result<String, ZdevError> {
+    let rendered = wrapper.replace("__ZDEV_NATIVE_AREA_LOOP_BODY__", NATIVE_AREA_LOOP_TEMPLATE);
     if rendered.contains("__ZDEV_") {
         return Err(ZdevError::new(
             "Cannot compose the canonical native area-loop artifact",
@@ -1350,11 +1324,9 @@ fn install_integration_output(
             "scope": resolved.scope,
             "status": result.status,
             "path": result.destination,
-            "files": integration.files.len(),
             "bundle": {
                 "status": result.status,
                 "path": result.destination,
-                "files": integration.files.len(),
                 "version": integration.version,
             },
             "guidance": guidance.as_ref().map(GuidanceStatus::value),
@@ -1448,11 +1420,9 @@ fn check_integration(
             "scope": resolved.scope,
             "status": status,
             "path": resolved.path,
-            "files": integration.files.len(),
             "bundle": {
                 "status": integration_status,
                 "path": resolved.path,
-                "files": integration.files.len(),
                 "version": integration.version,
             },
             "guidance": guidance.as_ref().map(GuidanceStatus::value),
@@ -1642,6 +1612,7 @@ fn publish_shared_root_integration(
                         error,
                     )
                 })?;
+                remove_empty_legacy_parents(&path, destination)?;
             }
         }
     }
@@ -1649,6 +1620,29 @@ fn publish_shared_root_integration(
         status: if replaced { "replaced" } else { "created" },
         destination: destination.to_path_buf(),
     })
+}
+
+fn remove_empty_legacy_parents(path: &Path, destination: &Path) -> Result<(), ZdevError> {
+    let mut directory = path.parent();
+    while let Some(current) = directory {
+        if current == destination {
+            break;
+        }
+        match fs::remove_dir(current) {
+            Ok(()) => directory = current.parent(),
+            Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => break,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                directory = current.parent();
+            }
+            Err(error) => {
+                return Err(ZdevError::io(
+                    format!("Cannot remove empty legacy directory {}", current.display()),
+                    error,
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

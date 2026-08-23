@@ -59,20 +59,18 @@ This user-facing route does not change the binary. Each iteration uses
 `zdev work-context <area> --format json`, whose nested goal remains the
 deterministic projection of one ready task.
 
-The installed invocations are exact:
+Each harness has one zdev skill. These requests select its continuation route:
 
-| Harness | Canonical | Alias |
+| Harness | Activate | Request |
 | --- | --- | --- |
-| Codex | `$zdev-loop <area>` | `$zdev-goal <area>` |
-| Claude Code | `/zdev:zdev-loop <area>` | `/zdev:zdev-goal <area>` |
-| OpenCode | `/zdev-loop <area>` | `/zdev-goal <area>` |
-| Pi | `/zdev-loop <area>` | `/zdev-goal <area>` |
-| Oh My Pi | `/zdev-loop <area>` | `/zdev-goal <area>` |
+| Codex | `$zdev` | “loop through `<area>`” or “set a goal for `<area>`” |
+| Claude Code | zdev | “loop through `<area>`” or “set a goal for `<area>`” |
+| OpenCode | zdev | “loop through `<area>`” or “set a goal for `<area>`” |
+| Pi | `/skill:zdev-pi` | “loop through `<area>`” or “set a goal for `<area>`” |
+| Oh My Pi | zdev | “loop through `<area>`” or “set a goal for `<area>`” |
 
-Both dedicated names always activate zdev. Codex skills set
-`allow_implicit_invocation: false`; both Claude workflows run only by explicit
-namespaced invocation. Shared skill guidance carries the active-context rule
-for natural-language synonyms.
+Harness-native workflows, commands, and prompts implement the selected route.
+They are adapters inside the installed zdev integration, not separate skills.
 
 ## Current guidance
 
@@ -87,7 +85,7 @@ complete Git evidence. Continuation preserves those rules.
 
 ## One-task iteration
 
-An iteration follows the installed `zdev-implement <area>` contract unchanged.
+An iteration follows the implementation contract inside the installed zdev skill.
 That contract owns complexity routing, optional advanced planning,
 implementation, fresh independent verification, concrete REWORK, task
 completion, exact staging, and one zdev commit. Claude composes that same
@@ -166,7 +164,7 @@ those in [Harness orchestration](harness-orchestration.md).
 
 | Harness | Installed artifacts | Continuation behavior |
 | --- | --- | --- |
-| Codex | Bundle siblings `zdev-loop/SKILL.md` and `zdev-goal/SKILL.md`, each with `agents/openai.yaml`. | Both skills call `get_goal`, create the area condition with `create_goal` when clear, and fall back to one task with `CONTINUE` only when inspection proved clear but creation is unavailable. They never use interactive composer commands. |
+| Codex | One `zdev/SKILL.md` with `references/area-loop.md`. | The root skill calls `get_goal`, creates the area condition with `create_goal` when clear, and falls back to one task with `CONTINUE` only when inspection proved clear but creation is unavailable. It never uses interactive composer commands. |
 | Claude Code | Plugin workflows `workflows/zdev-loop.js` and `workflows/zdev-goal.js`, rendered from one canonical loop source with only `meta.name` differing. | Both workflows run the same standalone JavaScript loop. They do not read or use `/goal`. If dynamic workflows are disabled or unsupported, the shared zdev skill handles an active-context natural goal/loop request as one bounded task, returns `CONTINUE`, and says the named workflow command was unavailable. |
 | OpenCode | `commands/zdev-loop.md` and `commands/zdev-goal.md`, rendered from one command source. | Both prompt commands perform one committed task at most and return `CONTINUE` for refreshed ready work. Session resume is a convenience, not a continuation guarantee. |
 | Pi | `prompts/zdev-loop.md` and `prompts/zdev-goal.md`, rendered from one prompt source. | Both prompt templates use the existing zdev skill and subagent extension, perform one committed task at most, and return `CONTINUE`. |

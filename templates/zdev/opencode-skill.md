@@ -24,13 +24,13 @@ task, guidance, and relevant source; the applicable snapshot IDs; and the
 short result from the preceding role. Let the worker read those files instead
 of copying their contents into the prompt.
 
-Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
-read-only task verification, and `/zdev-audit` for a read-only audit. Use
-`/zdev-loop <area>` for bounded area continuation; `/zdev-goal <area>` is its
-exact alias.
+The root zdev skill selects the route and loads its contract from `references/`.
+It may use the packaged commands internally for a complete task cycle,
+verification, audit, or bounded area continuation. “Goal” and “loop” select the
+same continuation route.
 
 OpenCode has no required native continuation surface. For an active-zdev goal
-or loop request, use either paired command. It completes at most one task using
+or loop request, use the packaged continuation command. It completes at most one task using
 the ordinary route, returns canonical `CONTINUE zdev-loop <area>` only after a
 verified commit when fresh ready work remains, and never claims a continuing
 loop was started.

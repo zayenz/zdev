@@ -121,9 +121,10 @@ supervision, and session artifacts. None is required for the ordinary zdev
 cycle. The adapter should use blocking named workers in the current checkout;
 zdev, not Oh My Pi's job system, remains the workflow owner.
 
-## Public workflows
+## Routes and native adapters
 
-Zdev uses one stable name for each user intent:
+Each harness installs one discoverable zdev skill. The skill routes these user
+intents to internal contracts and harness-native adapters:
 
 - `zdev-implement <area>` selects and completes one ready task through
   implementation, independent verification, any task-owned rework, task
@@ -139,15 +140,14 @@ Zdev uses one stable name for each user intent:
   same bounded form, which completes at most one task and returns `CONTINUE`
   only after a verified commit when fresh ready work remains.
 
-The names do not change with the harness. Only native invocation syntax does:
-Codex uses `$zdev-*`; OpenCode, Pi, and Oh My Pi use `/zdev-*`; Claude Code's
-workflow namespace produces `/zdev:zdev-*`.
+Packaged workflows, commands, and prompts support those routes. They do not
+form additional skills or change the root activation name.
 
 ### Installed artifacts
 
-| Harness | Installed entry points | Native workers |
+| Harness | Installed skill and adapters | Native workers |
 | --- | --- | --- |
-| Codex | `skills/zdev-implement/SKILL.md`, `skills/zdev-verify/SKILL.md`, `skills/zdev-audit/SKILL.md`, `skills/zdev-loop/SKILL.md`, and `skills/zdev-goal/SKILL.md` under the selected Codex scope | The skills pass the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning the corresponding native Codex subagent. The paired continuation skills use Codex's native goal when clear and an honest bounded fallback only after clear inspection when creation is unavailable. |
+| Codex | One `zdev/SKILL.md`; audit, task, verification, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and an honest bounded fallback only after clear inspection when creation is unavailable. |
 | Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects the scoped native agent type and tells the worker to load the rendered contract through `$CLAUDE_PLUGIN_ROOT`; its complete role prompt is the inline fallback when that file is unavailable. |
 | OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; commands use the native task tool. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` exposes `planner`, `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer` with their resolved model and thinking controls; the installed zdev skill supplies the shared contract. |
@@ -157,15 +157,11 @@ These are renderable files, not a new runtime. Install and check must render the
 same bytes through the existing integration renderer. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 
-Claude is the only adapter that references a separate installed task contract.
+Claude is the only adapter that also references a task contract outside its
+skill directory.
 Its plugin root is available to child Bash commands as `CLAUDE_PLUGIN_ROOT`, so
 the workflow can pass `$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md` without
-discovering a user or project installation directory. In the generated
-implementation workflow, the fixed guidance before task-specific context is
-706 bytes rather than 11,993 bytes when measured from the rendered 1.1.0
-artifacts (UTF-8 byte length of the contract-loading guidance versus the former
-rendered contract plus repository guidance). This measures generated prompt
-bytes, not total model-context or provider-side caching.
+discovering a user or project installation directory.
 
 Codex, OpenCode, Pi, and Oh My Pi retain inline task guidance. Their child
 workers start from repository working directories, while their user- and
@@ -174,17 +170,14 @@ portable child-worker path. Guessing those paths would make global and custom
 installations unreliable, so moving their text to a file would not provide the
 same resolvable handoff.
 
-The installed bundle includes all five entry points. Codex installation
-targets the shared `skills/` root so the existing `zdev/` skill and five
-sibling workflow skills form one managed bundle while unrelated skills remain
-untouched.
+Codex installation targets the shared `skills/` root and manages only the
+`zdev/` skill while leaving unrelated skills untouched.
 
-Forced migration has three hard-coded removals: `command/zdev-audit.md` and
-`command/zdev-task.md` under an OpenCode shared root, and
-`prompts/zdev-task.md` under a Pi shared root. They are previous zdev-owned
-entry points replaced by the common names. A non-forced install and readiness
-check fail closed while any of them remains, so old and new commands cannot be
-reported as one ready installation. No other shared-root file is removed.
+Forced migration removes only hard-coded previous zdev-owned files: the five
+split Codex skill directories created by 1.1.0, two singular `command/` files
+under OpenCode, and `prompts/zdev-task.md` under Pi. Empty legacy directories
+are pruned. A non-forced install and readiness check report the old integration
+as a conflict. No unrelated shared-root file is removed.
 
 ## Common execution contract
 
@@ -317,10 +310,9 @@ independent.
 
 If a harness lacks a native goal, the JSON projection remains ordinary prompt
 context. If a model or effort is unavailable, the explicit worker-profile
-rules apply; there is no model search or silent substitution by zdev. If an
-entry-point artifact is absent, direct use of the installed zdev skill can
-explain the equivalent manual steps, but it must not claim that the named
-workflow ran.
+rules apply; there is no model search or silent substitution by zdev. If a
+native adapter is absent, the installed zdev skill follows the internal route
+contract directly and reports the bounded behavior it actually completed.
 
 ## What stays common and what stays Claude-specific
 
@@ -351,30 +343,27 @@ coordinator enough evidence to complete and commit. The audit workflow keeps
 its review-and-vet pipeline. These are native advantages, not behavior other
 harnesses must reimplement in JavaScript.
 
-## Implemented seams and retained acceptance record
+## Implemented seams
 
 No shared product decision remains. The implementation stays within the
 existing integration renderer and five harness adapters:
 
-1. Define canonical sources for implementation, verification, audit, and
-   continuation, including goal refresh, ownership, envelopes, and rework
-   rules. Render the shared continuation source under both `zdev-loop` and its
-   exact `zdev-goal` alias, giving five public entry-point names.
-2. Render the exact entry-point files in the table above. Reuse the existing
-   named agents and Pi extension, adding only the role controls settled in
+1. Define canonical internal contracts for implementation, verification,
+   audit, and continuation, including goal refresh, ownership, envelopes, and
+   rework rules.
+2. Install one discoverable skill for each harness. Reuse the existing named
+   agents and Pi extension, with the role controls settled in
    [Worker profiles](worker-profiles.md).
-3. Update each adapter's file manifest and destination layout. In particular,
-   use OpenCode's documented `commands/` directory; for Claude, declare the
-   plugin workflow path and retain/adapt the canonical JavaScript artifacts
-   under the five public names.
+3. Render harness-native adapters from those contracts. OpenCode uses its
+   documented `commands/` directory; Claude declares its plugin workflow path
+   and retains the canonical JavaScript artifacts.
 4. Keep install and check on the same all-or-nothing rendering path. Parse and
    render every artifact before replacing any destination.
 
 The current contract requires:
 
-- all five harnesses install exactly one invocable entry point for each of
-  `zdev-implement`, `zdev-verify`, `zdev-audit`, `zdev-loop`, and `zdev-goal`,
-  and install/check agree byte for byte;
+- all five harnesses install exactly one discoverable zdev skill, and
+  install/check agree on the generated integration;
 - Claude's manifest exposes all five plugin-root JavaScript workflows under the
   `zdev:` namespace. Three canonical sources render implementation,
   verification, and audit; one shared continuation source renders both

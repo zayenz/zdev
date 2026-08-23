@@ -1,4 +1,0 @@
-interface:
-  display_name: "Zdev audit"
-  short_description: "Audit a boundary with independently checked findings"
-  default_prompt: "Use $zdev-audit to audit the named repository boundary while preserving repository and zdev state."

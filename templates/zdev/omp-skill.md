@@ -9,10 +9,10 @@ description: Zdev manages durable software work through briefs, tasks, implement
 
 ## Oh My Pi orchestration
 
-Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
-read-only task verification, and `/zdev-audit` for a read-only audit. Use
-`/zdev-loop <area>` for native area continuation; `/zdev-goal <area>` is its
-exact alias.
+The root zdev skill selects the route and loads its contract from `references/`.
+It may use the packaged prompts internally for a complete task cycle,
+verification, audit, or native area continuation. “Goal” and “loop” select the
+same continuation route.
 
 Route authored routine, standard/default, and advanced work to
 `zdev-routine-implementer`, `zdev-implementer`, or
@@ -29,7 +29,7 @@ task, guidance, and relevant source; the applicable snapshot IDs; and the
 short result from the preceding role. Let the agent read those files instead
 of copying their contents into the prompt.
 
-For an active-zdev goal or loop request, use either paired prompt. It calls the
+For an active-zdev goal or loop request, use the packaged continuation prompt. It calls the
 model-facing `goal` tool with `op: "get"` before repository work, never drops,
 replaces, or layers over an unfinished goal, and calls `op: "create"` with the
 shared condition only when native goal state is clear. Native unavailability falls back to at most one verified committed task

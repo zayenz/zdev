@@ -129,10 +129,10 @@ state and reports only `equal`; a snapshot is immutable handoff evidence, not
 reusable current state. Zdev retains the eight most recently published distinct
 snapshots per area in linked-worktree-local Git administrative storage.
 
-The installed `zdev-loop <area>` route and its exact
-`zdev-goal` alias continue one verified commit at a time where the harness supports native
-continuation; OpenCode and Pi stop after one task and report `CONTINUE` when
-fresh ready work remains.
+Activate the installed zdev skill and ask it to loop or set a goal for an area.
+Both words select the same route. The skill continues one verified commit at a
+time where the harness supports native continuation; OpenCode and Pi stop after
+one task and report `CONTINUE` when fresh ready work remains.
 
 ### Complete and commit work
 

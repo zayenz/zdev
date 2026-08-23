@@ -16,12 +16,12 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Explore an objective** — start or revise an area and its brief; aliases: “wayfind,” “shape” | [references/shape-work.md](skill://zdev/references/shape-work.md) |
 | **Discuss the brief** — challenge or sharpen an existing brief; alias: “grill” | [references/discuss.md](skill://zdev/references/discuss.md) |
 | **Improve** — broadly inspect the codebase and propose candidate work | [references/improve.md](skill://zdev/references/improve.md) |
-| **Audit** — inspect a named boundary and return only independently checked findings | Use the installed `zdev-audit` entrypoint and its dedicated audit contract |
+| **Audit** — inspect a named boundary and return only independently checked findings | [references/audit.md](skill://zdev/references/audit.md) |
 | **Investigate** — answer one named checkable uncertainty through research, diagnosis, or a prototype | [references/investigate.md](skill://zdev/references/investigate.md) |
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](skill://zdev/references/to-tasks.md) and [references/task-format.md](skill://zdev/references/task-format.md) |
-| **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | Use the installed `zdev-implement` entrypoint when available; otherwise load [references/implement.md](skill://zdev/references/implement.md) and [references/verify.md](skill://zdev/references/verify.md) |
-| **Verify** — independently review the explicit current ready task | Use the installed `zdev-verify` entrypoint when available; otherwise load [references/verify.md](skill://zdev/references/verify.md) |
-| **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | Use the installed `zdev-loop` entrypoint (`zdev-goal` is an exact alias) when available; otherwise follow **Goal and loop** below, then the harness-native instructions |
+| **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | [references/task-workflows.md](skill://zdev/references/task-workflows.md), [references/implement.md](skill://zdev/references/implement.md), and [references/verify.md](skill://zdev/references/verify.md) |
+| **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](skill://zdev/references/verify-workflow.md) and [references/verify.md](skill://zdev/references/verify.md) |
+| **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](skill://zdev/references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](skill://zdev/references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
 | **Set up zdev** — initialize durable state or install/check a harness integration | [references/setup.md](skill://zdev/references/setup.md) |
@@ -56,9 +56,9 @@ reuse the completed task's selection.
 An investigation or implementation worker may propose a small direct follow-up
 or split through the strict transient derived-work contract in the selected
 reference or implementation entrypoint. The coordinator alone reviews and
-   applies it. Clear in-scope authority uses direct apply. A decision that belongs
-   to the user uses a stored review and ordinary approval. Derived tasks then use
-   the normal area graph.
+applies it. Clear in-scope authority uses direct apply. A decision that belongs
+to the user uses a stored review and ordinary approval. Derived tasks then use
+the normal area graph.
 
 Larger areas may organize several related increments as slice briefs under
 `.zdev/<area>/slices/`. A slice records only a title, objective, and boundaries;
@@ -190,10 +190,10 @@ what remains; mention commands only when they help the user continue or recover.
 
 ## Oh My Pi orchestration
 
-Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
-read-only task verification, and `/zdev-audit` for a read-only audit. Use
-`/zdev-loop <area>` for native area continuation; `/zdev-goal <area>` is its
-exact alias.
+The root zdev skill selects the route and loads its contract from `references/`.
+It may use the packaged prompts internally for a complete task cycle,
+verification, audit, or native area continuation. “Goal” and “loop” select the
+same continuation route.
 
 Route authored routine, standard/default, and advanced work to
 `zdev-routine-implementer`, `zdev-implementer`, or
@@ -210,7 +210,7 @@ task, guidance, and relevant source; the applicable snapshot IDs; and the
 short result from the preceding role. Let the agent read those files instead
 of copying their contents into the prompt.
 
-For an active-zdev goal or loop request, use either paired prompt. It calls the
+For an active-zdev goal or loop request, use the packaged continuation prompt. It calls the
 model-facing `goal` tool with `op: "get"` before repository work, never drops,
 replaces, or layers over an unfinished goal, and calls `op: "create"` with the
 shared condition only when native goal state is clear. Native unavailability falls back to at most one verified committed task

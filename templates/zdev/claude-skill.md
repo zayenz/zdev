@@ -18,14 +18,14 @@ Include rendered repository guidance in every prompt. If named agents are
 unavailable, use ordinary Claude Code subagents with the same profiles and
 boundaries.
 
-When the packaged workflows are available, `/zdev:zdev-implement` runs a full
-task cycle, `/zdev:zdev-verify` verifies an explicit current ready task without
-mutation, `/zdev:zdev-audit` runs a read-only audit, and both
-`/zdev:zdev-loop <area>` and `/zdev:zdev-goal <area>` run the same continuing
-area workflow. The ordinary subagent loop also works.
+The root zdev skill selects the route and loads its contract from `references/`.
+When packaged workflows are available, it uses them internally for a full task
+cycle, explicit verification, audit, or continuing area work. “Goal” and
+“loop” select the same continuation workflow. The ordinary subagent loop also
+works.
 
-For an active-zdev goal or loop request, use either packaged continuation
-workflow when available. It repeats the ordinary one-task route, refreshes work
+For an active-zdev goal or loop request, use the packaged continuation workflow
+when available. It repeats the ordinary one-task route, refreshes work
 context after every verified commit, and applies the shared stop states. It
 does not inspect or invoke Claude Code's separate `/goal` command. If the
 packaged workflows are unavailable, continue under coordinator control or stop

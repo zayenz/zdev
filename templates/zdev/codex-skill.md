@@ -9,10 +9,8 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 
 ## Codex orchestration
 
-Use `$zdev-implement` for one complete task cycle, `$zdev-verify` for explicit
-read-only task verification, and `$zdev-audit` for a read-only audit. Use
-`$zdev-loop <area>` for native area continuation; `$zdev-goal <area>` is its
-exact alias.
+The root `$zdev` skill selects the route and loads its contract from
+`references/`. Treat “goal” and “loop” as the same native continuation route.
 
 Use one Codex collaboration agent to implement a task and a different agent to
 verify it. The coordinating agent owns zdev state, user decisions, task
@@ -31,12 +29,12 @@ returns only the route's required envelope.
 {% if verifier_has_model %}For the verifier, pass `model={{ verifier_model }}`{% if verifier_has_effort %} and
 `reasoning_effort={{ verifier_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the verifier's model and reasoning effort unset so it inherits them.{% endif %}
 
-For an active-zdev goal or loop request, use either paired skill. It calls
-`get_goal` before repository work, never replaces or layers over an unfinished
-goal, and calls `create_goal` with the shared condition only when native goal state is clear.
-Native unavailability falls back to at most one verified committed task and
-returns canonical `CONTINUE zdev-loop <area>` only when fresh ready work
-remains.
+For an active-zdev goal or loop request, follow the internal area-loop
+contract. It calls `get_goal` before repository work, preserves an unfinished
+goal, and calls `create_goal` with the shared condition only when native goal
+state is clear. Native unavailability falls back to at most one verified
+committed task and returns canonical `CONTINUE zdev-loop <area>` only when
+fresh ready work remains.
 
 {{repository_guidance}}
 

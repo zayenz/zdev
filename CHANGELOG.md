@@ -11,8 +11,9 @@ This file records notable changes to zdev.
   and commits retain exact area and task ownership.
 - Lightweight slice briefs, a standing `general` area convention, explicit
   area closure, and `zdev next --any` for deterministic cross-area discovery.
-- Read-only `zdev goal` and `zdev work-context` projections, plus installed
-  implement, verify, audit, and goal/loop entrypoints for all five harnesses.
+- Read-only `zdev goal` and `zdev work-context` projections, plus one installed
+  skill that routes implement, verify, audit, and goal/loop work on each of the
+  five harnesses.
 - Optional content-addressed work-context files with exact show and compact
   fresh-compare commands for large worker handoffs.
 - Layered worker configuration and routine, standard, and advanced task
@@ -26,8 +27,10 @@ This file records notable changes to zdev.
   administrative state, so coordinators can show and apply an opaque review
   identity without replaying proposal content or carrying a fingerprint.
 - Harness integrations now render from one strict canonical template path and
-  use typed worker-result envelopes. Small audits use one verifier unless the
-  user explicitly supplies bounded review lenses.
+  use typed worker-result envelopes. Route contracts live inside the single
+  skill; native commands, prompts, and workflows remain harness adapters. Small
+  audits use one verifier unless the user explicitly supplies bounded review
+  lenses.
 - Task imports return their ready frontier, committed imports can include an
   approved area brief, and review identities are opaque coordinator handoffs.
 - Task review stores a presentable Markdown document and canonical bundle in

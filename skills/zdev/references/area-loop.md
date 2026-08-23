@@ -1,19 +1,3 @@
----
-name: zdev-goal
-description: "Provides the explicit goal alias for zdev's native Codex area loop. Use when the user invokes $zdev-goal for a named area."
----
-
-Call `get_goal({})` to inspect native goal state. With no unfinished goal, call
-`create_goal({ objective: condition })` with the validated area condition and
-no invented token budget. If the exact same condition is already active,
-continue under it without creating another goal. For the same paused or
-budget-limited goal, preserve it and ask the user to resume it through Codex.
-After the user resumes, inspect it again and continue under the same goal.
-Use `update_goal` only to record a terminal state for the same active goal.
-After the same active zdev goal reaches a terminal PASS, call
-`update_goal({ status: "complete" })` only when the native goal contract permits
-completion.
-
 # Zdev area loop (native)
 
 `zdev-loop <area>` is canonical and `zdev-goal <area>` is an exact semantic
@@ -297,14 +281,3 @@ earlier result never authorizes skipping preflight, safety, or verification.
 
 Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->
-
-
-Use Codex collaboration agents exactly as the embedded one-task contract
-requires. The current Codex session remains coordinator. Spawn every role with
-`fork_turns="none"` and the compact filesystem-backed message defined by the
-installed `zdev-implement` or `zdev-verify` contract.
-
-For `routine-implementer`, pass `model="gpt-5.6-luna"` and `reasoning_effort="low"` together with `fork_turns="none"`.
-For `implementer`, pass `model="gpt-5.6-sol"` and `reasoning_effort="low"` together with `fork_turns="none"`.
-For `advanced-implementer`, pass `model="gpt-5.6-sol"` and `reasoning_effort="high"` together with `fork_turns="none"`.
-For every fresh verifier, pass `model="gpt-5.6-sol"` and `reasoning_effort="low"` together with `fork_turns="none"`.

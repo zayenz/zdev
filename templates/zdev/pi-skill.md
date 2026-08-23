@@ -21,15 +21,15 @@ brief, task, guidance, and source file paths, applicable snapshot IDs, and the
 short result from the preceding role. The child reads those files from the
 shared checkout.
 
-In Pi, `/skill:zdev-pi` activates this skill explicitly. Use
-`/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
-read-only task verification, and `/zdev-audit` for a read-only audit. Use
-`/zdev-loop <area>` for bounded area continuation; `/zdev-goal <area>` is its
-exact alias. The coordinating Pi process owns extension tools and delegation;
-child processes focus on their assigned role.
+In Pi, `/skill:zdev-pi` activates this one skill explicitly. The skill selects
+the route and loads its contract from `references/`. It may use the packaged
+prompts internally for a complete task cycle, verification, audit, or bounded
+area continuation. “Goal” and “loop” select the same continuation route. The
+coordinating Pi process owns extension tools and delegation; child processes
+focus on their assigned role.
 
 Stock Pi has no native continuation surface. For an active-zdev goal or loop
-request, use either paired prompt. It completes at most one task using the
+request, use the packaged continuation prompt. It completes at most one task using the
 ordinary route, returns canonical `CONTINUE zdev-loop <area>` only after a
 verified commit when fresh ready work remains, and never claims a continuing
 loop was started.

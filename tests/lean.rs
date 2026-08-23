@@ -5762,18 +5762,10 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert_eq!(
         file_inventory(&codex),
         [
-            "zdev-audit/SKILL.md",
-            "zdev-audit/agents/openai.yaml",
-            "zdev-goal/SKILL.md",
-            "zdev-goal/agents/openai.yaml",
-            "zdev-implement/SKILL.md",
-            "zdev-implement/agents/openai.yaml",
-            "zdev-loop/SKILL.md",
-            "zdev-loop/agents/openai.yaml",
-            "zdev-verify/SKILL.md",
-            "zdev-verify/agents/openai.yaml",
             "zdev/SKILL.md",
             "zdev/agents/openai.yaml",
+            "zdev/references/area-loop.md",
+            "zdev/references/audit.md",
             "zdev/references/discuss.md",
             "zdev/references/implement.md",
             "zdev/references/improve.md",
@@ -5782,7 +5774,9 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/references/setup.md",
             "zdev/references/shape-work.md",
             "zdev/references/task-format.md",
+            "zdev/references/task-workflows.md",
             "zdev/references/to-tasks.md",
+            "zdev/references/verify-workflow.md",
             "zdev/references/verify.md",
         ]
     );
@@ -5798,6 +5792,8 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "agents/zdev-verifier.md",
             "contracts/task-workflows.md",
             "skills/zdev/SKILL.md",
+            "skills/zdev/references/area-loop.md",
+            "skills/zdev/references/audit.md",
             "skills/zdev/references/discuss.md",
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
@@ -5806,7 +5802,9 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
             "skills/zdev/references/task-format.md",
+            "skills/zdev/references/task-workflows.md",
             "skills/zdev/references/to-tasks.md",
+            "skills/zdev/references/verify-workflow.md",
             "skills/zdev/references/verify.md",
             "workflows/zdev-audit.js",
             "workflows/zdev-goal.js",
@@ -6602,12 +6600,16 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
     let config_home = root.join("audit-worker-config");
     let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
 
-    for (harness, entrypoint) in [
-        ("codex", "zdev-audit/SKILL.md"),
-        ("claude", "workflows/zdev-audit.js"),
-        ("opencode", "commands/zdev-audit.md"),
-        ("pi", "prompts/zdev-audit.md"),
-        ("omp", "prompts/zdev-audit.md"),
+    for (harness, skill_root, adapter) in [
+        ("codex", "zdev", None),
+        ("claude", "skills/zdev", Some("workflows/zdev-audit.js")),
+        (
+            "opencode",
+            "skills/zdev-opencode",
+            Some("commands/zdev-audit.md"),
+        ),
+        ("pi", "skills/zdev-pi", Some("prompts/zdev-audit.md")),
+        ("omp", "skills/zdev", Some("prompts/zdev-audit.md")),
     ] {
         let destination = root.join(format!("audit-{harness}"));
         json_output_with_env(
@@ -6621,19 +6623,20 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
             ],
             &environment,
         );
-        let audit_paths = file_inventory(&destination)
+        let skill_files = file_inventory(&destination)
             .into_iter()
-            .filter(|path| path.contains("zdev-audit"))
+            .filter(|path| path.ends_with("SKILL.md"))
             .collect::<Vec<_>>();
-        let expected = if harness == "codex" {
-            vec![
-                entrypoint.to_owned(),
-                "zdev-audit/agents/openai.yaml".to_owned(),
-            ]
-        } else {
-            vec![entrypoint.to_owned()]
-        };
-        assert_eq!(audit_paths, expected, "{harness} audit discovery");
+        assert_eq!(skill_files, [format!("{skill_root}/SKILL.md")], "{harness}");
+        assert!(
+            destination
+                .join(skill_root)
+                .join("references/audit.md")
+                .is_file()
+        );
+        if let Some(adapter) = adapter {
+            assert!(destination.join(adapter).is_file());
+        }
         if harness == "claude" {
             let manifest: Value = serde_json::from_slice(
                 &fs::read(destination.join(".claude-plugin/plugin.json"))
@@ -6740,20 +6743,28 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
     let config_home = root.join("workflow-worker-config");
     let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
 
-    for (harness, implement_path, verify_path) in [
-        ("codex", "zdev-implement/SKILL.md", "zdev-verify/SKILL.md"),
+    for (harness, skill_root, adapters) in [
+        ("codex", "zdev", None),
         (
             "claude",
-            "workflows/zdev-implement.js",
-            "workflows/zdev-verify.js",
+            "skills/zdev",
+            Some(("workflows/zdev-implement.js", "workflows/zdev-verify.js")),
         ),
         (
             "opencode",
-            "commands/zdev-implement.md",
-            "commands/zdev-verify.md",
+            "skills/zdev-opencode",
+            Some(("commands/zdev-implement.md", "commands/zdev-verify.md")),
         ),
-        ("pi", "prompts/zdev-implement.md", "prompts/zdev-verify.md"),
-        ("omp", "prompts/zdev-implement.md", "prompts/zdev-verify.md"),
+        (
+            "pi",
+            "skills/zdev-pi",
+            Some(("prompts/zdev-implement.md", "prompts/zdev-verify.md")),
+        ),
+        (
+            "omp",
+            "skills/zdev",
+            Some(("prompts/zdev-implement.md", "prompts/zdev-verify.md")),
+        ),
     ] {
         let destination = root.join(format!("workflows-{harness}"));
         json_output_with_env(
@@ -6767,12 +6778,22 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             ],
             &environment,
         );
-        let entrypoints = file_inventory(&destination)
-            .into_iter()
-            .filter(|path| path.contains("zdev-implement") || path.contains("zdev-verify"))
-            .filter(|path| !path.contains("agents/"))
-            .collect::<Vec<_>>();
-        assert_eq!(entrypoints, [implement_path, verify_path], "{harness}");
+        assert!(
+            destination
+                .join(skill_root)
+                .join("references/task-workflows.md")
+                .is_file()
+        );
+        assert!(
+            destination
+                .join(skill_root)
+                .join("references/verify-workflow.md")
+                .is_file()
+        );
+        if let Some((implement, verify)) = adapters {
+            assert!(destination.join(implement).is_file());
+            assert!(destination.join(verify).is_file());
+        }
 
         assert_eq!(
             json_output_with_env(
@@ -6834,7 +6855,7 @@ fn bounded_area_loop_aliases_share_one_stop_and_restart_contract() {
 }
 
 #[test]
-fn codex_and_omp_native_loop_aliases_preserve_goals_and_fall_back_honestly() {
+fn native_loop_harnesses_install_one_skill_and_their_area_adapter() {
     let repository = repository();
     let root = repository.path();
     let config_home = root.join("native-loop-config");
@@ -6853,27 +6874,26 @@ fn codex_and_omp_native_loop_aliases_preserve_goals_and_fall_back_honestly() {
             ],
             &environment,
         );
-        let (loop_path, goal_path) = if harness == "codex" {
-            ("zdev-loop/SKILL.md", "zdev-goal/SKILL.md")
-        } else {
-            ("prompts/zdev-loop.md", "prompts/zdev-goal.md")
-        };
-        let canonical = fs::read_to_string(destination.join(loop_path)).expect("native loop");
-        let alias = fs::read_to_string(destination.join(goal_path)).expect("native goal alias");
         if harness == "codex" {
-            let normalized = alias.split_once("---\n\n").expect("goal frontmatter").1;
             assert_eq!(
-                canonical.split_once("---\n\n").expect("loop frontmatter").1,
-                normalized,
-                "Codex aliases differ beyond frontmatter identity"
+                file_inventory(&destination)
+                    .into_iter()
+                    .filter(|path| path.ends_with("SKILL.md"))
+                    .collect::<Vec<_>>(),
+                ["zdev/SKILL.md"]
             );
-            let loop_metadata =
-                fs::read(destination.join("zdev-loop/agents/openai.yaml")).expect("loop metadata");
-            let goal_metadata =
-                fs::read(destination.join("zdev-goal/agents/openai.yaml")).expect("goal metadata");
-            assert_ne!(loop_metadata, goal_metadata);
+            assert!(destination.join("zdev/references/area-loop.md").is_file());
         } else {
+            let canonical =
+                fs::read(destination.join("prompts/zdev-loop.md")).expect("native loop adapter");
+            let alias =
+                fs::read(destination.join("prompts/zdev-goal.md")).expect("native goal adapter");
             assert_eq!(canonical, alias, "OMP aliases must be byte-identical");
+            assert!(
+                destination
+                    .join("skills/zdev/references/area-loop.md")
+                    .is_file()
+            );
         }
         assert_eq!(
             json_output_with_env(
@@ -7121,23 +7141,78 @@ fn audit_migration_is_allowlisted_and_invalid_profiles_fail_before_publication()
         "team skill\n"
     );
 }
+
 #[test]
-fn canonical_templates_realize_deterministically_and_match_generated_fixtures() {
+fn codex_force_install_migrates_split_skills_to_one_router() {
+    let repository = repository();
+    let root = repository.path();
+    let destination = root.join("codex-split-skill-migration");
+    let legacy_files = [
+        "zdev-audit/SKILL.md",
+        "zdev-audit/agents/openai.yaml",
+        "zdev-implement/SKILL.md",
+        "zdev-implement/agents/openai.yaml",
+        "zdev-verify/SKILL.md",
+        "zdev-verify/agents/openai.yaml",
+        "zdev-loop/SKILL.md",
+        "zdev-loop/agents/openai.yaml",
+        "zdev-goal/SKILL.md",
+        "zdev-goal/agents/openai.yaml",
+    ];
+    for path in legacy_files {
+        let path = destination.join(path);
+        fs::create_dir_all(path.parent().expect("legacy parent")).expect("legacy directory");
+        fs::write(path, "old managed file\n").expect("legacy file");
+    }
+    fs::create_dir_all(destination.join("team-skill")).expect("team skill directory");
+    fs::write(destination.join("team-skill/SKILL.md"), "team skill\n").expect("team skill");
+
+    let refused = run_zdev(
+        root,
+        &[
+            "skill",
+            "install",
+            "codex",
+            "--to",
+            destination.to_str().expect("Codex destination"),
+        ],
+    );
+    assert!(!refused.status.success());
+
+    json_output(
+        root,
+        &[
+            "skill",
+            "install",
+            "codex",
+            "--to",
+            destination.to_str().expect("Codex destination"),
+            "--force",
+        ],
+    );
+    assert_eq!(
+        file_inventory(&destination)
+            .into_iter()
+            .filter(|path| path.ends_with("SKILL.md"))
+            .collect::<Vec<_>>(),
+        ["team-skill/SKILL.md", "zdev/SKILL.md"]
+    );
+    for directory in [
+        "zdev-audit",
+        "zdev-implement",
+        "zdev-verify",
+        "zdev-loop",
+        "zdev-goal",
+    ] {
+        assert!(!destination.join(directory).exists());
+    }
+}
+
+#[test]
+fn executable_templates_realize_deterministically_and_match_generated_fixtures() {
     let repository = repository();
     let root = repository.path();
     let source = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let canonical_paths = [
-        "templates/zdev/codex-skill.md",
-        "templates/zdev/codex-audit-skill.md",
-        "templates/zdev/claude/plugin.json",
-        "templates/zdev/references/discuss.md",
-    ];
-    let canonical = canonical_paths.map(|path| {
-        (
-            path,
-            fs::read(source.join(path)).expect("canonical template"),
-        )
-    });
     let config_home = root.join("empty-worker-config");
     let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
 
@@ -7180,6 +7255,9 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
         );
         for path in inventory {
             let rendered = fs::read(destination.join(&path)).expect("rendered integration file");
+            if path.ends_with("SKILL.md") || path.contains("/references/") {
+                continue;
+            }
             assert_eq!(
                 rendered,
                 fs::read(second.join(&path)).expect("second rendered integration file"),
@@ -7194,14 +7272,6 @@ fn canonical_templates_realize_deterministically_and_match_generated_fixtures() 
                 );
             }
         }
-    }
-
-    for (path, bytes) in canonical {
-        assert_eq!(
-            fs::read(source.join(path)).expect("canonical template after realization"),
-            bytes,
-            "realization changed canonical source {path}"
-        );
     }
 }
 
@@ -8132,6 +8202,8 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev-pi/SKILL.md",
+            "skills/zdev-pi/references/area-loop.md",
+            "skills/zdev-pi/references/audit.md",
             "skills/zdev-pi/references/discuss.md",
             "skills/zdev-pi/references/implement.md",
             "skills/zdev-pi/references/improve.md",
@@ -8140,7 +8212,9 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev-pi/references/setup.md",
             "skills/zdev-pi/references/shape-work.md",
             "skills/zdev-pi/references/task-format.md",
+            "skills/zdev-pi/references/task-workflows.md",
             "skills/zdev-pi/references/to-tasks.md",
+            "skills/zdev-pi/references/verify-workflow.md",
             "skills/zdev-pi/references/verify.md",
         ]
     );
@@ -8261,6 +8335,8 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev/SKILL.md",
+            "skills/zdev/references/area-loop.md",
+            "skills/zdev/references/audit.md",
             "skills/zdev/references/discuss.md",
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
@@ -8269,7 +8345,9 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
             "skills/zdev/references/task-format.md",
+            "skills/zdev/references/task-workflows.md",
             "skills/zdev/references/to-tasks.md",
+            "skills/zdev/references/verify-workflow.md",
             "skills/zdev/references/verify.md",
         ]
     );

@@ -200,37 +200,38 @@ alter the index, stash, reset, or assign partial work by guessing.
 ## Review, publication, and rollback
 
 The implemented `zdev tasks derive review` command reports mechanical
-eligibility without writing repository state. The coordinator still compares
-the retained handoff context and decides whether the work is directly in scope.
-The result includes the complete envelope, its opaque fingerprint, and the
-ordinary task-bundle rendering, so a semantic authority failure can use manual
-review without changing the proposal. The apply behavior below is implemented
-by `zdev tasks derive apply`.
+eligibility and stores the exact proposal JSON, rendered Markdown, and internal
+metadata in linked-worktree-safe Git administrative state. The coordinator
+still compares the retained handoff context and decides whether the work is
+directly in scope.
+Its compact result identifies the current review and Markdown path without
+returning the proposal, Markdown, or internal fingerprint. `zdev tasks derive
+review <area> --show` presents the actual stored Markdown. The apply behavior
+below is implemented by `zdev tasks derive apply`.
 
 For automatic authority, the coordinator sends the exact proposal directly to
 apply and proceeds without asking a redundant question. Only semantic authority
 uncertainty uses manual review, after the proposal, current state, and ownership
 are otherwise safe and mechanically eligible. `zdev tasks derive review`
-validates and renders the complete envelope and returns an opaque review
-fingerprint over its canonical form. The coordinator requires
-`mechanically_eligible` to remain true, shows that rendering, and asks for
-approval. Any change to the source result, mode, order, dependency, or task
-content requires a new opaque review fingerprint. Manually authored bundles use
+validates and stores the complete envelope and returns an opaque review
+identity. The coordinator requires `mechanically_eligible` to remain true,
+shows the stored rendering, and asks for approval. Any replacement invalidates
+the earlier identity. Manually authored bundles use
 ordinary stored `zdev tasks review` and `tasks import --reviewed`; direct
 `--from` and compatibility `--approval` input remain available.
 
-`zdev tasks derive apply` accepts the unchanged envelope and an optional
-opaque review fingerprint. Automatic use omits the fingerprint; reviewed use
-requires it. Before writing, the command acquires the existing state lock,
-rereads the area, source task, slices, tasks, branch state, Git operation,
-worktree, and index, allocates IDs, renders all files, and validates the complete
-hypothetical graph and index. For a split it also requires an empty index,
+`zdev tasks derive apply` accepts either the unchanged envelope directly or the
+current stored review through `--reviewed <review-id>`. Automatic use remains
+one direct `--from` operation. Before writing, the command acquires the existing
+state lock, rereads the area, source task, slices, tasks, branch state, Git
+operation, worktree, and index, allocates IDs, renders all files, and validates
+the complete hypothetical graph and index. For a split it also requires an empty index,
 recaptures the complete unstaged path set, requires exact equality with
 `retained_parent_paths`, validates every path and disjoint child assignment,
 and renders the canonical ownership boundary. It runs the same check before
 committing. An invalid proposal, unsafe or drifted state, staged or incomplete
 ownership, or another mechanical failure stops without review or publication;
-the optional fingerprint cannot waive any of these gates.
+the stored review cannot waive any of these gates.
 
 For an investigation follow-up, the coordinator first stages only the verified
 task-owned artifact paths. Because the proposal has no artifact-path allowlist,

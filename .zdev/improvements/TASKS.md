@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 63
-- Ready: 5
+- Ready: 4
 - Blocked: 0
-- Done: 58
+- Done: 59
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -67,7 +67,7 @@
 | [improvements-056](tasks/056-trim-duplicate-claude-task-handoffs.md) | Trim duplicate Claude task handoffs | done | — |
 | [improvements-057](tasks/057-store-immutable-work-context-snapshots.md) | Store immutable work-context snapshots | done | — |
 | [improvements-058](tasks/058-route-verifier-evidence-through-work-context-snapshots.md) | Route verifier evidence through work-context snapshots | done | improvements-057 |
-| [improvements-059](tasks/059-persist-and-present-derived-task-reviews.md) | Persist and present derived-task reviews | ready | — |
+| [improvements-059](tasks/059-persist-and-present-derived-task-reviews.md) | Persist and present derived-task reviews | done | — |
 | [improvements-060](tasks/060-reference-installed-worker-contract-files.md) | Reference installed worker-contract files | ready | — |
 | [improvements-061](tasks/061-challenge-task-drafts-through-stored-reviews.md) | Challenge task drafts through stored reviews | ready | — |
 | [improvements-062](tasks/062-clarify-reusable-area-research-files.md) | Clarify reusable area research files | ready | — |

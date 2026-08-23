@@ -22,6 +22,9 @@ This file records notable changes to zdev.
 
 ### Changed
 
+- Derived-task manual review now stores its proposal and Markdown in Git
+  administrative state, so coordinators can show and apply an opaque review
+  identity without replaying proposal content or carrying a fingerprint.
 - Harness integrations now render from one strict canonical template path and
   use typed worker-result envelopes. Small audits use one verifier unless the
   user explicitly supplies bounded review lenses.

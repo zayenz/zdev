@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-059"
 key = "store-derived-proposals"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -27,12 +27,20 @@ Ordinary task review is filesystem-backed, but derived review still returns the 
 
 ## Done when
 
-- [ ] Derived review JSON is compact and zdev presents the actual stored Markdown on demand.
-- [ ] Reviewed apply rereads the stored proposal and revalidates source task, proposal kind, area, canonical content, mechanical authority, ownership, and current Git state under the apply lock.
-- [ ] Missing, corrupt, replaced, cross-area, and wrong-source artifacts fail before publication.
-- [ ] Canonical and generated guidance removes proposal reconstruction and fingerprint transport from the normal manual flow.
+- [x] Derived review JSON is compact and zdev presents the actual stored Markdown on demand.
+- [x] Reviewed apply rereads the stored proposal and revalidates source task, proposal kind, area, canonical content, mechanical authority, ownership, and current Git state under the apply lock.
+- [x] Missing, corrupt, replaced, cross-area, and wrong-source artifacts fail before publication.
+- [x] Canonical and generated guidance removes proposal reconstruction and fingerprint transport from the normal manual flow.
 
 ## Validation
 
 - Add focused coverage for stored show/apply, replacement, corruption, cross-area and wrong-source rejection, linked worktrees, direct automatic apply, compatibility input, and rollback.
 - Run the repository standard full validation.
+
+## Result
+
+Stored derived-task reviews now persist exact proposal JSON, rendered Markdown, and internal metadata and can be shown or applied by opaque review identity.
+
+Validation:
+
+- Independent verification passed; cargo fmt, strict clippy, all 138 tests, cargo build, git diff check, zdev check, fixture equality, and fresh work-context comparison passed.

@@ -457,23 +457,44 @@ enum TasksCommand {
 
 #[derive(Debug, Subcommand)]
 enum DerivedTasksCommand {
-    /// Validate a worker proposal and report its current mechanical eligibility
+    /// Store or show a derived proposal for manual review
     Review {
         /// Area that owns the source task and proposed tasks
         area: String,
         /// Derived proposal path, or - to read it from standard input
-        #[arg(long = "from", value_name = "PATH_OR_DASH")]
-        source: PathBuf,
+        #[arg(
+            long = "from",
+            value_name = "PATH_OR_DASH",
+            required_unless_present = "show",
+            conflicts_with = "show"
+        )]
+        source: Option<PathBuf>,
+        /// Show the current stored derived review Markdown
+        #[arg(long, required_unless_present = "source", conflicts_with = "source")]
+        show: bool,
     },
     /// Apply one authorized derived proposal as a managed commit
     Apply {
         /// Area that owns the source task and proposed tasks
         area: String,
         /// Derived proposal path, or - to read it from standard input
-        #[arg(long = "from", value_name = "PATH_OR_DASH")]
-        source: PathBuf,
-        /// Opaque review fingerprint carried from `zdev tasks derive review`
-        #[arg(long, value_name = "FINGERPRINT")]
+        #[arg(
+            long = "from",
+            value_name = "PATH_OR_DASH",
+            required_unless_present = "reviewed",
+            conflicts_with = "reviewed"
+        )]
+        source: Option<PathBuf>,
+        /// Apply the current stored derived review with this opaque identity
+        #[arg(
+            long,
+            value_name = "REVIEW_ID",
+            required_unless_present = "source",
+            conflicts_with_all = ["source", "approval"]
+        )]
+        reviewed: Option<String>,
+        /// Compatibility fingerprint for a direct --from apply
+        #[arg(long, value_name = "FINGERPRINT", requires = "source")]
         approval: Option<String>,
     },
 }
@@ -728,14 +749,29 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
         },
         Command::Tasks { command } => match command {
             TasksCommand::Derive { command } => match command {
-                DerivedTasksCommand::Review { area, source } => {
-                    tasks::review_derived(&root, area, source)
+                DerivedTasksCommand::Review { area, source, show } => {
+                    if *show {
+                        tasks::show_derived_review(&root, area)
+                    } else {
+                        tasks::review_derived(
+                            &root,
+                            area,
+                            source.as_deref().expect("clap requires --from or --show"),
+                        )
+                    }
                 }
                 DerivedTasksCommand::Apply {
                     area,
                     source,
+                    reviewed,
                     approval,
-                } => tasks::apply_derived(&root, area, source, approval.as_deref()),
+                } => tasks::apply_derived(
+                    &root,
+                    area,
+                    source.as_deref(),
+                    reviewed.as_deref(),
+                    approval.as_deref(),
+                ),
             },
             TasksCommand::Review { area, source, show } => {
                 if *show {

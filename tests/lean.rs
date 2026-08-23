@@ -3239,6 +3239,277 @@ fn derived_proposal_bytes(area: &str, source_task: &str, proposal: Value) -> Vec
     bytes
 }
 
+fn investigation_follow_up(area: &str, source_task: &str, key: &str, title: &str) -> Value {
+    json!({
+        "schema_version": 1,
+        "proposal": "investigation_follow_up",
+        "area": area,
+        "source_task": source_task,
+        "source_result": {
+            "status": "complete",
+            "summary": "Settled the investigation.",
+            "validation": ["Checked the result."]
+        },
+        "tasks": [{
+            "key": key,
+            "title": title,
+            "blocked_by": [],
+            "outcome": "The follow-up is complete.",
+            "done_when": ["The follow-up is implemented."],
+            "validation": ["Check the follow-up."]
+        }]
+    })
+}
+
+#[test]
+fn stored_derived_review_replaces_and_applies_without_replaying_the_proposal() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "stored-derived", "main");
+    import_one_task(root, "stored-derived");
+    commit_all(root, "record source");
+
+    let first_input = derived_proposal_bytes(
+        "stored-derived",
+        "stored-derived-001",
+        investigation_follow_up(
+            "stored-derived",
+            "stored-derived-001",
+            "first-child",
+            "Implement first child",
+        ),
+    );
+    let first = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "stored-derived", "--from", "-"],
+        &first_input,
+    );
+    assert_eq!(first.as_object().unwrap().len(), 9);
+    assert!(first.get("approval").is_none());
+    assert!(first.get("envelope").is_none());
+    assert!(first.get("markdown").is_none());
+    let first_review = first["review"].as_str().unwrap();
+
+    let second_input = derived_proposal_bytes(
+        "stored-derived",
+        "stored-derived-001",
+        investigation_follow_up(
+            "stored-derived",
+            "stored-derived-001",
+            "second-child",
+            "Implement second child",
+        ),
+    );
+    let second = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "stored-derived", "--from", "-"],
+        &second_input,
+    );
+    let second_review = second["review"].as_str().unwrap();
+    assert_ne!(first_review, second_review);
+    let rejected = run_zdev(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "stored-derived",
+            "--reviewed",
+            first_review,
+        ],
+    );
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("was replaced"));
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/stored-derived/tasks"))
+            .unwrap()
+            .count(),
+        1
+    );
+
+    let applied = json_output(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "stored-derived",
+            "--reviewed",
+            second_review,
+        ],
+    );
+    assert_eq!(applied["source_task"], "stored-derived-001");
+    assert_eq!(applied["tasks"], json!(["stored-derived-002"]));
+    assert!(
+        root.join(".zdev/stored-derived/tasks/002-implement-second-child.md")
+            .is_file()
+    );
+}
+
+#[test]
+fn stored_derived_review_rejects_missing_cross_area_corrupt_and_wrong_source_state() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "source-derived", "main");
+    create_area(root, "other-derived", "other-derived-work");
+    import_one_task(root, "source-derived");
+    import_one_task(root, "other-derived");
+    commit_all(root, "record sources");
+    let input = derived_proposal_bytes(
+        "source-derived",
+        "source-derived-001",
+        investigation_follow_up(
+            "source-derived",
+            "source-derived-001",
+            "child",
+            "Implement child",
+        ),
+    );
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "source-derived", "--from", "-"],
+        &input,
+    );
+    let review = reviewed["review"].as_str().unwrap();
+    let cross_area = run_zdev(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "other-derived",
+            "--reviewed",
+            review,
+        ],
+    );
+    assert!(!cross_area.status.success());
+    assert!(String::from_utf8_lossy(&cross_area.stderr).contains("No stored derived review"));
+
+    let directory = reported_path(root, &reviewed["path"])
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let metadata_path = directory.join("metadata.json");
+    let metadata_before = fs::read(&metadata_path).unwrap();
+    let mut metadata: Value = serde_json::from_slice(&metadata_before).unwrap();
+    metadata["source_task"] = json!("source-derived-999");
+    fs::write(&metadata_path, serde_json::to_vec(&metadata).unwrap()).unwrap();
+    let wrong_source = run_zdev(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "source-derived",
+            "--reviewed",
+            review,
+        ],
+    );
+    assert!(!wrong_source.status.success());
+    assert!(String::from_utf8_lossy(&wrong_source.stderr).contains("does not match its proposal"));
+    fs::write(&metadata_path, metadata_before).unwrap();
+    fs::write(directory.join("review.md"), "corrupt\n").unwrap();
+    let corrupt = run_zdev(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "source-derived",
+            "--reviewed",
+            review,
+        ],
+    );
+    assert!(!corrupt.status.success());
+    assert!(String::from_utf8_lossy(&corrupt.stderr).contains("does not match its proposal"));
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/source-derived/tasks"))
+            .unwrap()
+            .count(),
+        1
+    );
+
+    let refreshed = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "source-derived", "--from", "-"],
+        &input,
+    );
+    let refreshed_directory = reported_path(root, &refreshed["path"])
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let refreshed_metadata: Value =
+        serde_json::from_slice(&fs::read(refreshed_directory.join("metadata.json")).unwrap())
+            .unwrap();
+    let compatible = json_output_with_stdin(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "source-derived",
+            "--from",
+            "-",
+            "--approval",
+            refreshed_metadata["fingerprint"].as_str().unwrap(),
+        ],
+        &input,
+    );
+    assert_eq!(compatible["tasks"], json!(["source-derived-002"]));
+}
+
+#[test]
+fn stored_derived_review_uses_the_linked_worktree_git_path() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "linked-derived", "main");
+    import_one_task(root, "linked-derived");
+    commit_all(root, "record source");
+    let linked_parent = tempfile::tempdir().expect("linked parent");
+    let linked = linked_parent.path().join("checkout");
+    git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "linked-derived-review",
+            linked.to_str().unwrap(),
+        ],
+    );
+    let input = derived_proposal_bytes(
+        "linked-derived",
+        "linked-derived-001",
+        investigation_follow_up(
+            "linked-derived",
+            "linked-derived-001",
+            "child",
+            "Implement child",
+        ),
+    );
+    let reviewed = json_output_with_stdin(
+        &linked,
+        &["tasks", "derive", "review", "linked-derived", "--from", "-"],
+        &input,
+    );
+    let expected = git_path(&linked, "zdev/derived-reviews/linked-derived")
+        .join(reviewed["review"].as_str().unwrap())
+        .join("review.md");
+    assert_eq!(reported_path(&linked, &reviewed["path"]), expected);
+    assert!(expected.is_file());
+    assert!(git(&linked, &["status", "--short", "--untracked-files=all"]).is_empty());
+}
+
 #[test]
 fn derived_review_accepts_follow_up_and_exact_post_edit_split_ownership() {
     let repository = repository();
@@ -3298,15 +3569,37 @@ fn derived_review_accepts_follow_up_and_exact_post_edit_split_ownership() {
             "validation": ["Run the focused behavior checks."]
         }]
     });
+    let follow_up_input = derived_proposal_bytes("derived", "derived-001", follow_up);
     let reviewed = json_output_with_stdin(
         root,
         &["tasks", "derive", "review", "derived", "--from", "-"],
-        &derived_proposal_bytes("derived", "derived-001", follow_up),
+        &follow_up_input,
     );
     assert_eq!(reviewed["mechanically_eligible"], true);
     assert_eq!(reviewed["coordinator_authority_required"], true);
-    assert!(reviewed["approval"].as_str().is_some());
-    assert_eq!(reviewed["envelope"]["tasks"][0]["complexity"], "advanced");
+    assert!(reviewed["review"].as_str().is_some());
+    assert!(reviewed.get("approval").is_none());
+    assert!(reviewed.get("envelope").is_none());
+    assert!(reviewed.get("markdown").is_none());
+    let markdown_path = reported_path(root, &reviewed["path"]);
+    assert!(
+        fs::read_to_string(&markdown_path)
+            .unwrap()
+            .contains("### Complexity\nadvanced")
+    );
+    assert_eq!(
+        fs::read(markdown_path.parent().unwrap().join("proposal.json")).unwrap(),
+        follow_up_input
+            .splitn(2, |byte| *byte == b'\n')
+            .nth(1)
+            .unwrap()
+    );
+    let shown = run_zdev(root, &["tasks", "derive", "review", "derived", "--show"]);
+    assert!(shown.status.success());
+    assert_eq!(
+        String::from_utf8(shown.stdout).unwrap(),
+        format!("{}\n", fs::read_to_string(markdown_path).unwrap())
+    );
 
     commit_all(root, "record source task");
     fs::write(root.join("parent.rs"), "retained parent work\n").expect("edit parent path");
@@ -3450,17 +3743,11 @@ fn derived_review_reports_unsafe_or_ambiguous_split_as_mechanically_ineligible()
         &input,
     );
     assert_eq!(wrong_branch["mechanically_eligible"], false);
-    assert!(
-        wrong_branch["approval"]
-            .as_str()
-            .is_some_and(|value| value.starts_with('D'))
-    );
-    assert!(
-        wrong_branch["markdown"]
-            .as_str()
-            .expect("ordinary review")
-            .contains("# Task Bundle")
-    );
+    assert!(wrong_branch["review"].as_str().is_some());
+    assert!(wrong_branch.get("approval").is_none());
+    assert!(wrong_branch.get("markdown").is_none());
+    let shown = run_zdev(root, &["tasks", "derive", "review", "manual", "--show"]);
+    assert!(String::from_utf8_lossy(&shown.stdout).contains("# Task Bundle"));
 
     git(root, &["switch", "-q", "-c", "work"]);
     json_output(root, &["area", "rebase", "manual"]);
@@ -3740,17 +4027,30 @@ fn failed_derived_apply_restores_tasks_index_and_retained_bytes() {
         "tasks": [{"key": "child", "title": "Implement child", "blocked_by": [], "outcome": "Child is complete.", "done_when": ["Done."], "validation": ["Check."]}],
         "split_ownership": {"retained_parent_paths": ["parent.rs"], "child_future_paths": [{"key": "child", "paths": ["child.rs"]}]}
     });
-    let rejected = json_output_with_stdin_status(
+    let proposal_input =
+        derived_proposal_bytes("rollback-derived", "rollback-derived-001", proposal);
+    let reviewed = json_output_with_stdin(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "review",
+            "rollback-derived",
+            "--from",
+            "-",
+        ],
+        &proposal_input,
+    );
+    let rejected = run_zdev(
         root,
         &[
             "tasks",
             "derive",
             "apply",
             "rollback-derived",
-            "--from",
-            "-",
+            "--reviewed",
+            reviewed["review"].as_str().unwrap(),
         ],
-        &derived_proposal_bytes("rollback-derived", "rollback-derived-001", proposal),
     );
     assert!(!rejected.status.success());
     assert_eq!(fs::read(&source_path).unwrap(), source_before);
@@ -5873,7 +6173,8 @@ fn claude_implementation_routes_complexity_planning_rework_and_escalation() {
     assert!(source.contains("Only when semantic authority is unclear"));
     assert!(source.contains("mechanically_eligible true"));
     assert!(source.contains("direct apply mechanical failure stops without review or approval"));
-    assert!(source.contains("A fingerprint cannot waive those gates"));
+    assert!(source.contains("A stored review cannot waive those gates"));
+    assert!(source.contains("--reviewed <review-id>"));
     assert!(!source.contains("semantic authority is unclear, or direct apply reports"));
     let probe = format!(
         r#"
@@ -6781,10 +7082,10 @@ fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
                     || text.contains("zdev tasks derive\nreview"),
                 "{harness}"
             );
-            assert!(text.contains("fingerprint"), "{harness}");
+            assert!(text.contains("--reviewed <review-id>"), "{harness}");
             assert!(text.contains("semantic authority"), "{harness}");
             assert!(text.contains("mechanical apply failure"), "{harness}");
-            assert!(text.contains("fingerprint cannot waive"), "{harness}");
+            assert!(text.contains("stored review cannot waive"), "{harness}");
             assert!(
                 !text.contains("semantic authority is unclear, or direct apply reports"),
                 "{harness} routes mechanical failure to review"
@@ -6819,7 +7120,7 @@ fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
         );
         assert!(
             recovery.contains("obtain fresh work-context")
-                && recovery.contains("fingerprint cannot waive"),
+                && recovery.contains("stored review cannot waive"),
             "{harness}"
         );
     }

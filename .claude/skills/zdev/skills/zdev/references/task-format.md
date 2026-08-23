@@ -195,10 +195,12 @@ extra ownership, invalid dependencies, and nested proposals are invalid.
 The worker never runs derive commands. The coordinator applies clear direct
 work with `zdev tasks derive apply <area> --from -` and no approval. Only
 semantic authority uncertainty uses `zdev tasks derive review`, after every
-mechanical and current-state gate passes, to show the ordinary bundle and
-obtain manual fingerprinted approval before applying the unchanged proposal.
+mechanical and current-state gate passes, then `zdev tasks derive review
+<area> --show` presents its stored Markdown for manual approval. Apply the
+approved opaque identity with `zdev tasks derive apply <area> --reviewed
+<review-id>`; do not reconstruct or resend the proposal.
 Invalid, unsafe, drifted, staged, incomplete-ownership, and mechanical-failure
-states stop; a fingerprint cannot waive those gates. Derived work never uses
+states stop; a stored review cannot waive those gates. Derived work never uses
 ordinary task import.
 
 A path is accepted for manual use and remains in place after review or import.

@@ -108,6 +108,29 @@ struct TaskReview {
     markdown_path: PathBuf,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DerivedReviewMetadata {
+    schema_version: u64,
+    area: String,
+    source_task: String,
+    proposal: DerivedProposalKind,
+    review: String,
+    fingerprint: String,
+}
+
+struct DerivedReview {
+    metadata: DerivedReviewMetadata,
+    proposal: DerivedProposal,
+    markdown: String,
+    markdown_path: PathBuf,
+}
+
+struct DerivedProposalInput {
+    proposal: DerivedProposal,
+    json: Vec<u8>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TaskDraft {
@@ -552,18 +575,8 @@ pub(super) fn show_review(root: &Path, area: &str) -> Result<CommandOutput, Zdev
     ))
 }
 
-fn read_derived_proposal(source: &Path) -> Result<DerivedProposal, ZdevError> {
-    let bytes = if source == Path::new("-") {
-        let mut bytes = Vec::new();
-        io::stdin().read_to_end(&mut bytes).map_err(|error| {
-            ZdevError::io("Cannot read derived proposal from standard input", error)
-        })?;
-        bytes
-    } else {
-        fs::read(source)
-            .map_err(|error| ZdevError::io(format!("Cannot read {}", source.display()), error))?
-    };
-    let input = std::str::from_utf8(&bytes)
+fn parse_derived_proposal(bytes: &[u8]) -> Result<DerivedProposalInput, ZdevError> {
+    let input = std::str::from_utf8(bytes)
         .map_err(|error| ZdevError::new(format!("Invalid derived proposal UTF-8: {error}")))?;
     let (first_line, json) = input.split_once('\n').ok_or_else(|| {
         ZdevError::new("Invalid derived proposal: expected an identity line and one JSON object")
@@ -579,7 +592,24 @@ fn read_derived_proposal(source: &Path) -> Result<DerivedProposal, ZdevError> {
             "Derived proposal identity line does not match its area and source task; expected `{expected}`"
         )));
     }
-    Ok(proposal)
+    Ok(DerivedProposalInput {
+        proposal,
+        json: json.as_bytes().to_vec(),
+    })
+}
+
+fn read_derived_proposal(source: &Path) -> Result<DerivedProposalInput, ZdevError> {
+    let bytes = if source == Path::new("-") {
+        let mut bytes = Vec::new();
+        io::stdin().read_to_end(&mut bytes).map_err(|error| {
+            ZdevError::io("Cannot read derived proposal from standard input", error)
+        })?;
+        bytes
+    } else {
+        fs::read(source)
+            .map_err(|error| ZdevError::io(format!("Cannot read {}", source.display()), error))?
+    };
+    parse_derived_proposal(&bytes)
 }
 
 fn validate_derived_proposal(
@@ -907,57 +937,227 @@ fn derived_approval_id(proposal: &DerivedProposal) -> Result<String, ZdevError> 
     Ok(format!("D{hash:016x}"))
 }
 
+fn derived_review_store(root: &Path, area: &str) -> Result<PathBuf, ZdevError> {
+    let name = format!("zdev/derived-reviews/{area}");
+    let path = PathBuf::from(git_output(root, &["rev-parse", "--git-path", &name])?);
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    })
+}
+
+fn derived_review_id(fingerprint: &str) -> String {
+    format!("R{}", fingerprint.strip_prefix('D').unwrap_or(fingerprint))
+}
+
+fn render_derived_review(
+    proposal: &DerivedProposal,
+    bundle: &TaskBundle,
+) -> Result<String, ZdevError> {
+    let ownership = proposal
+        .split_ownership
+        .as_ref()
+        .map(serde_json::to_string_pretty)
+        .transpose()
+        .map_err(|error| ZdevError::new(format!("Cannot render split ownership: {error}")))?
+        .unwrap_or_else(|| "None".to_owned());
+    Ok(format!(
+        "# Derived Task Review\n\n## Area\n{}\n\n## Source task\n{}\n\n## Proposal kind\n{}\n\n## Source result\n\nStatus: {}\n\nSummary: {}\n\nValidation:\n{}\n\n## Split ownership\n\n{}\n\n## Proposed tasks\n\n{}",
+        proposal.area,
+        proposal.source_task,
+        proposal.proposal.as_str(),
+        proposal.source_result.status,
+        proposal.source_result.summary,
+        approval_list(&proposal.source_result.validation),
+        ownership,
+        render_task_bundle_approval(bundle),
+    ))
+}
+
+fn read_derived_review(
+    root: &Path,
+    area: &str,
+    expected_review: Option<&str>,
+) -> Result<DerivedReview, ZdevError> {
+    let store = derived_review_store(root, area)?;
+    let current_path = store.join("current");
+    let current_metadata = fs::symlink_metadata(&current_path).map_err(|error| {
+        if error.kind() == io::ErrorKind::NotFound {
+            ZdevError::new(format!(
+                "No stored derived review exists for area {area}; run `zdev tasks derive review {area} --from <PATH_OR_DASH>`"
+            ))
+        } else {
+            ZdevError::io(
+                format!(
+                    "Cannot inspect derived review pointer {}",
+                    current_path.display()
+                ),
+                error,
+            )
+        }
+    })?;
+    if !current_metadata.file_type().is_file() {
+        return Err(ZdevError::new(format!(
+            "Stored derived review pointer for area {area} is corrupt; run `zdev tasks derive review {area} --from <PATH_OR_DASH>` again"
+        )));
+    }
+    let current_bytes = fs::read(&current_path).map_err(|error| {
+        ZdevError::io(
+            format!(
+                "Cannot read derived review pointer {}",
+                current_path.display()
+            ),
+            error,
+        )
+    })?;
+    let current = std::str::from_utf8(&current_bytes)
+        .ok()
+        .and_then(|value| value.strip_suffix('\n'));
+    let Some(current) = current.filter(|value| valid_task_review_id(value)) else {
+        return Err(ZdevError::new(format!(
+            "Stored derived review pointer for area {area} is corrupt; run `zdev tasks derive review {area} --from <PATH_OR_DASH>` again"
+        )));
+    };
+    if expected_review.is_some_and(|expected| expected != current) {
+        return Err(ZdevError::new(format!(
+            "Derived review {} was replaced by {current}; show and approve the current review before applying",
+            expected_review.expect("checked")
+        )));
+    }
+    let directory = store.join(current);
+    let metadata_bytes = read_regular_file(&directory.join("metadata.json"), area)?;
+    let metadata: DerivedReviewMetadata =
+        serde_json::from_slice(&metadata_bytes).map_err(|error| {
+            ZdevError::new(format!(
+                "Stored derived review for area {area} is corrupt: {error}. Run `zdev tasks derive review {area} --from <PATH_OR_DASH>` again"
+            ))
+        })?;
+    let proposal_bytes = read_regular_file(&directory.join("proposal.json"), area)?;
+    let proposal: DerivedProposal = serde_json::from_slice(&proposal_bytes).map_err(|error| {
+        ZdevError::new(format!(
+            "Stored derived proposal for area {area} is corrupt: {error}. Run `zdev tasks derive review {area} --from <PATH_OR_DASH>` again"
+        ))
+    })?;
+    let markdown_path = directory.join("review.md");
+    let markdown = String::from_utf8(read_regular_file(&markdown_path, area)?).map_err(|_| {
+        ZdevError::new(format!(
+            "Stored derived review Markdown for area {area} is not valid UTF-8"
+        ))
+    })?;
+    let bundle = validate_derived_proposal(root, &proposal, area).map_err(|error| {
+        ZdevError::new(format!(
+            "Stored derived review for area {area} is no longer valid: {error}"
+        ))
+    })?;
+    let fingerprint = derived_approval_id(&proposal)?;
+    let review = derived_review_id(&fingerprint);
+    if metadata.schema_version != SCHEMA_VERSION
+        || metadata.area != area
+        || metadata.source_task != proposal.source_task
+        || metadata.proposal != proposal.proposal
+        || metadata.review != current
+        || metadata.review != review
+        || metadata.fingerprint != fingerprint
+        || markdown != render_derived_review(&proposal, &bundle)?
+    {
+        return Err(ZdevError::new(format!(
+            "Stored derived review for area {area} does not match its proposal; run `zdev tasks derive review {area} --from <PATH_OR_DASH>` again"
+        )));
+    }
+    Ok(DerivedReview {
+        metadata,
+        proposal,
+        markdown,
+        markdown_path,
+    })
+}
+
 pub(super) fn review_derived(
     root: &Path,
     area: &str,
     source: &Path,
 ) -> Result<CommandOutput, ZdevError> {
-    let proposal = read_derived_proposal(source)?;
+    let input = read_derived_proposal(source)?;
+    let proposal = input.proposal;
+    let bundle = validate_derived_proposal(root, &proposal, area)?;
+    let fingerprint = derived_approval_id(&proposal)?;
+    let review = derived_review_id(&fingerprint);
+    let markdown = render_derived_review(&proposal, &bundle)?;
+    let metadata = DerivedReviewMetadata {
+        schema_version: SCHEMA_VERSION,
+        area: area.to_owned(),
+        source_task: proposal.source_task.clone(),
+        proposal: proposal.proposal,
+        review: review.clone(),
+        fingerprint,
+    };
+    let mut metadata_bytes = serde_json::to_vec_pretty(&metadata)
+        .map_err(|error| ZdevError::new(format!("Cannot serialize derived review: {error}")))?;
+    metadata_bytes.push(b'\n');
+    let _lock = ZdevStateLock::acquire(root)?;
     let bundle = validate_derived_proposal(root, &proposal, area)?;
     let reason = derived_mechanical_ineligibility(root, &proposal)?;
-    let approval = derived_approval_id(&proposal)?;
-    let markdown = render_task_bundle_approval(&bundle);
-    let canonical = serde_json::to_string_pretty(&proposal)
-        .map_err(|error| ZdevError::new(format!("Cannot render derived proposal: {error}")))?;
-    if let Some(reason) = reason {
-        let text = format!(
-            "Mechanical authority unavailable: {reason}\n\nPROPOSE zdev-derived {} {}\n{}\n\n{markdown}\n\nApproval: {approval}",
-            proposal.area, proposal.source_task, canonical
-        );
-        return Ok(CommandOutput::new(
-            text,
-            json!({
-                "schema_version": SCHEMA_VERSION,
-                "status": "reviewed",
-                "area": area,
-                "source_task": proposal.source_task,
-                "proposal": proposal.proposal.as_str(),
-                "envelope": proposal,
-                "mechanically_eligible": false,
-                "coordinator_authority_required": true,
-                "reason": reason,
-                "approval": approval,
-                "markdown": markdown,
-            }),
-        ));
+    let store = derived_review_store(root, area)?;
+    let directory = store.join(&review);
+    fs::create_dir_all(&directory).map_err(|error| {
+        ZdevError::io(
+            format!(
+                "Cannot create derived review directory {}",
+                directory.display()
+            ),
+            error,
+        )
+    })?;
+    write_atomic(&directory.join("proposal.json"), &input.json)?;
+    write_atomic(&directory.join("metadata.json"), &metadata_bytes)?;
+    write_atomic(&directory.join("review.md"), markdown.as_bytes())?;
+    write_atomic(&store.join("current"), format!("{review}\n").as_bytes())?;
+    if let Ok(entries) = fs::read_dir(&store) {
+        for entry in entries.flatten() {
+            if entry.file_name() != OsStr::new(&review)
+                && entry.file_type().is_ok_and(|kind| kind.is_dir())
+            {
+                let _ = fs::remove_dir_all(entry.path());
+            }
+        }
     }
-    let text = format!(
-        "Mechanically eligible for automatic authority. The coordinator must still confirm unchanged handoff evidence and direct in-scope authority.\n\nPROPOSE zdev-derived {} {}\n{}",
-        proposal.area, proposal.source_task, canonical
-    );
+    let mechanically_eligible = reason.is_none();
+    let mut result = json!({
+        "schema_version": SCHEMA_VERSION,
+        "status": "reviewed",
+        "area": area,
+        "source_task": proposal.source_task,
+        "proposal": proposal.proposal.as_str(),
+        "review": review,
+        "path": task_review_path_value(root, &directory.join("review.md")),
+        "mechanically_eligible": mechanically_eligible,
+        "coordinator_authority_required": true,
+    });
+    if let Some(reason) = reason {
+        result["reason"] = Value::String(reason);
+    }
     Ok(CommandOutput::new(
-        text,
+        render_derived_review(&proposal, &bundle)?,
+        result,
+    ))
+}
+
+pub(super) fn show_derived_review(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    load_area(root, area)?;
+    let _lock = ZdevStateLock::acquire(root)?;
+    let artifact = read_derived_review(root, area, None)?;
+    Ok(CommandOutput::new(
+        artifact.markdown.clone(),
         json!({
             "schema_version": SCHEMA_VERSION,
             "status": "reviewed",
             "area": area,
-            "source_task": proposal.source_task,
-            "proposal": proposal.proposal.as_str(),
-            "envelope": proposal,
-            "mechanically_eligible": true,
-            "coordinator_authority_required": true,
-            "approval": approval,
-            "markdown": markdown,
+            "source_task": artifact.metadata.source_task,
+            "proposal": artifact.metadata.proposal.as_str(),
+            "review": artifact.metadata.review,
+            "path": task_review_path_value(root, &artifact.markdown_path),
+            "markdown": artifact.markdown,
         }),
     ))
 }
@@ -965,25 +1165,47 @@ pub(super) fn review_derived(
 pub(super) fn apply_derived(
     root: &Path,
     area: &str,
-    source: &Path,
+    source: Option<&Path>,
+    reviewed: Option<&str>,
     approval: Option<&str>,
 ) -> Result<CommandOutput, ZdevError> {
-    let proposal = read_derived_proposal(source)?;
-    validate_derived_proposal(root, &proposal, area)?;
-    if let Some(approval) = approval
-        && approval != derived_approval_id(&proposal)?
-    {
-        return Err(ZdevError::new(
-            "Derived proposal differs from the reviewed content; run `zdev tasks derive review` again before applying it",
-        ));
+    let direct = source.map(read_derived_proposal).transpose()?;
+    if let Some(input) = &direct {
+        validate_derived_proposal(root, &input.proposal, area)?;
+        if let Some(approval) = approval {
+            let fingerprint = derived_approval_id(&input.proposal)?;
+            if approval != fingerprint {
+                return Err(ZdevError::new(
+                    "Derived proposal differs from the reviewed content; run `zdev tasks derive review` again before applying it",
+                ));
+            }
+        }
     }
 
     let _lock = ZdevStateLock::acquire(root)?;
-    let bundle = validate_derived_proposal(root, &proposal, area)?;
-    if let Some(reason) = derived_mechanical_ineligibility(root, &proposal)? {
-        return Err(ZdevError::new(format!(
-            "Cannot apply derived proposal automatically: {reason}. Use `zdev tasks derive review` for manual review"
-        )));
+    let stored = reviewed
+        .map(|review| read_derived_review(root, area, Some(review)))
+        .transpose()?;
+    let proposal = if let Some(stored) = &stored {
+        &stored.proposal
+    } else {
+        &direct
+            .as_ref()
+            .expect("clap requires --from or --reviewed")
+            .proposal
+    };
+    let bundle = validate_derived_proposal(root, proposal, area)?;
+    if let Some(reason) = derived_mechanical_ineligibility(root, proposal)? {
+        let message = if reviewed.is_some() {
+            format!(
+                "Cannot apply reviewed derived proposal: {reason}. Refresh the handoff and store a new review"
+            )
+        } else {
+            format!(
+                "Cannot apply derived proposal automatically: {reason}. Use `zdev tasks derive review` for manual review"
+            )
+        };
+        return Err(ZdevError::new(message));
     }
     if let Some(operation) = git_operation(root)? {
         return Err(ZdevError::new(format!(
@@ -1316,7 +1538,7 @@ pub(super) fn apply_derived(
         "change_id": change_id,
         "paths": relative_paths(root, &paths)?,
     });
-    if let Some(ownership) = proposal.split_ownership {
+    if let Some(ownership) = &proposal.split_ownership {
         value
             .as_object_mut()
             .expect("JSON object")

@@ -106,11 +106,12 @@ authorized direct work goes straight to `zdev tasks derive apply` and needs no
 review or approval; apply revalidates mechanical authority under its lock.
 Only semantic authority uncertainty uses `zdev tasks derive review`, after the
 proposal, current state, and ownership are otherwise safe and mechanically
-eligible. Require `mechanically_eligible` to remain true, show the returned
-ordinary bundle, request ordinary fingerprinted approval, and pass that
-fingerprint to apply without editing the proposal. Invalid proposals, unsafe or
-changed context, staged or incomplete ownership, and mechanical apply failures
-stop for recovery and fresh context without review; a fingerprint cannot waive
+eligible. Require `mechanically_eligible` to remain true, show the stored
+Markdown with `zdev tasks derive review <area> --show`, request ordinary
+approval, and apply its opaque identity with `zdev tasks derive apply <area>
+--reviewed <review-id>` without replaying the proposal. Invalid proposals,
+unsafe or changed context, staged or incomplete ownership, and mechanical apply failures
+stop for recovery and fresh context without review; a stored review cannot waive
 those gates.
 
 ## Review the split

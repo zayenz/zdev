@@ -119,14 +119,16 @@ authority under its lock.
 Only when semantic authority is unclear, and the proposal, current state, and
 path ownership are otherwise safe and mechanically eligible, send the proposal
 to `zdev tasks derive review <area> --from - --format json`. Require its
-`mechanically_eligible` result to remain true, show the returned ordinary
-bundle, ask for ordinary approval, and only after approval run apply with the
-returned opaque fingerprint. Approval resolves only the semantic choice.
+`mechanically_eligible` result to remain true, present its stored Markdown with
+`zdev tasks derive review <area> --show`, and ask for ordinary approval. After
+approval, apply the returned opaque identity with `zdev tasks derive apply
+<area> --reviewed <review-id> --format json`. Do not reconstruct or resend the
+proposal. Approval resolves only the semantic choice.
 
 An invalid proposal, unsafe or changed context, staged or incomplete ownership,
 or any mechanical apply failure stops without review or apply. Preserve and
 report the state, follow recovery, and obtain fresh work-context before
-reconsidering it; a fingerprint cannot waive those gates. Never use ordinary
+reconsidering it; a stored review cannot waive those gates. Never use ordinary
 task import for a derived proposal.
 
 One successful apply consumes this uninterrupted handoff. Do not accept a

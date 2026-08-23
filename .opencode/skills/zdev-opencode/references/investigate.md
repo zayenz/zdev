@@ -48,13 +48,14 @@ proposal directly to `zdev tasks derive apply <area> --from - --format json`
 without approval; apply revalidates mechanical authority under its lock. Only
 when semantic authority is unclear and the proposal, current state, and
 ownership are otherwise safe and mechanically eligible, run `zdev tasks derive
-review`. Require `mechanically_eligible` to remain true, show the returned
-ordinary bundle, ask for ordinary approval, and after approval apply the same
-proposal with its opaque fingerprint. Approval resolves only the semantic
+review`. Require `mechanically_eligible` to remain true, show the stored
+Markdown with `zdev tasks derive review <area> --show`, ask for ordinary
+approval, and after approval apply its opaque identity with `zdev tasks derive
+apply <area> --reviewed <review-id>`. Approval resolves only the semantic
 choice. An invalid proposal, unsafe or changed context, staged or incomplete
 ownership, or any mechanical apply failure stops without review or apply.
 Preserve the state, follow recovery, and obtain fresh work-context; a
-fingerprint cannot waive those gates. Never use ordinary task import for this path. Successful
+stored review cannot waive those gates. Never use ordinary task import for this path. Successful
 apply completes the investigation and may expose ready children. It consumes
 this handoff; only a later independently selected task may make another
 proposal under fresh gates.

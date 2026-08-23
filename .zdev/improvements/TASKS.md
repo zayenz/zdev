@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 63
-- Ready: 2
+- Ready: 1
 - Blocked: 0
-- Done: 61
+- Done: 62
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -70,5 +70,5 @@
 | [improvements-059](tasks/059-persist-and-present-derived-task-reviews.md) | Persist and present derived-task reviews | done | — |
 | [improvements-060](tasks/060-reference-installed-worker-contract-files.md) | Reference installed worker-contract files | done | — |
 | [improvements-061](tasks/061-challenge-task-drafts-through-stored-reviews.md) | Challenge task drafts through stored reviews | done | — |
-| [improvements-062](tasks/062-clarify-reusable-area-research-files.md) | Clarify reusable area research files | ready | — |
+| [improvements-062](tasks/062-clarify-reusable-area-research-files.md) | Clarify reusable area research files | done | — |
 | [improvements-063](tasks/063-assess-file-handoffs-for-multi-lens-audits.md) | Assess file handoffs for multi-lens audits | ready | — |

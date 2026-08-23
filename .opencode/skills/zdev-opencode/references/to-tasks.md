@@ -53,7 +53,11 @@ Keep task files focused on task-specific outcomes. When an area has a
 copying their content or attaching the entire corpus. Links in a task file are
 relative to `.zdev/<area>/tasks/`, so a retained source can be referenced as
 `[Capacity rules](../background/capacity-rules.md)`. The brief's source index
-remains the canonical entry point for shared area context.
+remains the canonical entry point for shared area context and the brief remains
+the authoritative synthesis. Task creation consumes background material
+retained by approved shaping or an authorized investigation task; it does not
+create transcripts, raw evidence dumps, source copies, prototypes, or other
+background files as part of drafting a bundle.
 
 Derive each task's test work from the brief's testing level and the repository's
 established patterns. State the specific tests to add or update when new tests

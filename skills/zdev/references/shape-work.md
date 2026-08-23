@@ -47,11 +47,13 @@ boundaries, testing, and validation in that brief. Keep one-off outcomes and
 proof in their tasks; use an optional slice only when several tasks share a
 narrower objective.
 
-For a large source corpus, keep readable source files under
-`.zdev/<area>/background/` and add a brief index that names the question each
-source informs. Link to canonical repository sources instead of copying them.
-Read the sources relevant to the current decision; background material does
-not override the brief.
+When approved area shaping produces stable, source-backed research that later
+tasks will reuse, keep readable files under `.zdev/<area>/background/` and add
+a brief index that names the question each file informs. Do not retain
+transcripts, raw tool or search dumps, repository source copies, temporary
+prototypes, or lifecycle metadata. Link to canonical repository sources
+instead of copying them. Read only the files relevant to the current decision;
+the brief remains the authoritative synthesis.
 
 Inspect nearby tests, seams, helpers, and validation commands. Choose and
 record the smallest useful testing level: no new tests, existing checks only,

@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-062"
 key = "clarify-reusable-area-research"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "routine"
 blocked_by = []
 +++
@@ -27,11 +27,19 @@ Shape guidance already supports .zdev/<area>/background, while the root state ru
 
 ## Done when
 
-- [ ] The root state contract explicitly includes indexed area background files with their narrow retention criteria.
-- [ ] Shape, Investigate, Create tasks, workflow, and user guidance describe the same write authority and source-of-truth relationship.
-- [ ] Generated harness artifacts remain synchronized with canonical guidance.
+- [x] The root state contract explicitly includes indexed area background files with their narrow retention criteria.
+- [x] Shape, Investigate, Create tasks, workflow, and user guidance describe the same write authority and source-of-truth relationship.
+- [x] Generated harness artifacts remain synchronized with canonical guidance.
 
 ## Validation
 
 - Run canonical generation and documentation-contract checks.
 - Run the repository standard full validation.
+
+## Result
+
+Zdev guidance now consistently permits narrowly retained, indexed area background research while keeping the brief authoritative and standalone investigations report-only by default.
+
+Validation:
+
+- Independent verification passed; generated-fixture and documentation contracts, formatting, strict clippy, all 138 tests, build, diff check, and fresh work-context comparison passed.

@@ -152,11 +152,15 @@ empty slice; unsliced tasks appear only in area totals. Task list, show, next,
 status, and generated index output carry the applicable slice context. The area
 brief remains authoritative for shared decisions and testing.
 
-Keep a large source corpus as individual files under
-`.zdev/<area>/background/`. Link them from the brief, and link only relevant
-sources from each task. Background documents provide detail and source context;
-they do not override the brief or a task's outcome, boundaries, and done
-conditions.
+During approved area shaping or an authorized investigation task, retain
+research under `.zdev/<area>/background/` only when later tasks will reuse
+readable, stable, source-backed material. Index every retained file from the
+brief, and link only relevant files from each task. Do not retain transcripts,
+raw tool or search dumps, repository source copies, temporary prototypes, or
+lifecycle metadata. The brief remains the authoritative synthesis; background
+files do not override it or a task's outcome, boundaries, and done conditions.
+Standalone investigations remain report-only unless the user asks to preserve
+their result.
 
 Review the initial task split before import. This human checkpoint determines
 scope, sequencing, and dependencies. Later execution continues until it

@@ -140,10 +140,15 @@ Zdev creates this structure:
   tasks/
 ```
 
-Write shared decisions in `brief.md`. If the work starts with substantial
-source material, keep it as separate files under `background/` and link them
-from the brief. Each task remains the source of truth for its own outcome,
-boundaries, and done conditions.
+Write shared decisions in `brief.md`. During approved area shaping or an
+authorized investigation task, reusable research may live as separate files
+under `background/`. Keep only readable, stable, source-backed material that
+later tasks need; index every file from the brief and link only relevant files
+from tasks. Do not retain transcripts, raw tool or search dumps, repository
+source copies, temporary prototypes, or lifecycle metadata. The brief remains
+the authoritative synthesis, and each task remains the source of truth for its
+own outcome, boundaries, and done conditions. A standalone investigation stays
+report-only unless you ask to preserve its result.
 
 For a larger area with several related increments, add lightweight slice
 briefs as needed:

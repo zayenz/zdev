@@ -175,13 +175,20 @@ commit `82d2921c52370f23f29086de81ccfb600939c037`.
 
 ## State and reporting
 
-Store only metadata, `brief.md`, optional slice briefs, task files, and generated
-`TASKS.md` under `.zdev`. Task-bundle review artifacts live in repository-local
-Git administrative state and are accessed through `zdev tasks review`; keep
-other transcripts and review evidence in the conversation. Existing domain
-documentation and ADRs remain authoritative across areas. Report what changed,
-what verification passed, and what remains; mention commands only when they
-help the user continue or recover.
+Store only metadata, `brief.md`, optional slice briefs, task files, generated
+`TASKS.md`, and indexed area research under `.zdev`. Retain research under
+`.zdev/<area>/background/` only during approved area shaping or an authorized
+investigation task, and only when later tasks will reuse readable, stable,
+source-backed material. Index every retained file from `brief.md`; link only
+relevant files from tasks, and keep the brief as the authoritative synthesis.
+Do not retain transcripts, raw tool or search dumps, repository source copies,
+temporary prototypes, or lifecycle metadata as background files.
+
+Task-bundle review artifacts live in repository-local Git administrative state
+and are accessed through `zdev tasks review`; keep other transcripts and review
+evidence in the conversation. Existing domain documentation and ADRs remain
+authoritative across areas. Report what changed, what verification passed, and
+what remains; mention commands only when they help the user continue or recover.
 
 ## OpenCode orchestration
 

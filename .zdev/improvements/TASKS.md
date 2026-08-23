@@ -2,9 +2,9 @@
 
 # Tasks: improvements
 
-- Total: 55
-- Ready: 0
-- Blocked: 0
+- Total: 63
+- Ready: 7
+- Blocked: 1
 - Done: 55
 
 | ID | Task | State | Blocked by |
@@ -64,3 +64,11 @@
 | [improvements-053](tasks/053-reconcile-final-release-documentation.md) | Reconcile final release documentation | done | improvements-049, improvements-045, improvements-046, improvements-052, improvements-043, improvements-034, improvements-035, improvements-036, improvements-037, improvements-038, improvements-039 |
 | [improvements-054](tasks/054-qualify-and-prepare-the-1-1-0-release.md) | Qualify and prepare the 1.1.0 release | done | improvements-053 |
 | [improvements-055](tasks/055-persist-and-present-task-review-artifacts.md) | Persist and present task review artifacts | done | — |
+| [improvements-056](tasks/056-trim-duplicate-claude-task-handoffs.md) | Trim duplicate Claude task handoffs | ready | — |
+| [improvements-057](tasks/057-store-immutable-work-context-snapshots.md) | Store immutable work-context snapshots | ready | — |
+| [improvements-058](tasks/058-route-verifier-evidence-through-work-context-snapshots.md) | Route verifier evidence through work-context snapshots | blocked | improvements-057 |
+| [improvements-059](tasks/059-persist-and-present-derived-task-reviews.md) | Persist and present derived-task reviews | ready | — |
+| [improvements-060](tasks/060-reference-installed-worker-contract-files.md) | Reference installed worker-contract files | ready | — |
+| [improvements-061](tasks/061-challenge-task-drafts-through-stored-reviews.md) | Challenge task drafts through stored reviews | ready | — |
+| [improvements-062](tasks/062-clarify-reusable-area-research-files.md) | Clarify reusable area research files | ready | — |
+| [improvements-063](tasks/063-assess-file-handoffs-for-multi-lens-audits.md) | Assess file handoffs for multi-lens audits | ready | — |

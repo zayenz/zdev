@@ -3,9 +3,12 @@ export const meta = {
   description: 'Implement, independently verify, complete, and commit one ready zdev task',
 }
 
-const taskContract = {{task_workflow_contract}}
 const repositoryGuidance = {{repository_guidance}}
-const workflowContract = [taskContract, repositoryGuidance].join('\n\n')
+const taskContractPath = '$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md'
+const workflowContract = [
+  `Before acting, load the canonical zdev task-workflow contract with \`cat "${taskContractPath}"\`. If it cannot be read, use the complete role-specific instructions in this prompt as the inline fallback. Do not start another agent or add a coordinator round-trip to load it.`,
+  repositoryGuidance,
+].join('\n\n')
 const input = args ?? {}
 const area = String(input.area ?? '').trim()
 

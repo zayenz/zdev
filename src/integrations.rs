@@ -237,6 +237,10 @@ impl Harness {
                     content: CLAUDE_PLUGIN_TEMPLATE.to_owned(),
                 });
                 files.push(IntegrationFile {
+                    path: "contracts/task-workflows.md".to_owned(),
+                    content: TASK_WORKFLOW_CONTRACT_TEMPLATE.to_owned(),
+                });
+                files.push(IntegrationFile {
                     path: "skills/zdev/SKILL.md".to_owned(),
                     content: CLAUDE_SKILL_TEMPLATE.to_owned(),
                 });

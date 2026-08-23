@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-060"
 key = "reference-worker-contract-files"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -27,13 +27,21 @@ The 10.6 KB task workflow contract is currently interpolated into every Claude a
 
 ## Done when
 
-- [ ] Claude generated agent prompts contain the contract path rather than a repeated complete contract and workers are instructed to load it before acting.
-- [ ] Measured generated Claude agent-call prompt bytes are lower before task-specific context, with the measurement recorded in workflow documentation.
-- [ ] Install, check, force-refresh, packaging, and generated-equality behavior manage the new resource atomically.
-- [ ] Other harness decisions are implemented or documented from their actual file-resolution behavior.
+- [x] Claude generated agent prompts contain the contract path rather than a repeated complete contract and workers are instructed to load it before acting.
+- [x] Measured generated Claude agent-call prompt bytes are lower before task-specific context, with the measurement recorded in workflow documentation.
+- [x] Install, check, force-refresh, packaging, and generated-equality behavior manage the new resource atomically.
+- [x] Other harness decisions are implemented or documented from their actual file-resolution behavior.
 
 ## Validation
 
 - Add focused generated and executable workflow coverage for readable resource and inline fallback behavior.
 - Run generation, package inventory, and all five integration install/check tests.
 - Run the repository standard full validation.
+
+## Result
+
+Claude workers now load one installed task-workflow contract by deterministic plugin path with same-call fallback guidance; other harnesses retain inline contracts where portable child resolution is unavailable.
+
+Validation:
+
+- Independent verification passed; measured guidance bytes fell from 11,993 to 706, and focused workflow, inventory, equality, install/check, force-refresh, package, full cargo, and fresh work-context checks passed.

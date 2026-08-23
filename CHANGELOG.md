@@ -36,6 +36,9 @@ This file records notable changes to zdev.
 - Verifier PASS and completion exchange one stored work-context ID instead of
   serializing raw Git diffs through worker envelopes and prompts; zdev performs
   the fresh comparison before task mutation.
+- Claude task workflows load one rendered contract from the installed plugin
+  instead of repeating it in every worker prompt, while keeping the detailed
+  role instruction as a same-call fallback.
 - Safe-but-stale isolated branches remain workable with one advisory; explicit
   trunk areas do not use freshness or rebase ceremony.
 

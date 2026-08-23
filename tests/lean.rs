@@ -5664,7 +5664,7 @@ fn skill_install_and_check_support_explicit_destinations_and_replacement() {
     assert_eq!(installed["harness"], harness);
     assert_eq!(installed["scope"], "explicit");
     assert_eq!(installed["status"], "created");
-    assert_eq!(installed["files"], 22);
+    assert_eq!(installed["files"], 23);
 
     let checked = json_output(root, &["skill", "check", harness, "--to", destination_text]);
     assert_eq!(checked["status"], "ok");
@@ -5799,6 +5799,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "agents/zdev-planner.md",
             "agents/zdev-routine-implementer.md",
             "agents/zdev-verifier.md",
+            "contracts/task-workflows.md",
             "skills/zdev/SKILL.md",
             "skills/zdev/references/discuss.md",
             "skills/zdev/references/implement.md",
@@ -5831,6 +5832,12 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
 
     let task_workflow =
         fs::read_to_string(claude.join("workflows/zdev-implement.js")).expect("implement workflow");
+    let installed_contract =
+        fs::read_to_string(claude.join("contracts/task-workflows.md")).expect("task contract");
+    assert!(installed_contract.contains("The coordinating session owns task selection"));
+    assert!(task_workflow.contains("$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md"));
+    assert!(task_workflow.contains("inline fallback"));
+    assert!(!task_workflow.contains(&installed_contract));
     assert!(task_workflow.contains("while (verdict.result.verdict === 'rework')"));
     assert!(task_workflow.contains("'zdev:zdev-implementer'"));
     assert!(task_workflow.contains("agentType: 'zdev:zdev-planner'"));
@@ -5843,9 +5850,11 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert!(task_workflow.contains("const validPass"));
     let verify_workflow =
         fs::read_to_string(claude.join("workflows/zdev-verify.js")).expect("verify workflow");
+    assert!(verify_workflow.contains("$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md"));
+    assert!(verify_workflow.contains("inline fallback"));
     assert!(verify_workflow.contains("same open, ready, safe task"));
     assert!(verify_workflow.contains("agentType: 'zdev:zdev-verifier'"));
-    assert!(verify_workflow.contains("never invokes an implementer, changes lifecycle state"));
+    assert!(installed_contract.contains("never invokes an implementer, changes lifecycle state"));
 
     let audit_workflow =
         fs::read_to_string(claude.join("workflows/zdev-audit.js")).expect("audit workflow");
@@ -6130,6 +6139,8 @@ const exercise = async response => {{
 const valid = await exercise(worker('pass', ['work_context_snapshot: W0123456789abcdef']))
 if (valid.result !== worker('pass', ['work_context_snapshot: W0123456789abcdef'])) throw new Error(valid.result)
 const verifierPrompt = valid.prompts.find(call => call.options.agentType)?.prompt ?? ''
+if (!verifierPrompt.includes('$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md')) throw new Error('contract path missing')
+if (!verifierPrompt.includes('inline fallback')) throw new Error('inline fallback missing')
 if (!verifierPrompt.includes('work-context work --store --format json')) throw new Error('store missing')
 if (!verifierPrompt.includes('work-context work --show <snapshot> --format json')) throw new Error('show missing')
 if (!verifierPrompt.includes('work-context work --compare <snapshot> --format json')) throw new Error('compare missing')
@@ -6920,6 +6931,10 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
         let implement =
             fs::read_to_string(destination.join(implement_path)).expect("implement entrypoint");
         let verify = fs::read_to_string(destination.join(verify_path)).expect("verify entrypoint");
+        let installed_contract =
+            fs::read_to_string(destination.join("contracts/task-workflows.md")).unwrap_or_default();
+        let implement_contract = format!("{implement}\n{installed_contract}");
+        let verify_contract = format!("{verify}\n{installed_contract}");
         for required in [
             "zdev work-context <area> --format json",
             "classifies goal lifecycle first",
@@ -6938,9 +6953,12 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             "Reject a second escalation",
             "no fixed ordinary-rework count",
         ] {
-            assert!(implement.contains(required), "{harness} missing {required}");
+            assert!(
+                implement_contract.contains(required),
+                "{harness} missing {required}"
+            );
         }
-        for entrypoint in [&implement, &verify] {
+        for entrypoint in [&implement_contract, &verify_contract] {
             for required in [
                 "schema_version",
                 "`kind` is `planner`, `implementer`, or `verifier`",
@@ -6957,19 +6975,21 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
         }
         assert!(implement.contains("zdev task done"));
         assert!(implement.contains("zdev commit"));
-        assert!(implement.contains("An ordinary `zdev-implement` pass completes one task"));
-        assert!(implement.contains("stops without querying"));
-        assert!(implement.contains("`zdev next` or another `work-context`"));
-        assert!(implement.contains("after the commit and before another"));
-        assert!(implement.contains("worker dispatch"));
+        assert!(
+            implement_contract.contains("An ordinary `zdev-implement` pass completes one task")
+        );
+        assert!(implement_contract.contains("stops without querying"));
+        assert!(implement_contract.contains("`zdev next` or another `work-context`"));
+        assert!(implement_contract.contains("after the commit and before another"));
+        assert!(implement_contract.contains("worker dispatch"));
         assert!(!implement.contains("zdev next <area> --format json"));
         assert!(!implement.contains("zdev status <area> --format json"));
         assert!(!implement.contains("zdev goal <area> --format json"));
         assert!(!implement.contains("effective-base\nlink is fresh"));
         assert!(!verify.contains("effective-base\nlink is fresh"));
-        assert!(verify.contains("explicit ID"));
-        assert!(verify.contains("never invokes an implementer"));
-        assert!(verify.contains("routes a derived proposal"));
+        assert!(verify_contract.contains("explicit ID"));
+        assert!(verify_contract.contains("never invokes an implementer"));
+        assert!(verify_contract.contains("routes a derived proposal"));
         assert_eq!(
             json_output_with_env(
                 root,
@@ -7045,7 +7065,11 @@ fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
         );
         let implement =
             fs::read_to_string(destination.join(implement_path)).expect("implement route");
+        let installed_contract =
+            fs::read_to_string(destination.join("contracts/task-workflows.md")).unwrap_or_default();
+        let implement_contract = format!("{implement}\n{installed_contract}");
         let loop_route = fs::read_to_string(destination.join(loop_path)).expect("loop route");
+        let loop_contract = format!("{loop_route}\n{installed_contract}");
         let investigate = fs::read_to_string(
             destination
                 .join(skill_root)
@@ -7075,7 +7099,7 @@ fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
             "{harness} retains manual fingerprint transport"
         );
 
-        for text in [&implement, &investigate, &to_tasks] {
+        for text in [&implement_contract, &investigate, &to_tasks] {
             assert!(text.contains("zdev tasks derive apply"), "{harness}");
             assert!(
                 text.contains("zdev tasks derive review")
@@ -7092,11 +7116,11 @@ fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
             );
         }
         assert!(
-            implement.contains("apply revalidates mechanical"),
+            implement_contract.contains("apply revalidates mechanical"),
             "{harness}"
         );
         assert!(
-            implement.contains("task import for a derived proposal"),
+            implement_contract.contains("task import for a derived proposal"),
             "{harness}"
         );
         assert!(
@@ -7105,13 +7129,14 @@ fn all_harnesses_route_direct_derived_work_without_redundant_import_ceremony() {
             "{harness}"
         );
         assert!(
-            (loop_route.contains("second proposal")
-                || loop_route.contains("second or nested proposal"))
-                && loop_route.contains("handoff"),
+            (loop_contract.contains("second proposal")
+                || loop_contract.contains("second or nested proposal"))
+                && loop_contract.contains("handoff"),
             "{harness}"
         );
         assert!(
-            loop_route.contains("independently selected") && loop_route.contains("propose once"),
+            loop_contract.contains("independently selected")
+                && loop_contract.contains("propose once"),
             "{harness}"
         );
         assert!(

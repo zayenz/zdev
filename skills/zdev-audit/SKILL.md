@@ -1,6 +1,6 @@
 ---
 name: zdev-audit
-description: "Run a read-only zdev codebase audit with independently checked findings. Use when the user invokes $zdev-audit or asks active zdev to audit a named boundary."
+description: "Runs a read-only zdev codebase audit with independently checked findings. Use when the user invokes $zdev-audit or asks active zdev to audit or review a named repository boundary."
 ---
 
 # Zdev audit for Codex
@@ -30,11 +30,15 @@ safe result.
 Missing output, an unrecognized first line, or evidence that was not opened and
 checked becomes `BLOCKER zdev-audit`; it is never treated as a pass.
 
-Use a fresh Codex collaboration agent as the verifier. Pass
+Use a fresh Codex collaboration agent as the verifier and set
+`fork_turns="none"`. Pass
 `model="gpt-5.6-sol"` and
-`reasoning_effort="low"` when spawning it.
-Give it the boundary, repository guidance, applicable `AGENTS.md` instructions,
-and the audit contract above. With no explicit lenses, start exactly that one
+`reasoning_effort="low"` together with
+`fork_turns="none"` when spawning it.
+Give it a compact filesystem-backed message containing its role, the exact
+boundary or lens, and exact paths to the installed audit contract, repository
+guidance, and applicable `AGENTS.md` files. The agent reads those files and
+returns the contract's public result. With no explicit lenses, start exactly that one
 verifier. With one to four explicit lenses, use fresh verifier agents for the
 lenses and a different fresh verifier for final evidence vetting. Reject more
 than four before starting an agent. Validate the returned first line and

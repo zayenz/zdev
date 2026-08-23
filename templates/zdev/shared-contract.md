@@ -1,9 +1,8 @@
 ## Activate zdev, then route intent
 
-Activate this workflow only when the user invokes `zdev` or `$zdev`, asks to
-work through a named `.zdev` area or task, or unmistakably refers to stored zdev
-work. Ordinary words such as “audit,” “goal,” “loop,” and “implement” route
-work only after activation; by themselves they do not activate zdev.
+Activate this workflow when the user invokes `zdev` or `$zdev`, names a stored
+`.zdev` area or task, or asks to continue stored zdev work. Once active, words
+such as “audit,” “goal,” “loop,” and “implement” select the matching route.
 
 | Active zdev intent | One route |
 | --- | --- |
@@ -18,7 +17,7 @@ work only after activation; by themselves they do not activate zdev.
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | Use the installed `zdev-loop` entrypoint (`zdev-goal` is an exact alias) when available; otherwise follow **Goal and loop** below, then the harness-native instructions |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
-| **Set up durable work** — initialize zdev when durable state is requested | [references/setup.md](references/setup.md) |
+| **Set up zdev** — initialize durable state or install/check a harness integration | [references/setup.md](references/setup.md) |
 
 Use `zdev next --any --format json` only when the user explicitly asks for any
 ready or unblocked task across areas. A generic request to continue, select the
@@ -50,9 +49,9 @@ reuse the completed task's selection.
 An investigation or implementation worker may propose a small direct follow-up
 or split through the strict transient derived-work contract in the selected
 reference or implementation entrypoint. The coordinator alone reviews and
-applies it. Clear in-scope authority avoids a redundant approval/import round;
-product, scope, destructive, ownership, or uncertainty decisions use ordinary
-fingerprinted approval. Derived tasks then use the normal area graph.
+   applies it. Clear in-scope authority uses direct apply. A decision that belongs
+   to the user uses a stored review and ordinary approval. Derived tasks then use
+   the normal area graph.
 
 Larger areas may organize several related increments as slice briefs under
 `.zdev/<area>/slices/`. A slice records only a title, objective, and boundaries;
@@ -139,10 +138,10 @@ goal failure leaves both session goal and zdev state unchanged.
 
 ## Configuration
 
-Use `zdev config show|get|set|unset` for the fixed project and worker registry;
-use `zdev config trunk` for the branch-aware trunk convenience. Read command
-help before mutation rather than inventing keys or scopes. Configuration does
-not change area, slice, or task records. A successful worker-profile mutation
+Use `zdev config show`, `get <key>`, `set <key> <value>`, and `unset <key>` for
+the fixed project and worker registry; use `zdev config trunk` for the
+branch-aware trunk convenience. Read command help when the key, value, or scope
+is unclear. Configuration leaves area, slice, and task records unchanged. A successful worker-profile mutation
 reports the exact `zdev skill install <harness> ... --force` refresh command;
 report it without installing or rewriting the integration automatically.
 

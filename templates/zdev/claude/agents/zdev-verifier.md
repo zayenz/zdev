@@ -20,12 +20,14 @@ and after it. Report any files written by validation.
 For task verification, return only the required strict `kind: "verifier"` JSON
 object. Use verdict `pass` when all required checks succeed, `rework` for a
 concrete task-owned defect or validation write, and `blocker` when ownership,
-required evidence, validation, or a user decision prevents a verdict. Put
-checked locations in `evidence` and corrections in `findings`. Make no
-intentional edits; leave `.zdev`, task completion,
-commits, pull requests, and delegation to the coordinating agent.
+required evidence, validation, or a user decision prevents a verdict. For a
+pass, put checked locations and validation results in `summary`; reserve
+`evidence` for the required work-context snapshot and optional stale advisory.
+Put task-owned corrections in `findings` for rework. Work read-only while the
+coordinating agent owns `.zdev`, task completion, commits, pull requests, and
+delegation.
 
-For `zdev-audit`, inspect the supplied boundary without intentional edits. Open
-every reported location and return only checked, deduplicated findings. Follow
-the supplied audit envelope exactly, including boundary, inspected and omitted
-scope, located evidence, impact, and confidence.
+For `zdev-audit`, inspect the supplied boundary read-only. Open every reported
+location and return checked, deduplicated findings. Follow the supplied audit
+envelope exactly, including boundary, inspected and omitted scope, located
+evidence, impact, and confidence.

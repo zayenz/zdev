@@ -1,0 +1,81 @@
+# Explore an objective
+
+## When
+
+Use **Explore an objective** after zdev is active when the user wants to start
+an area, compare possible paths, or sharpen an objective before creating tasks.
+Exploration creates or revises the area's authoritative `brief.md`, or a named
+slice brief when the user is shaping one increment within a larger area. It
+does not create tasks or a second lifecycle.
+
+## Do
+
+1. For a new objective, initialize zdev on project trunk when needed. Use the
+   default isolated mode after creating or switching to the area's branch, or
+   use `--trunk` only when the user explicitly wants a personal/project area on
+   configured trunk. For an existing area, preserve its recorded mode and
+   resolved branch.
+2. Read the conversation, current brief, repository instructions, relevant
+   source and tests, domain documentation, and applicable ADRs.
+3. Resolve repository facts directly. Ask the user only about choices that
+   materially change behavior, scope, or a hard-to-reverse decision.
+4. State the objective as an observable result. When several paths remain
+   plausible, compare their trade-offs and recommend one. Leave product and
+   scope choices to the user.
+5. Preserve useful brief text and record the smallest useful set of sections,
+   normally:
+
+   - Objective and observable success
+   - Boundaries and non-goals
+   - Terms and settled decisions
+   - Open questions
+   - Testing
+   - Validation
+
+Keep `brief.md` as the area-level synthesis. Use a slice brief only for the
+objective and boundaries of one named increment; area-level decisions and
+testing remain in `brief.md`. When a settled term or model
+applies across objectives, propose an update to existing domain documentation.
+When a hard-to-reverse or surprising trade-off deserves an ADR, follow the
+repository's convention. Unless the user already requested those changes,
+show their scope and wait for confirmation before writing outside `.zdev`. Link
+approved project records from the brief instead of copying them.
+
+For the conventional `general` area, preserve a standing brief instead of
+turning each one-off request into a new area objective. Put shared engineering
+boundaries, testing, and validation in that brief. Keep one-off outcomes and
+proof in their tasks; use an optional slice only when several tasks share a
+narrower objective.
+
+When approved area shaping produces stable, source-backed research that later
+tasks will reuse, keep readable files under `.zdev/<area>/background/` and add
+a brief index that names the question each file informs. Do not retain
+transcripts, raw tool or search dumps, repository source copies, temporary
+prototypes, or lifecycle metadata. Link to canonical repository sources
+instead of copying them. Read only the files relevant to the current decision;
+the brief remains the authoritative synthesis.
+
+Inspect nearby tests, seams, helpers, and validation commands. Choose and
+record the smallest useful testing level: no new tests, existing checks only,
+focused coverage, or broader regression coverage. Record the behavior or risk
+that justifies it, established commands and patterns, and known limits. Do not
+add a harness, helper layer, or broad matrix merely for robustness. If testing
+level remains a material user choice, recommend one and state its confidence
+and cost.
+
+## Stop
+
+Run `zdev check <area> --format json`. Summarize the objective, boundaries,
+testing level, settled decisions, and remaining material questions. Recommend
+one next interaction when the result points clearly to it, then stop unless the
+user already requested more work. A sharp brief may proceed directly to
+**Create tasks**; **Discuss the brief** remains optional.
+
+General one-off work does not require a separate Explore or Investigate pass
+when the standing brief applies and discussion or the request already settles
+the task's product and testing choices.
+
+Most areas remain isolated branches based on trunk. When a new isolated area
+builds on another in-progress isolated area, create its branch from the parent
+branch, create the area, then run `zdev area parent <child> <parent>`. Explicit
+trunk areas have no parent and need no managed rebase.

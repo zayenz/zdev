@@ -7,8 +7,12 @@ const runOneTask = async (args, agent) => {
 __ZDEV_ONE_TASK_BODY__
 }
 
-const loopInput = args ?? {}
-const loopArea = String(loopInput.area ?? '').trim()
+const normalizeAreaArg = value => {
+  if (Array.isArray(value)) return value[0]
+  if (typeof value === 'string') return value
+  return value && typeof value === 'object' ? value.area : ''
+}
+const loopArea = String(normalizeAreaArg(args) ?? '').trim()
 const loopField = (text, name) => {
   const matches = text.split('\n').filter(line => line.startsWith(`${name}: `))
   return matches.length === 1 ? matches[0].slice(name.length + 2) : null
@@ -23,10 +27,11 @@ let latestCommit = null
 const stateFrom = raw => {
   try {
     const value = JSON.parse(raw)
-    return value?.area === loopArea
-      && ['open', 'closed'].includes(value.lifecycle)
-      && ['ready', 'empty', 'exhausted'].includes(value.queue)
-      ? { lifecycle: value.lifecycle, queue: value.queue, taskId: value.task_id, head: value.head }
+    const context = value?.context ?? value
+    return context?.area === loopArea
+      && ['open', 'closed'].includes(context.lifecycle)
+      && ['ready', 'empty', 'exhausted'].includes(context.queue)
+      ? { lifecycle: context.lifecycle, queue: context.queue, taskId: context.task_id, head: context.head }
       : { lifecycle: 'unknown', queue: 'unknown', taskId: null, head: null }
   } catch {
     return { lifecycle: 'unknown', queue: 'unknown', taskId: null, head: null }
@@ -44,7 +49,7 @@ if (!/^[a-z0-9][a-z0-9-]*$/.test(loopArea)) {
 }
 
 const freshContext = async () => agent(
-  `Act only as the area-loop preflight for area ${loopArea}. Run zdev work-context ${loopArea} --format json exactly once. Return its complete JSON stdout unchanged, with no fence or other text. Do not run separate status, goal, or Git evidence commands, change files, or start another worker. If the command fails, return only its error.`,
+  `Act only as the area-loop read-only preflight for area ${loopArea}. Run zdev work-context ${loopArea} --store --format json, then show that snapshot with zdev work-context ${loopArea} --show <snapshot> --format json. Return only {"snapshot":"<snapshot>","context":<shown JSON object>}. Keep files and Git state unchanged.`,
   { label: 'zdev loop continuation preflight' },
 )
 

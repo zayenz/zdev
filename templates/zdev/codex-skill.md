@@ -1,6 +1,6 @@
 ---
 name: zdev
-description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use only when the user invokes zdev or $zdev; asks to work through an existing .zdev area; or unmistakably refers to zdev's stored areas or tasks."
+description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use when the user invokes zdev or $zdev, names an existing .zdev area or task, or asks to continue stored zdev work."
 ---
 
 # Zdev for Codex
@@ -19,10 +19,17 @@ verify it. The coordinating agent owns zdev state, user decisions, task
 completion, and commits. Give each agent the rendered repository guidance and
 applicable `AGENTS.md` instructions.
 
+Spawn each role with `fork_turns="none"`. Use a compact filesystem-backed
+message containing its role and exact area, task, or boundary identity; the
+exact installed route-contract path; applicable repository-instruction paths;
+authoritative brief, slice, and task paths; and the opaque work-context
+snapshot when its route provides one. The agent reads those paths directly and
+returns only the route's required envelope.
+
 {% if implementer_has_model %}For the implementer, pass `model={{ implementer_model }}`{% if implementer_has_effort %} and
-`reasoning_effort={{ implementer_effort }}`{% endif %} to the spawned agent.{% else %}Leave the implementer's model and reasoning effort unset so it inherits them.{% endif %}
+`reasoning_effort={{ implementer_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the implementer's model and reasoning effort unset so it inherits them.{% endif %}
 {% if verifier_has_model %}For the verifier, pass `model={{ verifier_model }}`{% if verifier_has_effort %} and
-`reasoning_effort={{ verifier_effort }}`{% endif %} to the spawned agent.{% else %}Leave the verifier's model and reasoning effort unset so it inherits them.{% endif %}
+`reasoning_effort={{ verifier_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the verifier's model and reasoning effort unset so it inherits them.{% endif %}
 
 For an active-zdev goal or loop request, use either paired skill. It calls
 `get_goal` before repository work, never replaces or layers over an unfinished

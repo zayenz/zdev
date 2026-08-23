@@ -11,11 +11,10 @@ decisions. If no area exists, stop and offer **Explore an objective**; do not
 create the area here. A task queue should contain
 agent-ready work, not hidden human decisions.
 
-Normally offer **Discuss the brief** before drafting tasks for non-trivial work.
-The user may skip it when the brief is already sharp. Require the brief's
-`Testing` section to state the agreed level. If it is absent, or a material
-design or testing choice remains unresolved, stop and recommend **Discuss the
-brief** or **Explore an objective** instead of making the choice here.
+Draft directly when the brief already settles the product and testing choices.
+Require its `Testing` section to state the agreed level. When that section is
+absent or a material choice remains, route to **Discuss the brief** or **Explore
+an objective** so the user can settle it before task drafting.
 
 The conventional `general` area may use a standing minimal brief for unrelated
 one-off work. When that brief supplies shared engineering rules and the current
@@ -85,8 +84,10 @@ First build the complete Task Bundle JSON defined in the task-format reference
 loaded for this route. Keep every task and dependency in dependency order, then
 validate and store the candidate with:
 
+Supply the exact Task Bundle JSON on standard input:
+
 ```text
-<task-bundle-json> | zdev tasks review <area> --from - --format json
+zdev tasks review <area> --from - --format json
 ```
 
 The command returns a small opaque `review` identity and the path to the exact
@@ -115,22 +116,10 @@ completed outcomes. Resolve every concrete design or testing choice that would
 change the bundle. Only the final challenged stored artifact is shown for user
 approval; neither storage nor independent challenge grants approval.
 
-This route remains the ordinary path for a manually authored task split. When
-an investigation or implementer instead returns a strict derived proposal,
-keep that envelope unchanged. Do not convert it to an ordinary bundle or run
-`tasks import`: derive apply owns source completion or blocking, child creation,
-the ready frontier, and its managed commit. Mechanically and semantically
-authorized direct work goes straight to `zdev tasks derive apply` and needs no
-review or approval; apply revalidates mechanical authority under its lock.
-Only semantic authority uncertainty uses `zdev tasks derive review`, after the
-proposal, current state, and ownership are otherwise safe and mechanically
-eligible. Require `mechanically_eligible` to remain true, show the stored
-Markdown with `zdev tasks derive review <area> --show`, request ordinary
-approval, and apply its opaque identity with `zdev tasks derive apply <area>
---reviewed <review-id>` without replaying the proposal. Invalid proposals,
-unsafe or changed context, staged or incomplete ownership, and mechanical apply failures
-stop for recovery and fresh context without review; a stored review cannot waive
-those gates.
+This route owns manually authored task bundles. A strict proposal returned by
+an investigation or implementer follows the derived-work handoff in the
+implementation contract, which owns source completion, child creation, review
+when the user must decide, and its managed commit.
 
 ## Present the split
 
@@ -149,7 +138,6 @@ without another user step:
 
 ```text
 zdev tasks import <area> --reviewed <review-id> --format json
-zdev check <area> --format json
 ```
 
 When adding tasks to an existing task list, add `--commit --format json` to the
@@ -171,6 +159,7 @@ still reads the stored artifact.
 Report allocated task IDs and the complete ready frontier returned by the import.
 Offer **Implement** and stop unless the user already authorized implementation
 of this approved bundle. When authorized, read `implement.md` completely and
-apply its preconditions to the actual next ready task. Continue only after the
-import and checks succeed, without changing the approved content. Stop and
-report the state when no task is ready or an implementation precondition fails.
+apply its preconditions to the actual next ready task. A successful import has
+already validated the graph; the Implement route collects the next fresh
+work-context. Stop and report when no task is ready or an implementation
+precondition fails.

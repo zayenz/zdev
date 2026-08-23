@@ -39,15 +39,17 @@ areas; do not infer project-wide selection from an omitted area.
    paths this task may change. If an existing change overlaps a task path and
    ownership is unclear, stop and ask the user; do not stash, reset, restore,
    clean, or alter the index to manufacture a clean baseline.
-4. Read effective complexity from the selected goal. Dispatch
+4. Read effective complexity from the selected task in work-context. Dispatch
    `routine-implementer` only for authored `routine`, `implementer` for
    `standard` or omitted legacy complexity, and `advanced-implementer` for
    `advanced`. Before the first advanced edit, obtain one strict plan from a
    fresh read-only planner using the advanced profile and pass it unchanged to
    the advanced implementer. A planner blocker or user-owned decision stops
    before edits. Never infer routine, and never plan again on resume or rework.
-   Give the selected implementer the brief, task, repository
-   guidance, relevant source, and task-owned path boundaries from the baseline.
+   Give the selected implementer repository-relative locators for the brief,
+   optional slice and linked background files, task, repository guidance, and
+   relevant source and tests, plus the baseline snapshot and task-owned path
+   boundaries.
    It may edit source and tests and run validation. It must not edit `.zdev`, run
    `zdev task done`, change task lifecycle state, or commit.
 5. Ask it to satisfy every done condition, stay within the task boundaries, and
@@ -96,16 +98,12 @@ direct work inside the brief and source task, with unchanged attributable
 context and no product, compatibility, destructive, ownership, cross-area, or
 uncertainty decision, run `zdev tasks derive apply <area> --from - --format
 json` directly without approval; apply revalidates mechanical authority under
-its lock. Only when semantic authority is unclear and the proposal, current
-state, and ownership are otherwise safe and mechanically eligible, run `zdev
-tasks derive review`. Require `mechanically_eligible` to remain true, show its
-ordinary task bundle, request ordinary approval, and after approval apply the
-unchanged proposal with its opaque fingerprint. Approval resolves only the
-semantic choice. An invalid proposal, unsafe or changed context, staged or
-incomplete ownership, or any mechanical apply failure stops without review or
-apply. Preserve the state, follow recovery, and obtain fresh work-context; a
-fingerprint cannot waive those gates. Never use ordinary task import for this
-path. A successful split commit leaves the source open and blocked by its
+its lock. When the user must make a semantic choice, run `zdev tasks derive
+review`, require `mechanically_eligible: true`, and present the stored Markdown
+with `zdev tasks derive review <area> --show`. After ordinary approval, apply
+the stored identity with `zdev tasks derive apply <area> --reviewed <review-id>
+--format json`. Changed or unsafe state is preserved for recovery and fresh
+work-context. A successful split commit leaves the source open and blocked by its
 children; report that commit and stop this one-task interaction. An active
 goal, loop, or explicit continuation refreshes work-context and uses the
 resulting normal graph. Do not apply another proposal from the same handoff; a

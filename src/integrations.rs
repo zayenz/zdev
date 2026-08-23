@@ -62,6 +62,8 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
 const SHARED_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/shared-contract.md");
 const AUDIT_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/audit.md");
 const TASK_WORKFLOW_CONTRACT_TEMPLATE: &str = include_str!("../templates/zdev/task-workflows.md");
+const VERIFY_WORKFLOW_CONTRACT_TEMPLATE: &str =
+    include_str!("../templates/zdev/verify-workflow.md");
 const BOUNDED_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/bounded-area-loop.md");
 const NATIVE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/native-area-loop.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
@@ -71,8 +73,16 @@ const CODEX_IMPLEMENT_SKILL_TEMPLATE: &str =
 const CODEX_VERIFY_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-verify-skill.md");
 const CODEX_LOOP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-loop-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
+const CODEX_AUDIT_OPENAI_YAML: &str =
+    include_str!("../templates/zdev/codex/agents/audit-openai.yaml");
+const CODEX_IMPLEMENT_OPENAI_YAML: &str =
+    include_str!("../templates/zdev/codex/agents/implement-openai.yaml");
+const CODEX_VERIFY_OPENAI_YAML: &str =
+    include_str!("../templates/zdev/codex/agents/verify-openai.yaml");
 const CODEX_LOOP_OPENAI_YAML: &str =
     include_str!("../templates/zdev/codex/agents/loop-openai.yaml");
+const CODEX_GOAL_OPENAI_YAML: &str =
+    include_str!("../templates/zdev/codex/agents/goal-openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
 const CLAUDE_IMPLEMENTER: &str =
@@ -213,12 +223,24 @@ impl Harness {
                     content: CODEX_AUDIT_SKILL_TEMPLATE.to_owned(),
                 });
                 files.push(IntegrationFile {
+                    path: "zdev-audit/agents/openai.yaml".to_owned(),
+                    content: CODEX_AUDIT_OPENAI_YAML.to_owned(),
+                });
+                files.push(IntegrationFile {
                     path: "zdev-implement/SKILL.md".to_owned(),
                     content: CODEX_IMPLEMENT_SKILL_TEMPLATE.to_owned(),
                 });
                 files.push(IntegrationFile {
+                    path: "zdev-implement/agents/openai.yaml".to_owned(),
+                    content: CODEX_IMPLEMENT_OPENAI_YAML.to_owned(),
+                });
+                files.push(IntegrationFile {
                     path: "zdev-verify/SKILL.md".to_owned(),
                     content: CODEX_VERIFY_SKILL_TEMPLATE.to_owned(),
+                });
+                files.push(IntegrationFile {
+                    path: "zdev-verify/agents/openai.yaml".to_owned(),
+                    content: CODEX_VERIFY_OPENAI_YAML.to_owned(),
                 });
                 for name in ["zdev-loop", "zdev-goal"] {
                     files.push(IntegrationFile {
@@ -227,7 +249,11 @@ impl Harness {
                     });
                     files.push(IntegrationFile {
                         path: format!("{name}/agents/openai.yaml"),
-                        content: CODEX_LOOP_OPENAI_YAML.to_owned(),
+                        content: if name == "zdev-loop" {
+                            CODEX_LOOP_OPENAI_YAML.to_owned()
+                        } else {
+                            CODEX_GOAL_OPENAI_YAML.to_owned()
+                        },
                     });
                 }
             }
@@ -463,7 +489,14 @@ impl Harness {
 fn native_loop_artifact(wrapper: &str, name: Option<&str>) -> Result<String, ZdevError> {
     let mut rendered = wrapper.replace("__ZDEV_NATIVE_AREA_LOOP_BODY__", NATIVE_AREA_LOOP_TEMPLATE);
     if let Some(name) = name {
-        rendered = rendered.replace("__ZDEV_SKILL_NAME__", name);
+        let description = if name == "zdev-loop" {
+            "Continues a named zdev area through Codex's native goal, one independently verified task and commit at a time. Use when the user invokes $zdev-loop or asks active zdev to continue, loop, or keep working through a named area."
+        } else {
+            "Provides the explicit goal alias for zdev's native Codex area loop. Use when the user invokes $zdev-goal for a named area."
+        };
+        rendered = rendered
+            .replace("__ZDEV_SKILL_NAME__", name)
+            .replace("__ZDEV_SKILL_DESCRIPTION__", description);
     }
     if rendered.contains("__ZDEV_") {
         return Err(ZdevError::new(
@@ -496,7 +529,7 @@ fn repository_guidance(guidance: Option<(&str, &str)>) -> String {
             "<!-- zdev:generated-repository-guidance:start -->\n## Rendered repository guidance\n\nSource: `{source}`. The source file remains authoritative.\n\n{}\n<!-- zdev:generated-repository-guidance:end -->",
             content.trim_end()
         ),
-        None => "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore planning or changing code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->".to_owned(),
+        None => "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->".to_owned(),
     }
 }
 
@@ -510,7 +543,7 @@ fn template_environment() -> Environment<'static> {
 fn render_template(
     name: &str,
     source: &str,
-    contracts: (&str, &str, &str),
+    contracts: (&str, &str, &str, &str),
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
@@ -529,6 +562,7 @@ fn render_template(
             shared_contract => contracts.0,
             audit_contract => contracts.1,
             task_workflow_contract => contracts.2,
+            verify_workflow_contract => contracts.3,
             repository_guidance,
             question_tool_guidance,
             version,
@@ -583,16 +617,21 @@ fn realize_templates(
     let audit_contract = render_template(
         "audit.md",
         AUDIT_CONTRACT_TEMPLATE,
-        ("", "", ""),
+        ("", "", "", ""),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
         workers,
     )?;
+    let shared_contract_source = if harness == Harness::Omp {
+        SHARED_CONTRACT_TEMPLATE.replace("(references/", "(skill://zdev/references/")
+    } else {
+        SHARED_CONTRACT_TEMPLATE.to_owned()
+    };
     let shared_contract = render_template(
         "shared-contract.md",
-        SHARED_CONTRACT_TEMPLATE,
-        ("", "", ""),
+        &shared_contract_source,
+        ("", "", "", ""),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -601,7 +640,16 @@ fn realize_templates(
     let task_workflow_contract = render_template(
         "task-workflows.md",
         TASK_WORKFLOW_CONTRACT_TEMPLATE,
-        ("", "", ""),
+        ("", "", "", ""),
+        &repository_guidance,
+        harness.question_tool_guidance(),
+        version,
+        workers,
+    )?;
+    let verify_workflow_contract = render_template(
+        "verify-workflow.md",
+        VERIFY_WORKFLOW_CONTRACT_TEMPLATE,
+        ("", "", "", ""),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -614,6 +662,8 @@ fn realize_templates(
         let audit_contract = prepare_template_value(&file.path, audit_contract.trim_end())?;
         let task_workflow_contract =
             prepare_template_value(&file.path, task_workflow_contract.trim_end())?;
+        let verify_workflow_contract =
+            prepare_template_value(&file.path, verify_workflow_contract.trim_end())?;
         let repository_guidance = prepare_template_value(&file.path, &repository_guidance)?;
         let question_tool_guidance =
             prepare_template_value(&file.path, harness.question_tool_guidance())?;
@@ -621,7 +671,12 @@ fn realize_templates(
         file.content = render_template(
             &file.path,
             &file.content,
-            (&shared_contract, &audit_contract, &task_workflow_contract),
+            (
+                &shared_contract,
+                &audit_contract,
+                &task_workflow_contract,
+                &verify_workflow_contract,
+            ),
             &repository_guidance,
             &question_tool_guidance,
             &version,
@@ -1607,7 +1662,7 @@ mod tests {
             ("unknown.md", "{{unknown}}", "Cannot render"),
             ("invalid.md", "{{", "Cannot parse"),
         ] {
-            let error = render_template(name, source, ("", "", ""), "", "", "", &workers)
+            let error = render_template(name, source, ("", "", "", ""), "", "", "", &workers)
                 .expect_err("invalid template must fail");
             assert!(error.to_string().contains(expected));
             assert!(error.to_string().contains(name));

@@ -5,11 +5,19 @@ export const meta = {
 
 const repositoryGuidance = {{repository_guidance}}
 const taskContractPath = '$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md'
-const workflowContract = [
-  `Before acting, load the canonical zdev task-workflow contract with \`cat "${taskContractPath}"\`. If it cannot be read, use the complete role-specific instructions in this prompt as the inline fallback. Do not start another agent or add a coordinator round-trip to load it.`,
+const workerContract = [
+  `Before acting, load the canonical zdev task-workflow contract with \`cat "${taskContractPath}"\`. If it cannot be read, return the nine-key verifier JSON requested below with verdict "blocker", escalation "none", empty evidence, and one finding: "Cannot read installed task-workflow contract: ${taskContractPath}." Keep the checkout unchanged.`,
   repositoryGuidance,
 ].join('\n\n')
-const input = args ?? {}
+const normalizeVerifyArgs = value => {
+  if (Array.isArray(value)) return { area: value[0], task_id: value[1] }
+  if (typeof value === 'string') {
+    const [area, task_id] = value.trim().split(/\s+/, 2)
+    return { area, task_id }
+  }
+  return value && typeof value === 'object' ? value : {}
+}
+const input = normalizeVerifyArgs(args)
 const area = String(input.area ?? '').trim()
 const taskId = String(input.task_id ?? input.taskId ?? '').trim()
 const advisoryText = 'stale effective-base link; managed rebase remains optional.'
@@ -163,6 +171,8 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
   if (!validVerdict) return null
   const validEscalation = result.escalation === 'none'
     || (expectedKind === 'verifier' && result.verdict === 'rework' && result.escalation === 'advanced-implementer')
+  if (expectedKind === 'verifier' && result.verdict === 'pass' && result.findings.length !== 0) return null
+  if (expectedKind === 'verifier' && result.verdict === 'rework' && result.findings.length === 0) return null
   return validEscalation ? result : null
 }
 const approvedSnapshot = result => {
@@ -177,7 +187,7 @@ if (!/^[a-z0-9][a-z0-9-]*$/.test(area) || !/^[a-z0-9][a-z0-9-]*$/.test(taskId)) 
 }
 
 const preflight = await agent(
-  `${workflowContract}\n\nAct only as the coordinating read-only preflight. Run zdev work-context ${area} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Do not run separate status, goal, or Git evidence commands, change files, or start another worker.`,
+  `Act only as the coordinating read-only preflight. Run zdev work-context ${area} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
   { label: 'zdev verify preflight' },
 )
 const prepared = parseReady(preflight?.trim())
@@ -187,7 +197,7 @@ if (!prepared) {
 const advisory = prepared.staleAdvisory ? advisoryText : null
 
 const verified = await agent(
-  `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Before inspection or validation, run zdev work-context ${area} --store --format json and accept only its compact locator for the same open, ready, safe task and HEAD ${prepared.head}. Inspect that immutable context only through zdev work-context ${area} --show <snapshot> --format json. Check the whole task and run required validation, then run zdev work-context ${area} --compare <snapshot> --format json. Accept only the exact four-key compact result {"schema_version":1,"area":"${area}","snapshot":"<same-id>","equal":true}; false, malformed, unavailable, expired, corrupt, or mismatched evidence blocks a pass. Validation-written task-owned files are rework and ambiguous writes are blocker. A pass evidence array contains exactly one work_context_snapshot: W<16-lowercase-hex> item${advisory ? ` and ${advisory} exactly once` : ''}; put checked locations and validation conclusions in summary, not extra evidence. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${advisory ? '' : `Do not include ${advisoryText} in evidence.`} Make no intentional edits and never change lifecycle or Git state. Never return a snapshot path or raw Git evidence.`,
+  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Before inspection or validation, run zdev work-context ${area} --store --format json and accept only its compact locator for the same open, ready, safe task and HEAD ${prepared.head}. Inspect that immutable context only through zdev work-context ${area} --show <snapshot> --format json. Check the whole task and run required validation, then run zdev work-context ${area} --compare <snapshot> --format json. Accept only the exact four-key compact result {"schema_version":1,"area":"${area}","snapshot":"<same-id>","equal":true}. Validation-written task-owned files are rework and ambiguous writes are blocker. A pass has empty findings and an evidence array containing exactly one work_context_snapshot: W<16-lowercase-hex> item${advisory ? ` and ${advisory} exactly once` : ''}. Rework has at least one concrete finding. Put checked locations and validation conclusions in summary. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${advisory ? '' : `Omit ${advisoryText} from evidence.`} Keep files, lifecycle, and Git state unchanged. Return the locator rather than a snapshot path or raw Git evidence.`,
   { agentType: 'zdev:zdev-verifier', label: 'zdev fresh verification' },
 )
 const result = verified?.trim()

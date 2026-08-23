@@ -1,6 +1,6 @@
 # Zdev 1.1.0 release qualification
 
-Date: 2026-08-22
+Date: 2026-08-23
 
 This record qualifies the prepared source tree. It does not claim provider-wide
 compatibility or replace the automated release checks. No command published,
@@ -12,7 +12,11 @@ pushed, tagged, or contacted a repository remote.
 - Codex CLI 0.145.0 using GPT-5.6 Sol
 - Claude Code 2.1.227, installed but not logged in
 - OpenCode 1.17.2 using MiniMax-M2.7
-- Pi and Oh My Pi were not installed
+- Pi and Oh My Pi were not installed during the manual harness run
+
+The manual harness observations below were collected on 2026-08-22. The final
+automated qualification was repeated after the cross-harness review and release
+cleanup.
 
 Each runnable harness received a fresh temporary Git repository containing
 four explicit trunk areas: one ready implementation, one known defect for
@@ -31,11 +35,9 @@ scripts/check-release.sh v1.1.0
 That gate ran locked formatting, strict Clippy, all tests, source packaging and
 verification, release installation, the standalone binary round trip,
 five-harness project install/check, release-workflow synchronization, and
-`dist plan --tag=v1.1.0`. The package contained 109 files, including the Codex
-manifest, changelog, this record, canonical templates, and generated skills.
-Cargo metadata, lockfile, release binary, Codex manifest, rendered Claude
-manifest, package ID, and dist plan all reported 1.1.0. Generated-fixture
-equality passed in the locked test suite.
+`dist plan --tag=v1.1.0`. Cargo metadata, lockfile, release binary, manifests,
+package ID, and dist plan all reported 1.1.0. Generated-fixture equality passed
+in the locked test suite.
 
 ## Actual harness results
 
@@ -80,8 +82,7 @@ limited to four briefs, four `TASKS.md` files, and three task records.
 The unavailable and blocked cells should be revisited when those authenticated
 harness surfaces are available. They are not silently counted as passes.
 
-Two narrow follow-ups are warranted: verify whether Codex CLI sessions are
-expected to expose the model-callable goal operations used by the adapter, and
-document or add a supported noninteractive OpenCode custom-command invocation
-for future release qualification. This release task does not infer runtime
-changes from either single-surface observation.
+The Codex CLI surface used here did not expose model-callable goal operations,
+and the noninteractive OpenCode surface did not expand custom commands. The
+installed adapters report those boundaries directly. These observations do not
+imply failures in the harnesses' interactive surfaces.

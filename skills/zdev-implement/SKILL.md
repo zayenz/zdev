@@ -1,13 +1,13 @@
 ---
 name: zdev-implement
-description: "Implement, independently verify, complete, and commit one ready zdev task. Use when the user invokes $zdev-implement for an area."
+description: "Completes one ready zdev task with independent verification and a commit. Use when the user invokes $zdev-implement, asks active zdev to implement the next task in a named area, or asks to continue one stored task."
 ---
 
 # Zdev implement for Codex
 
 The coordinating session owns task selection, branch safety, Git ownership,
-lifecycle changes, and commits. Workers never edit `.zdev`, complete tasks,
-commit, delegate, or change the selected task.
+lifecycle changes, staging, commits, and delegation. Workers stay within the
+selected task and return one role-specific result.
 
 An isolated area uses its stored branch and managed base relationship. An
 explicit trunk area dynamically uses configured `project.trunk`, may share it
@@ -36,7 +36,8 @@ as the subject. Before verification and every rework handoff, rerun
 `work-context` and require the same ready task ID and an explainable exact Git
 delta.
 
-`zdev-implement <area>` reads the effective complexity from the selected goal.
+`zdev-implement <area>` reads effective complexity from the selected task in
+work-context.
 Authored `routine` uses `routine-implementer`; `standard`, including an omitted
 legacy value, uses `implementer`. Never infer routine work from files or diff
 size. Before any edit for `advanced`, start one fresh read-only `planner` using
@@ -66,8 +67,9 @@ sentinel line, Markdown fence, or other text. The object has exactly these keys:
 `kind` is `planner`, `implementer`, or `verifier`. Planner verdict is `plan` or
 `blocker`; implementer verdict is `ready` or `blocker`; verifier verdict is
 `pass`, `rework`, or `blocker`. A plan has no findings and puts exactly one
-non-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`. `summary` is a
-non-empty string. `evidence` and `findings` are always arrays of non-empty
+non-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`.
+Verifier `pass` has no findings; verifier `rework` has at least one concrete
+finding. `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`, except that verifier
 `rework` may request `advanced-implementer`. Every other combination requires
 `none`. Schema version, kind, area, task ID, keys, types, and combinations must
@@ -76,9 +78,10 @@ malformed JSON. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict. When the stale advisory applies,
 the verifier includes its exact text once in `evidence`; otherwise it omits it.
 
-An implementer that cannot finish the source without splitting direct,
-already-approved work may use one narrow exception to the ordinary blocker
-path. It returns a valid implementer object with verdict `blocker`, escalation
+## Derived work handoff
+
+An implementer that needs to split necessary direct work already covered by
+the approved brief and task returns a valid implementer object with verdict `blocker`, escalation
 `none`, no findings, and one evidence item containing the complete transient
 proposal. That evidence string begins
 `PROPOSE zdev-derived <area> <source-task-id>\n` and continues with exactly one
@@ -91,15 +94,14 @@ never runs derive review, apply, import, or any other `.zdev` mutation.
 The coordinator recognizes this strict alternative before treating the worker
 result as an ordinary blocker. It refreshes work-context and requires unchanged
 area, source task, HEAD, safety, and attributable Git state. Automatic authority
-also requires every child to be necessary, direct work inside the brief and
-source task, with no product, compatibility, destructive, ownership,
-cross-area, or uncertainty decision. When those semantic and retained-context
-checks pass, send the unchanged proposal directly to `zdev tasks derive apply
+requires every child to be necessary direct work already covered by the brief
+and source task. When those semantic and retained-context checks pass, send the
+unchanged proposal directly to `zdev tasks derive apply
 <area> --from - --format json` with no approval; apply revalidates mechanical
 authority under its lock.
 
-Only when semantic authority is unclear, and the proposal, current state, and
-path ownership are otherwise safe and mechanically eligible, send the proposal
+When the user must make a semantic choice and current state and path ownership
+are safe and mechanically eligible, send the proposal
 to `zdev tasks derive review <area> --from - --format json`. Require its
 `mechanically_eligible` result to remain true, present its stored Markdown with
 `zdev tasks derive review <area> --show`, and ask for ordinary approval. After
@@ -157,9 +159,9 @@ no fixed ordinary-rework count. After each correction, a fresh standard
 verifier checks the whole task again. Stop only on verifier `pass`, a genuine
 blocker, unsafe scope expansion, or a required user-owned decision.
 
-Only after an exact matching verifier object with verdict `pass`, the
-coordinator gives completion the opaque snapshot ID, not the verifier object,
-worker-supplied path, inline context, or raw Git evidence. Completion runs
+After an exact matching verifier object with verdict `pass`, the coordinator
+gives completion the opaque snapshot ID plus the accepted implementation and
+verifier summaries. Completion derives paths from the verified checkout and runs
 exactly one `zdev work-context <area> --compare <snapshot> --format json`
 before mutation and accepts only the exact compact schema for that area and ID
 with `equal: true`. This fresh binary comparison covers area, ready task,
@@ -187,7 +189,7 @@ owns the next iteration and must collect a fresh
 worker dispatch. It never reuses the completed task's pre-commit selection.
 
 `zdev-verify <area> <task-id>` performs the same read-only preflight and requires
-the explicit ID to equal the current ready goal task before starting one fresh
+the explicit ID to equal the current ready task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,
 stages, commits, or routes a derived proposal. Its public result is the accepted verifier object above. Empty,
 exhausted, or closed goals, a different ready task, unsafe state, unavailable
@@ -202,19 +204,27 @@ verification, lifecycle changes, staging, commits, or product decisions.
 Advanced work and explicit advanced rework use `advanced-implementer`; read-only
 planning reuses that same profile rather than defining another role.
 
+Spawn every role with `fork_turns="none"`. Give it a compact
+filesystem-backed message containing the role, exact area and task ID, baseline
+commit, task-owned paths, and exact paths to the installed task contract,
+applicable repository guidance, `AGENTS.md` files, area brief, slice when
+present, and task. Include the opaque work-context snapshot ID when the task
+contract supplies one. The agent reads those files and returns only the
+contract envelope.
+
 For `routine-implementer`, pass `model="gpt-5.6-luna"` and
-`reasoning_effort="low"`.
+`reasoning_effort="low"` together with `fork_turns="none"`.
 For `implementer`, pass `model="gpt-5.6-sol"` and
-`reasoning_effort="low"` when spawning it.
+`reasoning_effort="low"` together with `fork_turns="none"`.
 For `advanced-implementer`, pass `model="gpt-5.6-sol"` and
-`reasoning_effort="high"`.
+`reasoning_effort="high"` together with `fork_turns="none"`.
 Use a different fresh agent for every verification verdict. Pass
 `model="gpt-5.6-sol"` and
-`reasoning_effort="low"`.
+`reasoning_effort="low"` together with `fork_turns="none"`.
 The current Codex session remains the coordinator and validates every envelope.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery
 
-Before planning or changing code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
+Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->

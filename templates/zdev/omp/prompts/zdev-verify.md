@@ -2,7 +2,7 @@
 description: Independently verify the explicit current ready zdev task
 ---
 
-{{task_workflow_contract}}
+{{verify_workflow_contract}}
 
 Parse `$ARGUMENTS` as `<area> <task-id>`. The current Oh My Pi session performs
 preflight and exact ID matching before one fresh blocking `zdev-verifier` task

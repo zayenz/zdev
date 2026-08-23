@@ -1,7 +1,7 @@
 {
   "name": "zdev",
   "version": {{version}},
-  "description": "A small, durable development task loop for Claude Code",
+  "description": "Durable software work through briefs, tasks, implementation, independent verification, audits, and commits",
   "author": {
     "name": "zdev contributors"
   },

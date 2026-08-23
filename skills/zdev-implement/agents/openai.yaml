@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zdev implement"
+  short_description: "Complete one ready zdev task"
+  default_prompt: "Use $zdev-implement to complete, independently verify, and commit the next ready task in the named zdev area."

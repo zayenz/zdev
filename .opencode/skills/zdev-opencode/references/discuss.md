@@ -32,8 +32,7 @@ Use OpenCode's `question` tool with multiple questions in one call. Give each qu
 
 After each round, update the relevant decisions, boundaries, terms, open
 questions, testing, or validation in `brief.md`. Record conclusions, not the
-conversation. Preserve useful text and remove settled questions. Run
-`zdev check <area> --format json` after meaningful updates.
+conversation. Preserve useful text and remove settled questions.
 
 For the conventional `general` area, keep its standing brief focused on shared
 rules. Carry one-off conclusions into the proposed task's context, outcome,
@@ -48,7 +47,9 @@ and wait for confirmation unless the user already requested that edit.
 
 Stop when no unresolved choice would materially change the objective or task
 split. Low-impact implementation details may remain for individual tasks.
-Summarize the resulting brief and any remaining non-blocking details. When the
+Run `zdev check <area> --format json` once against the finished brief, correct
+any reported issue, then summarize the resulting brief and remaining
+non-blocking details. When the
 user explicitly requested task creation and no material product or testing
 choice remains, continue directly with **Create tasks** and show the exact
 rendered task bundle for approval; no separate research interaction is needed.

@@ -3,15 +3,15 @@
 `zdev-loop <area>` is canonical and `zdev-goal <area>` is an exact semantic
 alias. Both follow this contract and emit canonical `zdev-loop` results.
 
-Before reading or changing repository state, use the adapter's named
-model-callable operation to inspect the harness-native goal. An active, paused, budget-limited, or
-otherwise unfinished goal wins. Do not replace, clear, edit, or layer this
-route over it. If it is the exact same zdev area condition in its existing
-session, resume it through the native goal mechanism without creating a second
-goal. Otherwise return `BLOCKER zdev-loop <area>` without a worker or
-repository mutation. If inspection is unavailable or does not authoritatively
-show that no unfinished goal exists, also return `BLOCKER`; do not guess that
-native goal state is clear.
+Before repository work, inspect the harness-native goal with the adapter's
+named model-callable operation. Native goal state selects one action:
+
+- No unfinished goal: validate the area, then create the shared condition.
+- The same condition is active: continue in that goal.
+- The same condition is paused or budget-limited: preserve it and ask the user
+  to resume it through the harness when model-facing resume is unavailable.
+- A different goal is unfinished, or inspection is unavailable: preserve the
+  existing state and return `BLOCKER zdev-loop <area>`.
 
 With no unfinished native goal, run fresh
 `zdev work-context <area> --format json`. Never reuse an earlier selection or

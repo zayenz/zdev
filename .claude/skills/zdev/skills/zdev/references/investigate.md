@@ -39,34 +39,11 @@ the authoritative synthesis. Do not retain transcripts, raw tool or search
 dumps, repository source copies, temporary prototypes, or lifecycle metadata.
 This is ordinary task-owned output, not a report type or lifecycle record.
 
-When an investigation is the selected open task in an existing area and its
-independently checked conclusion makes one through five direct follow-up tasks
-necessary, the investigation worker may return one strict transient proposal.
-It starts with `PROPOSE zdev-derived <area> <source-task-id>` and continues with
-one JSON object whose proposal is `investigation_follow_up`, whose source result
-contains the complete summary and validation, and whose children use ordinary
-TaskDraft fields. It contains no nested proposal. The worker never runs review,
-apply, import, or any `.zdev` mutation.
-
-The coordinator requires the matching independent pass and fresh unchanged
-source identity, work-context, and Git evidence. When every child is necessary
-direct work inside the brief and source task with no product, scope,
-destructive, ownership, cross-area, or uncertainty decision, send the unchanged
-proposal directly to `zdev tasks derive apply <area> --from - --format json`
-without approval; apply revalidates mechanical authority under its lock. Only
-when semantic authority is unclear and the proposal, current state, and
-ownership are otherwise safe and mechanically eligible, run `zdev tasks derive
-review`. Require `mechanically_eligible` to remain true, show the stored
-Markdown with `zdev tasks derive review <area> --show`, ask for ordinary
-approval, and after approval apply its opaque identity with `zdev tasks derive
-apply <area> --reviewed <review-id>`. Approval resolves only the semantic
-choice. An invalid proposal, unsafe or changed context, staged or incomplete
-ownership, or any mechanical apply failure stops without review or apply.
-Preserve the state, follow recovery, and obtain fresh work-context; a
-stored review cannot waive those gates. Never use ordinary task import for this path. Successful
-apply completes the investigation and may expose ready children. It consumes
-this handoff; only a later independently selected task may make another
-proposal under fresh gates.
+When an authorized investigation task discovers necessary direct follow-up
+work, use the derived-work handoff defined by the implementation contract. The
+coordinator either applies clear in-scope work directly, presents a stored
+review when the user must decide, or preserves changed/unsafe state for
+recovery. Standalone investigations simply report their conclusion.
 
 ## Stop
 
@@ -77,6 +54,5 @@ above. For a standalone investigation, report the result without creating zdev
 state or durable files unless the user explicitly asks to preserve it.
 
 Recommend one next interaction when the conclusion points clearly to it, then
-stop unless the user already requested more work. Leave newly discovered
-production changes for a later requested interaction unless the authorized
-follow-up path above applies.
+stop unless the user already requested more work. Production changes follow a
+later requested interaction or the authorized implementation-task handoff.

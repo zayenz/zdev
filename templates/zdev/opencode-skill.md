@@ -1,6 +1,6 @@
 ---
 name: zdev-opencode
-description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use only when the user invokes zdev or $zdev; asks to work through an existing .zdev area; or unmistakably refers to zdev's stored areas or tasks."
+description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use when the user invokes zdev or $zdev, names an existing .zdev area or task, or asks to continue stored zdev work."
 compatibility: opencode
 ---
 
@@ -17,6 +17,12 @@ Route authored routine, standard/default, and advanced work to
 stays on the selected profile; one valid standard-work escalation uses an
 advanced replacement without replanning. Include rendered repository guidance
 and applicable instructions in every prompt.
+
+Each subagent starts with its role definition. Give it the complete rendered
+task-workflow contract and a compact task payload: file paths for the brief,
+task, guidance, and relevant source; the applicable snapshot IDs; and the
+short result from the preceding role. Let the worker read those files instead
+of copying their contents into the prompt.
 
 Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
 read-only task verification, and `/zdev-audit` for a read-only audit. Use

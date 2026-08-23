@@ -31,8 +31,13 @@ checked becomes `BLOCKER zdev-audit`; it is never treated as a pass.
 Boundary: `$ARGUMENTS`
 
 With no explicit lenses, use the task tool exactly once with a fresh
-`zdev-verifier` subagent, this contract, and the boundary. With one to four
-explicit lenses, use one independent verifier call per lens and a different
-final verifier call to open, check, and deduplicate every candidate location.
-Reject more than four before starting a subagent. Validate the final first line
-and required body before returning it.
+`zdev-verifier` subagent, this contract, and the boundary. When the user supplies
+up to four explicit lenses, use one independent verifier call per lens and a
+different final verifier call to open, check, and deduplicate every candidate
+location. Validate the final first line and required body before returning it.
+
+<!-- zdev:generated-repository-guidance:start -->
+## Repository guidance discovery
+
+Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
+<!-- zdev:generated-repository-guidance:end -->

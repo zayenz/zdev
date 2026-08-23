@@ -1,15 +1,15 @@
 ---
 name: zdev-loop
-description: "Continue a zdev area through native Codex goals, one independently verified task and commit at a time. Use only for an explicit $zdev-loop invocation."
+description: "Continues a named zdev area through Codex's native goal, one independently verified task and commit at a time. Use when the user invokes $zdev-loop or asks active zdev to continue, loop, or keep working through a named area."
 ---
 
 Call `get_goal({})` to inspect native goal state. With no unfinished goal, call
 `create_goal({ objective: condition })` with the validated area condition and
 no invented token budget. If the exact same condition is already active,
-continue under it without creating another goal. Codex exposes no
-model-callable resume operation: for the same paused or budget-limited goal,
-leave it unchanged, return `BLOCKER`, and say that the user must resume it
-through the harness. Never use `update_goal` to replace or retarget a goal.
+continue under it without creating another goal. For the same paused or
+budget-limited goal, preserve it and ask the user to resume it through Codex.
+After the user resumes, inspect it again and continue under the same goal.
+Use `update_goal` only to record a terminal state for the same active goal.
 After the same active zdev goal reaches a terminal PASS, call
 `update_goal({ status: "complete" })` only when the native goal contract permits
 completion.
@@ -19,15 +19,15 @@ completion.
 `zdev-loop <area>` is canonical and `zdev-goal <area>` is an exact semantic
 alias. Both follow this contract and emit canonical `zdev-loop` results.
 
-Before reading or changing repository state, use the adapter's named
-model-callable operation to inspect the harness-native goal. An active, paused, budget-limited, or
-otherwise unfinished goal wins. Do not replace, clear, edit, or layer this
-route over it. If it is the exact same zdev area condition in its existing
-session, resume it through the native goal mechanism without creating a second
-goal. Otherwise return `BLOCKER zdev-loop <area>` without a worker or
-repository mutation. If inspection is unavailable or does not authoritatively
-show that no unfinished goal exists, also return `BLOCKER`; do not guess that
-native goal state is clear.
+Before repository work, inspect the harness-native goal with the adapter's
+named model-callable operation. Native goal state selects one action:
+
+- No unfinished goal: validate the area, then create the shared condition.
+- The same condition is active: continue in that goal.
+- The same condition is paused or budget-limited: preserve it and ask the user
+  to resume it through the harness when model-facing resume is unavailable.
+- A different goal is unfinished, or inspection is unavailable: preserve the
+  existing state and return `BLOCKER zdev-loop <area>`.
 
 With no unfinished native goal, run fresh
 `zdev work-context <area> --format json`. Never reuse an earlier selection or
@@ -56,8 +56,8 @@ the current session. Every iteration begins with fresh work-context and uses
 the one-task contract below.
 
 The coordinating session owns task selection, branch safety, Git ownership,
-lifecycle changes, and commits. Workers never edit `.zdev`, complete tasks,
-commit, delegate, or change the selected task.
+lifecycle changes, staging, commits, and delegation. Workers stay within the
+selected task and return one role-specific result.
 
 An isolated area uses its stored branch and managed base relationship. An
 explicit trunk area dynamically uses configured `project.trunk`, may share it
@@ -86,7 +86,8 @@ as the subject. Before verification and every rework handoff, rerun
 `work-context` and require the same ready task ID and an explainable exact Git
 delta.
 
-`zdev-implement <area>` reads the effective complexity from the selected goal.
+`zdev-implement <area>` reads effective complexity from the selected task in
+work-context.
 Authored `routine` uses `routine-implementer`; `standard`, including an omitted
 legacy value, uses `implementer`. Never infer routine work from files or diff
 size. Before any edit for `advanced`, start one fresh read-only `planner` using
@@ -116,8 +117,9 @@ sentinel line, Markdown fence, or other text. The object has exactly these keys:
 `kind` is `planner`, `implementer`, or `verifier`. Planner verdict is `plan` or
 `blocker`; implementer verdict is `ready` or `blocker`; verifier verdict is
 `pass`, `rework`, or `blocker`. A plan has no findings and puts exactly one
-non-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`. `summary` is a
-non-empty string. `evidence` and `findings` are always arrays of non-empty
+non-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`.
+Verifier `pass` has no findings; verifier `rework` has at least one concrete
+finding. `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`, except that verifier
 `rework` may request `advanced-implementer`. Every other combination requires
 `none`. Schema version, kind, area, task ID, keys, types, and combinations must
@@ -126,9 +128,10 @@ malformed JSON. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict. When the stale advisory applies,
 the verifier includes its exact text once in `evidence`; otherwise it omits it.
 
-An implementer that cannot finish the source without splitting direct,
-already-approved work may use one narrow exception to the ordinary blocker
-path. It returns a valid implementer object with verdict `blocker`, escalation
+## Derived work handoff
+
+An implementer that needs to split necessary direct work already covered by
+the approved brief and task returns a valid implementer object with verdict `blocker`, escalation
 `none`, no findings, and one evidence item containing the complete transient
 proposal. That evidence string begins
 `PROPOSE zdev-derived <area> <source-task-id>\n` and continues with exactly one
@@ -141,15 +144,14 @@ never runs derive review, apply, import, or any other `.zdev` mutation.
 The coordinator recognizes this strict alternative before treating the worker
 result as an ordinary blocker. It refreshes work-context and requires unchanged
 area, source task, HEAD, safety, and attributable Git state. Automatic authority
-also requires every child to be necessary, direct work inside the brief and
-source task, with no product, compatibility, destructive, ownership,
-cross-area, or uncertainty decision. When those semantic and retained-context
-checks pass, send the unchanged proposal directly to `zdev tasks derive apply
+requires every child to be necessary direct work already covered by the brief
+and source task. When those semantic and retained-context checks pass, send the
+unchanged proposal directly to `zdev tasks derive apply
 <area> --from - --format json` with no approval; apply revalidates mechanical
 authority under its lock.
 
-Only when semantic authority is unclear, and the proposal, current state, and
-path ownership are otherwise safe and mechanically eligible, send the proposal
+When the user must make a semantic choice and current state and path ownership
+are safe and mechanically eligible, send the proposal
 to `zdev tasks derive review <area> --from - --format json`. Require its
 `mechanically_eligible` result to remain true, present its stored Markdown with
 `zdev tasks derive review <area> --show`, and ask for ordinary approval. After
@@ -207,9 +209,9 @@ no fixed ordinary-rework count. After each correction, a fresh standard
 verifier checks the whole task again. Stop only on verifier `pass`, a genuine
 blocker, unsafe scope expansion, or a required user-owned decision.
 
-Only after an exact matching verifier object with verdict `pass`, the
-coordinator gives completion the opaque snapshot ID, not the verifier object,
-worker-supplied path, inline context, or raw Git evidence. Completion runs
+After an exact matching verifier object with verdict `pass`, the coordinator
+gives completion the opaque snapshot ID plus the accepted implementation and
+verifier summaries. Completion derives paths from the verified checkout and runs
 exactly one `zdev work-context <area> --compare <snapshot> --format json`
 before mutation and accepts only the exact compact schema for that area and ID
 with `equal: true`. This fresh binary comparison covers area, ready task,
@@ -237,7 +239,7 @@ owns the next iteration and must collect a fresh
 worker dispatch. It never reuses the completed task's pre-commit selection.
 
 `zdev-verify <area> <task-id>` performs the same read-only preflight and requires
-the explicit ID to equal the current ready goal task before starting one fresh
+the explicit ID to equal the current ready task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,
 stages, commits, or routes a derived proposal. Its public result is the accepted verifier object above. Empty,
 exhausted, or closed goals, a different ready task, unsafe state, unavailable
@@ -293,14 +295,16 @@ earlier result never authorizes skipping preflight, safety, or verification.
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery
 
-Before planning or changing code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
+Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->
 
 
 Use Codex collaboration agents exactly as the embedded one-task contract
-requires. The current Codex session remains coordinator.
+requires. The current Codex session remains coordinator. Spawn every role with
+`fork_turns="none"` and the compact filesystem-backed message defined by the
+installed `zdev-implement` or `zdev-verify` contract.
 
-For `routine-implementer`, pass `model="gpt-5.6-luna"` and `reasoning_effort="low"`.
-For `implementer`, pass `model="gpt-5.6-sol"` and `reasoning_effort="low"`.
-For `advanced-implementer`, pass `model="gpt-5.6-sol"` and `reasoning_effort="high"`.
-For every fresh verifier, pass `model="gpt-5.6-sol"` and `reasoning_effort="low"`.
+For `routine-implementer`, pass `model="gpt-5.6-luna"` and `reasoning_effort="low"` together with `fork_turns="none"`.
+For `implementer`, pass `model="gpt-5.6-sol"` and `reasoning_effort="low"` together with `fork_turns="none"`.
+For `advanced-implementer`, pass `model="gpt-5.6-sol"` and `reasoning_effort="high"` together with `fork_turns="none"`.
+For every fresh verifier, pass `model="gpt-5.6-sol"` and `reasoning_effort="low"` together with `fork_turns="none"`.

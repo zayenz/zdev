@@ -1,6 +1,6 @@
 ---
 name: zdev-pi
-description: Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use only when the user invokes zdev or $zdev; asks to work through an existing .zdev area; or unmistakably refers to zdev's stored areas or tasks.
+description: Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use when the user invokes zdev or /skill:zdev-pi, names an existing .zdev area or task, or asks to continue stored zdev work.
 ---
 
 # Zdev for Pi
@@ -9,18 +9,24 @@ description: Zdev manages durable software work through briefs, tasks, implement
 
 ## Pi orchestration
 
-Call `zdev_subagent` with role `routine-implementer` only for authored routine,
-`implementer` for standard/default, or `advanced-implementer` for advanced.
+Route authored routine, standard/default, and advanced work through
+`zdev_subagent` roles `routine-implementer`, `implementer`, or
+`advanced-implementer`.
 Advanced work first uses one read-only `planner` call. Always use a fresh
 `verifier` call for verification. Ordinary rework keeps the selected profile;
 one valid standard-work escalation uses an advanced replacement without
-replanning. Each child receives the selected brief, task, repository guidance,
-work-context, and relevant source.
+replanning. Pi starts each child as a clean, role-specific process. Give every
+child the complete rendered task-workflow contract and a compact payload of
+brief, task, guidance, and source file paths, applicable snapshot IDs, and the
+short result from the preceding role. The child reads those files from the
+shared checkout.
 
-Use `/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
+In Pi, `/skill:zdev-pi` activates this skill explicitly. Use
+`/zdev-implement` for one complete task cycle, `/zdev-verify` for explicit
 read-only task verification, and `/zdev-audit` for a read-only audit. Use
 `/zdev-loop <area>` for bounded area continuation; `/zdev-goal <area>` is its
-exact alias. Child Pi processes cannot load extensions or delegate.
+exact alias. The coordinating Pi process owns extension tools and delegation;
+child processes focus on their assigned role.
 
 Stock Pi has no native continuation surface. For an active-zdev goal or loop
 request, use either paired prompt. It completes at most one task using the

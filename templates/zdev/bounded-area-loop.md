@@ -23,6 +23,9 @@ Classify the result as follows:
   unexplained Git state, or a required user-owned decision returns `BLOCKER`
   before a worker or further mutation.
 
+For open `ready`, the validated entry context is the one-task contract's
+initial work-context. Reuse it for the first dispatch.
+
 {{task_workflow_contract}}
 
 Concrete task-owned `rework` remains inside that one task cycle with fresh
@@ -40,8 +43,8 @@ ordinary graph before deciding whether to continue. Do not apply a second
 proposal from the same handoff. A later independently selected task may propose
 again under fresh authority checks.
 
-After an exact committed `PASS zdev-implement <area> <task-id>`, run one fresh
-`zdev work-context <area> --format json` before deciding the public result. If
+After an exact committed `PASS zdev-implement <area> <task-id>` or a successful
+derived apply, run one fresh `zdev work-context <area> --format json` before deciding the public result. If
 it reports open `ready` and safe task work, return `CONTINUE`, name that fresh
 next task, and stop. Do not start it or claim a background loop. If it reports
 open `empty`, open `exhausted`, or validated `closed`, return `PASS` and stop.

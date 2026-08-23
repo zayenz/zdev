@@ -2,10 +2,10 @@
 
 ## When
 
-Use a different verifier from the implementer. Give it the area brief, task
-file, recorded pre-implementation Git baseline, relevant source and tests, and
-repository verification instructions. The verifier inspects and tests without
-making intentional edits.
+Use a different verifier from the implementer. Give it repository-relative
+locators for the area brief, task, relevant source and tests, repository
+verification instructions, and the recorded pre-implementation baseline
+snapshot. The verifier inspects and tests without making intentional edits.
 
 ## Do
 
@@ -77,6 +77,6 @@ request `advanced-implementer`; otherwise `escalation` is `none`. The
 coordinator accepts that request at most once and only after standard/default
 implementation. Verification itself always uses a fresh standard verifier.
 
-The coordinating agent confirms that the verdict addresses the whole task.
-Zdev stores the result in the task rather than keeping the verifier's
-transcript.
+The coordinating agent confirms that the verdict addresses the whole task. On
+completion it writes a concise result and validation summary to the task.
+Explicit verification returns its envelope without mutation.

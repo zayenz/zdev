@@ -43,16 +43,15 @@ before committing or reopening it. Ask the user when ownership cannot be
 re-established from the task, baseline, and conversation. Do not assume an
 existing diff belongs to the selected task.
 
-Do not reconstruct automatic derived-work authority after interruption. If a
-proposal was not applied, preserve it unchanged and obtain fresh work-context.
-Invalid proposals, unsafe or changed context, staged or incomplete ownership,
-and mechanical failures stop for recovery; a stored review cannot waive those
-gates. Only if every mechanical and current-state gate passes but semantic
-authority remains unclear, run `zdev tasks derive review`, present its stored
-Markdown with `--show`, and after ordinary approval apply its opaque identity
-with `--reviewed`; a transcript is not fresh authority. If
-apply committed, discard the transient proposal and run fresh work-context.
-Investigation children and split children then follow the
-ordinary ready graph, while a split source remains open until its children and
-final integration are complete. Never replay apply, infer lineage, or accept a
-second proposal from the interrupted handoff.
+Recover derived work from current filesystem state:
+
+- For an unapplied proposal, preserve its bytes and collect fresh work-context.
+- When current mechanical gates pass and the user must make the semantic
+  choice, create a stored review, present its Markdown with `--show`, and apply
+  the approved review ID with `--reviewed`.
+- After a committed apply, discard the transient proposal and follow the fresh
+  ordinary task graph. A split source remains open through its children and
+  final integration.
+
+Changed or unsafe state stays preserved for ordinary recovery. A later selected
+task may produce a fresh proposal under fresh gates.

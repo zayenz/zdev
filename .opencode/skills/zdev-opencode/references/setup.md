@@ -2,14 +2,16 @@
 
 ## When
 
-Use this workflow only when the repository has no `.zdev` directory and the user
-wants to create durable zdev work. Standalone **Improve** and **Investigate** do
-not require setup.
+Use this workflow to initialize durable zdev work or to install and check
+harness integrations. An existing `.zdev` directory skips initialization and
+goes directly to integration setup. Standalone **Improve** and **Investigate**
+can run without durable state.
 
 ## Choose record ownership
 
-Ask whether the zdev record should be **personal**, **project**, or
-**pull-request**:
+When `.zdev` is absent, use a record policy already stated by the user. When it
+is still undecided, ask whether the record should be **personal**, **project**,
+or **pull-request**:
 
 - Recommend **personal** for work limited to this user and clone. Add the exact
   entry `/.zdev/` to this clone's `.git/info/exclude` before initialization.
@@ -19,8 +21,8 @@ Ask whether the zdev record should be **personal**, **project**, or
   omitted from the squash-merged result. Leave `.zdev` visible to Git, commit it
   on the branch, and run `zdev cleanup squash` before squash merge.
 
-Wait for the user's choice, then apply its Git visibility rule. Check harness
-integrations before initialization.
+Apply the selected Git visibility rule, then check harness integrations before
+initialization.
 
 ## Check harness integrations
 
@@ -30,13 +32,15 @@ the active harness. Reuse integrations with status `ok`. Discuss installation
 or scope only for `missing` or `conflict`, or when the user requests a
 checked-in project integration.
 
-For project scope, ask whether repository guidance comes from `auto`, `agents`,
-`zdev`, or a repository-relative Markdown path. The user may skip installation.
+For project scope, reuse the stated or configured repository-guidance source.
+When it is missing, ask whether guidance comes from `auto`, `agents`, `zdev`,
+or a repository-relative Markdown path. The user may skip installation.
 
 ## Initialize
 
-Run `zdev init --record <personal|project|pull-request>` with the selected policy.
-Then run `zdev skill install` only for integrations that need it.
+When `.zdev` is absent, run `zdev init --record
+<personal|project|pull-request>` with the selected policy. Then run `zdev skill
+install` for integrations that need installation or refresh.
 
 ## Finish
 

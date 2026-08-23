@@ -198,6 +198,11 @@ or a new full brief. It still requires explicit bundle approval, safe branch
 state, proportionate testing, independent verification, recorded completion,
 and a commit. Zdev never creates or switches the `general` branch.
 
+Creating tasks stores a valid candidate before independent challenge. A fresh
+reviewer reads the returned Markdown path, and concrete revisions replace the
+stored candidate and are challenged again. Only the final challenged document
+is presented. Storage and independent challenge do not imply approval.
+
 Zdev must be active before intent routing. A `zdev` or `$zdev` cue, a
 request to work through an existing `.zdev` area, or an unmistakable reference to
 stored zdev work activates it; the mere presence of `.zdev` does not. Generic

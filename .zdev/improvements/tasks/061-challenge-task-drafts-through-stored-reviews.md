@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-061"
 key = "challenge-stored-task-reviews"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "routine"
 blocked_by = []
 +++
@@ -27,11 +27,19 @@ The current guidance challenges an in-memory bundle before zdev stores its canon
 
 ## Done when
 
-- [ ] The Create tasks route stores a valid candidate before independent challenge and passes its Markdown path to the reviewer.
-- [ ] An unchanged candidate proceeds directly to presentation, while a revised candidate is replaced and challenged again before presentation.
-- [ ] Canonical references, generated harness guidance, and user documentation agree that review storage is not approval.
+- [x] The Create tasks route stores a valid candidate before independent challenge and passes its Markdown path to the reviewer.
+- [x] An unchanged candidate proceeds directly to presentation, while a revised candidate is replaced and challenged again before presentation.
+- [x] Canonical references, generated harness guidance, and user documentation agree that review storage is not approval.
 
 ## Validation
 
 - Run canonical generation and documentation-contract checks.
 - Run the repository standard full validation.
+
+## Result
+
+Task creation now stores a candidate before independent challenge, passes the stored Markdown path to the reviewer, and presents only the final challenged artifact for approval.
+
+Validation:
+
+- Independent verification passed; canonical/generated consistency, documentation contracts, formatting, strict clippy, all tests, build, diff check, and fresh work-context comparison passed.

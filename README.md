@@ -81,7 +81,10 @@ zdev tasks review scheduling --from - --format json
 Zdev stores the canonical bundle, an internal fingerprint, and an actual
 Markdown review file under repository-local Git administrative state. The
 small JSON result gives the harness an opaque review identity and the Markdown
-path. Show the current document on demand:
+path. For non-trivial work, the harness has a fresh reviewer read that exact
+file. Suggested revisions replace the stored candidate and are challenged
+again. Storage and review are not approval. Show only the final challenged
+document on demand:
 
 ```sh
 zdev tasks review scheduling --show

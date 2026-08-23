@@ -77,10 +77,20 @@ with `blocked_by`.
 
 ## Challenge the drafts
 
-For non-trivial work, ask a different agent to review the draft. Give it the
-proposed tasks, area `brief.md`, relevant decisions, repository guidance,
-source and tests, and linked background documents. Ask for concrete revisions
-covering:
+First build the complete Task Bundle JSON defined in the task-format reference
+loaded for this route. Keep every task and dependency in dependency order, then
+validate and store the candidate with:
+
+```text
+<task-bundle-json> | zdev tasks review <area> --from - --format json
+```
+
+The command returns a small opaque `review` identity and the path to the exact
+stored `review.md`. Storage is not user approval. For non-trivial work, ask a
+different agent to read that Markdown path and review the candidate. Give it
+the area `brief.md`, relevant decisions, repository guidance, source and tests,
+and linked background documents. It does not need the bundle JSON or adjacent
+review metadata. Ask for concrete revisions covering:
 
 - missing task-specific context or repository evidence;
 - hidden decisions that still belong to the user;
@@ -88,14 +98,18 @@ covering:
 - incorrect boundaries or scope; and
 - false dependencies.
 
-The coordinating agent reconciles those suggestions, edits `.zdev`, resolves
-user choices, and asks for import approval. If another agent is unavailable,
-run the same review locally. A local review is enough for trivial or fully
-specified work. Say which kind of review ran.
+The coordinating agent reconciles those suggestions in its draft and resolves
+user choices. If the candidate changes, run `zdev tasks review` again to
+atomically replace the stored candidate, then challenge the new returned
+Markdown path. Repeat until the reviewer has no concrete revisions. An
+unchanged candidate proceeds directly to presentation. If another agent is
+unavailable, run the same review locally. A local review is enough for trivial
+or fully specified work. Say which kind of review ran.
 
-Before approval, reconcile proposed tasks with existing task keys and completed
-outcomes. Resolve every concrete design or testing choice that would change the
-bundle before requesting approval.
+Before presentation, reconcile proposed tasks with existing task keys and
+completed outcomes. Resolve every concrete design or testing choice that would
+change the bundle. Only the final challenged stored artifact is shown for user
+approval; neither storage nor independent challenge grants approval.
 
 This route remains the ordinary path for a manually authored task split. When
 an investigation or implementer instead returns a strict derived proposal,
@@ -114,28 +128,15 @@ unsafe or changed context, staged or incomplete ownership, and mechanical apply 
 stop for recovery and fresh context without review; a stored review cannot waive
 those gates.
 
-## Review the split
+## Present the split
 
-Build the complete Task Bundle JSON defined in the task-format reference loaded
-for this route. Keep every task and dependency in dependency order. Send that
-JSON to:
-
-```text
-<task-bundle-json> | zdev tasks review <area> --from - --format json
-```
-
-The command validates the bundle shape and returns a small opaque `review`
-identity plus the path to the complete Markdown file. It stores the Markdown,
-canonical bundle, and internal fingerprint under Git administrative state, not
-under `.zdev`. Run `zdev tasks review <area> --show` and show that Markdown
+Run `zdev tasks review <area> --show` and show the final challenged Markdown
 unchanged, then ask: `Approve this task bundle for import?` The coordinator
-retains the returned identity automatically; the user never reads, copies, or
-reasons about it or the internal fingerprint.
-
-If any task content, order, or dependency changes, run `zdev tasks review`
-again. This atomically replaces the current stored review. Show the new stored
-Markdown and request fresh approval; do not reconstruct the document or create
-a transport file.
+retains the current opaque identity automatically; the user never reads, copies, or
+reasons about it or the internal fingerprint. If the candidate
+changes after presentation, replace it, challenge the replacement, and present
+the new stored Markdown for fresh approval. Do not reconstruct the document or
+create a transport file.
 
 ## Import
 

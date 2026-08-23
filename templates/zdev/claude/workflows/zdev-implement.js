@@ -293,36 +293,23 @@ const refresh = async label => {
   if (current?.staleAdvisory) staleAdvisory = true
   return current?.queue === 'ready' && current.complexity === complexity ? current : blocker(area, taskId, 'context refresh', `expected ready task ${taskId} with unchanged complexity ${complexity} and complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory)
 }
-const approvedPostValidation = result => {
-  const one = prefix => {
-    const matches = result.evidence.filter(item => item.startsWith(prefix))
-    return matches.length === 1 ? matches[0].slice(prefix.length) : null
-  }
-  const head = one('HEAD: ')
-  if (!/^[0-9a-f]{40}$/.test(head ?? '')) return null
-  const approved = { head }
-  for (const name of ['git_status', 'git_diff_cached', 'git_diff']) {
-    const encoded = one(`${name}: `)
-    if (encoded === null) return null
-    try {
-      approved[name] = JSON.parse(encoded)
-    } catch {
-      return null
-    }
-    if (typeof approved[name] !== 'string') return null
-  }
-  return approved
+const approvedSnapshot = result => {
+  const matches = result.evidence
+    .map(item => /^work_context_snapshot: (W[0-9a-f]{16})$/.exec(item))
+    .filter(Boolean)
+  return matches.length === 1 ? matches[0][1] : null
 }
 const verify = async current => {
   const currentAdvisory = current.staleAdvisory ? advisoryText : null
   const raw = (await agent(
-    `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area}. First run zdev work-context ${area} --format json yourself and require the same open, ready, safe task ${taskId}; do not reuse the coordinator context as evidence. Use the latest accepted implementer envelope only to locate evidence. Check the whole task and run required validation. Then capture git status --short --untracked-files=all, git diff --cached, and git diff. A pass evidence array must contain exactly one HEAD: entry copied from your independent work-context head and exactly one git_status:, git_diff_cached:, and git_diff: entry whose remainder is the JSON encoding of that exact post-validation stdout string. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${currentAdvisory ? `Include ${currentAdvisory} exactly once in evidence.` : `Do not include ${advisoryText} in evidence.`} Make no intentional edits.\n\nCoordinator context for comparison:\n${current.raw}\n\nLatest accepted implementer envelope:\n${JSON.stringify(latestImplementation)}`,
+    `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area}. Before inspection or validation, run zdev work-context ${area} --store --format json and accept only its compact locator for the same open, ready, safe task ${taskId} and expected HEAD ${current.payload.head}. Inspect that immutable context only through zdev work-context ${area} --show <snapshot> --format json. Use the latest accepted implementer envelope only to locate evidence. Check the whole task and run required validation, then run zdev work-context ${area} --compare <snapshot> --format json. Accept only the exact four-key compact result {"schema_version":1,"area":"${area}","snapshot":"<same-id>","equal":true}; false, malformed, unavailable, expired, corrupt, or mismatched evidence blocks a pass. Validation-written task-owned files are rework and ambiguous writes are blocker. A pass evidence array contains exactly one work_context_snapshot: W<16-lowercase-hex> item${currentAdvisory ? ` and ${currentAdvisory} exactly once` : ''}; put checked locations and validation conclusions in summary, not extra evidence. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${currentAdvisory ? '' : `Do not include ${advisoryText} in evidence.`} Make no intentional edits. Never return a snapshot path or raw Git evidence.\n\nLatest accepted implementer envelope:\n${JSON.stringify(latestImplementation)}`,
     { agentType: 'zdev:zdev-verifier', label: 'zdev fresh verification' },
   ))?.trim()
   const result = parseWorkerResult(raw, 'verifier', area, taskId)
   const advisoryCount = result?.evidence.filter(item => item === advisoryText).length
-  const approved = result?.verdict === 'pass' ? approvedPostValidation(result) : {}
-  return result && approved && advisoryCount === (currentAdvisory ? 1 : 0) ? { raw, result, approved } : null
+  const approved = result?.verdict === 'pass' ? approvedSnapshot(result) : true
+  const passEvidenceCount = currentAdvisory ? 2 : 1
+  return result && approved && (result.verdict !== 'pass' || result.evidence.length === passEvidenceCount) && advisoryCount === (currentAdvisory ? 1 : 0) ? { raw, result, approved } : null
 }
 
 if (!implementation) {
@@ -376,7 +363,7 @@ if (verdict.result.verdict !== 'pass') {
 
 const advisory = staleAdvisory ? advisoryText : null
 const completed = await agent(
-  `${workflowContract}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, first run zdev work-context ${area} --format json yourself. Require its exact area and task_id, open/ready lifecycle and queue, safe nested status, and full HEAD ${verdict.approved.head}. Require its git_status, git_diff_cached, and git_diff strings to equal the verifier-approved post-validation strings below byte for byte. Any mismatch or malformed context blocks before mutation. On an exact match, run zdev task done, stage only attributed task-owned paths and exact task records, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit fails. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nLatest coordinator context:\n${current.raw}\n\nVerifier-approved post-validation evidence:\n${JSON.stringify(verdict.approved)}`,
+  `${workflowContract}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, before any mutation run exactly one zdev work-context ${area} --compare ${verdict.approved} --format json. Accept only the exact four-key JSON object {"schema_version":1,"area":"${area}","snapshot":"${verdict.approved}","equal":true}; false, malformed, unavailable, expired, corrupt, cross-area, or mismatched evidence blocks before mutation. Do not run ordinary work-context, show the snapshot, or load raw Git evidence. On an exact match, run zdev task done, stage only attributed task-owned paths and exact task records, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit fails. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nVerifier-approved work-context snapshot: ${verdict.approved}`,
   { label: 'zdev completion and commit' },
 )
 const result = completed?.trim()

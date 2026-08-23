@@ -115,18 +115,26 @@ propose once under the same current gates; no derivation count or lineage is
 stored.
 
 Every verifier independently runs
-`zdev work-context <area> --format json` before inspecting or validating. It
-requires the same open, ready, safe area and task, compares that fresh context
-with the coordinator context only to detect intervening state, then runs the
-required validation. After validation it reruns `git status
---short --untracked-files=all`, `git diff --cached`, and `git diff` and reports
-any change. On `pass`, its evidence contains exactly one `HEAD: <full-lowercase-id>`
-entry copied from its independent context and exactly one `git_status:
-<json-string>`, `git_diff_cached: <json-string>`, and `git_diff:
-<json-string>` entry. Each JSON string encodes the exact post-validation
-stdout, including empty output. These four entries let the coordinator compare
-identity, index, worktree, and untracked state before mutation. Coordinator
-context is a locator, never the verifier's evidence.
+`zdev work-context <area> --store --format json` before inspecting or
+validating. It accepts only the compact locator for the same open, ready task
+and HEAD, then uses `zdev work-context <area> --show <snapshot> --format json`
+to inspect the complete immutable pre-validation context. It requires the same
+open, ready, safe area and task and compares that context with the coordinator
+identity only to detect intervening state. After validation it runs
+`zdev work-context <area> --compare <snapshot> --format json` and accepts only
+the exact compact comparison schema for the selected area and snapshot with
+`equal: true`. A false comparison is `rework` for attributable task-owned
+writes and otherwise `blocker`; missing, expired, corrupt, cross-area, or
+malformed snapshot evidence is `blocker`. The verifier never repairs or
+discards validation writes.
+
+On `pass`, its evidence contains exactly one
+`work_context_snapshot: W<16-lowercase-hex>` entry, apart from the existing
+optional stale advisory. Put checked locations and validation conclusions in
+`summary`, not additional evidence items. The snapshot is resolved only by
+zdev; coordinators accept the opaque ID and never a worker-supplied path. This
+one immutable snapshot proves both the independently collected pre-validation
+state and, through the successful comparison, the equal post-validation state.
 
 Every concrete task-owned verifier `rework` with escalation `none` goes to the
 same selected profile when the harness can resume it, or a same-profile
@@ -141,12 +149,16 @@ verifier checks the whole task again. Stop only on verifier `pass`, a genuine
 blocker, unsafe scope expansion, or a required user-owned decision.
 
 Only after an exact matching verifier object with verdict `pass`, the
-coordinator compares the accepted post-validation area, task, lifecycle,
-safety, HEAD, staged diff, unstaged diff, and untracked evidence with the
-latest context. Claude performs this comparison by running a fresh
-`work-context` inside its existing completion agent; no additional worker is
-started. On a match, the coordinator runs `zdev task done`, stages only the
-attributed task-owned files and exact generated task records, inspects the
+coordinator gives completion the opaque snapshot ID, not the verifier object,
+worker-supplied path, inline context, or raw Git evidence. Completion runs
+exactly one `zdev work-context <area> --compare <snapshot> --format json`
+before mutation and accepts only the exact compact schema for that area and ID
+with `equal: true`. This fresh binary comparison covers area, ready task,
+lifecycle, safety, HEAD, index, worktree, and untracked state because all are
+part of the stored canonical context. A false comparison or an unavailable,
+expired, corrupt, cross-area, or malformed artifact blocks before mutation.
+On an accepted comparison, the coordinator runs `zdev task done`, stages only
+the attributed task-owned files and exact generated task records, inspects the
 staged diff, and runs `zdev commit`.
 Completion or commit failure is a blocker that preserves and reports the exact
 state. Public output begins with

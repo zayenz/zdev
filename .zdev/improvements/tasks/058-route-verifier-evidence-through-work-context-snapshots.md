@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-058"
 key = "use-snapshots-for-verifier-evidence"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "advanced"
 blocked_by = ["improvements-057"]
 +++
@@ -27,13 +27,22 @@ A passing verifier currently JSON-encodes HEAD, status, staged diff, and unstage
 
 ## Done when
 
-- [ ] Standalone verify and implement/rework completion use the compact snapshot locator contract in every supported harness.
-- [ ] Passing verifier and completion prompts no longer transport raw Git diffs.
-- [ ] Mismatch, expiration, corruption, wrong area, wrong task, wrong HEAD, and validation-written files block before lifecycle or Git mutation.
-- [ ] Generated integrations, workflow documentation, and the changelog describe the shipped behavior coherently.
+- [x] Standalone verify and implement/rework completion use the compact snapshot locator contract in every supported harness.
+- [x] Passing verifier and completion prompts no longer transport raw Git diffs.
+- [x] Mismatch, expiration, corruption, wrong area, wrong task, wrong HEAD, and validation-written files block before lifecycle or Git mutation.
+- [x] Generated integrations, workflow documentation, and the changelog describe the shipped behavior coherently.
 
 ## Validation
 
 - Add focused executable workflow tests for pass, rework, validation writes, malformed or mismatched locators, and pre-mutation blocking.
 - Run generation and all five integration install/check tests.
 - Run the repository standard full validation.
+
+## Result
+
+Routed verifier PASS and completion through one compact work-context snapshot identity.
+
+Validation:
+
+- Focused locator, validation-write, mismatch, and pre-mutation workflow tests passed.
+- All five integration checks, format, clippy, all 135 tests, build, and diff checks passed.

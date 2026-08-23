@@ -5543,7 +5543,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
     assert!(task_workflow.contains("const validPass"));
     let verify_workflow =
         fs::read_to_string(claude.join("workflows/zdev-verify.js")).expect("verify workflow");
-    assert!(verify_workflow.contains("require the same open, ready, safe task"));
+    assert!(verify_workflow.contains("same open, ready, safe task"));
     assert!(verify_workflow.contains("agentType: 'zdev:zdev-verifier'"));
     assert!(verify_workflow.contains("never invokes an implementer, changes lifecycle state"));
 
@@ -5629,16 +5629,15 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
     assert!(verify.contains("Run zdev work-context ${area} --format json exactly once"));
     assert!(!verify.contains("Run zdev goal ${area}"));
     assert!(!verify.contains("Run zdev status ${area}"));
-    assert!(implement.contains("Verifier-approved post-validation evidence"));
-    assert!(implement.contains("verdict.approved.head"));
-    assert!(implement.contains("const approvedPostValidation"));
+    assert!(implement.contains("Verifier-approved work-context snapshot"));
+    assert!(implement.contains("--compare ${verdict.approved} --format json"));
+    assert!(implement.contains("const approvedSnapshot"));
     for compared in [
-        "exact area and task_id",
-        "open/ready lifecycle and queue",
-        "safe nested status",
-        "git_status, git_diff_cached, and git_diff strings",
-        "byte for byte",
-        "Any mismatch or malformed context blocks before mutation",
+        "exact four-key JSON object",
+        "\"equal\":true",
+        "blocks before mutation",
+        "Do not run ordinary work-context",
+        "load raw Git evidence",
         "Whether this completion is live or resumed",
     ] {
         assert!(
@@ -5650,7 +5649,7 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
         .find("if (verdict.result.verdict !== 'pass')")
         .expect("verifier PASS gate");
     let completion_context = implement
-        .rfind("first run zdev work-context ${area} --format json yourself")
+        .rfind("before any mutation run exactly one zdev work-context")
         .expect("completion context");
     let task_done = implement
         .rfind("run zdev task done")
@@ -5707,7 +5706,7 @@ if (parseContext(JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed',
 
     for workflow in [implement, verify] {
         let evidence_start = workflow
-            .find("const approvedPostValidation")
+            .find("const approvedSnapshot")
             .expect("post-validation parser start");
         let evidence_end = ["\n\nif (!/^[a-z0-9]", "\nconst verify ="]
             .into_iter()
@@ -5717,19 +5716,14 @@ if (parseContext(JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed',
             .expect("post-validation parser end");
         let evidence_probe = format!(
             r#"{}
-const head = '0123456789abcdef0123456789abcdef01234567'
 const result = evidence => ({{ evidence }})
-const valid = approvedPostValidation(result([
-  `HEAD: ${{head}}`,
-  'git_status: " M src/lib.rs\\n"',
-  'git_diff_cached: ""',
-  'git_diff: "line 1\\nline 2\\n"',
-]))
-if (!valid || valid.head !== head || valid.git_status !== ' M src/lib.rs\n' || valid.git_diff_cached !== '' || valid.git_diff !== 'line 1\nline 2\n') throw new Error('exact evidence rejected')
-if (approvedPostValidation(result([`HEAD: ${{head}}`, `HEAD: ${{head}}`, 'git_status: ""', 'git_diff_cached: ""', 'git_diff: ""']))) throw new Error('duplicate HEAD accepted')
-if (approvedPostValidation(result([`HEAD: ${{head}}`, 'git_status: {{}}', 'git_diff_cached: ""', 'git_diff: ""']))) throw new Error('non-string evidence accepted')
-if (approvedPostValidation(result([`HEAD: ${{head}}`, 'git_status: malformed', 'git_diff_cached: ""', 'git_diff: ""']))) throw new Error('malformed JSON accepted')
-if (approvedPostValidation(result(['cargo test passed']))) throw new Error('generic validation-only PASS accepted')
+const snapshot = 'W0123456789abcdef'
+if (approvedSnapshot(result([`work_context_snapshot: ${{snapshot}}`])) !== snapshot) throw new Error('exact locator rejected')
+if (approvedSnapshot(result([`work_context_snapshot: ${{snapshot}}`, `work_context_snapshot: ${{snapshot}}`]))) throw new Error('duplicate locator accepted')
+if (approvedSnapshot(result(['work_context_snapshot: W0123456789ABCDEf']))) throw new Error('malformed locator accepted')
+if (approvedSnapshot(result(['work_context_snapshot: /tmp/context.json']))) throw new Error('path accepted')
+if (approvedSnapshot(result(['HEAD: 0123456789abcdef0123456789abcdef01234567', 'git_status: ""']))) throw new Error('raw Git evidence accepted')
+if (approvedSnapshot(result(['cargo test passed']))) throw new Error('generic validation-only PASS accepted')
 "#,
             &workflow[evidence_start..evidence_end]
         );
@@ -5744,8 +5738,8 @@ if (approvedPostValidation(result(['cargo test passed']))) throw new Error('gene
         );
     }
 
-    assert!(verify.contains("const approvedPostValidation"));
-    assert!(verify.contains("approved.head === prepared.head"));
+    assert!(verify.contains("const approvedSnapshot"));
+    assert!(verify.contains("parsed.evidence.length === passEvidenceCount"));
 
     for workflow in [implement, verify] {
         let worker_start = workflow
@@ -5790,6 +5784,78 @@ if (parseWorkerResult(duplicate, 'verifier', 'general', 'general-001')) throw ne
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+#[test]
+fn claude_standalone_verify_returns_only_valid_snapshot_locators() {
+    let source = include_str!("../templates/zdev/claude/workflows/zdev-verify.js")
+        .replacen("export const meta =", "const meta =", 1)
+        .replace(
+            "{{task_workflow_contract}}",
+            &serde_json::to_string("workflow contract").expect("workflow contract JSON"),
+        )
+        .replace(
+            "{{repository_guidance}}",
+            &serde_json::to_string("repository guidance").expect("repository guidance JSON"),
+        );
+    let probe = format!(
+        r#"
+async function run(args, agent) {{
+{source}
+}}
+const area = 'work'
+const task = 'work-001'
+const head = '0123456789abcdef0123456789abcdef01234567'
+const context = JSON.stringify({{
+  schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: task,
+  stale_advisory: false,
+  status: {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', next: task,
+    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }} }},
+  goal: {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', task: {{ id: task }} }},
+  head, git_status: ' M src/lib.rs\n', git_diff_cached: '', git_diff: 'large diff\n',
+}})
+const worker = (verdict, evidence, findings = []) => JSON.stringify({{
+  schema_version: 1, kind: 'verifier', area, task_id: task, verdict,
+  summary: verdict === 'pass' ? 'Checked task and validation.' : 'Correction required.',
+  evidence, findings, escalation: 'none',
+}})
+const exercise = async response => {{
+  const prompts = []
+  const result = await run({{ area, task_id: task }}, async (prompt, options) => {{
+    prompts.push({{ prompt, options }})
+    return options.agentType ? response : context
+  }})
+  return {{ result, prompts }}
+}}
+const valid = await exercise(worker('pass', ['work_context_snapshot: W0123456789abcdef']))
+if (valid.result !== worker('pass', ['work_context_snapshot: W0123456789abcdef'])) throw new Error(valid.result)
+const verifierPrompt = valid.prompts.find(call => call.options.agentType)?.prompt ?? ''
+if (!verifierPrompt.includes('work-context work --store --format json')) throw new Error('store missing')
+if (!verifierPrompt.includes('work-context work --show <snapshot> --format json')) throw new Error('show missing')
+if (!verifierPrompt.includes('work-context work --compare <snapshot> --format json')) throw new Error('compare missing')
+if (verifierPrompt.includes('large diff') || verifierPrompt.includes(' M src/lib.rs')) throw new Error('raw coordinator Git evidence transported')
+for (const evidence of [
+  ['work_context_snapshot: /tmp/context.json'],
+  ['work_context_snapshot: W0123456789abcdef', 'work_context_snapshot: W0123456789abcdef'],
+  ['HEAD: ' + head, 'git_status: ""'],
+]) {{
+  const rejected = await exercise(worker('pass', evidence))
+  if (!rejected.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(rejected.result)
+  if (rejected.prompts.some(call => call.options.label === 'zdev completion and commit')) throw new Error('mutation attempted')
+}}
+const rework = await exercise(worker('rework', [], ['validation changed src/generated.rs']))
+if (rework.result !== worker('rework', [], ['validation changed src/generated.rs'])) throw new Error(rework.result)
+"#
+    );
+    let output = Command::new("node")
+        .args(["--input-type=module", "--eval", &probe])
+        .output()
+        .expect("run Claude standalone verify snapshot probe");
+    assert!(
+        output.status.success(),
+        "Claude standalone verify snapshot probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -5847,10 +5913,7 @@ const context = complexity => JSON.stringify({{
   git_diff: '',
 }})
 const passEvidence = [
-  'HEAD: ' + head,
-  'git_status: ""',
-  'git_diff_cached: ""',
-  'git_diff: ""',
+  'work_context_snapshot: W0123456789abcdef',
 ]
 const completion = 'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: abc123'
 const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null) => {{
@@ -5887,7 +5950,9 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   if (completionPrompt) {{
     if (completionPrompt.includes('implementer envelope') || completionPrompt.includes('implementer history')) throw new Error(name + ': completion received implementation payload')
     if (completionPrompt.includes('Verifier pass:') || completionPrompt.includes('"kind":"verifier"')) throw new Error(name + ': completion received duplicate verifier payload')
-    if (!completionPrompt.includes('Verifier-approved post-validation evidence:')) throw new Error(name + ': completion lost approved evidence')
+    if (!completionPrompt.includes('Verifier-approved work-context snapshot: W0123456789abcdef')) throw new Error(name + ': completion lost snapshot locator')
+    if (completionPrompt.includes('"git_status":') || completionPrompt.includes('"git_diff":')) throw new Error(name + ': completion received raw Git evidence')
+    if (!completionPrompt.includes('zdev work-context work --compare W0123456789abcdef --format json')) throw new Error(name + ': completion lost compact comparison')
   }}
   return {{ verifierPrompts, completionPrompt }}
 }}
@@ -5964,6 +6029,26 @@ await exercise(
   [worker('implementer', 'ready'), '{{}}'],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
   'BLOCKER',
+)
+await exercise(
+  'malformed snapshot locator',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', ['work_context_snapshot: /tmp/context.json'])],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+)
+await exercise(
+  'duplicate snapshot locator',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', [...passEvidence, ...passEvidence])],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+)
+await exercise(
+  'validation write cannot pass',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'rework', 'none', [], ['validation changed src/generated.rs']), worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
 )
 await exercise(
   'product decision blocker',
@@ -6129,12 +6214,7 @@ const empty = contextHead => JSON.stringify({{
   git_diff_cached: '',
   git_diff: '',
 }})
-const passEvidence = contextHead => [
-  'HEAD: ' + contextHead,
-  'git_status: ""',
-  'git_diff_cached: ""',
-  'git_diff: ""',
-]
+const passEvidence = _contextHead => ['work_context_snapshot: W0123456789abcdef']
 const completionPass = task =>
   'PASS zdev-implement ' + area + ' ' + task
   + '\n\nArea: ' + area + '\nTask: ' + task
@@ -6285,8 +6365,8 @@ fn work_context_round_trip_counts_match_realized_routes() {
     let loop_contract = include_str!("../docs/area-loop.md");
     let shared = include_str!("../templates/zdev/shared-contract.md");
     for exact_row in [
-        "| Codex, OpenCode, Pi, Oh My Pi | 5 / 5 / 5 / 2 | 2 / 2 / 3 / 1 | 7 / 8 / 8 / 4 |",
-        "| Claude | 5 / 6 / 5 / 5 | 2 / 2 / 3 / 2 | 7 / 9 / 8 / 9 |",
+        "| Codex, OpenCode, Pi, Oh My Pi | 5 / 8 / 2 / 2 | 2 / 4 / 0 / 1 | 7 / 13 / 2 / 4 |",
+        "| Claude | 5 / 8 / 2 / 5 | 2 / 4 / 0 / 2 | 7 / 13 / 2 / 9 |",
     ] {
         assert!(audit.contains(exact_row), "missing count row {exact_row}");
     }
@@ -6544,9 +6624,9 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             "classifies goal lifecycle first",
             "validated closed context contains",
             "stale_advisory",
-            "git status",
-            "--untracked-files=all",
-            "git diff --cached",
+            "work_context_snapshot",
+            "--store --format json",
+            "--compare <snapshot> --format json",
             "schema_version",
             "kind",
             "Planner verdict is `plan` or",

@@ -162,25 +162,11 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
     || (expectedKind === 'verifier' && result.verdict === 'rework' && result.escalation === 'advanced-implementer')
   return validEscalation ? result : null
 }
-const approvedPostValidation = result => {
-  const one = prefix => {
-    const matches = result.evidence.filter(item => item.startsWith(prefix))
-    return matches.length === 1 ? matches[0].slice(prefix.length) : null
-  }
-  const head = one('HEAD: ')
-  if (!/^[0-9a-f]{40}$/.test(head ?? '')) return null
-  const approved = { head }
-  for (const name of ['git_status', 'git_diff_cached', 'git_diff']) {
-    const encoded = one(`${name}: `)
-    if (encoded === null) return null
-    try {
-      approved[name] = JSON.parse(encoded)
-    } catch {
-      return null
-    }
-    if (typeof approved[name] !== 'string') return null
-  }
-  return approved
+const approvedSnapshot = result => {
+  const matches = result.evidence
+    .map(item => /^work_context_snapshot: (W[0-9a-f]{16})$/.exec(item))
+    .filter(Boolean)
+  return matches.length === 1 ? matches[0][1] : null
 }
 
 if (!/^[a-z0-9][a-z0-9-]*$/.test(area) || !/^[a-z0-9][a-z0-9-]*$/.test(taskId)) {
@@ -198,13 +184,14 @@ if (!prepared) {
 const advisory = prepared.staleAdvisory ? advisoryText : null
 
 const verified = await agent(
-  `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. First run zdev work-context ${area} --format json yourself and require the same open, ready, safe task and HEAD ${prepared.head}; coordinator context is not your evidence. Check the whole task and run required validation, then rerun git status --short --untracked-files=all, git diff --cached, and git diff and compare them with your independent pre-validation context. A pass evidence array must contain exactly one HEAD: entry copied from your independent work-context head and exactly one git_status:, git_diff_cached:, and git_diff: entry whose remainder is the JSON encoding of that exact post-validation stdout string. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${advisory ? `Include ${advisory} exactly once in evidence.` : `Do not include ${advisoryText} in evidence.`} Make no intentional edits and never change lifecycle or Git state.\n\nCoordinator context for comparison:\n${prepared.raw}`,
+  `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Before inspection or validation, run zdev work-context ${area} --store --format json and accept only its compact locator for the same open, ready, safe task and HEAD ${prepared.head}. Inspect that immutable context only through zdev work-context ${area} --show <snapshot> --format json. Check the whole task and run required validation, then run zdev work-context ${area} --compare <snapshot> --format json. Accept only the exact four-key compact result {"schema_version":1,"area":"${area}","snapshot":"<same-id>","equal":true}; false, malformed, unavailable, expired, corrupt, or mismatched evidence blocks a pass. Validation-written task-owned files are rework and ambiguous writes are blocker. A pass evidence array contains exactly one work_context_snapshot: W<16-lowercase-hex> item${advisory ? ` and ${advisory} exactly once` : ''}; put checked locations and validation conclusions in summary, not extra evidence. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${advisory ? '' : `Do not include ${advisoryText} in evidence.`} Make no intentional edits and never change lifecycle or Git state. Never return a snapshot path or raw Git evidence.`,
   { agentType: 'zdev:zdev-verifier', label: 'zdev fresh verification' },
 )
 const result = verified?.trim()
 const parsed = parseWorkerResult(result, 'verifier', area, taskId)
-const approved = parsed?.verdict === 'pass' ? approvedPostValidation(parsed) : {}
+const approved = parsed?.verdict === 'pass' ? approvedSnapshot(parsed) : true
 const advisoryCount = parsed?.evidence.filter(item => item === advisoryText).length
-return parsed && approved && (parsed.verdict !== 'pass' || approved.head === prepared.head) && advisoryCount === (advisory ? 1 : 0)
+const passEvidenceCount = advisory ? 2 : 1
+return parsed && approved && (parsed.verdict !== 'pass' || parsed.evidence.length === passEvidenceCount) && advisoryCount === (advisory ? 1 : 0)
   ? result
   : blocker(area, taskId, 'verifier returned invalid, extra, contradictory, or mismatched JSON.', prepared.staleAdvisory)

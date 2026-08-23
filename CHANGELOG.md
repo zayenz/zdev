@@ -30,6 +30,9 @@ This file records notable changes to zdev.
 - Task review stores a presentable Markdown document and canonical bundle in
   repository-local Git state, so zdev can show and import the current review
   without reconstructing Markdown or asking users to transport a fingerprint.
+- Verifier PASS and completion exchange one stored work-context ID instead of
+  serializing raw Git diffs through worker envelopes and prompts; zdev performs
+  the fresh comparison before task mutation.
 - Safe-but-stale isolated branches remain workable with one advisory; explicit
   trunk areas do not use freshness or rebase ceremony.
 

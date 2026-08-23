@@ -11,9 +11,11 @@ making intentional edits.
 
 Require the verifier to:
 
-1. Independently run `zdev work-context <area> --format json`. Require the
-   requested task to remain open, ready, and safe in its nested status and goal
-   projections. When `stale_advisory` is true, report the single rebase
+1. Independently run `zdev work-context <area> --store --format json`, accept
+   only its compact locator for the requested area, task, and HEAD, then inspect
+   the exact context with `zdev work-context <area> --show <snapshot> --format
+   json`. Require the requested task to remain open, ready, and safe in its
+   nested status and goal projections. When `stale_advisory` is true, report the single rebase
    advisory once and continue verification; staleness alone is not a blocker.
    Trunk mode has no rebase or freshness ceremony; its resolved configured
    trunk must simply remain safe and checked out.
@@ -29,7 +31,7 @@ Require the verifier to:
    is missing or leaves a material testing choice unresolved, return `BLOCKER`
    for the coordinating agent to resolve with the user; do not invent a testing
    level during review.
-3. Use the independently collected work-context Git strings as complete
+3. Use the independently stored work-context Git strings as complete
    pre-validation evidence. Inspect relevant untracked files directly because
    they do not appear in either diff. Compare this evidence with the
    pre-implementation baseline and identify every task-owned change; return
@@ -51,9 +53,10 @@ Require the verifier to:
    evidence is unsafe or unavailable, return `BLOCKER`; do not downgrade it to
    a limitation. Run only small, established optional checks targeted at a
    concrete concern found by either pass. An unavailable optional check may be
-   reported as a residual limitation. Capture the same
-   three-part Git evidence afterward and compare it with the pre-validation
-   state. Validation that writes files is not read-only evidence: report the
+   reported as a residual limitation. After validation, run `zdev work-context
+   <area> --compare <snapshot> --format json` and require the exact compact
+   comparison for that area and snapshot with `equal: true`. Validation that
+   writes files is not read-only evidence: report the
    new state as `REWORK` when it is a concrete task-owned correction, or
    `BLOCKER` when ownership or the appropriate action is unclear. Never stash,
    reset, restore, clean, or silently discard validation writes.
@@ -61,12 +64,15 @@ Require the verifier to:
 ## Verdict
 
 The verifier returns only the strict nine-key JSON object defined by the task
-workflow contract. It uses verdict `pass` when the task and touched code pass
+workflow contract. A pass has exactly one
+`work_context_snapshot: W<16-lowercase-hex>` evidence item, apart from the
+optional stale advisory; its summary carries checked locations and validation
+conclusions. It uses verdict `pass` when the task and touched code pass
 all required checks, `rework` for concrete implementation defects or
 task-owned validation writes, and `blocker` for ambiguous Git ownership,
 unsafe or unavailable required evidence, or a user-owned design, scope, or
-testing decision. Put checked locations and validation in `evidence`, concrete
-corrections in `findings`, and always include both arrays. Only `rework` may
+testing decision. Put concrete corrections in `findings`, and always include
+both arrays. Only `rework` may
 request `advanced-implementer`; otherwise `escalation` is `none`. The
 coordinator accepts that request at most once and only after standard/default
 implementation. Verification itself always uses a fresh standard verifier.

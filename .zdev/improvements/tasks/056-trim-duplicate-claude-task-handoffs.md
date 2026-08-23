@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-056"
 key = "trim-claude-handoffs"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -26,12 +26,21 @@ The current Claude workflow accumulates every implementer envelope and sends ove
 
 ## Done when
 
-- [ ] Claude verification receives only the latest accepted implementer or rework envelope needed to locate changes.
-- [ ] Claude completion receives one sufficient verifier representation and no implementation history or duplicate verifier copy.
-- [ ] Executable workflow coverage exercises initial pass, rework, escalation, completion, and invalid envelopes without relying on string-count-only assertions.
-- [ ] Round-trip documentation describes the reduced handoff accurately.
+- [x] Claude verification receives only the latest accepted implementer or rework envelope needed to locate changes.
+- [x] Claude completion receives one sufficient verifier representation and no implementation history or duplicate verifier copy.
+- [x] Executable workflow coverage exercises initial pass, rework, escalation, completion, and invalid envelopes without relying on string-count-only assertions.
+- [x] Round-trip documentation describes the reduced handoff accurately.
 
 ## Validation
 
 - Run the focused Claude workflow and generated-artifact tests.
 - Run the repository standard full validation.
+
+## Result
+
+Trimmed Claude task handoffs to the latest implementation locator and one verifier evidence representation.
+
+Validation:
+
+- Focused Claude workflow and generated-artifact tests passed.
+- Format, clippy, all 130 tests, build, and git diff checks passed.

@@ -284,7 +284,7 @@ const implementationRaw = (await agent(
   { agentType: implementationAgentType, label: `zdev ${complexity} implementation` },
 ))?.trim()
 const implementation = parseWorkerResult(implementationRaw, 'implementer', area, taskId)
-const implementationHistory = []
+let latestImplementation = implementation
 let activeAgentType = implementationAgentType
 let escalated = false
 
@@ -316,7 +316,7 @@ const approvedPostValidation = result => {
 const verify = async current => {
   const currentAdvisory = current.staleAdvisory ? advisoryText : null
   const raw = (await agent(
-    `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area}. First run zdev work-context ${area} --format json yourself and require the same open, ready, safe task ${taskId}; do not reuse the coordinator context as evidence. Use the complete implementer history only to locate evidence. Check the whole task and run required validation. Then capture git status --short --untracked-files=all, git diff --cached, and git diff. A pass evidence array must contain exactly one HEAD: entry copied from your independent work-context head and exactly one git_status:, git_diff_cached:, and git_diff: entry whose remainder is the JSON encoding of that exact post-validation stdout string. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${currentAdvisory ? `Include ${currentAdvisory} exactly once in evidence.` : `Do not include ${advisoryText} in evidence.`} Make no intentional edits.\n\nCoordinator context for comparison:\n${current.raw}\n\nValidated implementer history:\n${JSON.stringify(implementationHistory)}`,
+    `${workflowContract}\n\nIndependently verify task ${taskId} in area ${area}. First run zdev work-context ${area} --format json yourself and require the same open, ready, safe task ${taskId}; do not reuse the coordinator context as evidence. Use the latest accepted implementer envelope only to locate evidence. Check the whole task and run required validation. Then capture git status --short --untracked-files=all, git diff --cached, and git diff. A pass evidence array must contain exactly one HEAD: entry copied from your independent work-context head and exactly one git_status:, git_diff_cached:, and git_diff: entry whose remainder is the JSON encoding of that exact post-validation stdout string. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${currentAdvisory ? `Include ${currentAdvisory} exactly once in evidence.` : `Do not include ${advisoryText} in evidence.`} Make no intentional edits.\n\nCoordinator context for comparison:\n${current.raw}\n\nLatest accepted implementer envelope:\n${JSON.stringify(latestImplementation)}`,
     { agentType: 'zdev:zdev-verifier', label: 'zdev fresh verification' },
   ))?.trim()
   const result = parseWorkerResult(raw, 'verifier', area, taskId)
@@ -333,8 +333,6 @@ if (initialSplit) return initialSplit
 if (implementation.verdict === 'blocker') {
   return blocker(area, taskId, 'implementation', implementation.summary, `Evidence: ${implementation.evidence.join('; ') || 'none.'} Findings: ${implementation.findings.join('; ') || 'none.'}`, staleAdvisory)
 }
-implementationHistory.push(implementation)
-
 let current = await refresh('zdev pre-verification refresh')
 if (typeof current === 'string') return current
 let verdict = await verify(current)
@@ -364,7 +362,7 @@ while (verdict.result.verdict === 'rework') {
   if (rework.verdict === 'blocker') {
     return blocker(area, taskId, 'rework', rework.summary, `Evidence: ${rework.evidence.join('; ') || 'none.'} Findings: ${rework.findings.join('; ') || 'none.'}`, staleAdvisory)
   }
-  implementationHistory.push(rework)
+  latestImplementation = rework
   current = await refresh('zdev post-rework verification refresh')
   if (typeof current === 'string') return current
   verdict = await verify(current)
@@ -378,7 +376,7 @@ if (verdict.result.verdict !== 'pass') {
 
 const advisory = staleAdvisory ? advisoryText : null
 const completed = await agent(
-  `${workflowContract}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, first run zdev work-context ${area} --format json yourself. Require its exact area and task_id, open/ready lifecycle and queue, safe nested status, and full HEAD ${verdict.approved.head}. Require its git_status, git_diff_cached, and git_diff strings to equal the verifier-approved post-validation strings below byte for byte. Any mismatch or malformed context blocks before mutation. On an exact match, run zdev task done, stage only attributed task-owned paths and exact task records, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit fails. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nLatest coordinator context:\n${current.raw}\n\nVerifier-approved post-validation evidence:\n${JSON.stringify(verdict.approved)}\n\nValidated implementer history:\n${JSON.stringify(implementationHistory)}\n\nVerifier pass:\n${verdict.raw}`,
+  `${workflowContract}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, first run zdev work-context ${area} --format json yourself. Require its exact area and task_id, open/ready lifecycle and queue, safe nested status, and full HEAD ${verdict.approved.head}. Require its git_status, git_diff_cached, and git_diff strings to equal the verifier-approved post-validation strings below byte for byte. Any mismatch or malformed context blocks before mutation. On an exact match, run zdev task done, stage only attributed task-owned paths and exact task records, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit fails. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nLatest coordinator context:\n${current.raw}\n\nVerifier-approved post-validation evidence:\n${JSON.stringify(verdict.approved)}`,
   { label: 'zdev completion and commit' },
 )
 const result = completed?.trim()

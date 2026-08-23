@@ -5302,14 +5302,14 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
         }
     }
     assert!(implement.contains("first === `PASS zdev-implement ${area} ${taskId}`"));
-    assert!(implement.contains("const implementationHistory = []"));
-    assert_eq!(implement.matches("implementationHistory.push(").count(), 2);
-    assert_eq!(
-        implement
-            .matches("Validated implementer history:\\n${JSON.stringify(implementationHistory)}")
-            .count(),
-        2
-    );
+    assert!(implement.contains("let latestImplementation = implementation"));
+    assert!(implement.contains("latestImplementation = rework"));
+    assert!(implement.contains(
+        "Latest accepted implementer envelope:\\n${JSON.stringify(latestImplementation)}"
+    ));
+    assert!(!implement.contains("implementationHistory"));
+    assert!(!implement.contains("Validated implementer history"));
+    assert!(!implement.contains("Verifier pass:\\n${verdict.raw}"));
     assert!(implement.contains(
         "Evidence: ${implementation.evidence.join('; ') || 'none.'} Findings: ${implementation.findings.join('; ') || 'none.'}"
     ));
@@ -5536,9 +5536,9 @@ async function run(args, agent) {{
 const area = 'work'
 const taskId = 'work-001'
 const head = '0123456789abcdef0123456789abcdef01234567'
-const worker = (kind, verdict, escalation = 'none', evidence = [], findings = []) => JSON.stringify({{
+const worker = (kind, verdict, escalation = 'none', evidence = [], findings = [], summary = verdict + ' result') => JSON.stringify({{
   schema_version: 1, kind, area, task_id: taskId, verdict,
-  summary: verdict + ' result', evidence, findings, escalation,
+  summary, evidence, findings, escalation,
 }})
 const context = complexity => JSON.stringify({{
   schema_version: 1,
@@ -5574,7 +5574,9 @@ const passEvidence = [
 const completion = 'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: abc123'
 const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null) => {{
   const types = []
-  const result = await run({{ area }}, async (_prompt, options) => {{
+  const calls = []
+  const result = await run({{ area }}, async (prompt, options) => {{
+    calls.push({{ prompt, options }})
     if (options.agentType) {{
       types.push(options.agentType)
       if (responses.length === 0) throw new Error(name + ': unexpected worker')
@@ -5595,13 +5597,26 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   if (JSON.stringify(types) !== JSON.stringify(expectedTypes)) {{
     throw new Error(name + ': ' + JSON.stringify(types))
   }}
+  const verifierPrompts = calls.filter(call => call.options.agentType === 'zdev:zdev-verifier').map(call => call.prompt)
+  for (const prompt of verifierPrompts) {{
+    if (!prompt.includes('Latest accepted implementer envelope:')) throw new Error(name + ': verifier lost latest envelope')
+    if (prompt.includes('implementer history')) throw new Error(name + ': verifier received history')
+  }}
+  const completionPrompt = calls.find(call => call.options.label === 'zdev completion and commit')?.prompt
+  if (completionPrompt) {{
+    if (completionPrompt.includes('implementer envelope') || completionPrompt.includes('implementer history')) throw new Error(name + ': completion received implementation payload')
+    if (completionPrompt.includes('Verifier pass:') || completionPrompt.includes('"kind":"verifier"')) throw new Error(name + ': completion received duplicate verifier payload')
+    if (!completionPrompt.includes('Verifier-approved post-validation evidence:')) throw new Error(name + ': completion lost approved evidence')
+  }}
+  return {{ verifierPrompts, completionPrompt }}
 }}
-await exercise(
+const routinePass = await exercise(
   'routine pass',
   'routine',
-  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
+  [worker('implementer', 'ready', 'none', ['routine locator']), worker('verifier', 'pass', 'none', passEvidence)],
   ['zdev:zdev-routine-implementer', 'zdev:zdev-verifier'],
 )
+if (!routinePass.verifierPrompts[0].includes('routine locator')) throw new Error('initial verifier lost implementation locator')
 await exercise(
   'standard pass',
   'standard',
@@ -5630,27 +5645,44 @@ await exercise(
   ],
   ['zdev:zdev-planner', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier'],
 )
-await exercise(
+const ordinaryRework = await exercise(
   'ordinary rework',
   'standard',
   [
-    worker('implementer', 'ready'),
+    worker('implementer', 'ready', 'none', ['initial locator']),
     worker('verifier', 'rework', 'none', [], ['fix the task-owned defect']),
-    worker('implementer', 'ready'),
+    worker('implementer', 'ready', 'none', ['rework locator']),
     worker('verifier', 'pass', 'none', passEvidence),
   ],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
 )
-await exercise(
+if (!ordinaryRework.verifierPrompts[0].includes('initial locator')) throw new Error('first verifier lost initial locator')
+if (!ordinaryRework.verifierPrompts[1].includes('rework locator') || ordinaryRework.verifierPrompts[1].includes('initial locator')) throw new Error('second verifier did not receive only latest locator')
+const advancedEscalation = await exercise(
   'advanced escalation',
   'standard',
   [
-    worker('implementer', 'ready'),
+    worker('implementer', 'ready', 'none', ['standard locator']),
     worker('verifier', 'rework', 'advanced-implementer', [], ['broader reasoning is required']),
-    worker('implementer', 'ready'),
+    worker('implementer', 'ready', 'none', ['advanced locator']),
     worker('verifier', 'pass', 'none', passEvidence),
   ],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier'],
+)
+if (!advancedEscalation.verifierPrompts[1].includes('advanced locator') || advancedEscalation.verifierPrompts[1].includes('standard locator')) throw new Error('escalated verifier did not receive only latest locator')
+await exercise(
+  'invalid implementer envelope',
+  'standard',
+  ['{{}}'],
+  ['zdev:zdev-implementer'],
+  'BLOCKER',
+)
+await exercise(
+  'invalid verifier envelope',
+  'standard',
+  [worker('implementer', 'ready'), '{{}}'],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
 )
 await exercise(
   'product decision blocker',

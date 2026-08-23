@@ -346,6 +346,21 @@ successful valid import cannot have an empty frontier: it adds open work to a
 finite acyclic graph, so at least one task is ready. No new transaction
 abstraction is needed.
 
+### 4. Keep only the current Claude worker handoff (implemented)
+
+Claude's task workflow no longer accumulates every accepted implementation
+envelope. Each fresh verifier receives the current coordinator context and
+only the latest accepted implementation or rework envelope as a locator. After
+rework, the replacement envelope supersedes the earlier one.
+
+The completion agent receives the latest coordinator context and one
+normalized representation of the verifier-approved HEAD and Git evidence. It
+does not receive implementation envelopes or a second copy of the verifier
+PASS. This changes payload size rather than the C/Z/G/W counts: every fresh
+work-context, independent verification, post-validation Git comparison,
+completion, and commit gate remains in place, and Git evidence remains inline
+until the separate snapshot work changes its transport.
+
 ## Rejected shortcuts
 
 - Do not reuse the coordinator snapshot as the verifier's own evidence. That
@@ -365,9 +380,9 @@ abstraction is needed.
 - Do not remove post-import `check` merely because import validates its own
   writes. The broader published-area check is currently observable behavior.
 
-These three changes landed independently. Work-context provides the shared
-collection boundary; the Claude audit fast path and import frontier do not
-depend on one another.
+These four changes landed independently. Work-context provides the shared
+collection boundary; the Claude audit fast path, import frontier, and trimmed
+Claude worker handoffs do not depend on one another.
 
 ## Implemented task split
 
@@ -385,3 +400,8 @@ depend on one another.
    guidance's `tasks list` follow-up. Preserve the opaque review-fingerprint drift check,
    `check`, commit path ordering, locks, and rollback. Existing tests cover an
    imported task blocked by an existing ready task.
+4. **Trimmed Claude handoffs.** Verification receives only the latest accepted
+   implementation locator. Completion receives one normalized verifier
+   evidence object and no implementation payload. Executable workflow probes
+   cover initial PASS, rework replacement, advanced escalation, completion,
+   and invalid envelopes while retaining the existing safety gates.

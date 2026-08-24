@@ -5,7 +5,7 @@ key = "move-verifier-bookkeeping-to-coordinator"
 area = "general"
 status = "open"
 complexity = "advanced"
-blocked_by = []
+blocked_by = ["general-003"]
 +++
 # Move verifier bookkeeping into deterministic coordination
 
@@ -35,6 +35,6 @@ The current verifier contract asks the model to produce and count a nine-key env
 
 ## Validation
 
-- Regenerate the checked-in integrations with `cargo run --locked -- skill install codex --to skills --force`, and the corresponding `claude --to .claude`, `opencode --to .opencode`, `pi --to .pi`, and `omp --to .omp` commands.
+- Regenerate the checked-in integrations with `cargo run --locked -- skill install codex --to skills --force`, `cargo run --locked -- skill install claude --to .claude/skills/zdev --force`, and the corresponding `opencode --to .opencode`, `pi --to .pi`, and `omp --to .omp` commands.
 - Run `cargo test --locked --test lean all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries`, `cargo test --locked --test lean claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes`, `cargo test --locked --test lean claude_standalone_verify_returns_only_valid_snapshot_locators`, `cargo test --locked --test lean work_context_round_trip_counts_match_realized_routes`, and `cargo test --locked --test lean executable_templates_realize_deterministically_and_match_generated_fixtures`.
 - Run the area-wide validation from brief.md.

@@ -69,14 +69,15 @@ add a durable role or configuration key.
 Before the first code edit for an `advanced` task, the coordinator starts a
 fresh read-only planner using `advanced-implementer`. The planner receives the
 same work-context, brief, task, and repository guidance as an implementer. It
-returns the strict nine-key worker object with
-`kind: "planner"`, `verdict: "plan"`, and `escalation: "none"`. A plan has
-exactly one non-empty `Approach: `, `Paths: `, and `Validation: ` evidence
-entry and no findings. `verdict: "blocker"` is the only alternative. The plan is a
-conversation handoff, not a repository file or zdev record. It cannot add
-scope, relax validation, or amend the approved task. The coordinator checks
-the subject, baseline, paths, and absence of unresolved decisions, then passes
-the plan unchanged to a fresh advanced implementer.
+returns exactly four semantic fields: `verdict`, `summary`, `plan`, and
+`findings`. A `plan` verdict carries an exact three-field plan object with
+`approach`, `paths`, and `validation`, and no findings; `blocker` carries a
+null plan and concrete findings. The coordinator strictly parses that result
+and constructs the compatible public planner envelope with identity, evidence,
+and `escalation: "none"`. The semantic plan itself is the conversation handoff
+and is passed unchanged to a fresh advanced implementer. It is not a repository
+file or zdev record and cannot add scope, relax validation, or amend the
+approved task.
 
 Planning is skipped for `routine` and `standard` tasks, explicit `zdev-verify`,
 and a resumed workflow that already holds a valid plan for the same task and

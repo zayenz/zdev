@@ -188,30 +188,30 @@ as a conflict. No unrelated shared-root file is removed.
 
 ### Deterministic task selection
 
-`zdev-implement` runs `zdev work-context <area> --format json` first. The
+`zdev-implement` collects and shows a stored work-context snapshot first. The
 command validates goal lifecycle before collecting branch or Git facts, so a
 validated closed result returns no work without those reads. Open results
 contain nested status and goal projections plus HEAD and exact staged,
 unstaged, and untracked evidence. The coordinator requires the projections to
 agree, requires `branch_status.task_work.safe`, reports `stale_advisory` once,
 and uses only the ready goal's task as its subject. Structurally unsafe state
-still blocks. The complete work-context JSON is passed unchanged to every
-worker with the brief, repository guidance, and task-owned paths.
+still blocks. The complete shown work-context JSON is passed unchanged to the
+initial implementer with the brief, repository guidance, and task-owned paths.
 
 An implement context that is `open` / `empty`, `open` / `exhausted`, or `closed`
 is a successful no-work result. Closed requires no branch or Git evidence;
 open no-work retains the open-work gates. No worker is started, and no state
 changes. A malformed graph, unsafe open branch, changed focus
-task, or other validation error is a blocker. Before verification and before
-each rework handoff, the coordinator reruns work-context and requires the same
-task ID. This makes a stale long-running conversation fail
+task, or other validation error is a blocker. The stored-and-shown verification
+snapshot is also the fresh context admission after implementation and after
+each rework. Before each rework implementation handoff, the coordinator still
+reruns ordinary work-context and requires the same task ID. This makes a stale long-running conversation fail
 closed instead of implementing a newly selected task.
 
 `zdev-verify` requires the explicit task ID to equal the current ready focus
-task. Any no-work context is a blocker and starts no worker. It uses the same
-preflight and baseline comparison but does not invoke an implementer.
-Immediately before verifier dispatch, coordination stores and validates a
-work-context snapshot for that exact checkout. The verifier shows the supplied
+task. Any no-work context is a blocker and starts no worker. Its one
+stored-and-shown snapshot call is both admission preflight and verifier
+snapshot, and it does not invoke an implementer. The verifier shows the supplied
 snapshot and runs validation; coordination compares it after the response.
 `zdev-audit` has no area selection and does not call `zdev goal`.
 
@@ -274,10 +274,13 @@ but must render this public form.
 | `zdev-verify` | One coordinator-constructed strict verifier JSON object with verdict `pass`, `rework`, or `blocker` | Exact schema version, kind, area, task ID, summary, generated snapshot/advisory evidence, findings, and constrained escalation. |
 | `zdev-audit` | `PASS zdev-audit`, `FINDINGS zdev-audit`, or `BLOCKER zdev-audit` | Boundary, what was inspected and omitted, and checked findings with location, impact, and confidence. |
 
-Planner and implementer handoffs are strict nine-key JSON objects. A task
-verifier returns only `verdict`, `summary`, `findings`, and `escalation`.
-Coordination strictly parses those four fields, compares its stored snapshot,
-then generates and validates the compatible nine-key public verifier object.
+An implementer handoff is a strict nine-key JSON object. Planners return the
+four semantic fields `verdict`, `summary`, `plan`, and `findings`; task
+verifiers return `verdict`, `summary`, `findings`, and `escalation`.
+Coordination strictly parses those four-field results. It passes an accepted
+semantic plan unchanged to the advanced implementer and constructs the
+compatible nine-key public planner or verifier envelope itself. For verifier
+results it first compares the stored snapshot.
 Missing output, legacy or malformed JSON, duplicate, unknown, or missing keys,
 contradictory verdict or escalation, extra text, or an unavailable required
 artifact becomes a coordinator-generated `BLOCKER`. It is never interpreted

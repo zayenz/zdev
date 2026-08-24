@@ -36,8 +36,8 @@ with other explicit trunk areas, and never needs a rebase or freshness step.
 In both modes, `task_work.safe` and the exact selected area/task govern work;
 sharing trunk never grants ownership of another area's or unrelated paths.
 
-Before starting an implementer or verifier, run
-`zdev work-context <area> --format json` and retain the complete result. The
+Before starting an implementer or verifier, collect fresh complete work-context
+through one of the admitted forms below and retain the complete result. The
 command classifies goal lifecycle first. A validated closed context contains
 no status or Git evidence: implement returns successful no-work, while
 explicit verify returns `BLOCKER zdev-verify`; neither starts a worker. Every
@@ -53,9 +53,13 @@ after the open-work gates above and start no worker. Explicit verify requires
 open/ready and returns `BLOCKER zdev-verify` without starting a verifier for
 every no-work result. Invalid records, task graphs, or context output are
 blockers. For open/ready, retain the complete context unchanged and its task ID
-as the subject. Before verification and every rework handoff, rerun
-`work-context` and require the same ready task ID and an explainable exact Git
-delta.
+as the subject. Every worker handoff requires fresh work-context admission and
+the same ready task ID. Use either ordinary `--format json` or, when the same
+boundary also needs the immutable verifier snapshot, one `--store` plus
+`--show` collection. That store-and-show collection satisfies the fresh
+pre-verifier admission without a preceding duplicate ordinary collection.
+Before rework implementation, retain the ordinary refresh and require an
+explainable exact Git delta.
 
 `zdev-implement <area>` reads effective complexity from the selected task in
 work-context.
@@ -157,7 +161,7 @@ Immediately before every verifier dispatch, coordination runs
 `zdev work-context <area> --store --format json`, validates its compact result,
 and uses `zdev work-context <area> --show <snapshot> --format json` to require
 the same open, ready, safe area, task, HEAD, and checkout as the admitted
-refresh. It supplies only the opaque `W<16-lowercase-hex>` locator and expected
+boundary. It supplies only the opaque `W<16-lowercase-hex>` locator and expected
 identity to the verifier. The verifier resolves that immutable context with
 `--show`, checks the whole task, runs required validation, reports validation
 writes, and never repairs or discards them.

@@ -6268,12 +6268,11 @@ const worker = (verdict, findings = [], escalation = 'none') => JSON.stringify({
   summary: verdict === 'pass' ? 'Checked task and validation.' : 'Correction required.',
   findings, escalation,
 }})
-const exercise = async (response, equal = true, invocation = {{ area, task_id: task }}, storedResponse = stored, comparedResponse = comparison(equal), preflightResponse = context) => {{
+const exercise = async (response, equal = true, invocation = {{ area, task_id: task }}, storedResponse = stored, comparedResponse = comparison(equal)) => {{
   const prompts = []
   const result = await run(invocation, async (prompt, options) => {{
     prompts.push({{ prompt, options }})
     if (options.agentType) return response
-    if (options.label === 'zdev verify preflight') return preflightResponse
     if (options.label === 'zdev verification snapshot') return storedResponse
     if (options.label === 'zdev post-verification compare') return comparedResponse
     throw new Error('unexpected coordination call: ' + options.label)
@@ -6281,6 +6280,7 @@ const exercise = async (response, equal = true, invocation = {{ area, task_id: t
   return {{ result, prompts }}
 }}
 const valid = await exercise(worker('pass'))
+if (valid.prompts.length !== 3) throw new Error('explicit verify did not use three Claude calls')
 const publicPass = JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: task, verdict: 'pass', summary: 'Checked task and validation.', evidence: ['work_context_snapshot: ' + snapshot], findings: [], escalation: 'none' }})
 if (valid.result !== publicPass) throw new Error(valid.result)
 for (const invocation of [['work', 'work-001'], 'work work-001']) {{
@@ -6294,6 +6294,7 @@ if (!verifierPrompt.includes('rendered canonical contract included inline')) thr
 if (!verifierPrompt.includes('workflow contract')) throw new Error('rendered contract missing')
 if (verifierPrompt.includes('Cannot read installed task-workflow contract')) throw new Error('blocker-only contract behavior retained')
 if (!valid.prompts.find(call => call.options.label === 'zdev verification snapshot')?.prompt.includes('work-context work --store --format json')) throw new Error('coordinator store missing')
+if (valid.prompts.some(call => call.options.label === 'zdev verify preflight')) throw new Error('redundant full-context preflight retained')
 if (!verifierPrompt.includes('work-context work --show ' + snapshot + ' --format json')) throw new Error('supplied show missing')
 if (verifierPrompt.includes('--store') || verifierPrompt.includes('--compare')) throw new Error('verifier retained bookkeeping')
 if (!valid.prompts.find(call => call.options.label === 'zdev post-verification compare')?.prompt.includes('work-context work --compare ' + snapshot + ' --format json')) throw new Error('coordinator compare missing')
@@ -6331,7 +6332,7 @@ stalePayload.stale_advisory = true
 stalePayload.status.branch_status.task_work.stale_advisory = true
 const staleContext = JSON.stringify(stalePayload)
 const staleStored = JSON.stringify({{ snapshot, context: stalePayload }})
-const stale = await exercise(worker('pass'), true, {{ area, task_id: task }}, staleStored, comparison(true), staleContext)
+const stale = await exercise(worker('pass'), true, {{ area, task_id: task }}, staleStored, comparison(true))
 const stalePublic = JSON.parse(stale.result)
 if (JSON.stringify(stalePublic.evidence) !== JSON.stringify(['work_context_snapshot: ' + snapshot, 'stale effective-base link; managed rebase remains optional.'])) throw new Error(stale.result)
 "#
@@ -6407,16 +6408,23 @@ const storedContext = complexity => JSON.stringify({{
   snapshot: baselineSnapshot,
   context: JSON.parse(context(complexity)),
 }})
-const verificationContext = complexity => JSON.stringify({{
-  snapshot: verificationSnapshot,
-  context: JSON.parse(context(complexity)),
-}})
+const verificationContext = (complexity, overrides = {{}}) => {{
+  const payload = JSON.parse(context(complexity))
+  if (overrides.head) payload.head = overrides.head
+  if (overrides.taskId) {{
+    payload.task_id = overrides.taskId
+    payload.status.next = overrides.taskId
+    payload.goal.task.id = overrides.taskId
+  }}
+  if (overrides.complexity) payload.goal.task.complexity = overrides.complexity
+  return JSON.stringify({{ snapshot: verificationSnapshot, context: payload }})
+}}
 const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal }})
 const passEvidence = [
   'work_context_snapshot: W0123456789abcdef',
 ]
 const completion = 'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: abc123'
-const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = []) => {{
+const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = [], verificationOverrides = {{}}) => {{
   const types = []
   const calls = []
   const result = await run(invocation, async (prompt, options) => {{
@@ -6434,7 +6442,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     }}
     if (options.label === 'zdev completion and commit') return completion
     if (options.label === 'zdev implement preflight') return storedContext(complexity)
-    if (options.label === 'zdev verification snapshot') return verificationContext(complexity)
+    if (options.label === 'zdev verification snapshot') return verificationContext(complexity, verificationOverrides)
     if (options.label === 'zdev post-verification compare') return comparison(compareEquals.length ? compareEquals.shift() : true)
     return context(complexity)
   }})
@@ -6488,6 +6496,8 @@ const routinePass = await exercise(
   [worker('implementer', 'ready', 'none', ['routine locator']), worker('verifier', 'pass', 'none', passEvidence)],
   ['zdev:zdev-routine-implementer', 'zdev:zdev-verifier'],
 )
+if (routinePass.calls.length !== 6) throw new Error('ordinary PASS did not use six Claude calls')
+if (routinePass.calls.some(call => call.options.label === 'zdev pre-verification refresh')) throw new Error('redundant pre-verification refresh retained')
 if (!routinePass.verifierPrompts[0].includes('routine locator')) throw new Error('initial verifier lost implementation locator')
 await exercise(
   'standard pass',
@@ -6544,6 +6554,8 @@ const ordinaryRework = await exercise(
   ],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
 )
+if (ordinaryRework.calls.length !== 11) throw new Error('one REWORK did not use eleven Claude calls')
+if (ordinaryRework.calls.some(call => call.options.label === 'zdev post-rework verification refresh')) throw new Error('redundant post-rework verification refresh retained')
 if (!ordinaryRework.verifierPrompts[0].includes('initial locator')) throw new Error('first verifier lost initial locator')
 if (!ordinaryRework.verifierPrompts[1].includes('rework locator') || ordinaryRework.verifierPrompts[1].includes('initial locator')) throw new Error('second verifier did not receive only latest locator')
 const reworkPrompt = ordinaryRework.calls.find(call => call.options.label === 'zdev native rework')?.prompt ?? ''
@@ -6574,6 +6586,39 @@ await exercise(
   [worker('implementer', 'ready'), '{{}}'],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
   'BLOCKER',
+)
+await exercise(
+  'intervening commit before verifier',
+  'standard',
+  [worker('implementer', 'ready')],
+  ['zdev:zdev-implementer'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [],
+  {{ head: '1111111111111111111111111111111111111111' }},
+)
+await exercise(
+  'changed task before verifier',
+  'standard',
+  [worker('implementer', 'ready')],
+  ['zdev:zdev-implementer'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [],
+  {{ taskId: 'work-002' }},
+)
+await exercise(
+  'changed complexity before verifier',
+  'standard',
+  [worker('implementer', 'ready')],
+  ['zdev:zdev-implementer'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [],
+  {{ complexity: 'advanced' }},
 )
 await exercise(
   'legacy verifier envelope',
@@ -6640,6 +6685,7 @@ for (const [name, rejectedPlanner] of [
   ['non-normalized planner path', structuredPlanner('plan', {{ ...semanticPlan(), paths: ['src/../outside.rs'] }})],
   ['extra semantic planner key', {{ ...structuredPlanner('plan', semanticPlan()), extra: true }}],
   ['duplicate semantic planner key', '{{"verdict":"plan","summary":"first","summary":"second","plan":{{"approach":"inspect","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
+  ['duplicate nested semantic plan key', '{{"verdict":"plan","summary":"plan result","plan":{{"approach":"inspect","approach":"edit","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
   ['plan with findings', structuredPlanner('plan', semanticPlan(), ['contradictory finding'])],
   ['blocker with plan', structuredPlanner('blocker', semanticPlan(), ['blocked'])],
   ['blocker without findings', structuredPlanner('blocker', null, [])],
@@ -6833,7 +6879,8 @@ const exercise = async (name, contexts, workers, completions, expectedPrefix, de
       return lastContext
     }}
     if (options.label === 'zdev verification snapshot') {{
-      if (!lastContext) throw new Error(name + ': snapshot without admitted context')
+      if (contexts.length === 0) throw new Error(name + ': unexpected snapshot context request')
+      lastContext = contexts.shift()
       return JSON.stringify({{ snapshot: 'W0123456789abcdef', context: JSON.parse(lastContext) }})
     }}
     if (options.label === 'zdev post-verification compare') {{
@@ -6977,7 +7024,7 @@ fn work_context_round_trip_counts_match_realized_routes() {
     let loop_contract = include_str!("../docs/area-loop.md");
     for exact_row in [
         "| Codex, OpenCode, Pi, Oh My Pi | 5 / 9 / 2 / 2 | 2 / 5 / 0 / 1 | 7 / 15 / 2 / 4 |",
-        "| Claude | 5 / 9 / 2 / 7 | 2 / 5 / 0 / 4 | 7 / 15 / 2 / 13 |",
+        "| Claude | 5 / 10 / 2 / 6 | 2 / 4 / 0 / 3 | 7 / 17 / 2 / 11 |",
     ] {
         assert!(audit.contains(exact_row), "missing count row {exact_row}");
     }

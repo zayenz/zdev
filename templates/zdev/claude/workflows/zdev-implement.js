@@ -117,9 +117,10 @@ const workerResultKeys = [
   'task_id',
   'verdict',
 ]
-const topLevelKeys = raw => {
+const scanTopLevelObject = raw => {
   let index = 0
   const keys = []
+  const rawValues = new Map()
   const skipWhitespace = () => {
     while (/\s/.test(raw[index] ?? '')) index += 1
   }
@@ -179,6 +180,7 @@ const topLevelKeys = raw => {
       index += 1
     }
     if (index === valueStart || inString || depth !== 0) return null
+    rawValues.set(key, raw.slice(valueStart, index))
     if (raw[index] === ',') {
       index += 1
       continue
@@ -190,8 +192,10 @@ const topLevelKeys = raw => {
     return null
   }
   skipWhitespace()
-  return index === raw.length ? keys : null
+  if (index !== raw.length) return null
+  return { keys, rawValues }
 }
+const topLevelKeys = raw => scanTopLevelObject(raw)?.keys ?? null
 const validateWorkerResult = (result, expectedKind, expectedArea, expectedTask) => {
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
   if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(workerResultKeys)) return null
@@ -271,10 +275,19 @@ const validateSemanticPlannerResult = result => {
 }
 const parsePlannerResult = raw => {
   if (typeof raw !== 'string') return validateSemanticPlannerResult(raw)
-  const keys = topLevelKeys(raw)
+  const scanned = scanTopLevelObject(raw)
+  const keys = scanned?.keys
   if (!keys || new Set(keys).size !== keys.length
     || JSON.stringify([...keys].sort()) !== JSON.stringify(semanticPlannerKeys)) return null
-  try { return validateSemanticPlannerResult(JSON.parse(raw)) } catch { return null }
+  try {
+    const result = JSON.parse(raw)
+    if (result?.verdict === 'plan') {
+      const planKeys = topLevelKeys(scanned.rawValues.get('plan'))
+      if (!planKeys || new Set(planKeys).size !== planKeys.length
+        || JSON.stringify([...planKeys].sort()) !== JSON.stringify(semanticPlanKeys)) return null
+    }
+    return validateSemanticPlannerResult(result)
+  } catch { return null }
 }
 const reconstructPlannerResult = (semantic, area, taskId) => validateWorkerResult({
   schema_version: 1, kind: 'planner', area, task_id: taskId,
@@ -455,14 +468,18 @@ const refresh = async label => {
   if (current?.staleAdvisory) staleAdvisory = true
   return current?.queue === 'ready' && current.complexity === complexity ? current : blocker(area, taskId, 'context refresh', `expected ready task ${taskId} with unchanged complexity ${complexity} and complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory)
 }
-const verify = async current => {
-  const currentAdvisory = staleAdvisory ? advisoryText : null
+const verify = async expected => {
   const storedRaw = (await agent(
     `Act only as deterministic verification coordination for task ${taskId} in area ${area}. Immediately before verifier dispatch, run zdev work-context ${area} --store --format json, then show that snapshot with zdev work-context ${area} --show <snapshot> --format json. Return only {"snapshot":"<snapshot>","context":<shown JSON object>}. Keep files and Git state unchanged.`,
     { label: 'zdev verification snapshot' },
   ))?.trim()
-  const stored = parseStoredContext(storedRaw, area, current)
+  const stored = parseStoredContext(storedRaw, area, expected)
   if (!stored) return null
+  if (stored.taskId !== taskId || stored.complexity !== complexity
+    || stored.payload.head !== prepared.payload.head) return null
+  if (stored.staleAdvisory) staleAdvisory = true
+  const currentAdvisory = staleAdvisory ? advisoryText : null
+  const current = stored
   const snapshot = stored.baselineSnapshot
   const raw = (await agent(
     `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Inspect the original implementation baseline through zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json. Show the coordinator-supplied immutable verification context with zdev work-context ${area} --show ${snapshot} --format json and require open, ready, safe task ${taskId} at expected HEAD ${current.payload.head}. Use the compact implementer summary to locate evidence. Check the whole task and run required validation. Report any validation writes as rework when concretely task-owned or blocker when ownership is ambiguous; never repair or discard them. For every concrete task-owned file written by validation, include the exact finding validation_write: <normalized repository-relative path>; never use that prefix for an ordinary implementation defect. Put checked locations and validation conclusions in summary. Return only the exact four-field JSON object {"verdict":"pass|rework|blocker","summary":"<non-empty summary>","findings":[],"escalation":"none|advanced-implementer"} with no identity, evidence, or surrounding text. Keep lifecycle and coordination-owned state unchanged.\n\nVerification snapshot: ${snapshot}\nOriginal baseline snapshot: ${prepared.baselineSnapshot}\nCompact implementer summary: ${compactWorkerSummary(latestImplementation)}`,
@@ -493,9 +510,8 @@ if (initialSplit) return initialSplit
 if (implementation.verdict === 'blocker') {
   return blocker(area, taskId, 'implementation', implementation.summary, `Evidence: ${implementation.evidence.join('; ') || 'none.'} Findings: ${implementation.findings.join('; ') || 'none.'}`, staleAdvisory)
 }
-let current = await refresh('zdev pre-verification refresh')
-if (typeof current === 'string') return current
-let verdict = await verify(current)
+let current = null
+let verdict = await verify()
 if (!verdict) {
   return blocker(area, taskId, 'verification', 'verifier returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory)
 }
@@ -523,9 +539,7 @@ while (verdict.result.verdict === 'rework') {
     return blocker(area, taskId, 'rework', rework.summary, `Evidence: ${rework.evidence.join('; ') || 'none.'} Findings: ${rework.findings.join('; ') || 'none.'}`, staleAdvisory)
   }
   latestImplementation = rework
-  current = await refresh('zdev post-rework verification refresh')
-  if (typeof current === 'string') return current
-  verdict = await verify(current)
+  verdict = await verify()
   if (!verdict) {
     return blocker(area, taskId, 'verification', 'verifier returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory)
   }

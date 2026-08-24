@@ -172,7 +172,7 @@ const parseVerifierResult = raw => {
   if (result.verdict === 'rework' && result.findings.length === 0) return null
   return validEscalation ? result : null
 }
-const parseStoredContext = (raw, expected) => {
+const parseStoredContext = raw => {
   if (typeof raw !== 'string') return null
   let stored
   try {
@@ -184,11 +184,7 @@ const parseStoredContext = (raw, expected) => {
   if (JSON.stringify(Object.keys(stored).sort()) !== JSON.stringify(['context', 'snapshot'])) return null
   if (!/^W[0-9a-f]{16}$/.test(stored.snapshot ?? '')) return null
   const context = parseReady(JSON.stringify(stored.context))
-  if (!context
-    || context.payload.head !== expected.payload.head
-    || context.payload.git_status !== expected.payload.git_status
-    || context.payload.git_diff_cached !== expected.payload.git_diff_cached
-    || context.payload.git_diff !== expected.payload.git_diff) return null
+  if (!context) return null
   return { snapshot: stored.snapshot, context }
 }
 const parseComparison = (raw, expectedSnapshot) => {
@@ -225,24 +221,16 @@ if (!/^[a-z0-9][a-z0-9-]*$/.test(area) || !/^[a-z0-9][a-z0-9-]*$/.test(taskId)) 
   return blocker('unknown', 'unknown', 'a lowercase area and explicit task ID are required.')
 }
 
-const preflight = await agent(
-  `Act only as the coordinating read-only preflight. Run zdev work-context ${area} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
-  { label: 'zdev verify preflight' },
-)
-const prepared = parseReady(preflight?.trim())
-if (!prepared) {
-  return blocker(area, taskId, 'missing or invalid ready goal, requested task match, branch safety, or complete Git baseline evidence.')
-}
-const advisory = prepared.staleAdvisory ? advisoryText : null
-
 const storedRaw = await agent(
-  `Act only as deterministic verification coordination for task ${taskId} in area ${area}. Immediately before verifier dispatch, run zdev work-context ${area} --store --format json, then show that snapshot with zdev work-context ${area} --show <snapshot> --format json. Return only {"snapshot":"<snapshot>","context":<shown JSON object>}. Keep files and Git state unchanged.`,
+  `Act only as the coordinating read-only admission for task ${taskId} in area ${area}. Run zdev work-context ${area} --store --format json, then show that snapshot with zdev work-context ${area} --show <snapshot> --format json. Return only {"snapshot":"<snapshot>","context":<shown JSON object>}. Keep files and Git state unchanged.`,
   { label: 'zdev verification snapshot' },
 )
-const stored = parseStoredContext(storedRaw?.trim(), prepared)
+const stored = parseStoredContext(storedRaw?.trim())
 if (!stored) {
-  return blocker(area, taskId, 'coordinator could not store and validate the admitted verification snapshot.', prepared.staleAdvisory)
+  return blocker(area, taskId, 'coordinator could not store and validate the admitted verification snapshot.')
 }
+const prepared = stored.context
+const advisory = prepared.staleAdvisory ? advisoryText : null
 
 const verified = await agent(
   `${workerContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Show the coordinator-supplied immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same open, ready, safe task and HEAD ${prepared.head}. Check the whole task and run required validation. Report validation-written task-owned files as rework and ambiguous writes as blocker; never repair or discard them. For every concrete task-owned file written by validation, include the exact finding validation_write: <normalized repository-relative path>; never use that prefix for an ordinary implementation defect. Put checked locations and validation conclusions in summary. Return only the exact four-field JSON object {"verdict":"pass|rework|blocker","summary":"<non-empty summary>","findings":[],"escalation":"none|advanced-implementer"} with no identity, evidence, or surrounding text. Keep lifecycle and coordination-owned state unchanged.\n\nVerification snapshot: ${stored.snapshot}`,

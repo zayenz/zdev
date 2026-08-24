@@ -295,24 +295,39 @@ show, V is verifier show plus validation, C is the coordinator's compact
 post-response compare, and FS is the final compact compare followed by
 completion. These exact traces apply to Codex, OpenCode, Pi, and Oh My Pi.
 
-Claude's workflow needs generic agents to run each coordinator command.
-Snapshot admission and post-response comparison add explicit calls around the
-named verifier. This deliberately optimizes responsibility and deterministic
-resolution rather than process count.
+Claude removes the ordinary K immediately before each CS because the stored
+and shown snapshot already admits that same full context:
+
+```text
+ordinary PASS: K -> I -> CS -> V -> C -> FS              C5 Z10 G2 W6
+explicit verify: CS -> V -> C                            C2 Z4 G0 W3
+one REWORK: K -> I -> CS -> V -> C
+            -> K -> I -> CS -> V -> C -> FS              C7 Z17 G2 W11
+```
+
+The removed calls duplicated the full work-context and diff payload already
+carried by CS. The compact post-verification compare remains: it is cheap and
+keeps the read-only routing decision separate from completion mutation.
+Z counts every fixed zdev command named in Claude prompts, including both
+verifier snapshot shows, rework's original-baseline show, and the three
+completion commands. W better reflects the expensive model and full-payload
+coordination cost reduced here. The prompt-driven rows retain their established
+process accounting because their coordinators perform these steps within the
+existing harness interaction rather than separate generic-agent calls.
 
 The realized fixed counts are therefore:
 
 | Harness route | Ordinary PASS C/Z/G/W | Explicit verify C/Z/G/W | One REWORK C/Z/G/W |
 | --- | --- | --- | --- |
 | Codex, OpenCode, Pi, Oh My Pi | 5 / 9 / 2 / 2 | 2 / 5 / 0 / 1 | 7 / 15 / 2 / 4 |
-| Claude | 5 / 9 / 2 / 7 | 2 / 5 / 0 / 4 | 7 / 15 / 2 / 13 |
+| Claude | 5 / 10 / 2 / 6 | 2 / 4 / 0 / 3 | 7 / 17 / 2 / 11 |
 
 A closed or open no-work implementation stops after one K: `C1 Z1 G0 W0`
 for prompt-driven harnesses and `C1 Z1 G0 W1` for Claude. Closed K performs no
 status or Git inspection. External orchestration counts stay lower than the
 audited baseline even though every verifier now shows coordination's snapshot
 and Claude uses separate agents for snapshot admission and comparison. Its
-existing completion agent performs the final comparison after PASS.
+existing completion agent performs the distinct final comparison after PASS.
 
 The ordinary PASS counts end at the verified commit. A one-task command does
 not run an unused post-commit `next` or K. An explicit continuation or area

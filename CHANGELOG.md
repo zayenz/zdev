@@ -2,6 +2,14 @@
 
 This file records notable changes to zdev.
 
+## [1.1.1] - 2026-08-24
+
+### Changed
+
+- Committed initial task imports now publish complete project and pull-request
+  records. Personal records remain local, and later imports into existing
+  tracked areas retain their previous behavior.
+
 ## [1.1.0] - 2026-08-23
 
 ### Added
@@ -69,5 +77,6 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.1.1]: https://github.com/zayenz/zdev/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/zayenz/zdev/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zayenz/zdev/releases/tag/v1.0.0

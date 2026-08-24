@@ -4,8 +4,8 @@
 
 - Total: 66
 - Ready: 1
-- Blocked: 1
-- Done: 64
+- Blocked: 0
+- Done: 65
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -73,5 +73,5 @@
 | [improvements-062](tasks/062-clarify-reusable-area-research-files.md) | Clarify reusable area research files | done | — |
 | [improvements-063](tasks/063-assess-file-handoffs-for-multi-lens-audits.md) | Assess file handoffs for multi-lens audits | done | — |
 | [improvements-064](tasks/064-commit-the-initial-approved-task-bundle.md) | Commit the initial approved task bundle | done | — |
-| [improvements-065](tasks/065-prepare-the-v1-1-1-release-candidate.md) | Prepare the v1.1.1 release candidate | ready | — |
-| [improvements-066](tasks/066-qualify-the-v1-1-1-release-candidate.md) | Qualify the v1.1.1 release candidate | blocked | improvements-065 |
+| [improvements-065](tasks/065-prepare-the-v1-1-1-release-candidate.md) | Prepare the v1.1.1 release candidate | done | — |
+| [improvements-066](tasks/066-qualify-the-v1-1-1-release-candidate.md) | Qualify the v1.1.1 release candidate | ready | improvements-065 |

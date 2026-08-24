@@ -14,7 +14,7 @@ Keep concrete one-off improvements as reviewed tasks.
 
 ## Testing
 
-Use focused tests when behavior changes. Do not add tests that merely restate
+Focused coverage. Use focused tests when behavior changes. Do not add tests that merely restate
 the implementation. Every task runs the checks relevant to its change and the
 standard repository validation before completion.
 

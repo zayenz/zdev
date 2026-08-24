@@ -2,6 +2,33 @@
 
 This file records notable changes to zdev.
 
+## [1.1.2] - 2026-08-24
+
+### Changed
+
+- Planner workers now return a small, harness-independent semantic result.
+  Claude Code and Oh My Pi constrain that result at dispatch, while all
+  harnesses share the same strict planner contract without a formatting retry.
+- Verifier workers report only semantic conclusions. Coordinators own snapshot
+  comparison and public-envelope bookkeeping, and Claude Code avoids redundant
+  full-context collection around verification.
+- Task-challenge follow-up is proportional to the change instead of requiring a
+  full new verifier for every adjustment.
+
+### Fixed
+
+- Claude Code workflows use the rendered inline contract when
+  `CLAUDE_PLUGIN_ROOT` is unset or does not point to a readable installed
+  contract.
+- Claude Code planner validation now rejects duplicate keys inside nested plan
+  objects as well as malformed top-level results.
+
+### Compatibility
+
+- Existing records and task state remain valid. Reinstall integrations with
+  `zdev skill install <harness> --force` to receive the updated worker
+  contracts and harness workflows.
+
 ## [1.1.1] - 2026-08-24
 
 ### Changed
@@ -77,6 +104,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.1.2]: https://github.com/zayenz/zdev/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/zayenz/zdev/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/zayenz/zdev/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zayenz/zdev/releases/tag/v1.0.0

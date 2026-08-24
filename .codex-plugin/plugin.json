@@ -1,6 +1,6 @@
 {
   "name": "zdev",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A small, durable multi-harness implement-and-verify task loop.",
   "author": {
     "name": "Mikael Zayenz Lagerkvist",

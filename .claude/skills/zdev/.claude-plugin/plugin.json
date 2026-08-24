@@ -1,6 +1,6 @@
 {
   "name": "zdev",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Durable software work through briefs, tasks, implementation, independent verification, audits, and commits",
   "author": {
     "name": "zdev contributors"

@@ -11,6 +11,10 @@ preflight, select role `routine-implementer`, `implementer`, or
 before the first advanced edit. Use a fresh `verifier` for every full
 verification. Pi uses a fresh same-profile child for ordinary rework. A valid
 one-time standard escalation uses an advanced replacement without replanning.
+Validate the planner's exact four-field semantic JSON, reconstruct and validate
+the compatible nine-key public planner envelope, and pass the semantic plan
+object unchanged to the advanced implementer. A blocker has empty public
+evidence and stops before edits. Do not call another planner.
 Each `zdev_subagent` call receives the complete rendered contract above and a
 compact payload of brief, task, guidance, and source file paths, applicable
 snapshot IDs, and the short result from the preceding role. Pi children read

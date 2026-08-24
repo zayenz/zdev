@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-005"
 key = "simplify-planner-handoff-across-harnesses"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 blocked_by = ["general-004"]
 +++
@@ -27,16 +27,25 @@ The planner currently carries the same nine-key transport envelope as implemente
 
 ## Done when
 
-- [ ] Canonical contracts define the exact semantic planner variants and exact coordinator reconstruction for both plan and blocker public envelopes.
-- [ ] Claude, Codex, OpenCode, Pi, and OMP planner roles and coordinator adapters express the same semantic responsibility split without adding worker dispatches; executable parsing is tested only where executable adapter code exists.
-- [ ] Valid plans preserve the exact approach string, ordered path array, and ordered validation array passed to the advanced implementer; coordinator-generated public evidence uses the settled deterministic joining rules.
-- [ ] Planner blockers reconstruct with empty public evidence, copied summary and findings, fixed escalation none, and stop before edits.
-- [ ] Malformed, extra, contradictory, legacy nine-key, mismatched, or unavailable planner output fails closed without an implementer or second planner.
-- [ ] Generated fixtures match canonical templates, and Claude replaces general-004s legacy schema while retaining its structured-object and same-call strict-string paths.
-- [ ] Focused coverage proves plan, blocker, path and validation ordering, malformed output, public-envelope reconstruction, all-harness contract parity, and exactly one planner dispatch.
+- [x] Canonical contracts define the exact semantic planner variants and exact coordinator reconstruction for both plan and blocker public envelopes.
+- [x] Claude, Codex, OpenCode, Pi, and OMP planner roles and coordinator adapters express the same semantic responsibility split without adding worker dispatches; executable parsing is tested only where executable adapter code exists.
+- [x] Valid plans preserve the exact approach string, ordered path array, and ordered validation array passed to the advanced implementer; coordinator-generated public evidence uses the settled deterministic joining rules.
+- [x] Planner blockers reconstruct with empty public evidence, copied summary and findings, fixed escalation none, and stop before edits.
+- [x] Malformed, extra, contradictory, legacy nine-key, mismatched, or unavailable planner output fails closed without an implementer or second planner.
+- [x] Generated fixtures match canonical templates, and Claude replaces general-004s legacy schema while retaining its structured-object and same-call strict-string paths.
+- [x] Focused coverage proves plan, blocker, path and validation ordering, malformed output, public-envelope reconstruction, all-harness contract parity, and exactly one planner dispatch.
 
 ## Validation
 
 - Regenerate the Codex, Claude, OpenCode, Pi, and OMP integrations with their existing cargo run --locked -- skill install commands.
 - Run the focused task-workflow, Claude structured-envelope, implementation-routing, harness-discovery, and generated-fixture tests in tests/lean.rs.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Simplified planner workers to a four-field semantic result across all harnesses, with coordination reconstructing the compatible public envelope and Claude enforcing fail-closed normalization without retries.
+
+Validation:
+
+- All 136 lean tests passed, including focused planner routing and malformed-result cases.
+- cargo fmt, clippy with warnings denied, cargo test, cargo build, generated-fixture parity, and git diff --check passed under independent verification.

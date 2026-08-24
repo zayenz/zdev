@@ -43,7 +43,9 @@ areas; do not infer project-wide selection from an omitted area.
    `routine-implementer` only for authored `routine`, `implementer` for
    `standard` or omitted legacy complexity, and `advanced-implementer` for
    `advanced`. Before the first advanced edit, obtain one strict plan from a
-   fresh read-only planner using the advanced profile and pass it unchanged to
+   fresh read-only planner using the advanced profile. Validate its exact
+   four-field semantic result, reconstruct and validate the compatible public
+   nine-key planner envelope, and pass the semantic plan object unchanged to
    the advanced implementer. A planner blocker or user-owned decision stops
    before edits. Never infer routine, and never plan again on resume or rework.
    Give the selected implementer repository-relative locators for the brief,

@@ -207,11 +207,12 @@ const validateWorkerResult = (result, expectedKind, expectedArea, expectedTask) 
     : expectedKind === 'implementer' ? ['ready', 'blocker'].includes(result.verdict) : false
   if (!validVerdict) return null
   if (expectedKind === 'planner' && result.verdict === 'plan') {
-    if (result.findings.length !== 0) return null
-    for (const prefix of ['Approach: ', 'Paths: ', 'Validation: ']) {
-      if (result.evidence.filter(item => item.startsWith(prefix) && item.length > prefix.length).length !== 1) return null
-    }
+    if (result.findings.length !== 0 || result.evidence.length !== 3) return null
+    if (!['Approach: ', 'Paths: ', 'Validation: '].every((prefix, index) =>
+      result.evidence[index].startsWith(prefix) && result.evidence[index].length > prefix.length)) return null
   }
+  if (expectedKind === 'planner' && result.verdict === 'blocker'
+    && (result.evidence.length !== 0 || result.findings.length === 0)) return null
   return result.escalation === 'none' ? result : null
 }
 const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
@@ -230,22 +231,61 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
 const plannerSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['schema_version', 'kind', 'area', 'task_id', 'verdict', 'summary', 'evidence', 'findings', 'escalation'],
+  required: ['verdict', 'summary', 'plan', 'findings'],
   properties: {
-    schema_version: { type: 'integer', const: 1 },
-    kind: { type: 'string', const: 'planner' },
-    area: { type: 'string' },
-    task_id: { type: 'string' },
     verdict: { type: 'string', enum: ['plan', 'blocker'] },
     summary: { type: 'string', minLength: 1 },
-    evidence: { type: 'array', items: { type: 'string', minLength: 1 } },
+    plan: { anyOf: [
+      { type: 'null' },
+      { type: 'object', additionalProperties: false,
+        required: ['approach', 'paths', 'validation'], properties: {
+          approach: { type: 'string', minLength: 1 },
+          paths: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
+          validation: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
+        } },
+    ] },
     findings: { type: 'array', items: { type: 'string', minLength: 1 } },
-    escalation: { type: 'string', const: 'none' },
   },
 }
-const parsePlannerResult = (raw, expectedArea, expectedTask) => typeof raw === 'string'
-  ? parseWorkerResult(raw, 'planner', expectedArea, expectedTask)
-  : validateWorkerResult(raw, 'planner', expectedArea, expectedTask)
+const semanticPlannerKeys = ['findings', 'plan', 'summary', 'verdict']
+const semanticPlanKeys = ['approach', 'paths', 'validation']
+const normalizedRepositoryPath = path => typeof path === 'string' && path.trim() === path
+  && path.length > 0 && !path.startsWith('/') && !path.includes('\\')
+  && path.split('/').every(part => part && part !== '.' && part !== '..')
+const validateSemanticPlannerResult = result => {
+  if (!result || Array.isArray(result) || typeof result !== 'object') return null
+  if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(semanticPlannerKeys)) return null
+  if (typeof result.summary !== 'string' || !result.summary.trim()) return null
+  if (!Array.isArray(result.findings)
+    || !result.findings.every(item => typeof item === 'string' && item.trim())) return null
+  if (result.verdict === 'blocker') return result.plan === null && result.findings.length > 0 ? result : null
+  if (result.verdict !== 'plan' || result.findings.length !== 0
+    || !result.plan || Array.isArray(result.plan) || typeof result.plan !== 'object') return null
+  if (JSON.stringify(Object.keys(result.plan).sort()) !== JSON.stringify(semanticPlanKeys)) return null
+  if (typeof result.plan.approach !== 'string' || !result.plan.approach.trim()) return null
+  if (!Array.isArray(result.plan.paths) || result.plan.paths.length === 0
+    || !result.plan.paths.every(normalizedRepositoryPath)) return null
+  if (!Array.isArray(result.plan.validation) || result.plan.validation.length === 0
+    || !result.plan.validation.every(item => typeof item === 'string' && item.trim())) return null
+  return result
+}
+const parsePlannerResult = raw => {
+  if (typeof raw !== 'string') return validateSemanticPlannerResult(raw)
+  const keys = topLevelKeys(raw)
+  if (!keys || new Set(keys).size !== keys.length
+    || JSON.stringify([...keys].sort()) !== JSON.stringify(semanticPlannerKeys)) return null
+  try { return validateSemanticPlannerResult(JSON.parse(raw)) } catch { return null }
+}
+const reconstructPlannerResult = (semantic, area, taskId) => validateWorkerResult({
+  schema_version: 1, kind: 'planner', area, task_id: taskId,
+  verdict: semantic.verdict, summary: semantic.summary,
+  evidence: semantic.verdict === 'plan' ? [
+    `Approach: ${semantic.plan.approach}`,
+    `Paths: ${semantic.plan.paths.join(', ')}`,
+    `Validation: ${semantic.plan.validation.join('; ')}`,
+  ] : [],
+  findings: semantic.findings, escalation: 'none',
+}, 'planner', area, taskId)
 const verifierResultKeys = ['escalation', 'findings', 'summary', 'verdict']
 const validationWriteMarker = 'validation_write:'
 const validationWritePrefix = 'validation_write: '
@@ -379,16 +419,18 @@ const routeDerivedSplit = async (workerResult, coordinatorContext) => {
 let plan = null
 if (complexity === 'advanced') {
   const planRaw = await agent(
-    `${workerContract}\n\nPlan the ready advanced task ${taskId} in area ${area}, keeping the checkout unchanged. Use the complete coordinator context below. Return only the strict JSON object with kind "planner", area "${area}", task_id "${taskId}", verdict "plan" or "blocker", and escalation "none". A plan puts exactly one non-empty Approach:, Paths:, and Validation: entry in evidence and has no findings. A product decision is a blocker.\n\nCoordinator context:\n${prepared.raw}`,
+    `${workerContract}\n\nPlan the ready advanced task ${taskId} in area ${area}, keeping the checkout unchanged. Use the complete coordinator context below. Return only the exact four-field semantic JSON object {"verdict":"plan|blocker","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized repository-relative path>"],"validation":["<non-empty validation step>"]}|null,"findings":[]}. A plan has an exact three-field plan object and no findings. A blocker has plan null and at least one finding. A product decision is a blocker.\n\nCoordinator context:\n${prepared.raw}`,
     { agentType: 'zdev:zdev-planner', label: 'zdev advanced read-only plan', schema: plannerSchema },
   )
-  plan = parsePlannerResult(typeof planRaw === 'string' ? planRaw.trim() : planRaw, area, taskId)
-  if (!plan) {
+  const semanticPlan = parsePlannerResult(typeof planRaw === 'string' ? planRaw.trim() : planRaw)
+  plan = semanticPlan && reconstructPlannerResult(semanticPlan, area, taskId)
+  if (!semanticPlan || !plan) {
     return blocker(area, taskId, 'planning', 'planner returned an invalid or mismatched envelope.', 'no implementation, lifecycle, or commit change was started.', staleAdvisory)
   }
   if (plan.verdict === 'blocker') {
-    return blocker(area, taskId, 'planning', plan.summary, `Evidence: ${plan.evidence.join('; ') || 'none.'} Findings: ${plan.findings.join('; ') || 'none.'}`, staleAdvisory)
+    return blocker(area, taskId, 'planning', plan.summary, `Evidence: none. Findings: ${plan.findings.join('; ')}`, staleAdvisory)
   }
+  plan = semanticPlan
 }
 const implementationAgentType = complexity === 'routine'
   ? 'zdev:zdev-routine-implementer'

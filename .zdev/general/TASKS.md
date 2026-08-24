@@ -4,8 +4,8 @@
 
 - Total: 6
 - Ready: 1
-- Blocked: 1
-- Done: 4
+- Blocked: 0
+- Done: 5
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -13,5 +13,5 @@
 | [general-002](tasks/002-move-verifier-bookkeeping-into-deterministic-coordination.md) | Move verifier bookkeeping into deterministic coordination | done | general-003 |
 | [general-003](tasks/003-restore-claude-worker-contract-fallback.md) | Restore Claude worker-contract fallback | done | — |
 | [general-004](tasks/004-constrain-claude-planner-output-at-dispatch.md) | Constrain Claude planner output at dispatch | done | — |
-| [general-005](tasks/005-simplify-planner-handoff-across-harnesses.md) | Simplify planner handoff across harnesses | ready | general-004 |
-| [general-006](tasks/006-constrain-omp-planner-output.md) | Constrain OMP planner output | blocked | general-005 |
+| [general-005](tasks/005-simplify-planner-handoff-across-harnesses.md) | Simplify planner handoff across harnesses | done | general-004 |
+| [general-006](tasks/006-constrain-omp-planner-output.md) | Constrain OMP planner output | ready | general-005 |

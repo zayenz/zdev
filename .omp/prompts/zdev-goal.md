@@ -88,12 +88,25 @@ Authored `routine` uses `routine-implementer`; `standard`, including an omitted
 legacy value, uses `implementer`. Never infer routine work from files or diff
 size. Before any edit for `advanced`, start one fresh read-only `planner` using
 the `advanced-implementer` profile. Give it the complete work-context JSON,
-brief, task, repository guidance, baseline, and task-owned paths. A valid plan
-is passed unchanged to a fresh `advanced-implementer`. A planner blocker,
+brief, task, repository guidance, baseline, and task-owned paths. The planner
+returns exactly `verdict`, `summary`, `plan`, and `findings`. A plan uses
+`{"verdict":"plan","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized repository-relative path>"],"validation":["<non-empty validation step>"]},"findings":[]}`;
+a blocker uses verdict `blocker`, `plan: null`, and at least one non-empty
+finding. Reject unknown or duplicate keys, empty values, non-normalized paths,
+contradictory variants, legacy nine-key output, extra text, and malformed JSON.
+
+The coordinator reconstructs the compatible public nine-key planner envelope
+with fixed `schema_version: 1`, `kind: "planner"`, selected area and task ID,
+and `escalation: "none"`. It copies summary and findings. For a plan, evidence
+is exactly `Approach: <approach>`, `Paths: <comma-joined paths>`, and
+`Validation: <semicolon-joined validation steps>` in that order; for a blocker,
+evidence is empty. Validate this complete public envelope before routing. Pass
+the validated semantic plan object, with its approach and ordered arrays
+unchanged, to a fresh `advanced-implementer`. A planner blocker,
 including any product decision, stops before edits. Resumption, verification,
 and rework never repeat planning.
 
-Every planner and implementer returns only one JSON object, without a sentinel
+Every implementer returns only one JSON object, without a sentinel
 line, Markdown fence, or other text. The object has exactly these keys:
 
 ```json
@@ -110,9 +123,7 @@ line, Markdown fence, or other text. The object has exactly these keys:
 }
 ```
 
-`kind` is `planner` or `implementer`. Planner verdict is `plan` or `blocker`;
-implementer verdict is `ready` or `blocker`. A plan has no findings and puts exactly one
-non-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`.
+`kind` is `implementer`; verdict is `ready` or `blocker`.
 `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`. Schema version, kind, area, task ID,
 keys, types, and combinations must
@@ -330,7 +341,11 @@ Advanced work first uses one blocking read-only `zdev-planner`. Use a fresh
 blocking `zdev-verifier` for every verdict. Ordinary rework may resume the
 selected profile with `hub`; a valid one-time standard escalation starts an
 advanced replacement without replanning. The current Oh My Pi session remains
-the coordinator. Give every agent the complete rendered task-workflow contract
+the coordinator. Validate the planner's exact four-field semantic JSON,
+reconstruct and validate the compatible nine-key public planner envelope, and
+pass the semantic plan object unchanged to the advanced implementer. A blocker
+has empty public evidence and stops before edits; do not run another planner.
+Give every agent the complete rendered task-workflow contract
 from the native loop body and a compact payload of brief, task, guidance, and
 source file paths, applicable snapshot IDs, and the short result from the
 preceding role.

@@ -6372,9 +6372,10 @@ const worker = (kind, verdict, escalation = 'none', evidence = [], findings = []
     ? {{ verdict, summary, findings, escalation }}
     : {{ schema_version: 1, kind, area, task_id: taskId, verdict, summary, evidence, findings, escalation }}
 )
-const structuredPlanner = (verdict, evidence = [], findings = [], summary = verdict + ' result') => ({{
-  schema_version: 1, kind: 'planner', area, task_id: taskId, verdict, summary, evidence, findings, escalation: 'none',
+const structuredPlanner = (verdict, plan = null, findings = [], summary = verdict + ' result') => ({{
+  verdict, summary, plan, findings,
 }})
+const semanticPlan = () => ({{ approach: 'inspect then edit', paths: ['src/lib.rs', 'tests/lean.rs'], validation: ['cargo test', 'git diff --check'] }})
 const context = complexity => JSON.stringify({{
   schema_version: 1,
   area,
@@ -6457,7 +6458,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   for (const call of plannerCalls) {{
     const schema = call.options.schema
     if (!schema || schema.type !== 'object' || schema.additionalProperties !== false) throw new Error(name + ': planner schema missing exact object boundary')
-    if (JSON.stringify([...schema.required].sort()) !== JSON.stringify(['area', 'escalation', 'evidence', 'findings', 'kind', 'schema_version', 'summary', 'task_id', 'verdict'])) throw new Error(name + ': planner schema keys differ')
+    if (JSON.stringify([...schema.required].sort()) !== JSON.stringify(['findings', 'plan', 'summary', 'verdict'])) throw new Error(name + ': planner schema keys differ')
     if (call.options.outputFormat || call.options.jsonSchema) throw new Error(name + ': planner used a non-workflow schema option')
   }}
   for (const prompt of verifierPrompts) {{
@@ -6505,21 +6506,26 @@ for (const [name, invocation] of [['array args', ['work']], ['string args', 'wor
     invocation,
   )
 }}
-await exercise(
+const advancedPlanPass = await exercise(
   'advanced plan pass',
   'advanced',
   [
-    structuredPlanner('plan', ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test']),
+    structuredPlanner('plan', semanticPlan()),
     worker('implementer', 'ready'),
     worker('verifier', 'pass', 'none', passEvidence),
   ],
   ['zdev:zdev-planner', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier'],
 )
+const advancedPrompt = advancedPlanPass.calls.find(call => call.options.agentType === 'zdev:zdev-advanced-implementer')?.prompt ?? ''
+if (!advancedPrompt.includes('"approach":"inspect then edit"')
+  || !advancedPrompt.includes('"paths":["src/lib.rs","tests/lean.rs"]')
+  || !advancedPrompt.includes('"validation":["cargo test","git diff --check"]')) throw new Error('advanced implementer did not receive unchanged semantic plan')
+if (advancedPrompt.includes('Approach: inspect then edit') || advancedPrompt.includes('"kind":"planner"')) throw new Error('advanced implementer received reconstructed planner envelope')
 await exercise(
   'advanced retained plan rework',
   'advanced',
   [
-    worker('planner', 'plan', 'none', ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test']),
+    JSON.stringify(structuredPlanner('plan', semanticPlan())),
     worker('implementer', 'ready'),
     worker('verifier', 'rework', 'none', [], ['fix the task-owned defect']),
     worker('implementer', 'ready'),
@@ -6619,17 +6625,36 @@ await exercise(
 await exercise(
   'product decision blocker',
   'advanced',
-  [structuredPlanner('blocker', [], ['public API choice belongs to the user'])],
+  [structuredPlanner('blocker', null, ['public API choice belongs to the user'])],
   ['zdev:zdev-planner'],
   'BLOCKER',
 )
 await exercise(
   'unusable structured planner result',
   'advanced',
-  [{{ schema_version: 1, kind: 'planner', area, task_id: taskId, verdict: 'plan', summary: 'bad evidence', evidence: [], findings: [], escalation: 'none' }}],
+  [{{ schema_version: 1, kind: 'planner', area, task_id: taskId, verdict: 'plan', summary: 'legacy', evidence: [], findings: [], escalation: 'none' }}],
   ['zdev:zdev-planner'],
   'BLOCKER',
 )
+for (const [name, rejectedPlanner] of [
+  ['non-normalized planner path', structuredPlanner('plan', {{ ...semanticPlan(), paths: ['src/../outside.rs'] }})],
+  ['extra semantic planner key', {{ ...structuredPlanner('plan', semanticPlan()), extra: true }}],
+  ['duplicate semantic planner key', '{{"verdict":"plan","summary":"first","summary":"second","plan":{{"approach":"inspect","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
+  ['plan with findings', structuredPlanner('plan', semanticPlan(), ['contradictory finding'])],
+  ['blocker with plan', structuredPlanner('blocker', semanticPlan(), ['blocked'])],
+  ['blocker without findings', structuredPlanner('blocker', null, [])],
+  ['malformed semantic planner JSON', '{{"verdict":"plan"'],
+]) {{
+  const rejected = await exercise(
+    name,
+    'advanced',
+    [rejectedPlanner],
+    ['zdev:zdev-planner'],
+    'BLOCKER',
+  )
+  if (rejected.calls.filter(call => call.options.agentType === 'zdev:zdev-planner').length !== 1) throw new Error(name + ': planner retry occurred')
+  if (rejected.calls.some(call => call.options.agentType === 'zdev:zdev-advanced-implementer')) throw new Error(name + ': implementation started')
+}}
 const splitProposal = 'PROPOSE zdev-derived work work-001\n' + JSON.stringify({{
   schema_version: 1,
   proposal: 'implementation_split',

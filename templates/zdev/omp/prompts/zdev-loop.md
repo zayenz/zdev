@@ -18,7 +18,11 @@ Advanced work first uses one blocking read-only `zdev-planner`. Use a fresh
 blocking `zdev-verifier` for every verdict. Ordinary rework may resume the
 selected profile with `hub`; a valid one-time standard escalation starts an
 advanced replacement without replanning. The current Oh My Pi session remains
-the coordinator. Give every agent the complete rendered task-workflow contract
+the coordinator. Validate the planner's exact four-field semantic JSON,
+reconstruct and validate the compatible nine-key public planner envelope, and
+pass the semantic plan object unchanged to the advanced implementer. A blocker
+has empty public evidence and stops before edits; do not run another planner.
+Give every agent the complete rendered task-workflow contract
 from the native loop body and a compact payload of brief, task, guidance, and
 source file paths, applicable snapshot IDs, and the short result from the
 preceding role.

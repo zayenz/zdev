@@ -3,7 +3,7 @@ schema_version = 1
 id = "improvements-064"
 key = "commit-initial-task-bundle"
 area = "improvements"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -29,16 +29,26 @@ The task-authoring workflow currently omits --commit for every initial split bec
 
 ## Done when
 
-- [ ] A first approved import with --commit for a project or pull-request record creates one managed commit containing the exact required initial planning paths, imported tasks, and regenerated TASKS.md.
-- [ ] The committed initial planning record is sufficient when checked out from Git: required config and area metadata are present, and TASKS.md references no absent task or slice file.
-- [ ] A personal record’s ordinary first import remains local, while explicit --commit fails before task publication; ordinary uncommitted import remains available under every policy.
-- [ ] A new area under an already tracked project config and a new project record with untracked config both succeed without admitting unrelated planning files.
-- [ ] Later imports retain their current narrow path contract and preserve unrelated staged and unstaged Git state.
-- [ ] Unsafe initial state fails before publication. Commit failure removes created tasks, restores prior TASKS.md bytes and the pre-import index, preserves every pre-existing planning file’s bytes and tracking state, and preserves unrelated staged and unstaged changes.
-- [ ] Canonical task-authoring guidance no longer says the initial split must remain uncommitted and generated integrations match it.
+- [x] A first approved import with --commit for a project or pull-request record creates one managed commit containing the exact required initial planning paths, imported tasks, and regenerated TASKS.md.
+- [x] The committed initial planning record is sufficient when checked out from Git: required config and area metadata are present, and TASKS.md references no absent task or slice file.
+- [x] A personal record’s ordinary first import remains local, while explicit --commit fails before task publication; ordinary uncommitted import remains available under every policy.
+- [x] A new area under an already tracked project config and a new project record with untracked config both succeed without admitting unrelated planning files.
+- [x] Later imports retain their current narrow path contract and preserve unrelated staged and unstaged Git state.
+- [x] Unsafe initial state fails before publication. Commit failure removes created tasks, restores prior TASKS.md bytes and the pre-import index, preserves every pre-existing planning file’s bytes and tracking state, and preserves unrelated staged and unstaged changes.
+- [x] Canonical task-authoring guidance no longer says the initial split must remain uncommitted and generated integrations match it.
 
 ## Validation
 
 - Add focused first-import tests for project, pull-request, personal, both accepted config tracking layouts, exact committed paths, checkout completeness, unsafe-state rejection, and rollback behavior where those exercise distinct behavior.
 - Run the existing committed-import and documentation-contract tests.
 - Run cargo fmt --all -- --check, cargo clippy --locked --all-targets --all-features -- -D warnings, cargo test --locked, cargo build --locked, and git diff --check.
+
+## Result
+
+Committed initial approved task bundles as complete managed planning records for tracked policies while preserving local personal records and narrow later imports.
+
+Validation:
+
+- Independent verifier passed all task requirements, including mixed-tracking and rollback boundaries.
+- Focused committed-import and documentation-contract tests passed.
+- cargo fmt, Clippy with warnings denied, all 135 tests, cargo build, and git diff --check passed.

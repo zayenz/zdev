@@ -204,14 +204,17 @@ states stop; a stored review cannot waive those gates. Derived work never uses
 ordinary task import.
 
 A path is accepted for manual use and remains in place after review or import.
-When adding tasks to an existing task list, add `--commit --format json` to the
-import command. Use ordinary import for the initial split or when the user
-wants uncommitted additions. A committed import contains only the new task
+For project and pull-request records, add `--commit --format json` to publish
+the approved bundle, including the initial split. Personal records keep using
+ordinary import. Use ordinary import under any policy when the user wants
+uncommitted additions. A later committed import contains only the new task
 files, regenerated `TASKS.md`, and the owning area's tracked modified brief when
-present. Leave that brief unstaged; zdev validates and commits it with the
-tasks. Its JSON result includes task IDs, the complete area ready frontier,
-paths, the commit hash, and stable change ID. Zdev validates the brief and
-complete dependency graph before creating any task file.
+present. An initial committed import also contains the required project config,
+area metadata, brief, and referenced slice briefs. Leave a modified tracked
+brief unstaged; zdev validates and commits it with the tasks. The JSON result
+includes task IDs, the complete area ready frontier, paths, the commit hash, and
+stable change ID. Zdev validates the brief and complete dependency graph before
+creating any task file.
 
 Keep shared context, including the required area-wide testing level, in
 `brief.md`. For newly drafted implementation tasks, use `context` to select and

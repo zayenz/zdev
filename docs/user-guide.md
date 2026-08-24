@@ -292,12 +292,14 @@ scheduling --from -` and press Ctrl-D. `--from path/to/tasks.json` also works
 and leaves the source file in place. Zdev writes one Markdown file per task and
 regenerates `TASKS.md`. Edit task files, not the generated index.
 
-When adding tasks to an existing task list, the harness adds `--commit --format
-json` to its stored-review import. A manual direct import can use `zdev tasks
-import scheduling --from - --commit --format json`.
+For project and pull-request records, the harness adds `--commit --format json`
+to its stored-review import, including for the initial task split. Personal
+records keep using ordinary import. A manual direct import can use `zdev tasks
+import scheduling --from - --commit --format json`. Use ordinary import under
+any policy when you explicitly want the additions left uncommitted.
 
-Use ordinary import for the initial task split or when you explicitly want the
-additions left uncommitted. If the approved work modified the owning area's
+An initial managed commit includes the config, area metadata, brief, referenced
+slice briefs, new task files, and regenerated `TASKS.md`. If later approved work modified the owning area's
 tracked `brief.md`, leave it unstaged. The committed import validates and
 includes the brief with the new task files and regenerated `TASKS.md`; no
 separate brief commit is needed. Unrelated staged and unstaged changes are

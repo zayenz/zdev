@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 64
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 63
+- Done: 64
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -72,4 +72,4 @@
 | [improvements-061](tasks/061-challenge-task-drafts-through-stored-reviews.md) | Challenge task drafts through stored reviews | done | — |
 | [improvements-062](tasks/062-clarify-reusable-area-research-files.md) | Clarify reusable area research files | done | — |
 | [improvements-063](tasks/063-assess-file-handoffs-for-multi-lens-audits.md) | Assess file handoffs for multi-lens audits | done | — |
-| [improvements-064](tasks/064-commit-the-initial-approved-task-bundle.md) | Commit the initial approved task bundle | ready | — |
+| [improvements-064](tasks/064-commit-the-initial-approved-task-bundle.md) | Commit the initial approved task bundle | done | — |

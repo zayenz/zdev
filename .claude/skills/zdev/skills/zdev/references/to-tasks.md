@@ -140,9 +140,10 @@ without another user step:
 zdev tasks import <area> --reviewed <review-id> --format json
 ```
 
-When adding tasks to an existing task list, add `--commit --format json` to the
-import command. Use ordinary import for the initial task split or when the user
-wants uncommitted additions. If the approved work also modified the owning
+For project and pull-request records, add `--commit --format json` to publish
+the approved bundle, including the initial task split. Personal records keep
+using ordinary import. Use ordinary import under any policy when the user wants
+uncommitted additions. If the approved work also modified the owning
 area's brief, leave that tracked worktree change in place: the committed import
 validates and includes it in the same managed commit. Report the returned
 commit and stable change ID. Follow zdev's recovery message if it cannot commit.

@@ -4322,6 +4322,305 @@ fn non_git_task_import_remains_available_without_locking() {
 }
 
 #[test]
+fn first_committed_task_import_publishes_complete_project_record() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "initial",
+            "--title",
+            "Initial",
+            "--objective",
+            "Publish the first task bundle.",
+        ],
+    );
+    create_slice(root, "initial", "focused", "Focused");
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "initial",
+        "tasks": [{
+            "key": "one",
+            "title": "Commit initial task",
+            "slice": "focused",
+            "outcome": "Planning state is durable.",
+            "done_when": ["The task is committed."],
+            "blocked_by": []
+        }]
+    }))
+    .expect("bundle");
+
+    let imported = json_output_with_stdin(
+        root,
+        &["tasks", "import", "initial", "--from", "-", "--commit"],
+        &bundle,
+    );
+
+    assert_eq!(imported["status"], "committed");
+    assert_eq!(
+        imported["paths"],
+        json!([
+            ".zdev/config.toml",
+            ".zdev/initial/area.toml",
+            ".zdev/initial/brief.md",
+            ".zdev/initial/slices/focused.md",
+            ".zdev/initial/tasks/001-commit-initial-task.md",
+            ".zdev/initial/TASKS.md"
+        ])
+    );
+    assert_eq!(
+        git(root, &["show", "--pretty=format:", "--name-only", "HEAD"])
+            .lines()
+            .collect::<Vec<_>>(),
+        [
+            ".zdev/config.toml",
+            ".zdev/initial/TASKS.md",
+            ".zdev/initial/area.toml",
+            ".zdev/initial/brief.md",
+            ".zdev/initial/slices/focused.md",
+            ".zdev/initial/tasks/001-commit-initial-task.md",
+        ]
+    );
+    for path in [
+        ".zdev/config.toml",
+        ".zdev/initial/area.toml",
+        ".zdev/initial/brief.md",
+        ".zdev/initial/slices/focused.md",
+        ".zdev/initial/tasks/001-commit-initial-task.md",
+        ".zdev/initial/TASKS.md",
+    ] {
+        assert!(!git(root, &["show", &format!("HEAD:{path}")]).is_empty());
+    }
+    assert!(git(root, &["status", "--short", "--", ".zdev"]).is_empty());
+}
+
+#[test]
+fn first_committed_task_import_accepts_tracked_config_and_pull_request_records() {
+    for (record, track_config) in [
+        ("project", true),
+        ("pull-request", true),
+        ("pull-request", false),
+    ] {
+        let repository = repository();
+        let root = repository.path();
+        commit_file(root, "seed.txt", "seed\n", "seed");
+        json_output(root, &["init", "--record", record]);
+        if track_config {
+            git(root, &["add", ".zdev/config.toml"]);
+            git(root, &["commit", "-m", "track zdev config"]);
+        }
+        json_output(
+            root,
+            &[
+                "area",
+                "create",
+                "fresh",
+                "--title",
+                "Fresh",
+                "--objective",
+                "Add a new area under tracked configuration.",
+            ],
+        );
+        let bundle = serde_json::to_vec(&json!({
+            "schema_version": 1,
+            "area": "fresh",
+            "tasks": [{
+                "key": "one", "title": "First task", "outcome": "The task is durable.",
+                "done_when": ["The task is committed."], "blocked_by": []
+            }]
+        }))
+        .expect("bundle");
+
+        let imported = json_output_with_stdin(
+            root,
+            &["tasks", "import", "fresh", "--from", "-", "--commit"],
+            &bundle,
+        );
+
+        assert_eq!(imported["status"], "committed");
+        let committed_config = imported["paths"]
+            .as_array()
+            .expect("paths")
+            .contains(&json!(".zdev/config.toml"));
+        assert_eq!(committed_config, !track_config);
+        if track_config {
+            assert_eq!(
+                git(root, &["show", "HEAD^:.zdev/config.toml"]),
+                git(root, &["show", "HEAD:.zdev/config.toml"])
+            );
+        }
+    }
+}
+
+#[test]
+fn personal_first_import_stays_local_and_explicit_commit_is_rejected() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "local",
+            "--title",
+            "Local",
+            "--objective",
+            "Keep planning local.",
+        ],
+    );
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1, "area": "local", "tasks": [{
+            "key": "one", "title": "Local task", "outcome": "The task remains local.",
+            "done_when": ["The task exists."], "blocked_by": []
+        }]
+    }))
+    .expect("bundle");
+
+    let refused = json_output_with_stdin_status(
+        root,
+        &["tasks", "import", "local", "--from", "-", "--commit"],
+        &bundle,
+    );
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("personal record"));
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/local/tasks"))
+            .expect("tasks")
+            .count(),
+        0
+    );
+
+    let imported =
+        json_output_with_stdin(root, &["tasks", "import", "local", "--from", "-"], &bundle);
+    assert_eq!(imported["status"], "created");
+}
+
+#[cfg(unix)]
+#[test]
+fn first_committed_task_import_rejects_extra_files_and_rolls_back_commit_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "unrelated.txt", "before\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "safe",
+            "--title",
+            "Safe",
+            "--objective",
+            "Publish safely.",
+        ],
+    );
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1, "area": "safe", "tasks": [{
+            "key": "one", "title": "Safe task", "outcome": "No partial publication remains.",
+            "done_when": ["The import is atomic."], "blocked_by": []
+        }]
+    }))
+    .expect("bundle");
+    let index_path = root.join(".zdev/safe/TASKS.md");
+    let index_before = fs::read(&index_path).expect("index");
+
+    fs::write(root.join(".zdev/safe/unexpected.md"), "unexpected\n").expect("extra file");
+    let unsafe_import = json_output_with_stdin_status(
+        root,
+        &["tasks", "import", "safe", "--from", "-", "--commit"],
+        &bundle,
+    );
+    assert!(!unsafe_import.status.success());
+    assert!(String::from_utf8_lossy(&unsafe_import.stderr).contains("unexpected owning-area path"));
+    fs::remove_file(root.join(".zdev/safe/unexpected.md")).expect("remove extra file");
+
+    fs::write(root.join("unrelated.txt"), "staged unrelated\n").expect("unrelated change");
+    git(root, &["add", "unrelated.txt"]);
+    let cached_before = git(root, &["diff", "--cached", "--", "unrelated.txt"]);
+    let hook = root.join(".git/hooks/pre-commit");
+    fs::write(&hook, "#!/bin/sh\nexit 1\n").expect("rejecting hook");
+    let mut permissions = fs::metadata(&hook).expect("hook metadata").permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&hook, permissions).expect("executable hook");
+
+    let failed = json_output_with_stdin_status(
+        root,
+        &["tasks", "import", "safe", "--from", "-", "--commit"],
+        &bundle,
+    );
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("rolled back"));
+    assert_eq!(fs::read(&index_path).expect("restored index"), index_before);
+    assert!(!root.join(".zdev/safe/tasks/001-safe-task.md").exists());
+    assert_eq!(
+        git(root, &["diff", "--cached", "--", "unrelated.txt"]),
+        cached_before
+    );
+    assert!(git(root, &["diff", "--cached", "--name-only", "--", ".zdev"]).is_empty());
+    assert_eq!(git(root, &["log", "-1", "--format=%s"]), "seed");
+}
+
+#[test]
+fn first_committed_task_import_rejects_a_partially_tracked_area() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "partial",
+            "--title",
+            "Partial",
+            "--objective",
+            "Reject incomplete planning records.",
+        ],
+    );
+    git(root, &["add", ".zdev/partial/area.toml"]);
+    git(root, &["commit", "-m", "partially track area"]);
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1, "area": "partial", "tasks": [{
+            "key": "one", "title": "Unsafe task", "outcome": "Incomplete records are rejected.",
+            "done_when": ["No task is published."], "blocked_by": []
+        }]
+    }))
+    .expect("bundle");
+
+    let refused = json_output_with_stdin_status(
+        root,
+        &["tasks", "import", "partial", "--from", "-", "--commit"],
+        &bundle,
+    );
+
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("ambiguously partially tracked"));
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/partial/tasks"))
+            .expect("tasks")
+            .count(),
+        0
+    );
+    assert!(
+        git(
+            root,
+            &["ls-tree", "--name-only", "HEAD", ".zdev/partial/brief.md"]
+        )
+        .is_empty()
+    );
+    assert!(git(root, &["diff", "--cached", "--name-only"]).is_empty());
+}
+
+#[test]
 fn committed_task_import_preserves_unrelated_index_and_worktree_changes() {
     let repository = repository();
     let root = repository.path();

@@ -49,7 +49,7 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
         "you never read, copy, compare, or diagnose it or the internal fingerprint",
         "zdev tasks import scheduling --from -",
         "zdev tasks import scheduling --from - --commit --format json",
-        "Use ordinary import for the initial task split",
+        "including for the initial task split",
         "task IDs, paths, the commit hash, and the stable change ID",
         "zdev status scheduling --format json",
         "zdev next scheduling --format json",

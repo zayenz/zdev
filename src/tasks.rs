@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::project::{
-    AreaLifecycle, AreaMetadata, area_branch_status, current_branch, list_areas, load_area,
-    read_config, require_checked_out_area_branch, require_task_work_area_link, slice_briefs,
+    AreaLifecycle, AreaMetadata, RecordPolicy, area_branch_status, current_branch, list_areas,
+    load_area, read_config, require_checked_out_area_branch, require_task_work_area_link,
+    slice_briefs,
 };
 use super::{
     CHANGE_ID_TRAILER, CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, generate_change_id,
@@ -1605,11 +1606,11 @@ pub(super) fn import(
             "Cannot add tasks to closed area {area}. Run `zdev area reopen {area}` first"
         )));
     }
-    let committable_brief = if commit_changes {
+    let committable_paths = if commit_changes {
         require_checked_out_area_branch(root, &metadata)?;
         require_committable_task_import(root, area)?
     } else {
-        None
+        Vec::new()
     };
     let existing = load_tasks(root, area)?;
     let existing_ids = existing
@@ -1725,7 +1726,7 @@ pub(super) fn import(
         })
         .collect::<Result<Vec<_>, _>>()?;
     if commit_changes {
-        let mut paths = committable_brief.into_iter().collect::<Vec<_>>();
+        let mut paths = committable_paths;
         paths.extend(
             writes
                 .iter()
@@ -1783,7 +1784,7 @@ fn import_rollback_error(
     }
 }
 
-fn require_committable_task_import(root: &Path, area: &str) -> Result<Option<PathBuf>, ZdevError> {
+fn require_committable_task_import(root: &Path, area: &str) -> Result<Vec<PathBuf>, ZdevError> {
     if let Some(operation) = git_operation(root)? {
         return Err(ZdevError::new(format!(
             "Cannot add and commit tasks while a {operation} is in progress. Finish or abort it, then retry"
@@ -1794,7 +1795,23 @@ fn require_committable_task_import(root: &Path, area: &str) -> Result<Option<Pat
             "Cannot add and commit tasks before the repository has a commit. Create the initial commit, then retry",
         )
     })?;
+    let config = read_config(root)?;
     let area_path = format!(".zdev/{area}");
+    let tracked = git_output(root, &["ls-files", "--", &area_path])?;
+    if tracked.is_empty() {
+        return require_committable_initial_task_import(root, area, config.project.record);
+    }
+    let tracked_paths = tracked.lines().collect::<BTreeSet<_>>();
+    let required_tracked =
+        ["area.toml", "brief.md", "TASKS.md"].map(|name| format!("{area_path}/{name}"));
+    if required_tracked
+        .iter()
+        .any(|path| !tracked_paths.contains(path.as_str()))
+    {
+        return Err(ZdevError::new(format!(
+            "Cannot add and commit tasks: {area_path} is ambiguously partially tracked. Commit or resolve its planning files first"
+        )));
+    }
     let brief_relative = format!("{area_path}/brief.md");
     let unstaged = git_output(root, &["diff", "--name-only", "--", &area_path])?;
     let staged = git_output(root, &["diff", "--cached", "--name-only", "--", &area_path])?;
@@ -1830,7 +1847,7 @@ fn require_committable_task_import(root: &Path, area: &str) -> Result<Option<Pat
         )));
     }
     if !brief_changed {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     let brief = root.join(&brief_relative);
     let metadata = fs::symlink_metadata(&brief)
@@ -1852,7 +1869,162 @@ fn require_committable_task_import(root: &Path, area: &str) -> Result<Option<Pat
         ))
     })?;
     validate_brief(&brief)?;
-    Ok(Some(brief))
+    Ok(vec![brief])
+}
+
+fn require_committable_initial_task_import(
+    root: &Path,
+    area: &str,
+    record: RecordPolicy,
+) -> Result<Vec<PathBuf>, ZdevError> {
+    if record == RecordPolicy::Personal {
+        return Err(ZdevError::new(
+            "Cannot add and commit initial tasks for a personal record. Import without --commit to keep the tasks local",
+        ));
+    }
+
+    let config_relative = ".zdev/config.toml";
+    let config_path = root.join(config_relative);
+    require_clean_regular_planning_file(root, config_relative)?;
+
+    let area_relative = format!(".zdev/{area}");
+    let area_dir = root.join(&area_relative);
+    let mut paths = vec![config_path];
+    collect_initial_area_paths(root, &area_dir, &area_relative, &mut paths)?;
+
+    let (metadata, _) = load_area(root, area)?;
+    if let Some(parent) = metadata.parent {
+        let parent_metadata = format!(".zdev/{parent}/area.toml");
+        git_output(
+            root,
+            &["ls-files", "--error-unmatch", "--", &parent_metadata],
+        )
+        .map_err(|_| {
+            ZdevError::new(format!(
+                "Cannot add and commit initial tasks: parent area {parent} must already be tracked"
+            ))
+        })?;
+    }
+
+    if !git_output(root, &["ls-files", "--", config_relative])?.is_empty() {
+        paths.remove(0);
+    }
+    validate_brief(&area_dir.join("brief.md"))?;
+    Ok(paths)
+}
+
+fn require_clean_regular_planning_file(root: &Path, relative: &str) -> Result<(), ZdevError> {
+    let path = root.join(relative);
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|error| ZdevError::io(format!("Cannot inspect {}", path.display()), error))?;
+    if !metadata.file_type().is_file() {
+        return Err(ZdevError::new(format!(
+            "Cannot add and commit initial tasks: {} must be a regular file",
+            path.display()
+        )));
+    }
+    let staged = git_output(root, &["diff", "--cached", "--name-only", "--", relative])?;
+    let unstaged = git_output(root, &["diff", "--name-only", "--", relative])?;
+    if !staged.is_empty() || !unstaged.is_empty() {
+        return Err(ZdevError::new(format!(
+            "Cannot add and commit initial tasks: {relative} has staged or modified tracked content"
+        )));
+    }
+    Ok(())
+}
+
+fn collect_initial_area_paths(
+    root: &Path,
+    directory: &Path,
+    relative_directory: &str,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), ZdevError> {
+    let metadata = fs::symlink_metadata(directory)
+        .map_err(|error| ZdevError::io(format!("Cannot inspect {}", directory.display()), error))?;
+    if !metadata.file_type().is_dir() {
+        return Err(ZdevError::new(format!(
+            "Cannot add and commit initial tasks: {} must be a regular directory",
+            directory.display()
+        )));
+    }
+    let staged = git_output(
+        root,
+        &["diff", "--cached", "--name-only", "--", relative_directory],
+    )?;
+    if !staged.is_empty() {
+        return Err(ZdevError::new(format!(
+            "Cannot add and commit initial tasks: {relative_directory} has unexpectedly staged content"
+        )));
+    }
+
+    let mut entries = fs::read_dir(directory)
+        .map_err(|error| ZdevError::io(format!("Cannot read {}", directory.display()), error))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| ZdevError::io(format!("Cannot read {}", directory.display()), error))?;
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let relative = format!("{relative_directory}/{name}");
+        let file_type = entry.file_type().map_err(|error| {
+            ZdevError::io(format!("Cannot inspect {}", entry.path().display()), error)
+        })?;
+        match name.as_ref() {
+            "area.toml" | "brief.md" if file_type.is_file() => {
+                paths.push(entry.path());
+            }
+            "TASKS.md" if file_type.is_file() => {}
+            "tasks" if file_type.is_dir() => {
+                if fs::read_dir(entry.path())
+                    .map_err(|error| {
+                        ZdevError::io(format!("Cannot read {}", entry.path().display()), error)
+                    })?
+                    .next()
+                    .is_some()
+                {
+                    return Err(ZdevError::new(format!(
+                        "Cannot add and commit initial tasks: {relative} must be empty before import"
+                    )));
+                }
+            }
+            "slices" if file_type.is_dir() => {
+                let mut slices = fs::read_dir(entry.path())
+                    .map_err(|error| {
+                        ZdevError::io(format!("Cannot read {}", entry.path().display()), error)
+                    })?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| {
+                        ZdevError::io(format!("Cannot read {}", entry.path().display()), error)
+                    })?;
+                slices.sort_by_key(|entry| entry.file_name());
+                for slice in slices {
+                    let slice_type = slice.file_type().map_err(|error| {
+                        ZdevError::io(format!("Cannot inspect {}", slice.path().display()), error)
+                    })?;
+                    if !slice_type.is_file() || slice.path().extension() != Some(OsStr::new("md")) {
+                        return Err(ZdevError::new(format!(
+                            "Cannot add and commit initial tasks: {} is not a regular slice brief",
+                            slice.path().display()
+                        )));
+                    }
+                    paths.push(slice.path());
+                }
+            }
+            _ => {
+                return Err(ZdevError::new(format!(
+                    "Cannot add and commit initial tasks: unexpected owning-area path {relative}"
+                )));
+            }
+        }
+    }
+    for required in ["area.toml", "brief.md", "TASKS.md"] {
+        if !directory.join(required).is_file() {
+            return Err(ZdevError::new(format!(
+                "Cannot add and commit initial tasks: missing {relative_directory}/{required}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn relative_paths(root: &Path, paths: &[PathBuf]) -> Result<Vec<String>, ZdevError> {

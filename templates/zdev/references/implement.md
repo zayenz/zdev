@@ -109,12 +109,15 @@ goal, loop, or explicit continuation refreshes work-context and uses the
 resulting normal graph. Do not apply another proposal from the same handoff; a
 later independently selected task may propose once under fresh gates.
 
-For verification, give a different agent the brief, task, current task identity,
-relevant source and tests, and repository verification instructions. It
-independently stores and inspects work-context, checks every task requirement,
-inspects the touched code, runs task-listed validation, and uses zdev's compact
-comparison to prove validation did not change Git state. The verifier returns the
-strict typed object defined in the **Verify** reference loaded for this route. The
+For verification, first have coordination store and validate a work-context
+snapshot for the same admitted open, ready, safe area, task, HEAD, and checkout.
+Give a different agent its opaque locator, the brief, task, current task
+identity, relevant source and tests, and repository verification instructions.
+It shows the supplied snapshot, checks every task requirement, inspects the
+touched code, runs task-listed validation, and returns only the four-field
+semantic object defined in the **Verify** reference. Coordination strictly
+parses that response, runs the compact comparison, refuses a changed-state
+pass, and constructs the compatible nine-key verifier envelope. The
 coordinating agent checks that the verdict covers the whole task.
 
 ## Finish

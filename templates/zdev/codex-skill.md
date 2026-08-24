@@ -24,6 +24,11 @@ authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns only the route's required envelope.
 
+For task verification, store and validate the snapshot immediately before
+spawning the verifier. Require its exact four-field semantic object, compare
+the snapshot after it returns, and construct the compatible strict nine-key
+verifier envelope in the coordinating session.
+
 {% if implementer_has_model %}For the implementer, pass `model={{ implementer_model }}`{% if implementer_has_effort %} and
 `reasoning_effort={{ implementer_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the implementer's model and reasoning effort unset so it inherits them.{% endif %}
 {% if verifier_has_model %}For the verifier, pass `model={{ verifier_model }}`{% if verifier_has_effort %} and

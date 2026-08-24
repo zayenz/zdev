@@ -44,9 +44,12 @@ An area moves from a brief to approved tasks, implementation, independent
 verification, completion, and commit. **Explore** and **Discuss** shape the
 brief, including scope and testing. **Create tasks** turns that brief into an
 exact bundle for approval. **Implement** selects one ready task, records the Git
-baseline, and changes only task-owned paths. A fresh verifier checks the task
-requirements, touched code, and required validation. The coordinating agent
-completes and commits the task after `PASS`.
+baseline, and changes only task-owned paths. Immediately before a fresh
+verifier, coordination stores and validates its work-context snapshot. The
+verifier checks the task requirements, touched code, and required validation,
+then returns four semantic fields. Coordination compares the snapshot and
+constructs the compatible public envelope. The coordinating agent completes
+and commits the task after `PASS`.
 
 One **Implement** interaction stops after reporting that verified commit. An
 explicit request to continue, or an active goal or loop, starts another
@@ -204,6 +207,11 @@ exact installed route-contract path; applicable repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns only the route's required envelope.
+
+For task verification, store and validate the snapshot immediately before
+spawning the verifier. Require its exact four-field semantic object, compare
+the snapshot after it returns, and construct the compatible strict nine-key
+verifier envelope in the coordinating session.
 
 For the implementer, pass `model="gpt-5.6-sol"` and
 `reasoning_effort="low"` together with `fork_turns="none"`.

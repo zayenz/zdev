@@ -15,5 +15,8 @@ Each `zdev_subagent` call receives the complete rendered contract above and a
 compact payload of brief, task, guidance, and source file paths, applicable
 snapshot IDs, and the short result from the preceding role. Pi children read
 those files from the shared checkout.
+Immediately before each verifier child, the current session stores and
+validates the snapshot; after the four-field semantic response it compares
+that snapshot and constructs the strict public nine-key verifier envelope.
 
 {{repository_guidance}}

@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-002"
 key = "move-verifier-bookkeeping-to-coordinator"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 blocked_by = ["general-003"]
 +++
@@ -27,14 +27,22 @@ The current verifier contract asks the model to produce and count a nine-key env
 
 ## Done when
 
-- [ ] The verifier-facing response is the exact four-field semantic object, while deterministic coordination reconstructs the compatible nine-key public envelope and checks every generated field.
-- [ ] Standalone verify, implementation verification, rework, and goal-loop routes store and validate the snapshot immediately before every verifier dispatch, supply it to the verifier, and require the coordinator's unchanged post-validation comparison before accepting PASS.
-- [ ] Post-validation changes cannot pass: attributable task-owned writes route to REWORK and ambiguous writes route to BLOCKER under the existing ownership rules.
-- [ ] All five installed harness integrations express the same responsibility split and generated fixtures match their canonical templates.
-- [ ] Focused workflow coverage proves PASS, REWORK, BLOCKER, escalation, malformed semantic output, validation-written state, snapshot mismatch, public-envelope reconstruction, and advisory handling without relying on verifier item counts.
+- [x] The verifier-facing response is the exact four-field semantic object, while deterministic coordination reconstructs the compatible nine-key public envelope and checks every generated field.
+- [x] Standalone verify, implementation verification, rework, and goal-loop routes store and validate the snapshot immediately before every verifier dispatch, supply it to the verifier, and require the coordinator's unchanged post-validation comparison before accepting PASS.
+- [x] Post-validation changes cannot pass: attributable task-owned writes route to REWORK and ambiguous writes route to BLOCKER under the existing ownership rules.
+- [x] All five installed harness integrations express the same responsibility split and generated fixtures match their canonical templates.
+- [x] Focused workflow coverage proves PASS, REWORK, BLOCKER, escalation, malformed semantic output, validation-written state, snapshot mismatch, public-envelope reconstruction, and advisory handling without relying on verifier item counts.
 
 ## Validation
 
 - Regenerate the checked-in integrations with `cargo run --locked -- skill install codex --to skills --force`, `cargo run --locked -- skill install claude --to .claude/skills/zdev --force`, and the corresponding `opencode --to .opencode`, `pi --to .pi`, and `omp --to .omp` commands.
 - Run `cargo test --locked --test lean all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries`, `cargo test --locked --test lean claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes`, `cargo test --locked --test lean claude_standalone_verify_returns_only_valid_snapshot_locators`, `cargo test --locked --test lean work_context_round_trip_counts_match_realized_routes`, and `cargo test --locked --test lean executable_templates_realize_deterministically_and_match_generated_fixtures`.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Moved verifier bookkeeping into deterministic coordination while preserving the compatible public envelope and fail-closed state ownership.
+
+Validation:
+
+- Fresh independent verification passed. All five focused workflow checks and full area validation passed: cargo fmt --check, clippy with -D warnings, cargo test --locked (140 tests), cargo build --locked, fixture regeneration equality, and git diff --check. Snapshot W1d4d88ca65468a63 compared equal before completion.

@@ -45,9 +45,12 @@ An area moves from a brief to approved tasks, implementation, independent
 verification, completion, and commit. **Explore** and **Discuss** shape the
 brief, including scope and testing. **Create tasks** turns that brief into an
 exact bundle for approval. **Implement** selects one ready task, records the Git
-baseline, and changes only task-owned paths. A fresh verifier checks the task
-requirements, touched code, and required validation. The coordinating agent
-completes and commits the task after `PASS`.
+baseline, and changes only task-owned paths. Immediately before a fresh
+verifier, coordination stores and validates its work-context snapshot. The
+verifier checks the task requirements, touched code, and required validation,
+then returns four semantic fields. Coordination compares the snapshot and
+constructs the compatible public envelope. The coordinating agent completes
+and commits the task after `PASS`.
 
 One **Implement** interaction stops after reporting that verified commit. An
 explicit request to continue, or an active goal or loop, starts another

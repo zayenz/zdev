@@ -1,7 +1,7 @@
 # Workflow round-trip audit
 
 > **Status: implemented reductions with retained baseline.** Work-context,
-> compact verifier handoffs, the small Claude audit path, and the import ready
+> coordinator-owned compact verifier handoffs, the small Claude audit path, and the import ready
 > frontier have shipped. The opening counts preserve the pre-change baseline;
 > the realized counts below describe current workflows.
 
@@ -269,46 +269,50 @@ inline work-context when the worker needs it. Verifier PASS and completion use
 the stored transport.
 
 Coordinators collect ordinary inline work-context for selection, ownership,
-implementation, and rework. A verifier instead stores its own pre-validation
-context, inspects it through zdev, and uses compact compare after validation.
-Completion receives only that opaque ID and performs one compact compare before
-mutation. Neither handoff carries the verifier's raw Git strings, and no
-worker-supplied path is trusted.
+implementation, and rework. Immediately before each verifier, coordination
+stores and shows the pre-validation context, validates it against the admitted
+checkout, and supplies only its locator. The verifier shows that snapshot and
+runs validation. Coordination parses the four semantic response fields and
+uses compact compare afterward. Completion receives only that opaque ID and
+performs one more compact compare before mutation. Neither handoff carries raw
+Git strings, and no worker-supplied locator or identity is trusted.
 
 ```text
-before PASS: S -> implementer -> S -> V -> F       C5 Z6 G14 W2
-after PASS:  K -> implementer -> K -> VS -> FS     C5 Z8 G2  W2
+before PASS: S -> implementer -> S -> V -> F              C5 Z6 G14 W2
+after PASS:  K -> implementer -> K -> CS -> V -> C -> FS  C5 Z9 G2  W2
 
-before verify: S -> V                              C2 Z2 G9 W1
-after verify:  K -> VS                             C2 Z4 G0 W1
+before verify: S -> V                                     C2 Z2 G9 W1
+after verify:  K -> CS -> V -> C                          C2 Z5 G0 W1
 
 before one REWORK: S -> I -> S -> V -> S -> I -> S -> V -> F
                                                     C7 Z10 G26 W4
-after one REWORK:  K -> I -> K -> VS -> K -> I -> K -> VS -> FS
-                                                    C7 Z13 G2  W4
+after one REWORK:  K -> I -> K -> CS -> V -> C
+                   -> K -> I -> K -> CS -> V -> C -> FS   C7 Z15 G2 W4
 ```
 
-Here K is one inline work-context process, VS is snapshot store, show,
-validation, and compact compare, and FS is the final compact compare followed by
+Here K is one inline work-context process, CS is coordinator snapshot store and
+show, V is verifier show plus validation, C is the coordinator's compact
+post-response compare, and FS is the final compact compare followed by
 completion. These exact traces apply to Codex, OpenCode, Pi, and Oh My Pi.
 
-Claude keeps its W counts because its workflow still needs agents to run each
-command. Snapshot store, show, and compare replace verifier-owned direct Git
-reads with zdev calls. This deliberately optimizes prompt size and deterministic
+Claude's workflow needs generic agents to run each coordinator command.
+Snapshot admission and post-response comparison add explicit calls around the
+named verifier. This deliberately optimizes responsibility and deterministic
 resolution rather than process count.
 
 The realized fixed counts are therefore:
 
 | Harness route | Ordinary PASS C/Z/G/W | Explicit verify C/Z/G/W | One REWORK C/Z/G/W |
 | --- | --- | --- | --- |
-| Codex, OpenCode, Pi, Oh My Pi | 5 / 8 / 2 / 2 | 2 / 4 / 0 / 1 | 7 / 13 / 2 / 4 |
-| Claude | 5 / 8 / 2 / 5 | 2 / 4 / 0 / 2 | 7 / 13 / 2 / 9 |
+| Codex, OpenCode, Pi, Oh My Pi | 5 / 9 / 2 / 2 | 2 / 5 / 0 / 1 | 7 / 15 / 2 / 4 |
+| Claude | 5 / 9 / 2 / 7 | 2 / 5 / 0 / 4 | 7 / 15 / 2 / 13 |
 
 A closed or open no-work implementation stops after one K: `C1 Z1 G0 W0`
 for prompt-driven harnesses and `C1 Z1 G0 W1` for Claude. Closed K performs no
 status or Git inspection. External orchestration counts stay lower than the
-audited baseline even though every verifier now collects its own K and Claude's
-existing completion agent collects one fresh K after PASS.
+audited baseline even though every verifier now shows coordination's snapshot
+and Claude uses separate agents for snapshot admission and comparison. Its
+existing completion agent performs the final comparison after PASS.
 
 The ordinary PASS counts end at the verified commit. A one-task command does
 not run an unused post-commit `next` or K. An explicit continuation or area
@@ -372,8 +376,8 @@ abstraction is needed.
 Claude's task workflow no longer accumulates every accepted implementation
 envelope. Each fresh verifier receives the expected area, task, and HEAD plus
 only the latest accepted implementation or rework envelope as a locator. It
-collects its own stored context rather than receiving the coordinator's raw Git
-payload. After rework, the replacement envelope supersedes the earlier one.
+receives the coordinator-stored snapshot rather than raw Git payload. After
+rework, the replacement envelope supersedes the earlier one.
 
 The completion agent receives one verifier-approved snapshot ID. It does not
 receive implementation envelopes, a second copy of the verifier PASS, the
@@ -381,13 +385,15 @@ latest inline coordinator context, or raw Git evidence. Every independent
 verification, post-validation comparison, completion, and commit gate remains
 in place.
 
-### 5. Route verifier evidence through stored snapshots (implemented)
+### 5. Route verifier bookkeeping through coordination (implemented)
 
-The verifier creates one immutable pre-validation work-context snapshot and
-uses `--show` to inspect it. After validation, `--compare` must return the exact
-compact schema with the same area and ID and `equal: true`. PASS carries only
-`work_context_snapshot: W<16-lowercase-hex>` plus the optional stale advisory;
-the summary carries validation conclusions.
+Immediately before dispatch, coordination creates and validates one immutable
+pre-validation work-context snapshot. The verifier uses `--show` to inspect it,
+runs validation, and returns exactly verdict, summary, findings, and
+escalation. Afterward coordination runs `--compare`, rejects changed-state
+PASS, and constructs the compatible nine-key public result. Its generated
+evidence is `work_context_snapshot: W<16-lowercase-hex>` plus the optional
+stale advisory; the summary carries validation conclusions.
 
 Completion receives that ID only. It runs exactly one fresh `--compare` before
 `task done`, staging, or commit. False, missing, expired, corrupt, cross-area,
@@ -396,9 +402,9 @@ longer serialized through verifier or completion prompts.
 
 ## Rejected shortcuts
 
-- Do not reuse the coordinator snapshot as the verifier's own evidence. That
-  removes the independent checkout check and misses changes between dispatch
-  and worker execution.
+- Do not let the verifier choose or echo the snapshot identity. Coordination
+  admits it at the dispatch boundary, the verifier independently resolves it,
+  and coordination compares it after the response.
 - Do not reuse a pre-write goal or Git snapshot after implementation or
   rework. Fresh task identity and ownership are the reason those gates exist.
 - Do not combine `task done`, staging, staged-diff approval, and commit into an

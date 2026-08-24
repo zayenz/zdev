@@ -3,12 +3,12 @@
 # Tasks: general
 
 - Total: 3
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 2
+- Done: 3
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
 | [general-001](tasks/001-make-task-challenge-follow-up-proportionate.md) | Make task-challenge follow-up proportionate | done | — |
-| [general-002](tasks/002-move-verifier-bookkeeping-into-deterministic-coordination.md) | Move verifier bookkeeping into deterministic coordination | ready | general-003 |
+| [general-002](tasks/002-move-verifier-bookkeeping-into-deterministic-coordination.md) | Move verifier bookkeeping into deterministic coordination | done | general-003 |
 | [general-003](tasks/003-restore-claude-worker-contract-fallback.md) | Restore Claude worker-contract fallback | done | — |

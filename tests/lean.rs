@@ -6171,71 +6171,52 @@ if (parseContext(JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed',
     );
 
     for workflow in [implement, verify] {
-        let evidence_start = workflow
-            .find("const approvedSnapshot")
-            .expect("post-validation parser start");
-        let evidence_end = ["\n\nif (!/^[a-z0-9]", "\nconst verify ="]
-            .into_iter()
-            .filter_map(|marker| workflow[evidence_start..].find(marker))
-            .min()
-            .map(|offset| evidence_start + offset)
-            .expect("post-validation parser end");
-        let evidence_probe = format!(
-            r#"{}
-const result = evidence => ({{ evidence }})
-const snapshot = 'W0123456789abcdef'
-if (approvedSnapshot(result([`work_context_snapshot: ${{snapshot}}`])) !== snapshot) throw new Error('exact locator rejected')
-if (approvedSnapshot(result([`work_context_snapshot: ${{snapshot}}`, `work_context_snapshot: ${{snapshot}}`]))) throw new Error('duplicate locator accepted')
-if (approvedSnapshot(result(['work_context_snapshot: W0123456789ABCDEf']))) throw new Error('malformed locator accepted')
-if (approvedSnapshot(result(['work_context_snapshot: /tmp/context.json']))) throw new Error('path accepted')
-if (approvedSnapshot(result(['HEAD: 0123456789abcdef0123456789abcdef01234567', 'git_status: ""']))) throw new Error('raw Git evidence accepted')
-if (approvedSnapshot(result(['cargo test passed']))) throw new Error('generic validation-only PASS accepted')
-"#,
-            &workflow[evidence_start..evidence_end]
-        );
-        let evidence_output = Command::new("node")
-            .args(["--input-type=commonjs", "--eval", &evidence_probe])
-            .output()
-            .expect("run Claude post-validation parser probe");
-        assert!(
-            evidence_output.status.success(),
-            "Claude post-validation parser probe failed: {}",
-            String::from_utf8_lossy(&evidence_output.stderr)
-        );
-    }
-
-    for workflow in [implement, verify] {
         let worker_start = workflow
             .find("const workerResultKeys")
+            .or_else(|| workflow.find("const publicResultKeys"))
             .expect("worker parser start");
-        let worker_end = workflow[worker_start..]
-            .find("\nif (!/^[a-z0-9]")
+        let worker_end = ["\nconst derivedSplitFrom", "\n\nif (!/^[a-z0-9]"]
+            .into_iter()
+            .filter_map(|marker| workflow[worker_start..].find(marker))
+            .min()
             .map(|offset| worker_start + offset)
             .expect("worker parser end");
         let worker_probe = format!(
-            r#"{}
-const base = {{ schema_version: 1, kind: 'verifier', area: 'general', task_id: 'general-001', verdict: 'pass', summary: 'Verified.', evidence: ['cargo test passed'], findings: [], escalation: 'none' }}
-if (!parseWorkerResult(JSON.stringify(base), 'verifier', 'general', 'general-001')) throw new Error('PASS rejected')
-const rework = {{ ...base, verdict: 'rework', summary: 'Correction needed.', findings: ['src/lib.rs:1 is wrong'], escalation: 'advanced-implementer' }}
-if (!parseWorkerResult(JSON.stringify(rework), 'verifier', 'general', 'general-001')) throw new Error('REWORK escalation rejected')
-if (parseWorkerResult(JSON.stringify({{ ...base, findings: ['contradictory finding'] }}), 'verifier', 'general', 'general-001')) throw new Error('PASS with findings accepted')
-if (parseWorkerResult(JSON.stringify({{ ...rework, findings: [] }}), 'verifier', 'general', 'general-001')) throw new Error('REWORK without findings accepted')
-const blocker = {{ ...base, kind: 'implementer', verdict: 'blocker', summary: 'Cannot edit safely.', evidence: [], findings: ['overlapping change'] }}
-if (!parseWorkerResult(JSON.stringify(blocker), 'implementer', 'general', 'general-001')) throw new Error('BLOCKER rejected')
-if (parseWorkerResult.toString().includes("expectedKind === 'planner'")) {{
-  const plan = {{ ...base, kind: 'planner', verdict: 'plan', evidence: ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test'] }}
-  if (!parseWorkerResult(JSON.stringify(plan), 'planner', 'general', 'general-001')) throw new Error('plan rejected')
-  if (parseWorkerResult(JSON.stringify({{ ...plan, findings: ['unresolved product choice'] }}), 'planner', 'general', 'general-001')) throw new Error('plan with findings accepted')
-  if (parseWorkerResult(JSON.stringify({{ ...plan, evidence: ['Approach: inspect then edit', 'Paths: src/lib.rs'] }}), 'planner', 'general', 'general-001')) throw new Error('plan without validation accepted')
+            r#"const area = 'general'
+const taskId = 'general-001'
+{}
+const base = {{ verdict: 'pass', summary: 'Verified.', findings: [], escalation: 'none' }}
+if (!parseVerifierResult(JSON.stringify(base))) throw new Error('semantic PASS rejected')
+const rework = {{ ...base, verdict: 'rework', findings: ['src/lib.rs:1 is wrong'], escalation: 'advanced-implementer' }}
+if (!parseVerifierResult(JSON.stringify(rework))) throw new Error('semantic REWORK escalation rejected')
+if (!reportsValidationWrite({{ ...rework, findings: ['validation_write: src/generated.rs'] }})) throw new Error('validation write marker rejected')
+for (const finding of ['src/generated.rs changed', 'validation_write: /tmp/file', 'validation_write: src/../file', 'validation_write: src\\file']) {{
+  if (reportsValidationWrite({{ ...rework, findings: [finding] }})) throw new Error('invalid validation write marker accepted: ' + finding)
 }}
-if (parseWorkerResult(JSON.stringify({{ ...base, extra: true }}), 'verifier', 'general', 'general-001')) throw new Error('unknown key accepted')
-if (parseWorkerResult(JSON.stringify({{ ...base, task_id: 'general-002' }}), 'verifier', 'general', 'general-001')) throw new Error('identity mismatch accepted')
-if (parseWorkerResult(JSON.stringify({{ ...base, escalation: 'advanced-implementer' }}), 'verifier', 'general', 'general-001')) throw new Error('contradictory escalation accepted')
-if (parseWorkerResult(JSON.stringify({{ ...base, kind: 'implementer', verdict: 'pass' }}), 'implementer', 'general', 'general-001')) throw new Error('contradictory verdict accepted')
-if (parseWorkerResult(JSON.stringify({{ ...base, evidence: [''] }}), 'verifier', 'general', 'general-001')) throw new Error('empty evidence accepted')
-if (parseWorkerResult(`${{JSON.stringify(base)}} trailing`, 'verifier', 'general', 'general-001')) throw new Error('extra text accepted')
-const duplicate = '{{"schema_version":1,"kind":"verifier","area":"general","area":"general","task_id":"general-001","verdict":"pass","summary":"Verified.","evidence":[],"findings":[],"escalation":"none"}}'
-if (parseWorkerResult(duplicate, 'verifier', 'general', 'general-001')) throw new Error('duplicate key accepted')
+if (reportsValidationWrite({{ ...rework, findings: ['validation_write: src/generated.rs', 'validation_write: ../outside'] }})) throw new Error('mixed valid and malformed validation markers accepted')
+if (parseVerifierResult(JSON.stringify({{ ...base, findings: ['contradictory finding'] }}))) throw new Error('PASS with findings accepted')
+if (parseVerifierResult(JSON.stringify({{ ...rework, findings: [] }}))) throw new Error('REWORK without findings accepted')
+if (parseVerifierResult(JSON.stringify({{ ...base, extra: true }}))) throw new Error('unknown semantic key accepted')
+if (parseVerifierResult(JSON.stringify({{ ...base, escalation: 'advanced-implementer' }}))) throw new Error('contradictory escalation accepted')
+if (parseVerifierResult(`${{JSON.stringify(base)}} trailing`)) throw new Error('extra text accepted')
+const duplicate = '{{"verdict":"pass","summary":"Verified.","findings":[],"findings":[],"escalation":"none"}}'
+if (parseVerifierResult(duplicate)) throw new Error('duplicate semantic key accepted')
+const legacy = {{ schema_version: 1, kind: 'verifier', area, task_id: taskId, ...base, evidence: [] }}
+if (parseVerifierResult(JSON.stringify(legacy))) throw new Error('legacy verifier envelope accepted')
+const snapshot = 'W0123456789abcdef'
+const compared = JSON.stringify({{ schema_version: 1, area, snapshot, equal: true }})
+if (!parseComparison(compared, ...(parseComparison.length === 3 ? [area, snapshot] : [snapshot]))) throw new Error('valid comparison rejected')
+if (parseComparison(JSON.stringify({{ schema_version: 1, area, snapshot, equal: true, extra: true }}), ...(parseComparison.length === 3 ? [area, snapshot] : [snapshot]))) throw new Error('extra comparison key accepted')
+const publicResult = publicVerifier(base, snapshot, 'stale effective-base link; managed rebase remains optional.')
+if (!publicResult || publicResult.schema_version !== 1 || publicResult.kind !== 'verifier' || publicResult.area !== area || publicResult.task_id !== taskId) throw new Error('public identity not generated')
+if (JSON.stringify(publicResult.evidence) !== JSON.stringify(['work_context_snapshot: ' + snapshot, 'stale effective-base link; managed rebase remains optional.'])) throw new Error('public evidence not generated')
+if (typeof parseWorkerResult === 'function') {{
+  const implementer = {{ schema_version: 1, kind: 'implementer', area, task_id: taskId, verdict: 'blocker', summary: 'Cannot edit safely.', evidence: [], findings: ['overlap'], escalation: 'none' }}
+  if (!parseWorkerResult(JSON.stringify(implementer), 'implementer', area, taskId)) throw new Error('implementer envelope rejected')
+  const plan = {{ ...implementer, kind: 'planner', verdict: 'plan', evidence: ['Approach: inspect', 'Paths: src/lib.rs', 'Validation: cargo test'], findings: [] }}
+  if (!parseWorkerResult(JSON.stringify(plan), 'planner', area, taskId)) throw new Error('planner envelope rejected')
+  if (parseWorkerResult(JSON.stringify(legacy), 'verifier', area, taskId)) throw new Error('legacy verifier accepted by nine-key parser')
+}}
 "#,
             &workflow[worker_start..worker_end]
         );
@@ -6279,23 +6260,31 @@ const context = JSON.stringify({{
   goal: {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', task: {{ id: task }} }},
   head, git_status: ' M src/lib.rs\n', git_diff_cached: '', git_diff: 'large diff\n',
 }})
-const worker = (verdict, evidence, findings = []) => JSON.stringify({{
-  schema_version: 1, kind: 'verifier', area, task_id: task, verdict,
+const snapshot = 'W0123456789abcdef'
+const stored = JSON.stringify({{ snapshot, context: JSON.parse(context) }})
+const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot, equal }})
+const worker = (verdict, findings = [], escalation = 'none') => JSON.stringify({{
+  verdict,
   summary: verdict === 'pass' ? 'Checked task and validation.' : 'Correction required.',
-  evidence, findings, escalation: 'none',
+  findings, escalation,
 }})
-const exercise = async (response, invocation = {{ area, task_id: task }}) => {{
+const exercise = async (response, equal = true, invocation = {{ area, task_id: task }}, storedResponse = stored, comparedResponse = comparison(equal), preflightResponse = context) => {{
   const prompts = []
   const result = await run(invocation, async (prompt, options) => {{
     prompts.push({{ prompt, options }})
-    return options.agentType ? response : context
+    if (options.agentType) return response
+    if (options.label === 'zdev verify preflight') return preflightResponse
+    if (options.label === 'zdev verification snapshot') return storedResponse
+    if (options.label === 'zdev post-verification compare') return comparedResponse
+    throw new Error('unexpected coordination call: ' + options.label)
   }})
   return {{ result, prompts }}
 }}
-const valid = await exercise(worker('pass', ['work_context_snapshot: W0123456789abcdef']))
-if (valid.result !== worker('pass', ['work_context_snapshot: W0123456789abcdef'])) throw new Error(valid.result)
+const valid = await exercise(worker('pass'))
+const publicPass = JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: task, verdict: 'pass', summary: 'Checked task and validation.', evidence: ['work_context_snapshot: ' + snapshot], findings: [], escalation: 'none' }})
+if (valid.result !== publicPass) throw new Error(valid.result)
 for (const invocation of [['work', 'work-001'], 'work work-001']) {{
-  const direct = await exercise(worker('pass', ['work_context_snapshot: W0123456789abcdef']), invocation)
+  const direct = await exercise(worker('pass'), true, invocation)
   if (!direct.result.startsWith('{{"schema_version":1,"kind":"verifier"')) throw new Error('direct args rejected: ' + direct.result)
 }}
 const verifierPrompt = valid.prompts.find(call => call.options.agentType)?.prompt ?? ''
@@ -6304,25 +6293,47 @@ if (!verifierPrompt.includes('`"${{CLAUDE_PLUGIN_ROOT}}/contracts/task-workflows
 if (!verifierPrompt.includes('rendered canonical contract included inline')) throw new Error('inline fallback instruction missing')
 if (!verifierPrompt.includes('workflow contract')) throw new Error('rendered contract missing')
 if (verifierPrompt.includes('Cannot read installed task-workflow contract')) throw new Error('blocker-only contract behavior retained')
-if (!verifierPrompt.includes('work-context work --store --format json')) throw new Error('store missing')
-if (!verifierPrompt.includes('work-context work --show <snapshot> --format json')) throw new Error('show missing')
-if (!verifierPrompt.includes('work-context work --compare <snapshot> --format json')) throw new Error('compare missing')
+if (!valid.prompts.find(call => call.options.label === 'zdev verification snapshot')?.prompt.includes('work-context work --store --format json')) throw new Error('coordinator store missing')
+if (!verifierPrompt.includes('work-context work --show ' + snapshot + ' --format json')) throw new Error('supplied show missing')
+if (verifierPrompt.includes('--store') || verifierPrompt.includes('--compare')) throw new Error('verifier retained bookkeeping')
+if (!valid.prompts.find(call => call.options.label === 'zdev post-verification compare')?.prompt.includes('work-context work --compare ' + snapshot + ' --format json')) throw new Error('coordinator compare missing')
+if (!verifierPrompt.includes('exact four-field JSON object')) throw new Error('semantic contract missing')
 if (verifierPrompt.includes('large diff') || verifierPrompt.includes(' M src/lib.rs')) throw new Error('raw coordinator Git evidence transported')
-for (const evidence of [
-  ['work_context_snapshot: /tmp/context.json'],
-  ['work_context_snapshot: W0123456789abcdef', 'work_context_snapshot: W0123456789abcdef'],
-  ['HEAD: ' + head, 'git_status: ""'],
+for (const rejectedWorker of [
+  '{{}}',
+  JSON.stringify({{ verdict: 'pass', summary: 'ok', findings: [], escalation: 'none', extra: true }}),
+  JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: task, verdict: 'pass', summary: 'legacy', evidence: [], findings: [], escalation: 'none' }}),
 ]) {{
-  const rejected = await exercise(worker('pass', evidence))
+  const rejected = await exercise(rejectedWorker)
   if (!rejected.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(rejected.result)
   if (rejected.prompts.some(call => call.options.label === 'zdev completion and commit')) throw new Error('mutation attempted')
 }}
-const rework = await exercise(worker('rework', [], ['validation changed src/generated.rs']))
-if (rework.result !== worker('rework', [], ['validation changed src/generated.rs'])) throw new Error(rework.result)
-const emptyRework = await exercise(worker('rework', [], []))
+const rework = await exercise(worker('rework', ['validation_write: src/generated.rs']), false)
+if (!rework.result.includes('"verdict":"rework"') || !rework.result.includes('work_context_snapshot: ' + snapshot)) throw new Error(rework.result)
+const ambiguousRework = await exercise(worker('rework', ['src/lib.rs: ordinary implementation defect']), false)
+if (!ambiguousRework.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(ambiguousRework.result)
+const mixedMarkers = await exercise(worker('rework', ['validation_write: src/generated.rs', 'validation_write: ../outside']), false)
+if (!mixedMarkers.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(mixedMarkers.result)
+const escalated = await exercise(worker('rework', ['advanced correction required'], 'advanced-implementer'))
+if (!escalated.result.includes('"escalation":"advanced-implementer"')) throw new Error(escalated.result)
+const semanticBlocker = await exercise(worker('blocker', ['ownership is ambiguous']))
+if (!semanticBlocker.result.includes('"verdict":"blocker"')) throw new Error(semanticBlocker.result)
+const emptyRework = await exercise(worker('rework'))
 if (!emptyRework.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(emptyRework.result)
-const contradictoryPass = await exercise(worker('pass', ['work_context_snapshot: W0123456789abcdef'], ['still broken']))
+const contradictoryPass = await exercise(worker('pass', ['still broken']))
 if (!contradictoryPass.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(contradictoryPass.result)
+const changedPass = await exercise(worker('pass'), false)
+if (!changedPass.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(changedPass.result)
+const malformedCompare = await exercise(worker('pass'), true, {{ area, task_id: task }}, stored, '{{}}')
+if (!malformedCompare.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(malformedCompare.result)
+const stalePayload = JSON.parse(context)
+stalePayload.stale_advisory = true
+stalePayload.status.branch_status.task_work.stale_advisory = true
+const staleContext = JSON.stringify(stalePayload)
+const staleStored = JSON.stringify({{ snapshot, context: stalePayload }})
+const stale = await exercise(worker('pass'), true, {{ area, task_id: task }}, staleStored, comparison(true), staleContext)
+const stalePublic = JSON.parse(stale.result)
+if (JSON.stringify(stalePublic.evidence) !== JSON.stringify(['work_context_snapshot: ' + snapshot, 'stale effective-base link; managed rebase remains optional.'])) throw new Error(stale.result)
 "#
     );
     let output = Command::new("node")
@@ -6356,10 +6367,11 @@ async function run(args, agent) {{
 const area = 'work'
 const taskId = 'work-001'
 const head = '0123456789abcdef0123456789abcdef01234567'
-const worker = (kind, verdict, escalation = 'none', evidence = [], findings = [], summary = verdict + ' result') => JSON.stringify({{
-  schema_version: 1, kind, area, task_id: taskId, verdict,
-  summary, evidence, findings, escalation,
-}})
+const worker = (kind, verdict, escalation = 'none', evidence = [], findings = [], summary = verdict + ' result') => JSON.stringify(
+  kind === 'verifier'
+    ? {{ verdict, summary, findings, escalation }}
+    : {{ schema_version: 1, kind, area, task_id: taskId, verdict, summary, evidence, findings, escalation }}
+)
 const context = complexity => JSON.stringify({{
   schema_version: 1,
   area,
@@ -6386,15 +6398,21 @@ const context = complexity => JSON.stringify({{
   git_diff: '',
 }})
 const baselineSnapshot = 'Wfedcba9876543210'
+const verificationSnapshot = 'W0123456789abcdef'
 const storedContext = complexity => JSON.stringify({{
   snapshot: baselineSnapshot,
   context: JSON.parse(context(complexity)),
 }})
+const verificationContext = complexity => JSON.stringify({{
+  snapshot: verificationSnapshot,
+  context: JSON.parse(context(complexity)),
+}})
+const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal }})
 const passEvidence = [
   'work_context_snapshot: W0123456789abcdef',
 ]
 const completion = 'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: abc123'
-const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}) => {{
+const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = []) => {{
   const types = []
   const calls = []
   const result = await run(invocation, async (prompt, options) => {{
@@ -6412,10 +6430,13 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     }}
     if (options.label === 'zdev completion and commit') return completion
     if (options.label === 'zdev implement preflight') return storedContext(complexity)
+    if (options.label === 'zdev verification snapshot') return verificationContext(complexity)
+    if (options.label === 'zdev post-verification compare') return comparison(compareEquals.length ? compareEquals.shift() : true)
     return context(complexity)
   }})
   if (!result.startsWith(expectedPrefix + ' zdev-implement')) throw new Error(name + ': ' + result)
   if (responses.length !== 0) throw new Error(name + ': unused responses')
+  if (compareEquals.length !== 0) throw new Error(name + ': unused comparison responses')
   if (derived !== null) throw new Error(name + ': unused derived response')
   if (JSON.stringify(types) !== JSON.stringify(expectedTypes)) {{
     throw new Error(name + ': ' + JSON.stringify(types))
@@ -6431,6 +6452,9 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   for (const prompt of verifierPrompts) {{
     if (!prompt.includes('Compact implementer summary:')) throw new Error(name + ': verifier lost compact implementation summary')
     if (!prompt.includes('Original baseline snapshot: ' + baselineSnapshot)) throw new Error(name + ': verifier lost original baseline')
+    if (!prompt.includes('Verification snapshot: ' + verificationSnapshot)) throw new Error(name + ': verifier lost supplied snapshot')
+    if (!prompt.includes('exact four-field JSON object')) throw new Error(name + ': verifier retained legacy response contract')
+    if (prompt.includes('--store') || prompt.includes('--compare')) throw new Error(name + ': verifier retained coordinator bookkeeping')
     if (prompt.includes('implementer history')) throw new Error(name + ': verifier received history')
     if (prompt.includes('"git_status":') || prompt.includes('"git_diff":')) throw new Error(name + ': verifier received raw coordinator context')
   }}
@@ -6535,24 +6559,51 @@ await exercise(
   'BLOCKER',
 )
 await exercise(
-  'malformed snapshot locator',
+  'legacy verifier envelope',
   'standard',
-  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', ['work_context_snapshot: /tmp/context.json'])],
-  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
-  'BLOCKER',
-)
-await exercise(
-  'duplicate snapshot locator',
-  'standard',
-  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', [...passEvidence, ...passEvidence])],
+  [worker('implementer', 'ready'), JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: taskId, verdict: 'pass', summary: 'legacy', evidence: [], findings: [], escalation: 'none' }})],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
   'BLOCKER',
 )
 await exercise(
   'validation write cannot pass',
   'standard',
-  [worker('implementer', 'ready'), worker('verifier', 'rework', 'none', [], ['validation changed src/generated.rs']), worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
+  [worker('implementer', 'ready'), worker('verifier', 'rework', 'none', [], ['validation_write: src/generated.rs']), worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'PASS',
+  null,
+  {{ area }},
+  [false, true],
+)
+await exercise(
+  'ordinary defect plus ambiguous mismatch blocks',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'rework', 'none', [], ['src/lib.rs: ordinary implementation defect'])],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [false],
+)
+await exercise(
+  'mixed validation markers plus mismatch block',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'rework', 'none', [], ['validation_write: src/generated.rs', 'validation_write: ../outside'])],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [false],
+)
+await exercise(
+  'snapshot mismatch blocks pass',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [false],
 )
 await exercise(
   'product decision blocker',
@@ -6659,10 +6710,11 @@ const area = 'work'
 const head = '0123456789abcdef0123456789abcdef01234567'
 const commit1 = '1'.repeat(40)
 const commit2 = '2'.repeat(40)
-const worker = (task, kind, verdict, escalation = 'none', evidence = [], findings = []) => JSON.stringify({{
-  schema_version: 1, kind, area, task_id: task, verdict,
-  summary: verdict + ' result', evidence, findings, escalation,
-}})
+const worker = (task, kind, verdict, escalation = 'none', evidence = [], findings = []) => JSON.stringify(
+  kind === 'verifier'
+    ? {{ verdict, summary: verdict + ' result', findings, escalation }}
+    : {{ schema_version: 1, kind, area, task_id: task, verdict, summary: verdict + ' result', evidence, findings, escalation }}
+)
 const ready = (task, complexity = 'standard', contextHead = head) => JSON.stringify({{
   schema_version: 1,
   area,
@@ -6724,15 +6776,25 @@ const completionPass = task =>
   + '\nVerifier evidence: checked\nCommit ID: ' + (task.endsWith('1') ? commit1 : commit2)
 const exercise = async (name, contexts, workers, completions, expectedPrefix, derived = [], invocation = {{ area }}) => {{
   const calls = []
+  let lastContext = null
   const result = await run(invocation, async (_prompt, options) => {{
     calls.push({{ label: options.label, type: options.agentType ?? null }})
     if (options.label === 'zdev loop continuation preflight') {{
       if (contexts.length === 0) throw new Error(name + ': unexpected context request')
-      return JSON.stringify({{ snapshot: 'Wfedcba9876543210', context: JSON.parse(contexts.shift()) }})
+      lastContext = contexts.shift()
+      return JSON.stringify({{ snapshot: 'Wfedcba9876543210', context: JSON.parse(lastContext) }})
     }}
     if (options.label === 'zdev implement preflight' || options.label.includes('refresh')) {{
       if (contexts.length === 0) throw new Error(name + ': unexpected context request')
-      return contexts.shift()
+      lastContext = contexts.shift()
+      return lastContext
+    }}
+    if (options.label === 'zdev verification snapshot') {{
+      if (!lastContext) throw new Error(name + ': snapshot without admitted context')
+      return JSON.stringify({{ snapshot: 'W0123456789abcdef', context: JSON.parse(lastContext) }})
+    }}
+    if (options.label === 'zdev post-verification compare') {{
+      return JSON.stringify({{ schema_version: 1, area, snapshot: 'W0123456789abcdef', equal: true }})
     }}
     if (options.agentType) {{
       if (workers.length === 0) throw new Error(name + ': unexpected worker')
@@ -6871,13 +6933,15 @@ fn work_context_round_trip_counts_match_realized_routes() {
     let audit = include_str!("../docs/workflow-round-trips.md");
     let loop_contract = include_str!("../docs/area-loop.md");
     for exact_row in [
-        "| Codex, OpenCode, Pi, Oh My Pi | 5 / 8 / 2 / 2 | 2 / 4 / 0 / 1 | 7 / 13 / 2 / 4 |",
-        "| Claude | 5 / 8 / 2 / 5 | 2 / 4 / 0 / 2 | 7 / 13 / 2 / 9 |",
+        "| Codex, OpenCode, Pi, Oh My Pi | 5 / 9 / 2 / 2 | 2 / 5 / 0 / 1 | 7 / 15 / 2 / 4 |",
+        "| Claude | 5 / 9 / 2 / 7 | 2 / 5 / 0 / 4 | 7 / 15 / 2 / 13 |",
     ] {
         assert!(audit.contains(exact_row), "missing count row {exact_row}");
     }
     assert!(audit.contains("Closed K performs no\nstatus or Git inspection"));
     assert!(audit.contains("one-task command does\nnot run an unused post-commit `next` or K"));
+    assert!(audit.contains("CS is coordinator snapshot store and\nshow"));
+    assert!(audit.contains("returns exactly verdict, summary, findings, and\nescalation"));
     assert!(loop_contract.contains(
         "After each exact PASS and commit, run a fresh `zdev work-context <area> --format json`"
     ));
@@ -7101,9 +7165,44 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
                 .join("references/verify-workflow.md")
                 .is_file()
         );
+        let task_contract = fs::read_to_string(
+            destination
+                .join(skill_root)
+                .join("references/task-workflows.md"),
+        )
+        .expect("task workflow contract");
+        assert!(task_contract.contains("It has exactly those four unique keys"));
+        assert!(
+            task_contract.contains("Immediately before every verifier dispatch, coordination runs")
+        );
+        assert!(
+            task_contract
+                .contains("Coordination then constructs the compatible public verifier envelope")
+        );
+        assert!(
+            task_contract.contains(
+                "exact `validation_write: <normalized repository-relative path>` finding"
+            )
+        );
+        let verify_contract = fs::read_to_string(
+            destination
+                .join(skill_root)
+                .join("references/verify-workflow.md"),
+        )
+        .expect("verify workflow contract");
+        assert!(
+            verify_contract.contains("Legacy nine-key verifier\nobjects are invalid worker output")
+        );
+        assert!(verify_contract.contains("coordination runs `zdev work-context <area> --compare"));
         if let Some((implement, verify)) = adapters {
             assert!(destination.join(implement).is_file());
             assert!(destination.join(verify).is_file());
+            for adapter in [implement, verify] {
+                let rendered =
+                    fs::read_to_string(destination.join(adapter)).expect("rendered task adapter");
+                assert!(rendered.contains("four-field"), "{harness} {adapter}");
+                assert!(rendered.contains("coordinator"), "{harness} {adapter}");
+            }
         }
 
         assert_eq!(

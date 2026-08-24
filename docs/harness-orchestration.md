@@ -209,9 +209,10 @@ closed instead of implementing a newly selected task.
 
 `zdev-verify` requires the explicit task ID to equal the current ready focus
 task. Any no-work context is a blocker and starts no worker. It uses the same
-preflight and baseline comparison but does not invoke an implementer. The
-verifier invokes work-context independently, then repeats the three Git reads
-after validation.
+preflight and baseline comparison but does not invoke an implementer.
+Immediately before verifier dispatch, coordination stores and validates a
+work-context snapshot for that exact checkout. The verifier shows the supplied
+snapshot and runs validation; coordination compares it after the response.
 `zdev-audit` has no area selection and does not call `zdev goal`.
 
 The native goal behavior described in [Explicit area continuation across
@@ -234,9 +235,10 @@ The coordinating session owns:
 The `implementer` owns only task-approved source and test changes plus the
 recorded validation. It does not edit `.zdev`, delegate, change task lifecycle,
 or commit. The `verifier` is a fresh worker for every verdict. It reads the
-brief, task, goal, baseline, full diff, and relevant source; runs required
+brief, task, supplied snapshot, full diff, and relevant source; runs required
 checks; and makes no intentional edits. A validation command that writes files
-is reported as `REWORK` and attributed before work continues.
+is reported as `REWORK` and attributed before work continues. Coordination owns
+snapshot collection, comparison, advisory attachment, and public identity.
 
 Implementation role selection follows the task's authored complexity.
 `routine` uses `routine-implementer`; `standard` and omitted complexity use
@@ -269,15 +271,17 @@ but must render this public form.
 | Workflow | Allowed first line | Required body |
 | --- | --- | --- |
 | `zdev-implement` | `PASS zdev-implement <area> <task-id>` or `BLOCKER zdev-implement <area> <task-id>` | Exact repeated area/task fields, summary, changed files, validation, verifier evidence, and commit ID on pass; stage, reason, and preserved state on blocker. |
-| `zdev-verify` | One strict verifier JSON object with verdict `pass`, `rework`, or `blocker` | Exact schema version, kind, area, task ID, summary, evidence, findings, and constrained escalation. |
+| `zdev-verify` | One coordinator-constructed strict verifier JSON object with verdict `pass`, `rework`, or `blocker` | Exact schema version, kind, area, task ID, summary, generated snapshot/advisory evidence, findings, and constrained escalation. |
 | `zdev-audit` | `PASS zdev-audit`, `FINDINGS zdev-audit`, or `BLOCKER zdev-audit` | Boundary, what was inspected and omitted, and checked findings with location, impact, and confidence. |
 
-Implementer and verifier handoffs are single strict JSON objects with the nine
-keys in the canonical task-workflow contract. They contain identity once and
-no sentinel line or free-form body. Missing output, malformed JSON, duplicate,
-unknown, or missing keys, mismatched identity, contradictory verdict or
-escalation, extra text, or an unavailable required artifact becomes a
-coordinator-generated `BLOCKER`. It is never interpreted as success.
+Planner and implementer handoffs are strict nine-key JSON objects. A task
+verifier returns only `verdict`, `summary`, `findings`, and `escalation`.
+Coordination strictly parses those four fields, compares its stored snapshot,
+then generates and validates the compatible nine-key public verifier object.
+Missing output, legacy or malformed JSON, duplicate, unknown, or missing keys,
+contradictory verdict or escalation, extra text, or an unavailable required
+artifact becomes a coordinator-generated `BLOCKER`. It is never interpreted
+as success.
 
 ### Rework, retry, and completion
 

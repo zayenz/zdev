@@ -45,8 +45,8 @@ is passed unchanged to a fresh `advanced-implementer`. A planner blocker,
 including any product decision, stops before edits. Resumption, verification,
 and rework never repeat planning.
 
-Every planner, implementer, and verifier returns only one JSON object, without a
-sentinel line, Markdown fence, or other text. The object has exactly these keys:
+Every planner and implementer returns only one JSON object, without a sentinel
+line, Markdown fence, or other text. The object has exactly these keys:
 
 ```json
 {
@@ -62,19 +62,15 @@ sentinel line, Markdown fence, or other text. The object has exactly these keys:
 }
 ```
 
-`kind` is `planner`, `implementer`, or `verifier`. Planner verdict is `plan` or
-`blocker`; implementer verdict is `ready` or `blocker`; verifier verdict is
-`pass`, `rework`, or `blocker`. A plan has no findings and puts exactly one
+`kind` is `planner` or `implementer`. Planner verdict is `plan` or `blocker`;
+implementer verdict is `ready` or `blocker`. A plan has no findings and puts exactly one
 non-empty `Approach: `, `Paths: `, and `Validation: ` entry in `evidence`.
-Verifier `pass` has no findings; verifier `rework` has at least one concrete
-finding. `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
-strings, including when empty. `escalation` is `none`, except that verifier
-`rework` may request `advanced-implementer`. Every other combination requires
-`none`. Schema version, kind, area, task ID, keys, types, and combinations must
+`summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
+strings, including when empty. `escalation` is `none`. Schema version, kind, area, task ID,
+keys, types, and combinations must
 match exactly. Reject duplicate or unknown keys, missing keys, extra text, and
 malformed JSON. Inspect the checkout after an implementer result, then use a
-fresh configured `verifier` for every verdict. When the stale advisory applies,
-the verifier includes its exact text once in `evidence`; otherwise it omits it.
+fresh configured `verifier` for every verdict.
 
 ## Derived work handoff
 
@@ -123,27 +119,60 @@ ordinary graph. A later independently selected child or resumed source may
 propose once under the same current gates; no derivation count or lineage is
 stored.
 
-Every verifier independently runs
-`zdev work-context <area> --store --format json` before inspecting or
-validating. It accepts only the compact locator for the same open, ready task
-and HEAD, then uses `zdev work-context <area> --show <snapshot> --format json`
-to inspect the complete immutable pre-validation context. It requires the same
-open, ready, safe area and task and compares that context with the coordinator
-identity only to detect intervening state. After validation it runs
-`zdev work-context <area> --compare <snapshot> --format json` and accepts only
-the exact compact comparison schema for the selected area and snapshot with
-`equal: true`. A false comparison is `rework` for attributable task-owned
-writes and otherwise `blocker`; missing, expired, corrupt, cross-area, or
-malformed snapshot evidence is `blocker`. The verifier never repairs or
-discards validation writes.
+Immediately before every verifier dispatch, coordination runs
+`zdev work-context <area> --store --format json`, validates its compact result,
+and uses `zdev work-context <area> --show <snapshot> --format json` to require
+the same open, ready, safe area, task, HEAD, and checkout as the admitted
+refresh. It supplies only the opaque `W<16-lowercase-hex>` locator and expected
+identity to the verifier. The verifier resolves that immutable context with
+`--show`, checks the whole task, runs required validation, reports validation
+writes, and never repairs or discards them.
 
-On `pass`, its evidence contains exactly one
-`work_context_snapshot: W<16-lowercase-hex>` entry, apart from the existing
-optional stale advisory. Put checked locations and validation conclusions in
-`summary`, not additional evidence items. The snapshot is resolved only by
-zdev; coordinators accept the opaque ID and never a worker-supplied path. This
-one immutable snapshot proves both the independently collected pre-validation
-state and, through the successful comparison, the equal post-validation state.
+The verifier returns only this semantic JSON object with no surrounding text:
+
+```json
+{
+  "verdict": "pass",
+  "summary": "<non-empty summary>",
+  "findings": [],
+  "escalation": "none"
+}
+```
+
+It has exactly those four unique keys. `verdict` is `pass`, `rework`, or
+`blocker`; `summary` is non-empty; and `findings` is an array of non-empty
+strings. `pass` has no findings, `rework` has at least one, and `blocker` may
+have findings. `escalation` is `none`, except that `rework` may request
+`advanced-implementer`. Reject legacy nine-key verifier envelopes, duplicate
+or unknown keys, missing keys, extra text, malformed JSON, and contradictory
+combinations.
+
+For each concrete task-owned file written by validation, `rework` includes one
+exact `validation_write: <normalized repository-relative path>` finding. The
+verifier never uses that prefix for an ordinary implementation defect. An
+ambiguous validation write is `blocker`, not a tagged finding.
+When any finding starts with `validation_write:`, every such finding must use
+the exact valid form; a mixed valid and malformed marker set is a blocker.
+
+After the response, coordination runs
+`zdev work-context <area> --compare <snapshot> --format json` and accepts only
+the exact compact schema for the selected area and snapshot. It never accepts
+`pass` unless `equal` is true. A false comparison preserves `rework` only when
+the semantic result contains at least one tagged task-owned validation-write
+path and every marker-prefixed finding is valid;
+an ordinary implementation-defect rework plus unequal state is a coordinator
+blocker because the mismatch is not attributed. Missing, expired,
+corrupt, cross-area, or malformed snapshot or comparison evidence is also a
+blocker.
+
+Coordination then constructs the compatible public verifier envelope with
+generated `schema_version: 1`, `kind: "verifier"`, selected `area`, selected
+`task_id`, and `evidence`. Evidence contains exactly
+`work_context_snapshot: <snapshot>` plus the exact stale advisory once when it
+applies. It copies only the validated four semantic fields into that envelope
+and validates the resulting nine keys and all combinations before routing or
+returning it. Put checked locations and validation conclusions in `summary`.
+The opaque snapshot is never accepted from worker output.
 
 Every concrete task-owned verifier `rework` with escalation `none` goes to the
 same selected profile when the harness can resume it, or a same-profile
@@ -157,7 +186,7 @@ no fixed ordinary-rework count. After each correction, a fresh standard
 verifier checks the whole task again. Stop only on verifier `pass`, a genuine
 blocker, unsafe scope expansion, or a required user-owned decision.
 
-After an exact matching verifier object with verdict `pass`, the coordinator
+After an exact matching coordinator-constructed verifier object with verdict `pass`, the coordinator
 gives completion the opaque snapshot ID plus the accepted implementation and
 verifier summaries. Completion derives paths from the verified checkout and runs
 exactly one `zdev work-context <area> --compare <snapshot> --format json`
@@ -189,7 +218,7 @@ worker dispatch. It never reuses the completed task's pre-commit selection.
 `zdev-verify <area> <task-id>` performs the same read-only preflight and requires
 the explicit ID to equal the current ready task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,
-stages, commits, or routes a derived proposal. Its public result is the accepted verifier object above. Empty,
+stages, commits, or routes a derived proposal. Its public result is the coordinator-constructed verifier object above. Empty,
 exhausted, or closed goals, a different ready task, unsafe state, unavailable
 independent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`
 without mutation.
@@ -204,6 +233,9 @@ Each `zdev_subagent` call receives the complete rendered contract above and a
 compact payload of brief, task, guidance, and source file paths, applicable
 snapshot IDs, and the short result from the preceding role. Pi children read
 those files from the shared checkout.
+Immediately before each verifier child, the current session stores and
+validates the snapshot; after the four-field semantic response it compares
+that snapshot and constructs the strict public nine-key verifier envelope.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

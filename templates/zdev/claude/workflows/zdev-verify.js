@@ -59,19 +59,9 @@ const parseReady = raw => {
   if (taskWork?.safe !== true || typeof taskWork.stale_advisory !== 'boolean' || payload.stale_advisory !== taskWork.stale_advisory) return null
   if (status?.area?.tag !== area || status?.lifecycle !== 'open' || status?.queue !== 'ready' || status?.next !== taskId) return null
   if (goal?.lifecycle !== 'open' || goal?.queue !== 'ready' || goal?.area?.tag !== area || goal?.task?.id !== taskId) return null
-  return { raw, head: payload.head, staleAdvisory: taskWork.stale_advisory }
+  return { raw, head: payload.head, staleAdvisory: taskWork.stale_advisory, payload }
 }
-const workerResultKeys = [
-  'area',
-  'escalation',
-  'evidence',
-  'findings',
-  'kind',
-  'schema_version',
-  'summary',
-  'task_id',
-  'verdict',
-]
+const publicResultKeys = ['area', 'escalation', 'evidence', 'findings', 'kind', 'schema_version', 'summary', 'task_id', 'verdict']
 const topLevelKeys = raw => {
   let index = 0
   const keys = []
@@ -147,11 +137,24 @@ const topLevelKeys = raw => {
   skipWhitespace()
   return index === raw.length ? keys : null
 }
-const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
+const verifierResultKeys = ['escalation', 'findings', 'summary', 'verdict']
+const validationWriteMarker = 'validation_write:'
+const validationWritePrefix = 'validation_write: '
+const reportsValidationWrite = result => {
+  const marked = result.findings.filter(item => item.startsWith(validationWriteMarker))
+  return result.verdict === 'rework' && marked.length > 0
+    && marked.every(item => {
+      if (!item.startsWith(validationWritePrefix)) return false
+      const path = item.slice(validationWritePrefix.length)
+      return !path.startsWith('/') && !path.includes('\\')
+        && path.split('/').every(part => part && part !== '.' && part !== '..')
+    })
+}
+const parseVerifierResult = raw => {
   if (typeof raw !== 'string') return null
   const keys = topLevelKeys(raw)
   if (!keys || new Set(keys).size !== keys.length) return null
-  if (JSON.stringify([...keys].sort()) !== JSON.stringify(workerResultKeys)) return null
+  if (JSON.stringify([...keys].sort()) !== JSON.stringify(verifierResultKeys)) return null
   let result
   try {
     result = JSON.parse(raw)
@@ -159,28 +162,63 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
     return null
   }
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
-  if (result.schema_version !== 1 || result.kind !== expectedKind) return null
-  if (result.area !== expectedArea || result.task_id !== expectedTask) return null
   if (typeof result.summary !== 'string' || !result.summary.trim()) return null
-  for (const name of ['evidence', 'findings']) {
-    if (!Array.isArray(result[name])) return null
-    if (!result[name].every(item => typeof item === 'string' && item.trim())) return null
-  }
-  const validVerdict = expectedKind === 'implementer'
-    ? ['ready', 'blocker'].includes(result.verdict)
-    : ['pass', 'rework', 'blocker'].includes(result.verdict)
-  if (!validVerdict) return null
+  if (!Array.isArray(result.findings)
+    || !result.findings.every(item => typeof item === 'string' && item.trim())) return null
+  if (!['pass', 'rework', 'blocker'].includes(result.verdict)) return null
   const validEscalation = result.escalation === 'none'
-    || (expectedKind === 'verifier' && result.verdict === 'rework' && result.escalation === 'advanced-implementer')
-  if (expectedKind === 'verifier' && result.verdict === 'pass' && result.findings.length !== 0) return null
-  if (expectedKind === 'verifier' && result.verdict === 'rework' && result.findings.length === 0) return null
+    || (result.verdict === 'rework' && result.escalation === 'advanced-implementer')
+  if (result.verdict === 'pass' && result.findings.length !== 0) return null
+  if (result.verdict === 'rework' && result.findings.length === 0) return null
   return validEscalation ? result : null
 }
-const approvedSnapshot = result => {
-  const matches = result.evidence
-    .map(item => /^work_context_snapshot: (W[0-9a-f]{16})$/.exec(item))
-    .filter(Boolean)
-  return matches.length === 1 ? matches[0][1] : null
+const parseStoredContext = (raw, expected) => {
+  if (typeof raw !== 'string') return null
+  let stored
+  try {
+    stored = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!stored || Array.isArray(stored) || typeof stored !== 'object') return null
+  if (JSON.stringify(Object.keys(stored).sort()) !== JSON.stringify(['context', 'snapshot'])) return null
+  if (!/^W[0-9a-f]{16}$/.test(stored.snapshot ?? '')) return null
+  const context = parseReady(JSON.stringify(stored.context))
+  if (!context
+    || context.payload.head !== expected.payload.head
+    || context.payload.git_status !== expected.payload.git_status
+    || context.payload.git_diff_cached !== expected.payload.git_diff_cached
+    || context.payload.git_diff !== expected.payload.git_diff) return null
+  return { snapshot: stored.snapshot, context }
+}
+const parseComparison = (raw, expectedSnapshot) => {
+  if (typeof raw !== 'string') return null
+  let result
+  try {
+    result = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!result || Array.isArray(result) || typeof result !== 'object') return null
+  if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(['area', 'equal', 'schema_version', 'snapshot'])) return null
+  return result.schema_version === 1 && result.area === area
+    && result.snapshot === expectedSnapshot && typeof result.equal === 'boolean'
+    ? result : null
+}
+const publicVerifier = (semantic, snapshot, advisory) => {
+  const result = {
+    schema_version: 1,
+    kind: 'verifier',
+    area,
+    task_id: taskId,
+    verdict: semantic.verdict,
+    summary: semantic.summary,
+    evidence: [`work_context_snapshot: ${snapshot}`, ...(advisory ? [advisory] : [])],
+    findings: semantic.findings,
+    escalation: semantic.escalation,
+  }
+  return JSON.stringify(Object.keys(result).sort()) === JSON.stringify(publicResultKeys)
+    ? result : null
 }
 
 if (!/^[a-z0-9][a-z0-9-]*$/.test(area) || !/^[a-z0-9][a-z0-9-]*$/.test(taskId)) {
@@ -197,15 +235,29 @@ if (!prepared) {
 }
 const advisory = prepared.staleAdvisory ? advisoryText : null
 
+const storedRaw = await agent(
+  `Act only as deterministic verification coordination for task ${taskId} in area ${area}. Immediately before verifier dispatch, run zdev work-context ${area} --store --format json, then show that snapshot with zdev work-context ${area} --show <snapshot> --format json. Return only {"snapshot":"<snapshot>","context":<shown JSON object>}. Keep files and Git state unchanged.`,
+  { label: 'zdev verification snapshot' },
+)
+const stored = parseStoredContext(storedRaw?.trim(), prepared)
+if (!stored) {
+  return blocker(area, taskId, 'coordinator could not store and validate the admitted verification snapshot.', prepared.staleAdvisory)
+}
+
 const verified = await agent(
-  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Before inspection or validation, run zdev work-context ${area} --store --format json and accept only its compact locator for the same open, ready, safe task and HEAD ${prepared.head}. Inspect that immutable context only through zdev work-context ${area} --show <snapshot> --format json. Check the whole task and run required validation, then run zdev work-context ${area} --compare <snapshot> --format json. Accept only the exact four-key compact result {"schema_version":1,"area":"${area}","snapshot":"<same-id>","equal":true}. Validation-written task-owned files are rework and ambiguous writes are blocker. A pass has empty findings and an evidence array containing exactly one work_context_snapshot: W<16-lowercase-hex> item${advisory ? ` and ${advisory} exactly once` : ''}. Rework has at least one concrete finding. Put checked locations and validation conclusions in summary. Return only the required strict JSON object with kind "verifier", area "${area}", and task_id "${taskId}". ${advisory ? '' : `Omit ${advisoryText} from evidence.`} Keep files, lifecycle, and Git state unchanged. Return the locator rather than a snapshot path or raw Git evidence.`,
+  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area} from the current checkout. Show the coordinator-supplied immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same open, ready, safe task and HEAD ${prepared.head}. Check the whole task and run required validation. Report validation-written task-owned files as rework and ambiguous writes as blocker; never repair or discard them. For every concrete task-owned file written by validation, include the exact finding validation_write: <normalized repository-relative path>; never use that prefix for an ordinary implementation defect. Put checked locations and validation conclusions in summary. Return only the exact four-field JSON object {"verdict":"pass|rework|blocker","summary":"<non-empty summary>","findings":[],"escalation":"none|advanced-implementer"} with no identity, evidence, or surrounding text. Keep lifecycle and coordination-owned state unchanged.\n\nVerification snapshot: ${stored.snapshot}`,
   { agentType: 'zdev:zdev-verifier', label: 'zdev fresh verification' },
 )
-const result = verified?.trim()
-const parsed = parseWorkerResult(result, 'verifier', area, taskId)
-const approved = parsed?.verdict === 'pass' ? approvedSnapshot(parsed) : true
-const advisoryCount = parsed?.evidence.filter(item => item === advisoryText).length
-const passEvidenceCount = advisory ? 2 : 1
-return parsed && approved && (parsed.verdict !== 'pass' || parsed.evidence.length === passEvidenceCount) && advisoryCount === (advisory ? 1 : 0)
-  ? result
-  : blocker(area, taskId, 'verifier returned invalid, extra, contradictory, or mismatched JSON.', prepared.staleAdvisory)
+const semantic = parseVerifierResult(verified?.trim())
+const comparedRaw = await agent(
+  `Act only as deterministic post-verification coordination. Run zdev work-context ${area} --compare ${stored.snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
+  { label: 'zdev post-verification compare' },
+)
+const compared = parseComparison(comparedRaw?.trim(), stored.snapshot)
+if (!semantic || !compared || (!compared.equal && !reportsValidationWrite(semantic))) {
+  return blocker(area, taskId, 'verifier output or post-validation comparison was invalid, contradictory, or changed ambiguously.', prepared.staleAdvisory)
+}
+const result = publicVerifier(semantic, stored.snapshot, advisory)
+return result
+  ? JSON.stringify(result)
+  : blocker(area, taskId, 'coordinator could not construct the strict public verifier envelope.', prepared.staleAdvisory)

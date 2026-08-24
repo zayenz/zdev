@@ -13,5 +13,8 @@ standard escalation starts an advanced replacement without replanning.
 Give every subagent the complete rendered contract above and a compact payload
 of brief, task, guidance, and source file paths, applicable snapshot IDs, and
 the short result from the preceding role.
+Immediately before each verifier task, the primary agent stores and validates
+the snapshot; after the four-field semantic response it compares that snapshot
+and constructs the strict public nine-key verifier envelope.
 
 {{repository_guidance}}

@@ -100,4 +100,12 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
     assert!(adapted_methods.contains(
         "stops when no unresolved choice could materially change behavior, scope, task splitting, or validation"
     ));
+
+    for document in [README, WORKFLOW, USER_GUIDE] {
+        let document = normalized(document);
+        assert!(document.contains("same reviewer"));
+        assert!(document.contains("complete revised document"));
+        assert!(document.contains("fresh full challenge"));
+        assert!(document.contains("approval"));
+    }
 }

@@ -204,8 +204,11 @@ and a commit. Zdev never creates or switches the `general` branch.
 
 Creating tasks stores a valid candidate before independent challenge. A fresh
 reviewer reads the returned Markdown path, and concrete revisions replace the
-stored candidate and are challenged again. Only the final challenged document
-is presented. Storage and independent challenge do not imply approval.
+stored candidate. Focused corrections are checked by the same reviewer against
+the prior findings and the complete revised document. Material changes to
+scope, boundaries, dependencies, task splitting, or testing strategy receive a
+fresh full challenge. Only the final challenged document is presented for
+explicit approval. Storage and independent challenge do not imply approval.
 
 Zdev must be active before intent routing. A `zdev` or `$zdev` cue, a
 request to work through an existing `.zdev` area, or an unmistakable reference to

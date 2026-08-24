@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-001"
 key = "proportionate-task-challenge-follow-up"
 area = "general"
-status = "open"
+status = "done"
 complexity = "routine"
 blocked_by = []
 +++
@@ -25,11 +25,21 @@ The Create tasks route currently says every changed candidate is challenged agai
 
 ## Done when
 
-- [ ] Canonical and generated task-creation guidance distinguishes focused same-reviewer follow-up from a fresh full challenge after material restructuring.
-- [ ] README and workflow documentation describe the same proportional rule without weakening final bundle approval.
+- [x] Canonical and generated task-creation guidance distinguishes focused same-reviewer follow-up from a fresh full challenge after material restructuring.
+- [x] README and workflow documentation describe the same proportional rule without weakening final bundle approval.
 
 ## Validation
 
-- Regenerate the checked-in integrations with `cargo run --locked -- skill install codex --to skills --force`, and the corresponding `claude --to .claude`, `opencode --to .opencode`, `pi --to .pi`, and `omp --to .omp` commands.
+- Regenerate the checked-in integrations with `cargo run --locked -- skill install codex --to skills --force`, `cargo run --locked -- skill install claude --to .claude/skills/zdev --force`, and the corresponding `opencode --to .opencode`, `pi --to .pi`, and `omp --to .omp` commands.
 - Run `cargo test --locked --test documentation-contract` and `cargo test --locked --test lean executable_templates_realize_deterministically_and_match_generated_fixtures`.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Made task-challenge follow-up proportionate while preserving independent initial review and explicit final approval.
+
+Validation:
+
+- All five checked-in integrations regenerated and matched canonical templates.
+- Focused documentation and generated-fixture tests passed.
+- Formatting, strict Clippy, full tests, build, diff check, and fresh independent verification passed.

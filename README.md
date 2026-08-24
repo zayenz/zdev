@@ -82,9 +82,11 @@ Zdev stores the canonical bundle, an internal fingerprint, and an actual
 Markdown review file under repository-local Git administrative state. The
 small JSON result gives the harness an opaque review identity and the Markdown
 path. For non-trivial work, the harness has a fresh reviewer read that exact
-file. Suggested revisions replace the stored candidate and are challenged
-again. Storage and review are not approval. Show only the final challenged
-document on demand:
+file. Suggested revisions replace the stored candidate. A focused correction
+is checked by the same reviewer against its prior findings and the complete
+revised document; a material change to scope, boundaries, dependencies, task
+splitting, or testing strategy gets a fresh full challenge. Storage and review
+are not approval. Show only the final challenged document on demand:
 
 ```sh
 zdev tasks review scheduling --show

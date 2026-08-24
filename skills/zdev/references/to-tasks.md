@@ -105,11 +105,15 @@ review metadata. Ask for concrete revisions covering:
 
 The coordinating agent reconciles those suggestions in its draft and resolves
 user choices. If the candidate changes, run `zdev tasks review` again to
-atomically replace the stored candidate, then challenge the new returned
-Markdown path. Repeat until the reviewer has no concrete revisions. An
-unchanged candidate proceeds directly to presentation. If another agent is
-unavailable, run the same review locally. A local review is enough for trivial
-or fully specified work. Say which kind of review ran.
+atomically replace the stored candidate. For a focused correction to the
+reviewer's findings, ask the same reviewer to check those findings against the
+complete revised Markdown document so knock-on effects remain visible. If the
+revision materially changes scope, boundaries, dependencies, task splitting,
+or testing strategy, ask a fresh reviewer to perform the full challenge again.
+Repeat until the applicable reviewer has no concrete revisions. An unchanged
+candidate proceeds directly to presentation. If another agent is unavailable,
+run the same review locally. A local review is enough for trivial or fully
+specified work. Say which kind of review ran.
 
 Before presentation, reconcile proposed tasks with existing task keys and
 completed outcomes. Resolve every concrete design or testing choice that would
@@ -126,10 +130,10 @@ when the user must decide, and its managed commit.
 Run `zdev tasks review <area> --show` and show the final challenged Markdown
 unchanged, then ask: `Approve this task bundle for import?` The coordinator
 retains the current opaque identity automatically; the user never reads, copies, or
-reasons about it or the internal fingerprint. If the candidate
-changes after presentation, replace it, challenge the replacement, and present
-the new stored Markdown for fresh approval. Do not reconstruct the document or
-create a transport file.
+reasons about it or the internal fingerprint. If the candidate changes after
+presentation, replace it, apply the same proportionate follow-up rule, and
+present the new stored Markdown for fresh approval. Do not reconstruct the
+document or create a transport file.
 
 ## Import
 

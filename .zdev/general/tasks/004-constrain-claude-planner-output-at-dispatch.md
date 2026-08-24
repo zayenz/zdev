@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-004"
 key = "constrain-claude-planner-output-at-dispatch"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -26,14 +26,22 @@ The Claude dynamic implementation workflow currently asks the planner for strict
 
 ## Done when
 
-- [ ] The Claude planner call supplies a focused exact-object schema and consumes a returned structured object without serializing ceremony or weakened semantic checks.
-- [ ] A valid strict planner JSON string returned by the same call remains usable as a compatibility fallback, so zdev proceeds without another planner when the result is already recoverable.
-- [ ] Valid plan and planner-blocker results route as before; only unavailable, malformed, contradictory, or mismatched results block, without starting an implementer or a second planner.
-- [ ] Generated Claude implement, goal, and loop workflows match their canonical templates and retain the absent-CLAUDE_PLUGIN_ROOT inline fallback.
-- [ ] Focused coverage proves one planner dispatch, schema attachment, structured-object routing, same-call strict-string fallback, blocker routing, and unusable-result blocking without a rerun path.
+- [x] The Claude planner call supplies a focused exact-object schema and consumes a returned structured object without serializing ceremony or weakened semantic checks.
+- [x] A valid strict planner JSON string returned by the same call remains usable as a compatibility fallback, so zdev proceeds without another planner when the result is already recoverable.
+- [x] Valid plan and planner-blocker results route as before; only unavailable, malformed, contradictory, or mismatched results block, without starting an implementer or a second planner.
+- [x] Generated Claude implement, goal, and loop workflows match their canonical templates and retain the absent-CLAUDE_PLUGIN_ROOT inline fallback.
+- [x] Focused coverage proves one planner dispatch, schema attachment, structured-object routing, same-call strict-string fallback, blocker routing, and unusable-result blocking without a rerun path.
 
 ## Validation
 
 - Regenerate the Claude integration with cargo run --locked -- skill install claude --to .claude/skills/zdev --force.
 - Run the focused Claude structured-envelope and implementation-routing tests in tests/lean.rs.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Constrained the single Claude planner dispatch with a native exact-object schema while preserving same-call strict JSON compatibility and fail-closed semantic validation.
+
+Validation:
+
+- Fresh independent verification passed. Claude regeneration was idempotent; focused planner routing tests and full area validation passed, including formatting, clippy, 136 tests, build, and diff check. Snapshot W3dea555c21f5ef99 compared equal before completion.

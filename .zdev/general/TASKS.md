@@ -4,14 +4,14 @@
 
 - Total: 6
 - Ready: 1
-- Blocked: 2
-- Done: 3
+- Blocked: 1
+- Done: 4
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
 | [general-001](tasks/001-make-task-challenge-follow-up-proportionate.md) | Make task-challenge follow-up proportionate | done | — |
 | [general-002](tasks/002-move-verifier-bookkeeping-into-deterministic-coordination.md) | Move verifier bookkeeping into deterministic coordination | done | general-003 |
 | [general-003](tasks/003-restore-claude-worker-contract-fallback.md) | Restore Claude worker-contract fallback | done | — |
-| [general-004](tasks/004-constrain-claude-planner-output-at-dispatch.md) | Constrain Claude planner output at dispatch | ready | — |
-| [general-005](tasks/005-simplify-planner-handoff-across-harnesses.md) | Simplify planner handoff across harnesses | blocked | general-004 |
+| [general-004](tasks/004-constrain-claude-planner-output-at-dispatch.md) | Constrain Claude planner output at dispatch | done | — |
+| [general-005](tasks/005-simplify-planner-handoff-across-harnesses.md) | Simplify planner handoff across harnesses | ready | general-004 |
 | [general-006](tasks/006-constrain-omp-planner-output.md) | Constrain OMP planner output | blocked | general-005 |

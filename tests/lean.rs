@@ -6372,6 +6372,9 @@ const worker = (kind, verdict, escalation = 'none', evidence = [], findings = []
     ? {{ verdict, summary, findings, escalation }}
     : {{ schema_version: 1, kind, area, task_id: taskId, verdict, summary, evidence, findings, escalation }}
 )
+const structuredPlanner = (verdict, evidence = [], findings = [], summary = verdict + ' result') => ({{
+  schema_version: 1, kind: 'planner', area, task_id: taskId, verdict, summary, evidence, findings, escalation: 'none',
+}})
 const context = complexity => JSON.stringify({{
   schema_version: 1,
   area,
@@ -6449,6 +6452,14 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (!call.prompt.includes('workflow contract')) throw new Error(name + ': rendered contract missing')
     if (call.prompt.includes('Cannot read installed task-workflow contract')) throw new Error(name + ': blocker-only contract behavior retained')
   }}
+  const plannerCalls = calls.filter(call => call.options.agentType === 'zdev:zdev-planner')
+  if (plannerCalls.length > 1) throw new Error(name + ': planner dispatched more than once')
+  for (const call of plannerCalls) {{
+    const schema = call.options.schema
+    if (!schema || schema.type !== 'object' || schema.additionalProperties !== false) throw new Error(name + ': planner schema missing exact object boundary')
+    if (JSON.stringify([...schema.required].sort()) !== JSON.stringify(['area', 'escalation', 'evidence', 'findings', 'kind', 'schema_version', 'summary', 'task_id', 'verdict'])) throw new Error(name + ': planner schema keys differ')
+    if (call.options.outputFormat || call.options.jsonSchema) throw new Error(name + ': planner used a non-workflow schema option')
+  }}
   for (const prompt of verifierPrompts) {{
     if (!prompt.includes('Compact implementer summary:')) throw new Error(name + ': verifier lost compact implementation summary')
     if (!prompt.includes('Original baseline snapshot: ' + baselineSnapshot)) throw new Error(name + ': verifier lost original baseline')
@@ -6498,7 +6509,7 @@ await exercise(
   'advanced plan pass',
   'advanced',
   [
-    worker('planner', 'plan', 'none', ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test']),
+    structuredPlanner('plan', ['Approach: inspect then edit', 'Paths: src/lib.rs', 'Validation: cargo test']),
     worker('implementer', 'ready'),
     worker('verifier', 'pass', 'none', passEvidence),
   ],
@@ -6608,7 +6619,14 @@ await exercise(
 await exercise(
   'product decision blocker',
   'advanced',
-  [worker('planner', 'blocker', 'none', [], ['public API choice belongs to the user'])],
+  [structuredPlanner('blocker', [], ['public API choice belongs to the user'])],
+  ['zdev:zdev-planner'],
+  'BLOCKER',
+)
+await exercise(
+  'unusable structured planner result',
+  'advanced',
+  [{{ schema_version: 1, kind: 'planner', area, task_id: taskId, verdict: 'plan', summary: 'bad evidence', evidence: [], findings: [], escalation: 'none' }}],
   ['zdev:zdev-planner'],
   'BLOCKER',
 )

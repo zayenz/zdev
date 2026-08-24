@@ -192,18 +192,9 @@ const topLevelKeys = raw => {
   skipWhitespace()
   return index === raw.length ? keys : null
 }
-const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
-  if (typeof raw !== 'string') return null
-  const keys = topLevelKeys(raw)
-  if (!keys || new Set(keys).size !== keys.length) return null
-  if (JSON.stringify([...keys].sort()) !== JSON.stringify(workerResultKeys)) return null
-  let result
-  try {
-    result = JSON.parse(raw)
-  } catch {
-    return null
-  }
+const validateWorkerResult = (result, expectedKind, expectedArea, expectedTask) => {
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
+  if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(workerResultKeys)) return null
   if (result.schema_version !== 1 || result.kind !== expectedKind) return null
   if (result.area !== expectedArea || result.task_id !== expectedTask) return null
   if (typeof result.summary !== 'string' || !result.summary.trim()) return null
@@ -223,6 +214,38 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
   }
   return result.escalation === 'none' ? result : null
 }
+const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
+  if (typeof raw !== 'string') return null
+  const keys = topLevelKeys(raw)
+  if (!keys || new Set(keys).size !== keys.length) return null
+  if (JSON.stringify([...keys].sort()) !== JSON.stringify(workerResultKeys)) return null
+  let result
+  try {
+    result = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  return validateWorkerResult(result, expectedKind, expectedArea, expectedTask)
+}
+const plannerSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['schema_version', 'kind', 'area', 'task_id', 'verdict', 'summary', 'evidence', 'findings', 'escalation'],
+  properties: {
+    schema_version: { type: 'integer', const: 1 },
+    kind: { type: 'string', const: 'planner' },
+    area: { type: 'string' },
+    task_id: { type: 'string' },
+    verdict: { type: 'string', enum: ['plan', 'blocker'] },
+    summary: { type: 'string', minLength: 1 },
+    evidence: { type: 'array', items: { type: 'string', minLength: 1 } },
+    findings: { type: 'array', items: { type: 'string', minLength: 1 } },
+    escalation: { type: 'string', const: 'none' },
+  },
+}
+const parsePlannerResult = (raw, expectedArea, expectedTask) => typeof raw === 'string'
+  ? parseWorkerResult(raw, 'planner', expectedArea, expectedTask)
+  : validateWorkerResult(raw, 'planner', expectedArea, expectedTask)
 const verifierResultKeys = ['escalation', 'findings', 'summary', 'verdict']
 const validationWriteMarker = 'validation_write:'
 const validationWritePrefix = 'validation_write: '
@@ -355,11 +378,11 @@ const routeDerivedSplit = async (workerResult, coordinatorContext) => {
 
 let plan = null
 if (complexity === 'advanced') {
-  const planRaw = (await agent(
+  const planRaw = await agent(
     `${workerContract}\n\nPlan the ready advanced task ${taskId} in area ${area}, keeping the checkout unchanged. Use the complete coordinator context below. Return only the strict JSON object with kind "planner", area "${area}", task_id "${taskId}", verdict "plan" or "blocker", and escalation "none". A plan puts exactly one non-empty Approach:, Paths:, and Validation: entry in evidence and has no findings. A product decision is a blocker.\n\nCoordinator context:\n${prepared.raw}`,
-    { agentType: 'zdev:zdev-planner', label: 'zdev advanced read-only plan' },
-  ))?.trim()
-  plan = parseWorkerResult(planRaw, 'planner', area, taskId)
+    { agentType: 'zdev:zdev-planner', label: 'zdev advanced read-only plan', schema: plannerSchema },
+  )
+  plan = parsePlannerResult(typeof planRaw === 'string' ? planRaw.trim() : planRaw, area, taskId)
   if (!plan) {
     return blocker(area, taskId, 'planning', 'planner returned an invalid or mismatched envelope.', 'no implementation, lifecycle, or commit change was started.', staleAdvisory)
   }

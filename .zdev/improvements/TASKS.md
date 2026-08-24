@@ -3,9 +3,9 @@
 # Tasks: improvements
 
 - Total: 66
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 65
+- Done: 66
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -74,4 +74,4 @@
 | [improvements-063](tasks/063-assess-file-handoffs-for-multi-lens-audits.md) | Assess file handoffs for multi-lens audits | done | — |
 | [improvements-064](tasks/064-commit-the-initial-approved-task-bundle.md) | Commit the initial approved task bundle | done | — |
 | [improvements-065](tasks/065-prepare-the-v1-1-1-release-candidate.md) | Prepare the v1.1.1 release candidate | done | — |
-| [improvements-066](tasks/066-qualify-the-v1-1-1-release-candidate.md) | Qualify the v1.1.1 release candidate | ready | improvements-065 |
+| [improvements-066](tasks/066-qualify-the-v1-1-1-release-candidate.md) | Qualify the v1.1.1 release candidate | done | improvements-065 |

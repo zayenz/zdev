@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-003"
 key = "restore-claude-contract-fallback"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = []
 +++
@@ -26,14 +26,23 @@ The canonical Claude implement and verify workflows pass the literal `$CLAUDE_PL
 
 ## Done when
 
-- [ ] Claude task workers receive usable canonical contract instructions when CLAUDE_PLUGIN_ROOT is unset, empty, or points to an unreadable contract.
-- [ ] Generated Claude workflows prefer a readable installed contract but no longer turn an unavailable plugin-root path into an automatic task blocker when the rendered fallback is present.
-- [ ] Focused workflow probes verify that generated worker prompts contain the guarded installed-path preference and rendered canonical fallback, and no longer require blocker-only behavior; they do not claim to execute a real Claude child Bash environment.
-- [ ] docs/harness-orchestration.md removes the false unconditional availability statement, distinguishes the narrower documented static substitution/export guarantees from dynamically spawned workflow children, and records the prompt-size trade-off.
-- [ ] The checked-in Claude fixture matches its canonical templates.
+- [x] Claude task workers receive usable canonical contract instructions when CLAUDE_PLUGIN_ROOT is unset, empty, or points to an unreadable contract.
+- [x] Generated Claude workflows prefer a readable installed contract but no longer turn an unavailable plugin-root path into an automatic task blocker when the rendered fallback is present.
+- [x] Focused workflow probes verify that generated worker prompts contain the guarded installed-path preference and rendered canonical fallback, and no longer require blocker-only behavior; they do not claim to execute a real Claude child Bash environment.
+- [x] docs/harness-orchestration.md removes the false unconditional availability statement, distinguishes the narrower documented static substitution/export guarantees from dynamically spawned workflow children, and records the prompt-size trade-off.
+- [x] The checked-in Claude fixture matches its canonical templates.
 
 ## Validation
 
 - Regenerate the repository's checked-in Claude plugin fixture with `cargo run --locked -- skill install claude --to .claude/skills/zdev --force`.
 - Run the focused Claude workflow probes and `cargo test --locked --test lean executable_templates_realize_deterministically_and_match_generated_fixtures`.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Restored a rendered inline Claude task-contract fallback when the plugin-root path is unavailable.
+
+Validation:
+
+- Claude workflow probes and deterministic fixture checks passed.
+- Formatting, strict Clippy, all 136 tests, build, diff check, and fresh independent verification passed.

@@ -4,9 +4,10 @@ export const meta = {
 }
 
 const repositoryGuidance = {{repository_guidance}}
-const taskContractPath = '$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md'
+const taskWorkflowContract = {{task_workflow_contract}}
 const workerContract = [
-  `Before acting, load the canonical zdev task-workflow contract with \`cat "${taskContractPath}"\`. If it cannot be read, return the nine-key JSON result requested below with verdict "blocker", escalation "none", empty evidence, and one finding: "Cannot read installed task-workflow contract: ${taskContractPath}." Keep the checkout unchanged.`,
+  'Before acting, use the canonical zdev task-workflow contract. In Bash, when `${CLAUDE_PLUGIN_ROOT:-}` is non-empty and `"${CLAUDE_PLUGIN_ROOT}/contracts/task-workflows.md"` is readable, load that installed file. Otherwise use the rendered canonical contract included inline below in this same prompt.',
+  taskWorkflowContract,
   repositoryGuidance,
 ].join('\n\n')
 const normalizeAreaArg = value => {

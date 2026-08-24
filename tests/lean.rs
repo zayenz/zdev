@@ -6299,9 +6299,11 @@ for (const invocation of [['work', 'work-001'], 'work work-001']) {{
   if (!direct.result.startsWith('{{"schema_version":1,"kind":"verifier"')) throw new Error('direct args rejected: ' + direct.result)
 }}
 const verifierPrompt = valid.prompts.find(call => call.options.agentType)?.prompt ?? ''
-if (!verifierPrompt.includes('$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md')) throw new Error('contract path missing')
-if (!verifierPrompt.includes('Cannot read installed task-workflow contract')) throw new Error('contract blocker missing')
-if (verifierPrompt.includes('inline fallback')) throw new Error('inline fallback retained')
+if (!verifierPrompt.includes('`${{CLAUDE_PLUGIN_ROOT:-}}` is non-empty')) throw new Error('contract root guard missing')
+if (!verifierPrompt.includes('`"${{CLAUDE_PLUGIN_ROOT}}/contracts/task-workflows.md"` is readable')) throw new Error('readable contract preference missing')
+if (!verifierPrompt.includes('rendered canonical contract included inline')) throw new Error('inline fallback instruction missing')
+if (!verifierPrompt.includes('workflow contract')) throw new Error('rendered contract missing')
+if (verifierPrompt.includes('Cannot read installed task-workflow contract')) throw new Error('blocker-only contract behavior retained')
 if (!verifierPrompt.includes('work-context work --store --format json')) throw new Error('store missing')
 if (!verifierPrompt.includes('work-context work --show <snapshot> --format json')) throw new Error('show missing')
 if (!verifierPrompt.includes('work-context work --compare <snapshot> --format json')) throw new Error('compare missing')
@@ -6419,6 +6421,13 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     throw new Error(name + ': ' + JSON.stringify(types))
   }}
   const verifierPrompts = calls.filter(call => call.options.agentType === 'zdev:zdev-verifier').map(call => call.prompt)
+  for (const call of calls.filter(call => call.options.agentType)) {{
+    if (!call.prompt.includes('`${{CLAUDE_PLUGIN_ROOT:-}}` is non-empty')) throw new Error(name + ': contract root guard missing')
+    if (!call.prompt.includes('`"${{CLAUDE_PLUGIN_ROOT}}/contracts/task-workflows.md"` is readable')) throw new Error(name + ': readable contract preference missing')
+    if (!call.prompt.includes('rendered canonical contract included inline')) throw new Error(name + ': inline fallback instruction missing')
+    if (!call.prompt.includes('workflow contract')) throw new Error(name + ': rendered contract missing')
+    if (call.prompt.includes('Cannot read installed task-workflow contract')) throw new Error(name + ': blocker-only contract behavior retained')
+  }}
   for (const prompt of verifierPrompts) {{
     if (!prompt.includes('Compact implementer summary:')) throw new Error(name + ': verifier lost compact implementation summary')
     if (!prompt.includes('Original baseline snapshot: ' + baselineSnapshot)) throw new Error(name + ': verifier lost original baseline')

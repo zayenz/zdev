@@ -158,10 +158,15 @@ same bytes through the existing integration renderer. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 
 Claude is the only adapter that also references a task contract outside its
-skill directory.
-Its plugin root is available to child Bash commands as `CLAUDE_PLUGIN_ROOT`, so
-the workflow can pass `$CLAUDE_PLUGIN_ROOT/contracts/task-workflows.md` without
-discovering a user or project installation directory.
+skill directory. Claude's plugin reference documents `${CLAUDE_PLUGIN_ROOT}`
+substitution in static skill and agent content, and its export to hooks, MCP,
+and LSP subprocesses. It does not guarantee that dynamically spawned workflow
+children receive that variable. Each task-worker prompt therefore prefers the
+installed contract when the variable is non-empty and the file is readable,
+then falls back to the same rendered contract included inline. The fallback
+increases each worker prompt's size, but avoids turning a missing or unusable
+plugin-root path into a task blocker without path discovery or another worker
+call.
 
 Codex, OpenCode, Pi, and Oh My Pi retain inline task guidance. Their child
 workers start from repository working directories, while their user- and

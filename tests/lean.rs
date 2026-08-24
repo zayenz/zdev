@@ -7266,6 +7266,68 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
 }
 
 #[test]
+fn omp_planner_constrains_one_result_without_formatting_retries() {
+    let planner = include_str!("../templates/zdev/omp/agents/zdev-planner.md");
+    let expected_schema = r#"output:
+  type: object
+  additionalProperties: false
+  required: [verdict, summary, plan, findings]
+  properties:
+    verdict:
+      type: string
+      enum: [plan, blocker]
+    summary:
+      type: string
+      minLength: 1
+    plan:
+      anyOf:
+        - type: "null"
+        - type: object
+          additionalProperties: false
+          required: [approach, paths, validation]
+          properties:
+            approach:
+              type: string
+              minLength: 1
+            paths:
+              type: array
+              minItems: 1
+              items:
+                type: string
+                minLength: 1
+            validation:
+              type: array
+              minItems: 1
+              items:
+                type: string
+                minLength: 1
+    findings:
+      type: array
+      items:
+        type: string
+        minLength: 1
+"#;
+    assert!(planner.contains(expected_schema));
+
+    for guidance in [
+        include_str!("../templates/zdev/omp-skill.md"),
+        include_str!("../templates/zdev/omp/prompts/zdev-implement.md"),
+        include_str!("../templates/zdev/omp/prompts/zdev-loop.md"),
+    ] {
+        let normalized = guidance.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(normalized.contains("details.results[].structuredOutput.data"));
+        assert!(normalized.contains("same result's output"));
+        assert!(normalized.contains("formatting follow-up"));
+        assert!(normalized.contains("formatting pass"));
+    }
+
+    let verifier = include_str!("../templates/zdev/omp/agents/zdev-verifier.md");
+    let audit = include_str!("../templates/zdev/omp/prompts/zdev-audit.md");
+    assert!(!verifier.contains("\noutput:"));
+    assert!(!audit.contains("structuredOutput"));
+}
+
+#[test]
 fn bounded_area_loop_aliases_share_one_stop_and_restart_contract() {
     let repository = repository();
     let root = repository.path();

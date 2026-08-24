@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-006"
 key = "constrain-omp-planner-output"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 blocked_by = ["general-005"]
 +++
@@ -26,15 +26,24 @@ OMP agent frontmatter accepts an opaque JSON Schema in the output field, and set
 
 ## Done when
 
-- [ ] The generated OMP planner definition carries the exact semantic planner schema in its output frontmatter field.
-- [ ] OMP implementation guidance prefers details.results[].structuredOutput.data when it validates, and otherwise proceeds from a valid strict semantic JSON string in the same result output.
-- [ ] Unavailable, malformed, contradictory, legacy, or mismatched results block without launching, reviving, or messaging another planner for formatting.
-- [ ] The shared OMP verifier and audit behavior remain unchanged.
-- [ ] Generated OMP agent, prompt, skill, and reference fixtures match their canonical templates.
-- [ ] Focused coverage proves the exact frontmatter schema and result-field guidance, structured-result preference, strict-text compatibility, and absence of formatting retry or revival paths.
+- [x] The generated OMP planner definition carries the exact semantic planner schema in its output frontmatter field.
+- [x] OMP implementation guidance prefers details.results[].structuredOutput.data when it validates, and otherwise proceeds from a valid strict semantic JSON string in the same result output.
+- [x] Unavailable, malformed, contradictory, legacy, or mismatched results block without launching, reviving, or messaging another planner for formatting.
+- [x] The shared OMP verifier and audit behavior remain unchanged.
+- [x] Generated OMP agent, prompt, skill, and reference fixtures match their canonical templates.
+- [x] Focused coverage proves the exact frontmatter schema and result-field guidance, structured-result preference, strict-text compatibility, and absence of formatting retry or revival paths.
 
 ## Validation
 
 - Regenerate the OMP integration with cargo run --locked -- skill install omp --to .omp --force.
 - Run the focused OMP discovery, generated-fixture, audit-preservation, and task-workflow tests in tests/lean.rs.
 - Run the area-wide validation from brief.md.
+
+## Result
+
+Added the exact semantic planner output schema to OMP and made coordination prefer validated structured data with a strict same-result text fallback, without formatting retries or verifier constraints.
+
+Validation:
+
+- Focused OMP schema, workflow, discovery, audit-preservation, and generated-fixture tests passed.
+- cargo fmt, clippy with warnings denied, all 137 tests, cargo build, temporary-directory OMP fixture parity, and git diff --check passed under independent verification.

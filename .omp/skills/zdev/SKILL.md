@@ -202,6 +202,11 @@ Route authored routine, standard/default, and advanced work to
 `zdev-routine-implementer`, `zdev-implementer`, or
 `zdev-advanced-implementer`. Advanced work first uses one blocking read-only
 `zdev-planner`.
+For its one settled task result, prefer
+`details.results[].structuredOutput.data` when it passes semantic validation;
+otherwise strictly validate the complete JSON string in that same result's
+output. Invalid planner data blocks without a retry, revival, formatting
+follow-up, or extra coordinator formatting pass.
 Always verify with a fresh `zdev-verifier`. Return ordinary rework to the
 selected profile with `hub` when possible; one valid standard-work escalation
 starts an advanced replacement without replanning. The coordinator retains

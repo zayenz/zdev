@@ -153,7 +153,10 @@ fn executable_on_path(name: &str) -> std::path::PathBuf {
 
 fn repository() -> TempDir {
     let directory = tempfile::tempdir().expect("temporary repository");
-    git(directory.path(), &["init", "-q"]);
+    git(
+        directory.path(),
+        &["init", "-q", "--initial-branch", "main"],
+    );
     git(directory.path(), &["config", "user.name", "Zdev Test"]);
     git(
         directory.path(),

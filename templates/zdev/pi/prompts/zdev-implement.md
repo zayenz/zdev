@@ -5,6 +5,10 @@ argument-hint: <area>
 
 {{task_workflow_contract}}
 
+The exact installed task-workflows contract path is
+{{ task_workflows_contract_path_json }}. Decode it and include the resulting
+path in every `zdev_subagent` payload.
+
 Use `$ARGUMENTS` as the area. The current Pi session is the coordinator. After
 preflight, select role `routine-implementer`, `implementer`, or
 `advanced-implementer` from effective complexity. Call read-only `planner` once

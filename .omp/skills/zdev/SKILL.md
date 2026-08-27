@@ -142,8 +142,9 @@ When a workflow uses `zdev work-context <area> --store --format json`, pass its
 compact filesystem reference instead of copying the complete JSON. Read exact
 handoff bytes with `--show <snapshot>` and use `--compare <snapshot>` at a later
 boundary. A stored snapshot is immutable evidence from its collection point,
-never current authority: comparison collects fresh work-context, and an expired
-ID requires a new snapshot. Do not add approval or history ceremony around it.
+never current authority: comparison collects fresh work-context. Stored
+snapshots remain available so an active workflow can keep loading its original
+baseline. Do not add approval or history ceremony around it.
 
 The fixed results begin `PASS zdev-loop <area>`, `CONTINUE zdev-loop <area>`,
 or `BLOCKER zdev-loop <area>`. `CONTINUE` is valid only after one independently
@@ -209,6 +210,9 @@ The root zdev skill selects the route and loads its contract from `references/`.
 It may use the packaged prompts internally for a complete task cycle,
 verification, audit, or native area continuation. “Goal” and “loop” select the
 same continuation route.
+The exact installed task-workflows contract path for this installation is
+".omp/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
+resulting path in every worker payload.
 
 Route authored routine, standard/default, and advanced work to
 `zdev-routine-implementer`, `zdev-implementer`, or

@@ -50,6 +50,10 @@ the current session. Every iteration repeats the applicable selection rule and
 uses the one-task contract below. Tell the user which task was selected and
 when its verified commit completes.
 
+The exact installed task-workflows contract path is
+{{ task_workflows_contract_path_json }}. Decode it and include the resulting
+path in every worker payload.
+
 {{task_workflow_contract}}
 
 One ordinary iteration selects, implements, independently verifies, completes,

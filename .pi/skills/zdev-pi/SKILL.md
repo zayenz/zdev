@@ -142,8 +142,9 @@ When a workflow uses `zdev work-context <area> --store --format json`, pass its
 compact filesystem reference instead of copying the complete JSON. Read exact
 handoff bytes with `--show <snapshot>` and use `--compare <snapshot>` at a later
 boundary. A stored snapshot is immutable evidence from its collection point,
-never current authority: comparison collects fresh work-context, and an expired
-ID requires a new snapshot. Do not add approval or history ceremony around it.
+never current authority: comparison collects fresh work-context. Stored
+snapshots remain available so an active workflow can keep loading its original
+baseline. Do not add approval or history ceremony around it.
 
 The fixed results begin `PASS zdev-loop <area>`, `CONTINUE zdev-loop <area>`,
 or `BLOCKER zdev-loop <area>`. `CONTINUE` is valid only after one independently
@@ -204,6 +205,10 @@ authoritative across areas. Report what changed, what verification passed, and
 what remains; mention commands only when they help the user continue or recover.
 
 ## Pi orchestration
+
+The exact installed task-workflows contract path for this installation is
+".pi/skills/zdev-pi/references/task-workflows.md". Decode that JSON string and include the
+resulting path in every child payload.
 
 Route authored routine, standard/default, and advanced work through
 `zdev_subagent` roles `routine-implementer`, `implementer`, or

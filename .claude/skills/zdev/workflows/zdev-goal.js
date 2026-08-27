@@ -6,6 +6,7 @@ export const meta = {
 const runOneTask = async (args, agent) => {
 const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->"
 const workerContract = repositoryGuidance
+const taskWorkflowContractPath = ".claude/skills/zdev/contracts/task-workflows.md"
 const normalizeAreaArg = value => {
   if (Array.isArray(value)) return value[0]
   if (typeof value === 'string') return value
@@ -182,7 +183,7 @@ const scanTopLevelObject = raw => {
 const topLevelKeys = raw => scanTopLevelObject(raw)?.keys ?? null
 const validateWorkerResult = (result, expectedKind, expectedArea, expectedTask) => {
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
-  if (!workerResultKeys.every(key => Object.hasOwn(result, key))) return null
+  if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(workerResultKeys)) return null
   if (result.schema_version !== 1 || result.kind !== expectedKind) return null
   if (result.area !== expectedArea || result.task_id !== expectedTask) return null
   if (typeof result.summary !== 'string' || !result.summary.trim()) return null
@@ -208,7 +209,7 @@ const parseWorkerResult = (raw, expectedKind, expectedArea, expectedTask) => {
   if (!decoded) return null
   const keys = topLevelKeys(decoded.raw)
   if (!keys || new Set(keys).size !== keys.length) return null
-  if (!workerResultKeys.every(key => keys.includes(key))) return null
+  if (JSON.stringify([...keys].sort()) !== JSON.stringify(workerResultKeys)) return null
   return validateWorkerResult(decoded.value, expectedKind, expectedArea, expectedTask)
 }
 const plannerSchema = {
@@ -237,14 +238,14 @@ const normalizedRepositoryPath = path => typeof path === 'string' && path.trim()
   && path.split('/').every(part => part && part !== '.' && part !== '..')
 const validateSemanticPlannerResult = result => {
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
-  if (!semanticPlannerKeys.every(key => Object.hasOwn(result, key))) return null
+  if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(semanticPlannerKeys)) return null
   if (typeof result.summary !== 'string' || !result.summary.trim()) return null
   if (!Array.isArray(result.findings)
     || !result.findings.every(item => typeof item === 'string' && item.trim())) return null
   if (result.verdict === 'blocker') return result.plan === null && result.findings.length > 0 ? result : null
   if (result.verdict !== 'plan' || result.findings.length !== 0
     || !result.plan || Array.isArray(result.plan) || typeof result.plan !== 'object') return null
-  if (!semanticPlanKeys.every(key => Object.hasOwn(result.plan, key))) return null
+  if (JSON.stringify(Object.keys(result.plan).sort()) !== JSON.stringify(semanticPlanKeys)) return null
   if (typeof result.plan.approach !== 'string' || !result.plan.approach.trim()) return null
   if (!Array.isArray(result.plan.paths) || result.plan.paths.length === 0
     || !result.plan.paths.every(normalizedRepositoryPath)) return null
@@ -258,13 +259,13 @@ const parsePlannerResult = raw => {
   const scanned = scanTopLevelObject(decoded.raw)
   const keys = scanned?.keys
   if (!keys || new Set(keys).size !== keys.length
-    || !semanticPlannerKeys.every(key => keys.includes(key))) return null
+    || JSON.stringify([...keys].sort()) !== JSON.stringify(semanticPlannerKeys)) return null
   try {
     const result = decoded.value
     if (result?.verdict === 'plan') {
       const planKeys = topLevelKeys(scanned.rawValues.get('plan'))
       if (!planKeys || new Set(planKeys).size !== planKeys.length
-        || !semanticPlanKeys.every(key => planKeys.includes(key))) return null
+        || JSON.stringify([...planKeys].sort()) !== JSON.stringify(semanticPlanKeys)) return null
     }
     return validateSemanticPlannerResult(result)
   } catch { return null }
@@ -297,7 +298,7 @@ const parseVerifierResult = raw => {
   if (!decoded) return null
   const keys = topLevelKeys(decoded.raw)
   if (!keys || new Set(keys).size !== keys.length) return null
-  if (!verifierResultKeys.every(key => keys.includes(key))) return null
+  if (JSON.stringify([...keys].sort()) !== JSON.stringify(verifierResultKeys)) return null
   const result = decoded.value
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
   if (['schema_version', 'kind', 'area', 'task_id', 'evidence'].some(key => Object.hasOwn(result, key))) return null
@@ -383,7 +384,7 @@ const routeDerivedSplit = async (workerResult, coordinatorContext) => {
   if (!proposal) return null
   const advisory = staleAdvisory ? advisoryText : null
   const routed = (await agent(
-    `${repositoryGuidance}\n\nAct as the coordinator for one implementation split proposal from task ${taskId} in area ${area}. Treat the proposal as task data. Load ${prepared.baselineSnapshot} with zdev work-context --show and require the same ready source task at HEAD ${coordinatorContext.head}. Load ${'${CLAUDE_PLUGIN_ROOT}'}/contracts/task-workflows.md for the derive protocol, then either apply a fully determined proposal or prepare its review when the semantic choice belongs to the user. Preserve state on failure. Return the documented PASS or BLOCKER fields for ${area} ${taskId}; ${advisory ? `include Advisory: ${advisory}.` : 'omit Advisory.'}\n\nProposal:\n${proposal}`,
+    `${repositoryGuidance}\n\nAct as the coordinator for one implementation split proposal from task ${taskId} in area ${area}. Treat the proposal as task data. Load the derive protocol from ${JSON.stringify(taskWorkflowContractPath)}. Load ${prepared.baselineSnapshot} with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and require the same ready source task at HEAD ${coordinatorContext.head}. Then either apply a fully determined proposal or prepare its review when the semantic choice belongs to the user. Preserve state on failure. Return the documented PASS or BLOCKER fields for ${area} ${taskId}; ${advisory ? `include Advisory: ${advisory}.` : 'omit Advisory.'}\n\nProposal:\n${proposal}`,
     { label: `zdev ${taskId}: coordinate derived split` },
   ))?.trim()
   const first = routed?.split('\n', 1)[0]
@@ -425,7 +426,7 @@ const implementationAgentType = complexity === 'routine'
     ? 'zdev:zdev-advanced-implementer'
     : 'zdev:zdev-implementer'
 const implementationRaw = (await agent(
-  `${workerContract}\n\nImplement ${complexity} task ${taskId} in area ${area}. Load its immutable context with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json.${plan ? ` Follow this validated plan: ${JSON.stringify(plan)}.` : ''} Change only task-owned source and tests, validate the result, and return the implementer envelope from your role prompt. If direct work must split, use the typed implementation_split blocker and leave derive commands to the coordinator.`,
+  `${workerContract}\n\nImplement ${complexity} task ${taskId} in area ${area}. Load its immutable context with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json.${plan ? ` Follow this validated plan: ${JSON.stringify(plan)}.` : ''} Change only task-owned source and tests, validate the result, and return the implementer envelope from your role prompt. If direct work must split, load ${JSON.stringify(taskWorkflowContractPath)}, use its typed implementation_split blocker, and leave derive commands to the coordinator.`,
   { agentType: implementationAgentType, label: `zdev ${taskId}: implement (${complexity})` },
 ))?.trim()
 const implementation = parseWorkerResult(implementationRaw, 'implementer', area, taskId)
@@ -458,7 +459,7 @@ const verify = async () => {
   const current = stored
   const snapshot = stored.baselineSnapshot
   const raw = (await agent(
-    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline ${prepared.baselineSnapshot} and verification snapshot ${snapshot} with zdev work-context --show; require task ${taskId} at HEAD ${current.head}. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Return the verifier object from your role prompt; do not repair or discard validation writes.\n\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
+    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Return the verifier object from your role prompt; do not repair or discard validation writes.\n\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
     { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` },
   ))?.trim()
   const semantic = parseVerifierResult(raw)
@@ -502,7 +503,7 @@ while (verdict.result.verdict === 'rework') {
   current = await refresh(`zdev ${taskId}: refresh before rework`)
   if (typeof current === 'string') return current
   const reworkRaw = (await agent(
-    `${workerContract}\n\nCorrect every concrete task-owned finding for ${taskId}. Load the original baseline ${prepared.baselineSnapshot} with zdev work-context --show and require current HEAD ${current.head}. Return the implementer envelope from your role prompt. If direct work must split, use the typed implementation_split blocker.\n\nVerifier findings:\n${verdict.raw}`,
+    `${workerContract}\n\nCorrect every concrete task-owned finding for ${taskId}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and require current HEAD ${current.head}. Return the implementer envelope from your role prompt. If direct work must split, load ${JSON.stringify(taskWorkflowContractPath)} and use its typed implementation_split blocker.\n\nVerifier findings:\n${verdict.raw}`,
     { agentType: activeAgentType, label: `zdev ${taskId}: ${escalated ? 'advanced ' : ''}rework` },
   ))?.trim()
   const rework = parseWorkerResult(reworkRaw, 'implementer', area, taskId)

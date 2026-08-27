@@ -37,6 +37,10 @@ For open `ready`, the validated entry context is the one-task contract's
 initial work-context. Reuse it for the first dispatch, and tell the user which
 task was selected before implementation begins.
 
+The exact installed task-workflows contract path is
+{{ task_workflows_contract_path_json }}. Decode it and include the resulting
+path in every worker payload.
+
 {{task_workflow_contract}}
 
 Concrete task-owned `rework` remains inside that one task cycle with fresh

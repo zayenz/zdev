@@ -147,7 +147,7 @@ const parseVerifierResult = raw => {
   if (!decoded) return null
   const keys = topLevelKeys(decoded.raw)
   if (!keys || new Set(keys).size !== keys.length) return null
-  if (!verifierResultKeys.every(key => keys.includes(key))) return null
+  if (JSON.stringify([...keys].sort()) !== JSON.stringify(verifierResultKeys)) return null
   const result = decoded.value
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
   if (['schema_version', 'kind', 'area', 'task_id', 'evidence'].some(key => Object.hasOwn(result, key))) return null
@@ -217,7 +217,7 @@ if (!stored) {
 const advisory = stored.staleAdvisory ? advisoryText : null
 
 const verified = await agent(
-  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load immutable context ${stored.snapshot} with zdev work-context --show and require the same ready task at HEAD ${stored.head}. Check the whole task and run required validation. Return the verifier object from your role prompt; never repair or discard validation writes.`,
+  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same ready task at HEAD ${stored.head}. Check the whole task and run required validation. Return the verifier object from your role prompt; never repair or discard validation writes.`,
   { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` },
 )
 const semantic = parseVerifierResult(verified?.trim())

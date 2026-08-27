@@ -200,6 +200,46 @@ fn file_inventory(root: &Path) -> Vec<String> {
     files
 }
 
+fn assert_task_workflows_locator(destination: &Path, skill_root: &str, coordinator_paths: &[&str]) {
+    let contract = destination
+        .join(skill_root)
+        .join("references/task-workflows.md");
+    assert!(contract.is_file(), "missing {}", contract.display());
+    let contract = fs::canonicalize(contract).expect("canonical task-workflows contract path");
+    let encoded = serde_json::to_string(contract.to_str().expect("UTF-8 contract path"))
+        .expect("contract path JSON");
+    for coordinator in coordinator_paths {
+        let rendered = fs::read_to_string(destination.join(coordinator))
+            .unwrap_or_else(|_| panic!("read coordinator {coordinator}"));
+        assert!(
+            rendered.contains(&encoded),
+            "{coordinator} does not contain exact contract locator {encoded}"
+        );
+    }
+}
+
+fn normalize_task_workflows_locator(content: Vec<u8>) -> Vec<u8> {
+    let content = String::from_utf8(content).expect("UTF-8 integration artifact");
+    let mut normalized = String::with_capacity(content.len());
+    let mut locator_value_follows = false;
+    for line in content.split_inclusive('\n') {
+        if line.starts_with("const taskWorkflowContractPath = ") {
+            normalized.push_str("const taskWorkflowContractPath = \"<task-workflows-contract>\"\n");
+        } else if locator_value_follows {
+            let (_, tail) = line
+                .split_once(". Decode")
+                .expect("rendered contract locator value");
+            normalized.push_str("\"<task-workflows-contract>\". Decode");
+            normalized.push_str(tail);
+            locator_value_follows = false;
+        } else {
+            normalized.push_str(line);
+            locator_value_follows = line.contains("exact installed task-workflows contract path");
+        }
+    }
+    normalized.into_bytes()
+}
+
 fn create_area(root: &Path, area: &str, branch: &str) {
     json_output(
         root,
@@ -517,7 +557,7 @@ fn work_context_snapshots_round_trip_exact_json_and_compare_fresh_state() {
 }
 
 #[test]
-fn work_context_snapshots_fail_closed_and_expire_deterministically() {
+fn work_context_snapshots_fail_closed_and_remain_available() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -565,20 +605,25 @@ fn work_context_snapshots_fail_closed_and_expire_deterministically() {
         fs::write(root.join("seed.txt"), format!("state {number}\n")).expect("distinct state");
         let stored = json_output(root, &["work-context", "source", "--store"]);
         snapshots.push(stored["snapshot"].as_str().expect("snapshot ID").to_owned());
-        std::thread::sleep(std::time::Duration::from_millis(2));
     }
+    fs::write(root.join("seed.txt"), "state 0\n").expect("restore old baseline state");
+    let restored = json_output(root, &["work-context", "source", "--store"]);
+    assert_eq!(restored["snapshot"], snapshots[0]);
+    fs::write(root.join("seed.txt"), "state 9\n").expect("publish later state");
+    json_output(root, &["work-context", "source", "--store"]);
     let store = git_path(root, "zdev/work-context/source");
     let retained = fs::read_dir(&store)
         .expect("source snapshot store")
         .filter_map(Result::ok)
         .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("json"))
         .count();
-    assert_eq!(retained, 8);
-    let expired = run_zdev(root, &["work-context", "source", "--show", &snapshots[0]]);
-    assert!(!expired.status.success());
-    assert!(String::from_utf8_lossy(&expired.stderr).contains("unavailable or expired"));
-    let latest = run_zdev(root, &["work-context", "source", "--show", &snapshots[8]]);
-    assert!(latest.status.success());
+    assert_eq!(retained, 10);
+    let old_baseline = run_zdev(root, &["work-context", "source", "--show", &snapshots[0]]);
+    assert!(old_baseline.status.success());
+    fs::remove_file(store.join(format!("{}.json", snapshots[0]))).expect("remove snapshot");
+    let unavailable = run_zdev(root, &["work-context", "source", "--show", &snapshots[0]]);
+    assert!(!unavailable.status.success());
+    assert!(String::from_utf8_lossy(&unavailable.stderr).contains("is unavailable"));
 }
 
 #[test]
@@ -812,7 +857,7 @@ fn work_context_rejects_unsafe_and_blocked_open_work_with_structured_errors() {
 
 #[cfg(unix)]
 #[test]
-fn work_context_rejects_status_and_goal_disagreement() {
+fn explicit_work_context_revalidates_selection_after_goal_read() {
     use std::os::unix::fs::PermissionsExt;
 
     let repository = repository();
@@ -822,6 +867,24 @@ fn work_context_rejects_status_and_goal_disagreement() {
     json_output(root, &["init", "--record", "project"]);
     create_area(root, "general", "main");
     import_one_task(root, "general");
+    let second = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "general",
+        "tasks": [{
+            "key": "two",
+            "title": "Complete another task",
+            "outcome": "The second task completes.",
+            "done_when": ["The second task is complete."],
+            "validation": ["Exercise the CLI."],
+            "blocked_by": []
+        }]
+    }))
+    .expect("second task bundle");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "general", "--from", "-"],
+        &second,
+    );
 
     let task_path = root.join(".zdev/general/tasks/001-complete-one-task.md");
     let done_path = root.join("done-task.md");
@@ -849,7 +912,14 @@ fn work_context_rejects_status_and_goal_disagreement() {
 
     let output = run_zdev_with_env(
         root,
-        &["work-context", "general", "--format", "json"],
+        &[
+            "work-context",
+            "general",
+            "--task",
+            "general-001",
+            "--format",
+            "json",
+        ],
         &[
             ("PATH", fake_path.path()),
             ("REAL_GIT", &real_git),
@@ -865,10 +935,8 @@ fn work_context_rejects_status_and_goal_disagreement() {
         error["error"]
             .as_str()
             .expect("disagreement error")
-            .contains("Status and goal disagree")
+            .contains("not in the ready frontier")
     );
-    assert_eq!(error["details"]["goal"]["queue"], "ready");
-    assert_eq!(error["details"]["status"]["queue"], "exhausted");
 }
 
 #[cfg(unix)]
@@ -2998,6 +3066,32 @@ fn default_ranking_and_explicit_frontier_selection_are_distinct() {
         true
     );
 
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "ranking",
+            "ranking-002",
+            "--summary",
+            "Completed the focused task.",
+            "--validation",
+            "Focused check passed.",
+        ],
+    );
+    assert_eq!(
+        json_output(
+            root,
+            &[
+                "work-context",
+                "ranking",
+                "--compare",
+                stored["snapshot"].as_str().expect("snapshot"),
+            ],
+        )["equal"],
+        false
+    );
+
     let blocked = run_zdev(
         root,
         &[
@@ -3011,6 +3105,64 @@ fn default_ranking_and_explicit_frontier_selection_are_distinct() {
     );
     assert!(!blocked.status.success());
     assert!(String::from_utf8_lossy(&blocked.stderr).contains("not in the ready frontier"));
+}
+
+#[test]
+fn derived_review_accepts_a_focused_non_default_ready_task() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "focused", "main");
+    commit_all(root, "record focused area");
+
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "focused",
+        "tasks": [{
+            "key": "default", "title": "Default task", "afk": true, "priority": "high",
+            "outcome": "The default task is complete.", "done_when": ["Default is done."],
+            "validation": ["Check default."], "blocked_by": []
+        }, {
+            "key": "chosen", "title": "Chosen task", "afk": false, "priority": "normal",
+            "outcome": "The chosen task is complete.", "done_when": ["Chosen is done."],
+            "validation": ["Check chosen."], "blocked_by": []
+        }]
+    }))
+    .expect("task bundle");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "focused", "--from", "-"],
+        &bundle,
+    );
+    assert_eq!(
+        json_output(root, &["next", "focused"])["task"]["id"],
+        "focused-001"
+    );
+
+    let proposal = json!({
+        "schema_version": 1,
+        "proposal": "investigation_follow_up",
+        "area": "focused",
+        "source_task": "focused-002",
+        "source_result": {
+            "status": "complete",
+            "summary": "Settled the focused question.",
+            "validation": ["Checked the focused result."]
+        },
+        "tasks": [{
+            "key": "follow-up", "title": "Implement the focused result", "blocked_by": [],
+            "outcome": "The focused result is implemented.", "done_when": ["Implementation is done."],
+            "validation": ["Check the implementation."]
+        }]
+    });
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "review", "focused", "--from", "-"],
+        &derived_proposal_bytes("focused", "focused-002", proposal),
+    );
+    assert_eq!(reviewed["mechanically_eligible"], true);
 }
 
 #[test]
@@ -3212,6 +3364,59 @@ fn stored_task_review_can_be_shown_replaced_and_imported() {
 }
 
 #[test]
+fn stored_task_review_accepts_pre_selection_field_markdown() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "legacy-review",
+            "--title",
+            "Legacy review",
+            "--objective",
+            "Import a review created before selection fields existed.",
+        ],
+    );
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "legacy-review",
+        "tasks": [{
+            "key": "one", "title": "Import the reviewed task", "blocked_by": [],
+            "outcome": "The reviewed task is imported.", "done_when": ["The task exists."],
+            "validation": ["Inspect the imported task."]
+        }]
+    }))
+    .expect("task bundle");
+    let reviewed = json_output_with_stdin(
+        root,
+        &["tasks", "review", "legacy-review", "--from", "-"],
+        &bundle,
+    );
+    let markdown_path = reported_path(root, &reviewed["path"]);
+    let current = fs::read_to_string(&markdown_path).expect("current review");
+    let legacy = current.replace("\n\n### AFK\nfalse\n\n### Priority\nnormal", "");
+    assert_ne!(legacy, current);
+    fs::write(&markdown_path, &legacy).expect("legacy review Markdown");
+
+    let shown = json_output(root, &["tasks", "review", "legacy-review", "--show"]);
+    assert_eq!(shown["markdown"], legacy);
+    let imported = json_output(
+        root,
+        &[
+            "tasks",
+            "import",
+            "legacy-review",
+            "--reviewed",
+            reviewed["review"].as_str().expect("review ID"),
+        ],
+    );
+    assert_eq!(imported["tasks"], json!(["legacy-review-001"]));
+}
+
+#[test]
 fn stored_task_review_failures_publish_no_tasks() {
     let repository = repository();
     let root = repository.path();
@@ -3381,7 +3586,7 @@ fn investigation_follow_up(area: &str, source_task: &str, key: &str, title: &str
 }
 
 #[test]
-fn stored_derived_review_replaces_and_applies_without_replaying_the_proposal() {
+fn stored_derived_review_replaces_accepts_legacy_markdown_and_applies() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -3447,6 +3652,21 @@ fn stored_derived_review_replaces_and_applies_without_replaying_the_proposal() {
             .unwrap()
             .count(),
         1
+    );
+
+    let markdown_path = reported_path(root, &second["path"]);
+    let current = fs::read_to_string(&markdown_path).expect("current derived review");
+    let legacy = current.replace("\n\n### AFK\nfalse\n\n### Priority\nnormal", "");
+    assert_ne!(legacy, current);
+    fs::write(&markdown_path, &legacy).expect("legacy derived review Markdown");
+    let shown = run_zdev(
+        root,
+        &["tasks", "derive", "review", "stored-derived", "--show"],
+    );
+    assert!(shown.status.success());
+    assert_eq!(
+        String::from_utf8(shown.stdout).unwrap(),
+        format!("{legacy}\n")
     );
 
     let applied = json_output(
@@ -5524,7 +5744,10 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
     );
     assert_eq!(installed["status"], "created");
     let rendered = fs::read_to_string(destination.join("zdev/SKILL.md")).expect("installed skill");
-    assert_eq!(rendered, packaged_skill);
+    assert_eq!(
+        normalize_task_workflows_locator(rendered.as_bytes().to_vec()),
+        normalize_task_workflows_locator(packaged_skill.as_bytes().to_vec())
+    );
     assert_eq!(
         fs::read_to_string(destination.join("zdev/references/verify.md"))
             .expect("verify reference"),
@@ -6302,7 +6525,7 @@ for (const finding of ['src/generated.rs changed', 'validation_write: /tmp/file'
 if (reportsValidationWrite({{ ...rework, findings: ['validation_write: src/generated.rs', 'validation_write: ../outside'] }})) throw new Error('mixed valid and malformed validation markers accepted')
 if (parseVerifierResult(JSON.stringify({{ ...base, findings: ['contradictory finding'] }}))) throw new Error('PASS with findings accepted')
 if (parseVerifierResult(JSON.stringify({{ ...rework, findings: [] }}))) throw new Error('REWORK without findings accepted')
-if (!parseVerifierResult(JSON.stringify({{ ...base, extra: true }}))) throw new Error('harmless extra semantic key rejected')
+if (parseVerifierResult(JSON.stringify({{ ...base, extra: true }}))) throw new Error('unknown semantic key accepted')
 if (parseVerifierResult(JSON.stringify({{ ...base, escalation: 'advanced-implementer' }}))) throw new Error('contradictory escalation accepted')
 if (!parseVerifierResult(`Result:\n\`\`\`json\n${{JSON.stringify(base)}}\n\`\`\``)) throw new Error('wrapped JSON rejected')
 if (parseVerifierResult(`${{JSON.stringify(base)}}\n${{JSON.stringify(base)}}`)) throw new Error('multiple JSON objects accepted')
@@ -6320,6 +6543,7 @@ if (JSON.stringify(publicResult.evidence) !== JSON.stringify(['work_context_snap
 if (typeof parseWorkerResult === 'function') {{
   const implementer = {{ schema_version: 1, kind: 'implementer', area, task_id: taskId, verdict: 'blocker', summary: 'Cannot edit safely.', evidence: [], findings: ['overlap'], escalation: 'none' }}
   if (!parseWorkerResult(JSON.stringify(implementer), 'implementer', area, taskId)) throw new Error('implementer envelope rejected')
+  if (parseWorkerResult(JSON.stringify({{ ...implementer, extra: true }}), 'implementer', area, taskId)) throw new Error('unknown implementer key accepted')
   const plan = {{ ...implementer, kind: 'planner', verdict: 'plan', evidence: ['Approach: inspect', 'Paths: src/lib.rs', 'Validation: cargo test'], findings: [] }}
   if (!parseWorkerResult(JSON.stringify(plan), 'planner', area, taskId)) throw new Error('planner envelope rejected')
   if (parseWorkerResult(JSON.stringify(legacy), 'verifier', area, taskId)) throw new Error('legacy verifier accepted by nine-key parser')
@@ -6391,7 +6615,7 @@ const verifierPrompt = valid.prompts.find(call => call.options.agentType)?.promp
 if (verifierPrompt.includes('workflow contract')) throw new Error('full workflow contract was injected')
 if (!valid.prompts.find(call => call.options.label.includes('capture verification snapshot'))?.prompt.includes('work-context work --task work-001 --store --format json')) throw new Error('coordinator store missing')
 if (valid.prompts.some(call => call.options.label === 'zdev verify preflight')) throw new Error('redundant full-context preflight retained')
-if (!verifierPrompt.includes(snapshot) || !verifierPrompt.includes('work-context --show')) throw new Error('supplied show missing')
+if (!verifierPrompt.includes('work-context work --show ' + snapshot + ' --format json')) throw new Error('supplied show command incomplete')
 if (verifierPrompt.includes('--store') || verifierPrompt.includes('--compare')) throw new Error('verifier retained bookkeeping')
 if (!valid.prompts.find(call => call.options.label.includes('confirm verifier'))?.prompt.includes('work-context work --compare ' + snapshot + ' --format json')) throw new Error('coordinator compare missing')
 if (verifierPrompt.includes('large diff') || verifierPrompt.includes(' M src/lib.rs')) throw new Error('raw coordinator Git evidence transported')
@@ -6445,6 +6669,11 @@ fn claude_implementation_routes_complexity_planning_rework_and_escalation() {
         .replace(
             "{{task_workflow_contract}}",
             &serde_json::to_string("workflow contract").expect("workflow contract JSON"),
+        )
+        .replace(
+            "{{task_workflows_contract_path_json}}",
+            &serde_json::to_string("/installed/zdev/contracts/task-workflows.md")
+                .expect("workflow contract path JSON"),
         )
         .replace(
             "{{repository_guidance}}",
@@ -6531,8 +6760,8 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   }}
   for (const prompt of verifierPrompts) {{
     if (!prompt.includes('Implementer summary:')) throw new Error(name + ': verifier lost compact implementation summary')
-    if (!prompt.includes(baselineSnapshot)) throw new Error(name + ': verifier lost original baseline')
-    if (!prompt.includes(verificationSnapshot)) throw new Error(name + ': verifier lost supplied snapshot')
+    if (!prompt.includes('work-context work --show ' + baselineSnapshot + ' --format json')) throw new Error(name + ': verifier lost original baseline command')
+    if (!prompt.includes('work-context work --show ' + verificationSnapshot + ' --format json')) throw new Error(name + ': verifier lost supplied snapshot command')
     if (prompt.includes('--store') || prompt.includes('--compare')) throw new Error(name + ': verifier retained coordinator bookkeeping')
     if (prompt.includes('implementer history')) throw new Error(name + ': verifier received history')
     if (prompt.includes('"git_status":') || prompt.includes('"git_diff":')) throw new Error(name + ': verifier received raw coordinator context')
@@ -6618,7 +6847,7 @@ if (ordinaryRework.calls.some(call => call.options.label === 'zdev post-rework v
 if (!ordinaryRework.verifierPrompts[0].includes('initial locator')) throw new Error('first verifier lost initial locator')
 if (!ordinaryRework.verifierPrompts[1].includes('rework locator') || ordinaryRework.verifierPrompts[1].includes('initial locator')) throw new Error('second verifier did not receive only latest locator')
 const reworkPrompt = ordinaryRework.calls.find(call => call.options.label.endsWith(': rework'))?.prompt ?? ''
-if (!reworkPrompt.includes(baselineSnapshot)) throw new Error('rework lost original baseline')
+if (!reworkPrompt.includes('work-context work --show ' + baselineSnapshot + ' --format json')) throw new Error('rework lost original baseline command')
 if (reworkPrompt.includes('"git_status":') || reworkPrompt.includes('"git_diff":')) throw new Error('rework received raw coordinator context')
 const advancedEscalation = await exercise(
   'advanced escalation',
@@ -6742,6 +6971,8 @@ await exercise(
 )
 for (const [name, rejectedPlanner] of [
   ['non-normalized planner path', structuredPlanner('plan', {{ ...semanticPlan(), paths: ['src/../outside.rs'] }})],
+  ['extra semantic planner key', {{ ...structuredPlanner('plan', semanticPlan()), extra: true }}],
+  ['extra nested semantic plan key', structuredPlanner('plan', {{ ...semanticPlan(), extra: true }})],
   ['duplicate semantic planner key', '{{"verdict":"plan","summary":"first","summary":"second","plan":{{"approach":"inspect","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
   ['duplicate nested semantic plan key', '{{"verdict":"plan","summary":"plan result","plan":{{"approach":"inspect","approach":"edit","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
   ['plan with findings', structuredPlanner('plan', semanticPlan(), ['contradictory finding'])],
@@ -6776,7 +7007,7 @@ const splitProposal = 'PROPOSE zdev-derived work work-001\n' + JSON.stringify({{
   }},
 }})
 const splitResult = worker('implementer', 'blocker', 'none', [splitProposal])
-await exercise(
+const automaticSplit = await exercise(
   'automatic derived split',
   'standard',
   [splitResult],
@@ -6784,6 +7015,11 @@ await exercise(
   'PASS',
   'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nDerived proposal: implementation_split\nSummary: split applied\nChanged files: task records\nValidation: derive apply\nVerifier evidence: source remains open\nCommit ID: ' + '3'.repeat(40),
 )
+const splitPrompt = automaticSplit.calls.find(call => call.options.label.includes('coordinate derived split'))?.prompt ?? ''
+if (!splitPrompt.includes('work-context work --show ' + baselineSnapshot + ' --format json')) throw new Error('derived split lost original baseline command')
+if (!splitPrompt.includes('/installed/zdev/contracts/task-workflows.md')) throw new Error('derived split lost installed contract path')
+const splitWorkerPrompt = automaticSplit.calls.find(call => call.options.agentType === 'zdev:zdev-implementer')?.prompt ?? ''
+if (!splitWorkerPrompt.includes('/installed/zdev/contracts/task-workflows.md')) throw new Error('implementer lost installed split contract path')
 await exercise(
   'manual derived split',
   'standard',
@@ -7288,6 +7524,22 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             ],
             &environment,
         );
+        if harness != "claude" {
+            let mut coordinators = vec![format!("{skill_root}/SKILL.md")];
+            if let Some((implement, verify)) = adapters {
+                coordinators.extend([implement.to_owned(), verify.to_owned()]);
+            }
+            match harness {
+                "opencode" => coordinators.push("commands/zdev-loop.md".to_owned()),
+                "pi" | "omp" => coordinators.push("prompts/zdev-loop.md".to_owned()),
+                _ => {}
+            }
+            assert_task_workflows_locator(
+                &destination,
+                skill_root,
+                &coordinators.iter().map(String::as_str).collect::<Vec<_>>(),
+            );
+        }
         assert!(
             destination
                 .join(skill_root)
@@ -7306,7 +7558,7 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
                 .join("references/task-workflows.md"),
         )
         .expect("task workflow contract");
-        assert!(task_contract.contains("Those four unique keys are required"));
+        assert!(task_contract.contains("exactly those four unique keys"));
         assert!(
             task_contract.contains("Immediately before every verifier dispatch, coordination runs")
         );
@@ -7557,6 +7809,51 @@ fn non_claude_worker_handoffs_are_compact_and_wrapper_tolerant() {
     let pi = include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts");
     assert!(pi.contains("Installed route-contract path plus compact file paths"));
     assert!(!pi.contains("Complete rendered task or audit contract"));
+}
+
+#[test]
+fn worker_roles_state_their_semantic_result_contracts() {
+    for prompt in [
+        include_str!("../templates/zdev/claude/agents/zdev-routine-implementer.md"),
+        include_str!("../templates/zdev/claude/agents/zdev-advanced-implementer.md"),
+        include_str!("../templates/zdev/opencode/agents/zdev-routine-implementer.md"),
+        include_str!("../templates/zdev/opencode/agents/zdev-advanced-implementer.md"),
+        include_str!("../templates/zdev/omp/agents/zdev-routine-implementer.md"),
+        include_str!("../templates/zdev/omp/agents/zdev-advanced-implementer.md"),
+    ] {
+        assert!(prompt.contains("schema_version: 1"));
+        assert!(prompt.contains("kind: \"implementer\""));
+        assert!(prompt.contains("`ready` or `blocker`"));
+        assert!(prompt.contains("string arrays `evidence`"));
+        assert!(prompt.contains("escalation: \"none\""));
+        assert!(prompt.contains("Put changed files and validation in"));
+    }
+
+    for prompt in [
+        include_str!("../templates/zdev/claude/agents/zdev-verifier.md"),
+        include_str!("../templates/zdev/opencode/agents/zdev-verifier.md"),
+        include_str!("../templates/zdev/omp/agents/zdev-verifier.md"),
+    ] {
+        let prompt = prompt.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(prompt.contains("For task verification only"));
+        assert!(prompt.contains("`pass` with no findings"));
+        assert!(prompt.contains("`rework` with at least one finding"));
+        assert!(prompt.contains("`rework` may request `advanced-implementer`"));
+        assert!(prompt.contains("For audit only, ignore the task-verification JSON contract"));
+        assert!(prompt.contains("supplied textual audit envelope"));
+    }
+
+    let pi = include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts");
+    assert_eq!(
+        pi.matches("schema_version: 1, kind: \\\"implementer\\\"")
+            .count(),
+        3
+    );
+    assert_eq!(pi.matches("escalation: \\\"none\\\"").count(), 3);
+    assert!(pi.contains("For task verification only"));
+    assert!(pi.contains("pass with no findings"));
+    assert!(pi.contains("rework with at least one finding"));
+    assert!(pi.contains("For audit only, ignore the task-verification JSON contract"));
 }
 
 #[test]
@@ -7901,20 +8198,26 @@ fn executable_templates_realize_deterministically_and_match_generated_fixtures()
             "{harness} must not install a separate unslop artifact"
         );
         for path in inventory {
-            let rendered = fs::read(destination.join(&path)).expect("rendered integration file");
+            let rendered = normalize_task_workflows_locator(
+                fs::read(destination.join(&path)).expect("rendered integration file"),
+            );
             if path.ends_with("SKILL.md") || path.contains("/references/") {
                 continue;
             }
             assert_eq!(
                 rendered,
-                fs::read(second.join(&path)).expect("second rendered integration file"),
+                normalize_task_workflows_locator(
+                    fs::read(second.join(&path)).expect("second rendered integration file"),
+                ),
                 "{harness} integration file {path} was not byte deterministic"
             );
             if let Some(checked_in_root) = checked_in_root {
                 assert_eq!(
                     rendered,
-                    fs::read(source.join(checked_in_root).join(&path))
-                        .expect("checked-in integration file"),
+                    normalize_task_workflows_locator(
+                        fs::read(source.join(checked_in_root).join(&path))
+                            .expect("checked-in integration file"),
+                    ),
                     "checked-in {harness} integration file {path} drifted from its template"
                 );
             }
@@ -9240,6 +9543,7 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
     );
     assert_eq!(codex["path"], json!(codex_home.join("skills")));
     assert_eq!(codex["scope"], "user");
+    assert_task_workflows_locator(&codex_home.join("skills"), "zdev", &["zdev/SKILL.md"]);
 
     let claude = json_output_with_env(
         root,
@@ -9256,6 +9560,15 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
     );
     assert_eq!(opencode["path"], json!(xdg_home.join("opencode")));
     assert_eq!(opencode["scope"], "user");
+    assert_task_workflows_locator(
+        &xdg_home.join("opencode"),
+        "skills/zdev-opencode",
+        &[
+            "skills/zdev-opencode/SKILL.md",
+            "commands/zdev-implement.md",
+            "commands/zdev-verify.md",
+        ],
+    );
 
     let pi = json_output_with_env(
         root,
@@ -9264,6 +9577,15 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
     );
     assert_eq!(pi["path"], json!(pi_home));
     assert_eq!(pi["scope"], "user");
+    assert_task_workflows_locator(
+        &pi_home,
+        "skills/zdev-pi",
+        &[
+            "skills/zdev-pi/SKILL.md",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-verify.md",
+        ],
+    );
 
     let omp = json_output_with_env(
         root,
@@ -9272,6 +9594,16 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
     );
     assert_eq!(omp["path"], json!(omp_home));
     assert_eq!(omp["scope"], "user");
+    assert_task_workflows_locator(
+        &omp_home,
+        "skills/zdev",
+        &[
+            "skills/zdev/SKILL.md",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-verify.md",
+            "prompts/zdev-loop.md",
+        ],
+    );
 
     let omp_fallback = json_output_with_env(
         root,
@@ -9286,6 +9618,16 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
         json!(fallback_home.join(".omp/agent"))
     );
     assert_eq!(omp_fallback["scope"], "user");
+    assert_task_workflows_locator(
+        &fallback_home.join(".omp/agent"),
+        "skills/zdev",
+        &[
+            "skills/zdev/SKILL.md",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-verify.md",
+            "prompts/zdev-loop.md",
+        ],
+    );
 
     let codex_project = json_output(root, &["skill", "install", "codex", "--scope", "project"]);
     let canonical_root = fs::canonicalize(root).expect("canonical repository root");
@@ -9294,6 +9636,11 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
         json!(canonical_root.join(".codex/skills"))
     );
     assert_eq!(codex_project["scope"], "project");
+    assert_task_workflows_locator(
+        &canonical_root.join(".codex/skills"),
+        "zdev",
+        &["zdev/SKILL.md"],
+    );
 
     let claude_project = json_output(root, &["skill", "install", "claude", "--scope", "project"]);
     assert_eq!(
@@ -9311,14 +9658,42 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
         json!(canonical_root.join(".opencode"))
     );
     assert_eq!(opencode_project["scope"], "project");
+    assert_task_workflows_locator(
+        &canonical_root.join(".opencode"),
+        "skills/zdev-opencode",
+        &[
+            "skills/zdev-opencode/SKILL.md",
+            "commands/zdev-implement.md",
+            "commands/zdev-verify.md",
+        ],
+    );
 
     let pi_project = json_output(root, &["skill", "install", "pi", "--scope", "project"]);
     assert_eq!(pi_project["path"], json!(canonical_root.join(".pi")));
     assert_eq!(pi_project["scope"], "project");
+    assert_task_workflows_locator(
+        &canonical_root.join(".pi"),
+        "skills/zdev-pi",
+        &[
+            "skills/zdev-pi/SKILL.md",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-verify.md",
+        ],
+    );
 
     let omp_project = json_output(root, &["skill", "install", "omp", "--scope", "project"]);
     assert_eq!(omp_project["path"], json!(canonical_root.join(".omp")));
     assert_eq!(omp_project["scope"], "project");
+    assert_task_workflows_locator(
+        &canonical_root.join(".omp"),
+        "skills/zdev",
+        &[
+            "skills/zdev/SKILL.md",
+            "prompts/zdev-implement.md",
+            "prompts/zdev-verify.md",
+            "prompts/zdev-loop.md",
+        ],
+    );
 }
 
 #[test]

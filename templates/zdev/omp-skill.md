@@ -13,6 +13,9 @@ The root zdev skill selects the route and loads its contract from `references/`.
 It may use the packaged prompts internally for a complete task cycle,
 verification, audit, or native area continuation. “Goal” and “loop” select the
 same continuation route.
+The exact installed task-workflows contract path for this installation is
+{{ task_workflows_contract_path_json }}. Decode that JSON string and include the
+resulting path in every worker payload.
 
 Route authored routine, standard/default, and advanced work to
 `zdev-routine-implementer`, `zdev-implementer`, or

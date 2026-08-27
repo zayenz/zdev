@@ -21,7 +21,6 @@ use integrations::{SkillCommand, run_skill_command};
 
 const SCHEMA_VERSION: u64 = 1;
 const CHANGE_ID_TRAILER: &str = "Zdev-Change-Id";
-const WORK_CONTEXT_SNAPSHOT_RETENTION: usize = 8;
 const AGENT_INSTRUCTIONS: &str = "Zdev stores durable plans and tasks in `.zdev`; the coding harness shapes, implements, and independently verifies the work. Use the harness's zdev integration for work tracked there: `zdev status` and `zdev next` orient and select work, `zdev check` validates state, and `zdev commit` records verified staged changes. Do not edit generated task indexes. If the integration is unavailable or conflicts with repository setup, ask the user how to configure it.";
 
 #[derive(Debug)]
@@ -1120,7 +1119,7 @@ fn work_context_output(
         )));
     }
 
-    let mut status = status_output(root, Some(area))?.value;
+    let status = status_output_selected(root, Some(area), selected)?.value;
     let status_area = required_json_string(&status, "/area/tag", "Status projection")?;
     let status_lifecycle = required_json_string(&status, "/lifecycle", "Status projection")?;
     let status_queue = required_json_string(&status, "/queue", "Status projection")?;
@@ -1128,19 +1127,12 @@ fn work_context_output(
     if status_area != area
         || status_lifecycle != lifecycle
         || status_queue != queue
-        || (selected.is_none() && status_task != goal_task)
+        || status_task != goal_task
     {
         return Err(ZdevError::with_details(
             format!("Status and goal disagree for area {area}; retry from fresh repository state"),
             json!({"area": area, "status": status, "goal": goal}),
         ));
-    }
-    if selected.is_some() {
-        status["next"] = goal_task.as_deref().map(Value::from).unwrap_or(Value::Null);
-        status["next_complexity"] = goal
-            .pointer("/task/complexity")
-            .cloned()
-            .unwrap_or(Value::Null);
     }
     let safe = status
         .pointer("/branch_status/task_work/safe")
@@ -1235,7 +1227,7 @@ fn work_context_snapshot_store(root: &Path, area: &str) -> Result<PathBuf, ZdevE
 
 fn unavailable_work_context_snapshot(area: &str, snapshot: &str) -> ZdevError {
     ZdevError::new(format!(
-        "Work-context snapshot {snapshot} for area {area} is unavailable or expired; capture a fresh snapshot with `zdev work-context {area} --store --format json`"
+        "Work-context snapshot {snapshot} for area {area} is unavailable; capture a fresh snapshot with `zdev work-context {area} --store --format json`"
     ))
 }
 
@@ -1348,41 +1340,6 @@ fn read_work_context_snapshot(
     Ok((path, bytes, value))
 }
 
-fn prune_work_context_snapshots(store: &Path, area: &str, protected: &str) {
-    let Ok(entries) = fs::read_dir(store) else {
-        return;
-    };
-    let mut snapshots = entries
-        .flatten()
-        .filter_map(|entry| {
-            let filename = entry.file_name().to_str()?.to_owned();
-            let snapshot = filename.strip_suffix(".json")?.to_owned();
-            if !valid_work_context_snapshot_id(&snapshot) {
-                return None;
-            }
-            let metadata = entry.metadata().ok()?;
-            if !metadata.is_file() {
-                return None;
-            }
-            let bytes = fs::read(entry.path()).ok()?;
-            validate_work_context_snapshot_bytes(&bytes, area, &snapshot).ok()?;
-            Some((metadata.modified().ok()?, filename, snapshot, entry.path()))
-        })
-        .collect::<Vec<_>>();
-    snapshots.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
-    let mut excess = snapshots
-        .len()
-        .saturating_sub(WORK_CONTEXT_SNAPSHOT_RETENTION);
-    for (_, _, snapshot, path) in snapshots {
-        if excess == 0 {
-            break;
-        }
-        if snapshot != protected && fs::remove_file(path).is_ok() {
-            excess -= 1;
-        }
-    }
-}
-
 fn work_context_snapshot_projection(
     root: &Path,
     area: &str,
@@ -1459,7 +1416,6 @@ fn store_work_context(
     } else {
         write_atomic(&path, &bytes)?;
     }
-    prune_work_context_snapshots(&store, area, &snapshot);
     let value = work_context_snapshot_projection(root, area, &snapshot, &path, &context.value);
     Ok(CommandOutput::new(
         format!(
@@ -1499,8 +1455,13 @@ fn compare_work_context(
             .map(str::to_owned);
         (bytes, selected)
     };
-    let fresh = work_context_json_bytes(&work_context_output(root, area, selected.as_deref())?)?;
-    let equal = stored == fresh;
+    let equal = match selected.as_deref() {
+        Some(id) if !tasks::task_is_ready(root, area, id)? => false,
+        selected => {
+            let fresh = work_context_json_bytes(&work_context_output(root, area, selected)?)?;
+            stored == fresh
+        }
+    };
     Ok(CommandOutput::new(
         format!(
             "Work-context snapshot {snapshot} for area {area}: {} fresh state",
@@ -1516,6 +1477,14 @@ fn compare_work_context(
 }
 
 fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, ZdevError> {
+    status_output_selected(root, requested, None)
+}
+
+fn status_output_selected(
+    root: &Path,
+    requested: Option<&str>,
+    selected_task: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
     let config = project::read_config(root)?;
     let all_areas = project::list_areas(root)?;
     project::validate_area_relationships(root, &all_areas)?;
@@ -1524,13 +1493,13 @@ fn status_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, 
         .map(|area| (area.tag.as_str(), area))
         .collect::<BTreeMap<_, _>>();
     let checked_out = project::current_branch(root)?;
-    let selected = match requested {
+    let selected_area = match requested {
         Some(area) => Some(area.to_owned()),
         None => config.project.default_area.clone(),
     };
-    if let Some(area) = selected {
+    if let Some(area) = selected_area {
         let metadata = project::load_area(root, &area)?.0;
-        let tasks = tasks::summary(root, &area)?;
+        let tasks = tasks::summary_selected(root, &area, selected_task)?;
         tasks::validate_area_lifecycle(&metadata, &tasks)?;
         let lifecycle = metadata.lifecycle.as_str();
         let queue = tasks.queue().as_str();

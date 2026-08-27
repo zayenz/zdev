@@ -9,6 +9,10 @@ description: Zdev manages durable software work through briefs, tasks, implement
 
 ## Pi orchestration
 
+The exact installed task-workflows contract path for this installation is
+{{ task_workflows_contract_path_json }}. Decode that JSON string and include the
+resulting path in every child payload.
+
 Route authored routine, standard/default, and advanced work through
 `zdev_subagent` roles `routine-implementer`, `implementer`, or
 `advanced-implementer`.

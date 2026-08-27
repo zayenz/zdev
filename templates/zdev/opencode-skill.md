@@ -10,6 +10,10 @@ compatibility: opencode
 
 ## OpenCode orchestration
 
+The exact installed task-workflows contract path for this installation is
+{{ task_workflows_contract_path_json }}. Decode that JSON string and include the
+resulting path in every worker payload.
+
 Route authored routine, standard/default, and advanced work to
 `@zdev-routine-implementer`, `@zdev-implementer`, or
 `@zdev-advanced-implementer`. Advanced work first uses one read-only

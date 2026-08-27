@@ -257,10 +257,9 @@ Store returns compact routing fields: area, opaque ID, path, lifecycle, queue,
 task ID, HEAD, complexity, and stale advisory when present. Show validates and reproduces the stored document. Compare
 validates it, collects fresh ordinary work-context, and returns a compact
 boolean without echoing either document. It is a successful comparison when
-the values differ. Missing or expired, corrupt, and cross-area files are
-errors. Files are immutable and content-addressed; each area retains eight
-distinct snapshots using first-publication time and filename as the stable
-tie-break. There is no current pointer, history, approval, or cleanup UI.
+the values differ. Missing, corrupt, and cross-area files are errors. Files are
+immutable and content-addressed, and remain available for active baseline and
+verification handoffs. There is no current pointer, approval, or cleanup UI.
 
 This storage lowers handoff context, not freshness requirements. A later
 decision still needs a new collection or `--compare`; no stored snapshot is
@@ -410,8 +409,8 @@ evidence is `work_context_snapshot: W<16-lowercase-hex>` plus the optional
 stale advisory; the summary carries validation conclusions.
 
 Completion receives that ID only. It runs exactly one fresh `--compare` before
-`task done`, staging, or commit. False, missing, expired, corrupt, cross-area,
-or malformed evidence blocks before mutation. Direct inline Git evidence is no
+`task done`, staging, or commit. False, missing, corrupt, cross-area, or
+malformed evidence blocks before mutation. Direct inline Git evidence is no
 longer serialized through verifier or completion prompts.
 
 ## Rejected shortcuts

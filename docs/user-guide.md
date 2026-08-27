@@ -342,8 +342,8 @@ Store returns a compact reference and writes the exact ordinary JSON under
 repository-local Git administrative state. Show emits those bytes exactly.
 Compare collects a new ordinary work-context and returns only whether it is
 equal. Always compare or collect fresh state at a new decision boundary: the
-stored file is an immutable handoff, not permission to act on later. Zdev keeps
-at most eight distinct snapshots per area, so an older ID can expire.
+stored file is an immutable handoff, not permission to act on later. Snapshots
+remain available so an active workflow can keep loading its original baseline.
 
 With only an area, zdev ranks ready tasks by AFK suitability, priority, then
 numeric task ID. When you give a fuzzy loop focus, every supported harness

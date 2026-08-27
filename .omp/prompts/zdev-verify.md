@@ -89,6 +89,10 @@ and optional stale advisory; the worker cannot supply or override them. Invalid
 or unavailable independent verification returns
 `BLOCKER zdev-verify <area> <task-id>` with no mutation.
 
+The exact installed task-workflows contract path is
+".omp/skills/zdev/references/task-workflows.md". Decode it and include the resulting
+path in the verifier task payload.
+
 Parse `$ARGUMENTS` as `<area> <task-id>`. The current Oh My Pi session performs
 preflight and exact ID matching before one fresh blocking `zdev-verifier` task
 agent. Store and validate the snapshot immediately before dispatch, extract

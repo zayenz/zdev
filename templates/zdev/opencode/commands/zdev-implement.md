@@ -4,6 +4,10 @@ description: Implement, independently verify, complete, and commit one ready zde
 
 {{task_workflow_contract}}
 
+The exact installed task-workflows contract path is
+{{ task_workflows_contract_path_json }}. Decode it and include the resulting
+path in every subagent payload.
+
 Use `$ARGUMENTS` as the area. The primary agent is the coordinator. After
 preflight, select `zdev-routine-implementer`, `zdev-implementer`, or
 `zdev-advanced-implementer` from effective complexity. Run `zdev-planner` once

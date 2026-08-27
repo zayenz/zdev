@@ -2,6 +2,48 @@
 
 This file records notable changes to zdev.
 
+## [1.2.0] - 2026-08-27
+
+### Added
+
+- Tasks may declare optional `afk` and `priority` metadata. With no focus, zdev
+  selects ready work by AFK suitability, priority, then numeric task ID.
+- Area loops accept fuzzy focus text. The coordinating model inspects the full
+  ready frontier, chooses the best-fitting task, and admits that exact task
+  through `zdev work-context <area> --task <task-id>`.
+
+### Changed
+
+- Claude Code workflows pass compact stored work-context locators instead of
+  relaying full task and Git context through model output.
+- Worker-result parsing accepts one valid JSON object inside brief prose or a
+  Markdown fence while still rejecting malformed, truncated, ambiguous, or
+  semantically invalid results.
+- Worker prompts are concise and role-specific across Claude Code, Codex,
+  OpenCode, Pi, and Oh My Pi. Loop progress names task selection, worker stages,
+  completed tasks, and commits.
+- Reopening a completed task preserves its earlier Result under History instead
+  of discarding it or moving it into live Context.
+
+### Fixed
+
+- Focused loops no longer silently fall back to the lowest ready task.
+- Long task context and harmless JSON wrapping no longer cause whole-workflow
+  retries in Claude Code.
+- Compact snapshot handoffs remain readable throughout implementation,
+  verification, and rework.
+- Installed worker contract paths resolve across user, project, and explicit
+  integration destinations.
+
+### Compatibility
+
+- Existing tasks remain valid. Omitted `afk` and `priority` values behave as
+  `false` and `normal`, preserving the earlier numeric ordering.
+- Existing pending task reviews remain usable when their bundles omit the new
+  optional task metadata.
+- Reinstall integrations with `zdev skill install <harness> --force` to receive
+  the 1.2.0 workflows and worker contracts.
+
 ## [1.1.2] - 2026-08-24
 
 ### Changed
@@ -104,6 +146,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.2.0]: https://github.com/zayenz/zdev/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/zayenz/zdev/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/zayenz/zdev/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/zayenz/zdev/releases/tag/v1.1.0

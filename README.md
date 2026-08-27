@@ -126,8 +126,8 @@ zdev work-context scheduling --compare <snapshot-id> --format json
 
 `--show` reproduces the stored document exactly. `--compare` collects fresh
 state and reports only `equal`; a snapshot is immutable handoff evidence, not
-reusable current state. Zdev retains the eight most recently published distinct
-snapshots per area in linked-worktree-local Git administrative storage.
+reusable current state. Snapshots remain available in linked-worktree-local Git
+administrative storage so an active workflow's baseline cannot expire.
 
 With only an area, zdev selects ready work by AFK suitability, priority, then
 numeric task ID. A fuzzy loop focus asks the harness to inspect the full ready

@@ -89,6 +89,10 @@ and optional stale advisory; the worker cannot supply or override them. Invalid
 or unavailable independent verification returns
 `BLOCKER zdev-verify <area> <task-id>` with no mutation.
 
+The exact installed task-workflows contract path is
+".opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
+path in the verifier payload.
+
 Parse `$ARGUMENTS` as `<area> <task-id>`. The primary agent performs preflight
 and exact ID matching before invoking one new `zdev-verifier` subagent. Return
 the coordinator-constructed strict public envelope without lifecycle or Git

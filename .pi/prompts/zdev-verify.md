@@ -89,6 +89,10 @@ and optional stale advisory; the worker cannot supply or override them. Invalid
 or unavailable independent verification returns
 `BLOCKER zdev-verify <area> <task-id>` with no mutation.
 
+The exact installed task-workflows contract path is
+".pi/skills/zdev-pi/references/task-workflows.md". Decode it and include the resulting
+path in the `zdev_subagent` verifier payload.
+
 Parse `$ARGUMENTS` as `<area> <task-id>`. The current Pi session performs
 preflight and exact ID matching before one fresh `zdev_subagent` call with role
 `verifier`. Store and validate the snapshot immediately before dispatch,

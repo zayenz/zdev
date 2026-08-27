@@ -387,7 +387,10 @@ fn longest_backtick_run(value: &str) -> usize {
         .unwrap_or(0)
 }
 
-fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
+fn render_task_bundle_approval_with_selection_fields(
+    bundle: &TaskBundle,
+    include_selection_fields: bool,
+) -> String {
     let mut document = format!(
         "# Task Bundle\n\n## Area\n{}\n\n## Schema version\n{}",
         bundle.area, bundle.schema_version
@@ -402,11 +405,13 @@ fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
         if let Some(complexity) = task.complexity {
             document.push_str(&format!("\n\n### Complexity\n{}", complexity.as_str()));
         }
-        document.push_str(&format!(
-            "\n\n### AFK\n{}\n\n### Priority\n{}",
-            task.afk,
-            task.priority.unwrap_or(TaskPriority::Normal).as_str(),
-        ));
+        if include_selection_fields {
+            document.push_str(&format!(
+                "\n\n### AFK\n{}\n\n### Priority\n{}",
+                task.afk,
+                task.priority.unwrap_or(TaskPriority::Normal).as_str(),
+            ));
+        }
         document.push_str(&format!(
             "\n\n### Slice\n{}\n\n### Outcome\n{}\n\n### Context\n{}\n\n### Boundaries\n{}\n\n### Blocked by\n{}\n\n### Done when / proof\n{}\n\n### Validation / Testing\n{}",
             approval_value(task.slice.as_deref()),
@@ -420,6 +425,18 @@ fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
     }
     let fence = "`".repeat(longest_backtick_run(&document).saturating_add(1).max(3));
     format!("{fence}markdown\n{document}\n{fence}")
+}
+
+fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
+    render_task_bundle_approval_with_selection_fields(bundle, true)
+}
+
+fn legacy_task_bundle_approval(bundle: &TaskBundle) -> Option<String> {
+    bundle
+        .tasks
+        .iter()
+        .all(|task| !task.afk && task.priority.is_none())
+        .then(|| render_task_bundle_approval_with_selection_fields(bundle, false))
 }
 
 pub(super) fn review(root: &Path, area: &str, source: &Path) -> Result<CommandOutput, ZdevError> {
@@ -592,10 +609,9 @@ fn read_task_review(
     })?;
     let fingerprint = task_bundle_approval_id(&bundle)?;
     let review = task_review_id(&fingerprint);
-    if metadata.fingerprint != fingerprint
-        || metadata.review != review
-        || markdown != render_task_bundle_approval(&bundle)
-    {
+    let markdown_matches = markdown == render_task_bundle_approval(&bundle)
+        || legacy_task_bundle_approval(&bundle).as_deref() == Some(markdown.as_str());
+    if metadata.fingerprint != fingerprint || metadata.review != review || !markdown_matches {
         return Err(ZdevError::new(format!(
             "Stored task review for area {area} does not match its bundle; run `zdev tasks review {area} --from <PATH_OR_DASH>` again"
         )));
@@ -941,10 +957,9 @@ fn derived_mechanical_ineligibility(
             proposal.source_task
         )));
     }
-    if next_task(&tasks).map(|task| task.header.id.as_str()) != Some(proposal.source_task.as_str())
-    {
+    if task_state(source, &tasks) != "ready" {
         return Ok(Some(format!(
-            "source task {} is not the current ready task",
+            "source task {} is not in the ready frontier",
             proposal.source_task
         )));
     }
@@ -1001,9 +1016,9 @@ fn derived_review_id(fingerprint: &str) -> String {
     format!("R{}", fingerprint.strip_prefix('D').unwrap_or(fingerprint))
 }
 
-fn render_derived_review(
+fn render_derived_review_with_bundle(
     proposal: &DerivedProposal,
-    bundle: &TaskBundle,
+    rendered_bundle: &str,
 ) -> Result<String, ZdevError> {
     let ownership = proposal
         .split_ownership
@@ -1021,8 +1036,24 @@ fn render_derived_review(
         proposal.source_result.summary,
         approval_list(&proposal.source_result.validation),
         ownership,
-        render_task_bundle_approval(bundle),
+        rendered_bundle,
     ))
+}
+
+fn render_derived_review(
+    proposal: &DerivedProposal,
+    bundle: &TaskBundle,
+) -> Result<String, ZdevError> {
+    render_derived_review_with_bundle(proposal, &render_task_bundle_approval(bundle))
+}
+
+fn legacy_derived_review(
+    proposal: &DerivedProposal,
+    bundle: &TaskBundle,
+) -> Result<Option<String>, ZdevError> {
+    legacy_task_bundle_approval(bundle)
+        .map(|rendered| render_derived_review_with_bundle(proposal, &rendered))
+        .transpose()
 }
 
 fn read_derived_review(
@@ -1102,6 +1133,8 @@ fn read_derived_review(
     })?;
     let fingerprint = derived_approval_id(&proposal)?;
     let review = derived_review_id(&fingerprint);
+    let markdown_matches = markdown == render_derived_review(&proposal, &bundle)?
+        || legacy_derived_review(&proposal, &bundle)?.as_deref() == Some(markdown.as_str());
     if metadata.schema_version != SCHEMA_VERSION
         || metadata.area != area
         || metadata.source_task != proposal.source_task
@@ -1109,7 +1142,7 @@ fn read_derived_review(
         || metadata.review != current
         || metadata.review != review
         || metadata.fingerprint != fingerprint
-        || markdown != render_derived_review(&proposal, &bundle)?
+        || !markdown_matches
     {
         return Err(ZdevError::new(format!(
             "Stored derived review for area {area} does not match its proposal; run `zdev tasks derive review {area} --from <PATH_OR_DASH>` again"
@@ -3311,6 +3344,14 @@ pub(super) struct SliceTaskSummary {
 }
 
 pub(super) fn summary(root: &Path, area: &str) -> Result<AreaTaskSummary, ZdevError> {
+    summary_selected(root, area, None)
+}
+
+pub(super) fn summary_selected(
+    root: &Path,
+    area: &str,
+    selected: Option<&str>,
+) -> Result<AreaTaskSummary, ZdevError> {
     let tasks = load_tasks(root, area)?;
     let ready = tasks
         .iter()
@@ -3350,16 +3391,39 @@ pub(super) fn summary(root: &Path, area: &str) -> Result<AreaTaskSummary, ZdevEr
             }
         })
         .collect();
+    let next = match selected {
+        Some(id) => {
+            let task = tasks
+                .iter()
+                .find(|task| task.header.id == id)
+                .ok_or_else(|| ZdevError::new(format!("Unknown task {id}")))?;
+            if task_state(task, &tasks) != "ready" {
+                return Err(ZdevError::new(format!(
+                    "Task {id} is not in the ready frontier"
+                )));
+            }
+            Some(task)
+        }
+        None => next_task(&tasks),
+    };
     Ok(AreaTaskSummary {
         total: tasks.len(),
         ready,
         blocked,
         done,
         open: tasks.len() - done,
-        next: next_task(&tasks).map(|task| task.header.id.clone()),
-        next_complexity: next_task(&tasks).map(Task::complexity),
+        next: next.map(|task| task.header.id.clone()),
+        next_complexity: next.map(Task::complexity),
         slices,
     })
+}
+
+pub(super) fn task_is_ready(root: &Path, area: &str, id: &str) -> Result<bool, ZdevError> {
+    let tasks = load_tasks(root, area)?;
+    Ok(tasks
+        .iter()
+        .find(|task| task.header.id == id)
+        .is_some_and(|task| task_state(task, &tasks) == "ready"))
 }
 
 pub(super) fn validate_index(root: &Path, area: &str) -> Result<(), ZdevError> {

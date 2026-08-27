@@ -198,6 +198,7 @@ impl Harness {
         self,
         guidance: Option<(&str, &str)>,
         workers: ResolvedWorkers,
+        destination: &Path,
     ) -> Result<SkillIntegration, ZdevError> {
         let mut files = Vec::new();
         match self {
@@ -435,7 +436,21 @@ impl Harness {
                 ]);
             }
         }
-        realize_templates(self, guidance, &workers, &mut files)?;
+        let task_workflows_contract_path =
+            canonicalize_with_missing_suffix(&destination.join(match self {
+                Self::Codex => "zdev/references/task-workflows.md",
+                Self::Claude => "contracts/task-workflows.md",
+                Self::Opencode => "skills/zdev-opencode/references/task-workflows.md",
+                Self::Pi => "skills/zdev-pi/references/task-workflows.md",
+                Self::Omp => "skills/zdev/references/task-workflows.md",
+            }));
+        realize_templates(
+            self,
+            guidance,
+            &workers,
+            &task_workflows_contract_path,
+            &mut files,
+        )?;
         Ok(SkillIntegration {
             harness: self,
             version: env!("CARGO_PKG_VERSION"),
@@ -453,6 +468,27 @@ impl Harness {
             files,
             workers,
         })
+    }
+}
+
+fn canonicalize_with_missing_suffix(path: &Path) -> PathBuf {
+    let mut cursor = path;
+    let mut suffix = Vec::new();
+    loop {
+        if let Ok(mut canonical) = fs::canonicalize(cursor) {
+            for component in suffix.iter().rev() {
+                canonical.push(component);
+            }
+            return canonical;
+        }
+        let Some(name) = cursor.file_name() else {
+            return path.to_path_buf();
+        };
+        suffix.push(name.to_os_string());
+        let Some(parent) = cursor.parent() else {
+            return path.to_path_buf();
+        };
+        cursor = parent;
     }
 }
 
@@ -517,7 +553,7 @@ fn template_environment() -> Environment<'static> {
 fn render_template(
     name: &str,
     source: &str,
-    contracts: (&str, &str, &str, &str),
+    contracts: (&str, &str, &str, &str, &str),
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
@@ -540,6 +576,7 @@ fn render_template(
             repository_guidance,
             question_tool_guidance,
             version,
+            task_workflows_contract_path_json => contracts.4,
             routine_implementer_has_model => workers.routine_implementer.has_model(),
             routine_implementer_has_effort => workers.routine_implementer.has_effort(),
             routine_implementer_model => workers.routine_implementer.model_literal(),
@@ -584,14 +621,23 @@ fn realize_templates(
     harness: Harness,
     guidance: Option<(&str, &str)>,
     workers: &ResolvedWorkers,
+    task_workflows_contract_path: &Path,
     files: &mut [IntegrationFile],
 ) -> Result<(), ZdevError> {
     let repository_guidance = repository_guidance(guidance);
     let version = env!("CARGO_PKG_VERSION");
+    let task_workflows_contract_path_json = serde_json::to_string(
+        &task_workflows_contract_path.to_string_lossy(),
+    )
+    .map_err(|error| {
+        ZdevError::new(format!(
+            "Cannot render the installed task-workflows contract path: {error}"
+        ))
+    })?;
     let audit_contract = render_template(
         "audit.md",
         AUDIT_CONTRACT_TEMPLATE,
-        ("", "", "", ""),
+        ("", "", "", "", &task_workflows_contract_path_json),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -605,7 +651,7 @@ fn realize_templates(
     let shared_contract = render_template(
         "shared-contract.md",
         &shared_contract_source,
-        ("", "", "", ""),
+        ("", "", "", "", &task_workflows_contract_path_json),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -614,7 +660,7 @@ fn realize_templates(
     let task_workflow_contract = render_template(
         "task-workflows.md",
         TASK_WORKFLOW_CONTRACT_TEMPLATE,
-        ("", "", "", ""),
+        ("", "", "", "", &task_workflows_contract_path_json),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -623,7 +669,7 @@ fn realize_templates(
     let verify_workflow_contract = render_template(
         "verify-workflow.md",
         VERIFY_WORKFLOW_CONTRACT_TEMPLATE,
-        ("", "", "", ""),
+        ("", "", "", "", &task_workflows_contract_path_json),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -650,6 +696,7 @@ fn realize_templates(
                 &audit_contract,
                 &task_workflow_contract,
                 &verify_workflow_contract,
+                &task_workflows_contract_path_json,
             ),
             &repository_guidance,
             &question_tool_guidance,
@@ -845,7 +892,7 @@ pub(super) fn run_skill_command(
                     .as_deref()
                     .map(|content| (guidance.source.as_str(), content))
             });
-            let integration = harness.integration(guidance_view, workers)?;
+            let integration = harness.integration(guidance_view, workers, &destination.path)?;
             let result = publish_integration(&integration, &destination.path, *force)?;
             if let (Some(root), Some(guidance)) = (project_root.as_deref(), guidance.as_ref()) {
                 let recorded = if guidance_selection == "agents" {
@@ -875,7 +922,7 @@ pub(super) fn run_skill_command(
                     .map(|content| (guidance.source.as_str(), content))
             });
             check_integration(
-                harness.integration(guidance_view, workers)?,
+                harness.integration(guidance_view, workers, &destination.path)?,
                 destination,
                 guidance,
                 project_root.as_ref().map(|_| guidance_selection.as_str()),
@@ -1656,8 +1703,16 @@ mod tests {
             ("unknown.md", "{{unknown}}", "Cannot render"),
             ("invalid.md", "{{", "Cannot parse"),
         ] {
-            let error = render_template(name, source, ("", "", "", ""), "", "", "", &workers)
-                .expect_err("invalid template must fail");
+            let error = render_template(
+                name,
+                source,
+                ("", "", "", "", "\"/tmp/task-workflows.md\""),
+                "",
+                "",
+                "",
+                &workers,
+            )
+            .expect_err("invalid template must fail");
             assert!(error.to_string().contains(expected));
             assert!(error.to_string().contains(name));
         }
@@ -1675,6 +1730,7 @@ mod tests {
             Harness::Claude,
             Some(("AGENTS.md", guidance)),
             &workers,
+            Path::new("/tmp/task-workflows.md"),
             &mut files,
         )
         .expect("render JSON artifact");
@@ -1685,8 +1741,14 @@ mod tests {
         assert!(rendered.contains("{{trusted_fragment}}"));
 
         files[0].content = "{\"version\": {{version}}\n".to_owned();
-        let error = realize_templates(Harness::Claude, None, &workers, &mut files)
-            .expect_err("invalid destination syntax must fail");
+        let error = realize_templates(
+            Harness::Claude,
+            None,
+            &workers,
+            Path::new("/tmp/task-workflows.md"),
+            &mut files,
+        )
+        .expect_err("invalid destination syntax must fail");
         assert!(error.to_string().contains("invalid JSON"));
         assert!(error.to_string().contains("manifest.json"));
     }

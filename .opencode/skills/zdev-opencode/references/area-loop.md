@@ -37,6 +37,10 @@ For open `ready`, the validated entry context is the one-task contract's
 initial work-context. Reuse it for the first dispatch, and tell the user which
 task was selected before implementation begins.
 
+The exact installed task-workflows contract path is
+".opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
+path in every worker payload.
+
 The coordinating session owns task selection, branch safety, Git ownership,
 lifecycle changes, staging, commits, and delegation. Workers stay within the
 selected task and return one role-specific result.
@@ -85,13 +89,13 @@ from that snapshot. The planner returns the required fields
 a blocker uses verdict `blocker`, `plan: null`, and at least one non-empty
 finding. Reject duplicate or missing required keys, empty values,
 non-normalized paths, contradictory variants, legacy nine-key output, multiple
-objects, and malformed JSON. A brief sentence or Markdown fence around one
-balanced object is tolerated.
+objects, unknown keys, and malformed JSON. A brief sentence or Markdown fence
+around one balanced object is tolerated.
 
 For every role response, extract exactly one unambiguous balanced JSON object
 from the returned text before semantic validation. Brief prose and Markdown
 fences around that object are harmless. Multiple objects, truncation, malformed
-JSON, missing or duplicate required keys, or contradictory values are real
+JSON, missing, unknown, or duplicate keys, or contradictory values are real
 failures. Never rerun a worker merely to remove formatting around an otherwise
 valid object.
 
@@ -126,7 +130,7 @@ Every implementer returns one JSON object with these required keys:
 `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`. Schema version, kind, area, task ID,
 required keys, types, and combinations must
-match. Reject duplicate or missing required keys and malformed JSON after the
+match. Reject unknown, duplicate, or missing keys and malformed JSON after the
 tolerant extraction above. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict.
 
@@ -197,13 +201,13 @@ The verifier returns one semantic JSON object:
 }
 ```
 
-Those four unique keys are required. `verdict` is `pass`, `rework`, or
+The object has exactly those four unique keys. `verdict` is `pass`, `rework`, or
 `blocker`; `summary` is non-empty; and `findings` is an array of non-empty
 strings. `pass` has no findings, `rework` has at least one, and `blocker` may
 have findings. `escalation` is `none`, except that `rework` may request
 `advanced-implementer`. Workflow parsers extract one unambiguous balanced JSON
 object, tolerating a brief sentence or Markdown fence around it. Reject legacy
-nine-key verifier envelopes, duplicate or missing required keys, multiple
+nine-key verifier envelopes, unknown, duplicate, or missing keys, multiple
 objects, malformed JSON, and contradictory combinations.
 
 For each concrete task-owned file written by validation, `rework` includes one
@@ -220,8 +224,8 @@ the exact compact schema for the selected area and snapshot. It never accepts
 the semantic result contains at least one tagged task-owned validation-write
 path and every marker-prefixed finding is valid;
 an ordinary implementation-defect rework plus unequal state is a coordinator
-blocker because the mismatch is not attributed. Missing, expired,
-corrupt, cross-area, or malformed snapshot or comparison evidence is also a
+blocker because the mismatch is not attributed. Missing, corrupt, cross-area,
+or malformed snapshot or comparison evidence is also a
 blocker.
 
 Coordination then constructs the compatible public verifier envelope with
@@ -253,7 +257,7 @@ before mutation and accepts only the exact compact schema for that area and ID
 with `equal: true`. This fresh binary comparison covers area, ready task,
 lifecycle, safety, HEAD, index, worktree, and untracked state because all are
 part of the stored canonical context. A false comparison or an unavailable,
-expired, corrupt, cross-area, or malformed artifact blocks before mutation.
+corrupt, cross-area, or malformed artifact blocks before mutation.
 On an accepted comparison, the coordinator runs `zdev task done`, stages only
 the attributed task-owned files and exact generated task records, inspects the
 staged diff, and runs `zdev commit`.

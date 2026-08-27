@@ -4,6 +4,10 @@ description: Independently verify the explicit current ready zdev task
 
 {{verify_workflow_contract}}
 
+The exact installed task-workflows contract path is
+{{ task_workflows_contract_path_json }}. Decode it and include the resulting
+path in the verifier payload.
+
 Parse `$ARGUMENTS` as `<area> <task-id>`. The primary agent performs preflight
 and exact ID matching before invoking one new `zdev-verifier` subagent. Return
 the coordinator-constructed strict public envelope without lifecycle or Git

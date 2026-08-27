@@ -114,17 +114,29 @@ independently verified task and commit at a time. The binary command `zdev goal
 <area>` remains the deterministic projection of one task; it is context for an
 iteration, not this continuing user intent.
 
-The canonical explicit route is `zdev-loop <area>` and `zdev-goal <area>` is
-an exact semantic alias. Both use canonical `zdev-loop` results. Do not treat
-the alias as a one-task mode or confuse either route with the binary projection.
+The canonical explicit route is `zdev-loop <area> [focus...]` and `zdev-goal
+<area> [focus...]` is an exact semantic alias. Both use canonical `zdev-loop`
+results. Everything after the area is optional fuzzy guidance, not a flag or
+exact task filter. Do not treat the alias as a one-task mode or confuse either
+route with the binary projection.
+
+With no focus, let `zdev work-context <area>` select one task using the binary's
+AFK, priority, then numeric ordering. With any focus, obtain the complete ready
+frontier with `zdev tasks list <area> --format json`, read every ready task with
+`zdev task show <area> <task-id> --format json`, and let the coordinating model
+choose the best fit from those full task records. Do not keyword-filter or
+pre-rank the frontier before that choice. Admit the chosen task with
+`zdev work-context <area> --task <task-id>`. Repeat the same focused selection
+from a fresh frontier after every commit; focus never becomes stored zdev state.
 
 Each iteration uses the **Implement** route and stops internally only on a
-verified commit, a blocker, or a user-owned decision. Before another task,
-collect a fresh `zdev work-context <area> --format json`; never reuse the
-completed task's selection. Finish on open `empty`, open `exhausted`, or
-validated `closed`. Closed is classified before Git and branch gates. Open work
-still requires `branch_status.task_work.safe`; a stale-but-safe base is one
-advisory, not a blocker.
+verified commit, a blocker, or a user-owned decision. Tell the user which task
+was selected and when its verified commit completes. Before another task,
+repeat the selection rule above from fresh evidence; never reuse the completed
+task's selection. Finish on open `empty`, open `exhausted`, or validated
+`closed`. Closed is classified before Git and branch gates. Open work still
+requires `branch_status.task_work.safe`; a stale-but-safe base is one advisory,
+not a blocker.
 
 When a workflow uses `zdev work-context <area> --store --format json`, pass its
 compact filesystem reference instead of copying the complete JSON. Read exact
@@ -206,12 +218,14 @@ message containing its role and exact area, task, or boundary identity; the
 exact installed route-contract path; applicable repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
-returns only the route's required envelope.
+returns the route's required fields in one JSON object.
 
 For task verification, store and validate the snapshot immediately before
-spawning the verifier. Require its exact four-field semantic object, compare
-the snapshot after it returns, and construct the compatible strict nine-key
-verifier envelope in the coordinating session.
+spawning the verifier. Extract one balanced JSON object from its response,
+tolerating brief prose or a Markdown fence, validate the four semantic fields,
+compare the snapshot, and construct the compatible nine-key verifier envelope
+in the coordinating session. Never repeat a worker only to remove valid
+wrapping text.
 
 For the implementer, pass `model="gpt-5.6-sol"` and
 `reasoning_effort="low"` together with `fork_turns="none"`.

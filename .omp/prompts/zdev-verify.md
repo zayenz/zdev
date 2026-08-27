@@ -11,8 +11,9 @@ one fresh configured verifier owns the independent review.
 ## Preflight and handoff
 
 Parse exactly one area and task ID. Run
-`zdev work-context <area> --format json` and retain the complete result. Start
-the verifier when the context is open and ready, `task_work.safe` is true, and
+`zdev work-context <area> --store --format json`, validate the compact result,
+and use `--show <snapshot>` in coordination when complete context is needed.
+Start the verifier when the context is open and ready, `task_work.safe` is true, and
 the nested status and goal projections agree on the requested area and task.
 A true `stale_advisory` is useful context: report its exact advisory once and
 continue verification.
@@ -21,8 +22,8 @@ Return `BLOCKER zdev-verify <area> <task-id>` without starting a worker when
 the context is invalid or unsafe, the goal is closed, empty, or exhausted, or
 another task is ready. Include the failed stage, reason, and preserved state.
 
-Immediately before dispatch, coordination stores and validates a work-context
-snapshot for the admitted open, ready, safe area, task, HEAD, and checkout.
+The stored result is the dispatch snapshot for the admitted open, ready, safe
+area, task, HEAD, and checkout.
 Give one fresh verifier that opaque locator, the brief, complete task,
 repository guidance, relevant source and tests, and the recorded baseline. The
 verifier reads and validates without intentional edits. This route uses only
@@ -31,8 +32,8 @@ unchanged.
 
 ## Verifier context
 
-Coordination runs `zdev work-context <area> --store --format json`, accepts only
-the exact compact result, and reads the immutable context with
+Coordination accepts only the exact compact preflight result and reads its
+immutable context with
 `zdev work-context <area> --show <snapshot> --format json`. It requires the
 same open, ready, safe area, task, HEAD, and checkout as preflight before
 supplying the locator to the verifier. The verifier shows that supplied
@@ -51,7 +52,7 @@ to assess.
 
 ## Result envelope
 
-The verifier returns one JSON object and no surrounding text:
+The verifier returns one JSON object:
 
 ```json
 {
@@ -62,10 +63,12 @@ The verifier returns one JSON object and no surrounding text:
 }
 ```
 
-The object has exactly these four unique keys. `summary` is a non-empty string
+These four unique keys are required. `summary` is a non-empty string
 and `findings` is an array of non-empty strings. Accept only valid JSON with
-the exact value types and no surrounding text. Legacy nine-key verifier
-objects are invalid worker output.
+the required value types. A brief sentence or Markdown fence around one
+unambiguous balanced object is tolerated. Multiple objects, malformed JSON, or
+duplicate required keys are invalid. Legacy nine-key verifier objects are
+invalid worker output.
 
 Use `pass` when the implementation satisfies the whole task and all required
 checks. Its findings are empty. Put checked locations and validation
@@ -88,8 +91,9 @@ or unavailable independent verification returns
 
 Parse `$ARGUMENTS` as `<area> <task-id>`. The current Oh My Pi session performs
 preflight and exact ID matching before one fresh blocking `zdev-verifier` task
-agent. Store and validate the snapshot immediately before dispatch, require the
-four-field semantic response, compare the snapshot afterward, and return the
+agent. Store and validate the snapshot immediately before dispatch, extract
+and validate one balanced four-field object with wrapper tolerance, compare
+the snapshot afterward, and return the
 coordinator-constructed strict envelope without lifecycle or Git mutation.
 
 <!-- zdev:generated-repository-guidance:start -->

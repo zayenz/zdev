@@ -8,7 +8,9 @@ areas; do not infer project-wide selection from an omitted area.
 
 ## Do
 
-1. Run `zdev work-context <area> --format json`. The command validates goal
+1. Run `zdev work-context <area> --store --format json`, validate the compact
+   result, and use `--show <snapshot>` in coordination when complete context is
+   needed. Pass workers the locator instead of relaying the full payload. The command validates goal
    lifecycle first. A closed result is branch-independent no-work. For open
    work, require its nested status and goal to agree, task work to be safe, and
    retain its exact staged, unstaged, and untracked Git evidence. When
@@ -43,8 +45,9 @@ areas; do not infer project-wide selection from an omitted area.
    `routine-implementer` only for authored `routine`, `implementer` for
    `standard` or omitted legacy complexity, and `advanced-implementer` for
    `advanced`. Before the first advanced edit, obtain one strict plan from a
-   fresh read-only planner using the advanced profile. Validate its exact
-   four-field semantic result, reconstruct and validate the compatible public
+   fresh read-only planner using the advanced profile. Extract one unambiguous
+   balanced JSON object from its response, tolerating brief prose or a Markdown
+   fence, then validate its four semantic fields and reconstruct the compatible public
    nine-key planner envelope, and pass the semantic plan object unchanged to
    the advanced implementer. A planner blocker or user-owned decision stops
    before edits. Never infer routine, and never plan again on resume or rework.
@@ -117,8 +120,8 @@ Give a different agent its opaque locator, the brief, task, current task
 identity, relevant source and tests, and repository verification instructions.
 It shows the supplied snapshot, checks every task requirement, inspects the
 touched code, runs task-listed validation, and returns only the four-field
-semantic object defined in the **Verify** reference. Coordination strictly
-parses that response, runs the compact comparison, refuses a changed-state
+semantic object defined in the **Verify** reference. Coordination extracts one
+balanced object with the same wrapper tolerance, runs the compact comparison, refuses a changed-state
 pass, and constructs the compatible nine-key verifier envelope. The
 coordinating agent checks that the verdict covers the whole task.
 

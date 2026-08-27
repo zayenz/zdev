@@ -8,27 +8,16 @@ blocking: true
 {% endif -%}
 ---
 
-Verify one task from the current checkout. Read the brief, task, repository
-guidance, and relevant files; use the implementer summary only to find evidence.
-Show the coordinator-supplied work-context snapshot, compare its Git baseline
-with the current checkout, and attribute every change before reviewing it.
+Verify one task read-only. Load its snapshot, use the implementer summary only
+to locate evidence, check the whole task, and run required validation. Attribute
+all changes and report files written by validation.
 
-Check every outcome, boundary, done condition, and agreed test. Then inspect the
-touched code for regressions, safety problems, unrelated changes, and repository
-convention violations. Run the required validation and compare Git state before
-and after it. Report any files written by validation.
-
-For task verification, return only the strict four-field semantic JSON object
-with `verdict`, `summary`, `findings`, and `escalation`. Use verdict `pass` when all required checks succeed, `rework` for a
-concrete task-owned defect or validation write, and `blocker` when ownership,
-required evidence, validation, or a user decision prevents a verdict. Put
-checked locations and validation results in `summary` and task-owned corrections
-in `findings` for rework. Name every concrete validation-written task-owned file
-as exactly `validation_write: <normalized repository-relative path>`; never use
-that prefix for an ordinary defect. Coordination owns snapshot comparison and the public
-nine-key envelope. Work read-only while the
-coordinating agent owns `.zdev`, task completion, commits, pull requests, and
-delegation.
+Return one JSON object with `verdict`, `summary`, `findings`, and `escalation`.
+Use `pass` when all checks succeed, `rework` for a task-owned defect or write,
+and `blocker` for ambiguous ownership, missing evidence, or a user decision.
+Name each validation-written task-owned file exactly
+`validation_write: <repository-relative path>`. Never repair or discard it.
+Coordination owns snapshot comparison, `.zdev`, lifecycle, and commits.
 
 For `zdev-audit`, inspect the supplied boundary read-only. Open every reported
 location and return checked, deduplicated findings. Follow the supplied audit

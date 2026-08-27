@@ -115,10 +115,8 @@ zdev status scheduling --format json
 zdev next scheduling --format json
 ```
 
-Harness task workflows use `zdev work-context scheduling --format json` to
-collect the same task projection with matching branch and exact Git evidence in
-one read-only result. For a large handoff, store those exact JSON bytes outside
-the worktree and pass only the compact reference:
+Harness task workflows store that task projection and pass only its compact
+reference between workers:
 
 ```sh
 zdev work-context scheduling --store --format json
@@ -130,6 +128,10 @@ zdev work-context scheduling --compare <snapshot-id> --format json
 state and reports only `equal`; a snapshot is immutable handoff evidence, not
 reusable current state. Zdev retains the eight most recently published distinct
 snapshots per area in linked-worktree-local Git administrative storage.
+
+With only an area, zdev selects ready work by AFK suitability, priority, then
+numeric task ID. A fuzzy loop focus asks the harness to inspect the full ready
+frontier and choose the best-fitting task.
 
 Activate the installed zdev skill and ask it to loop or set a goal for an area.
 Both words select the same route. The skill continues one verified commit at a

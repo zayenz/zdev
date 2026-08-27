@@ -161,6 +161,9 @@ enum Command {
     WorkContext {
         /// Area tag whose task-work context to capture
         area: String,
+        /// Select one explicit task from the current ready frontier
+        #[arg(long, value_name = "TASK", conflicts_with_all = ["show", "compare"])]
+        task: Option<String>,
         /// Store the exact JSON context and return a compact reference
         #[arg(long, conflicts_with_all = ["show", "compare"])]
         store: bool,
@@ -821,14 +824,15 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
         Command::Goal { area } => goal::show(&root, area),
         Command::WorkContext {
             area,
+            task,
             store,
             show,
             compare,
         } => match (store, show.as_deref(), compare.as_deref()) {
-            (true, None, None) => store_work_context(&root, area),
+            (true, None, None) => store_work_context(&root, area, task.as_deref()),
             (false, Some(snapshot), None) => show_work_context(&root, area, snapshot),
             (false, None, Some(snapshot)) => compare_work_context(&root, area, snapshot),
-            (false, None, None) => work_context_output(&root, area),
+            (false, None, None) => work_context_output(&root, area, task.as_deref()),
             _ => unreachable!("clap enforces mutually exclusive work-context modes"),
         },
         Command::Status { area } => status_output(&root, area.as_deref()),
@@ -1073,8 +1077,12 @@ fn work_context_git_stdout(root: &Path, arguments: &[&str]) -> Result<String, Zd
         .map_err(|_| ZdevError::new(format!("{command} returned invalid UTF-8")))
 }
 
-fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
-    let goal = goal::show(root, area)?.value;
+fn work_context_output(
+    root: &Path,
+    area: &str,
+    selected: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    let goal = goal::show_selected(root, area, selected)?.value;
     let goal_area = required_json_string(&goal, "/area/tag", "Goal projection")?;
     if goal_area != area {
         return Err(ZdevError::new(format!(
@@ -1112,7 +1120,7 @@ fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevErr
         )));
     }
 
-    let status = status_output(root, Some(area))?.value;
+    let mut status = status_output(root, Some(area))?.value;
     let status_area = required_json_string(&status, "/area/tag", "Status projection")?;
     let status_lifecycle = required_json_string(&status, "/lifecycle", "Status projection")?;
     let status_queue = required_json_string(&status, "/queue", "Status projection")?;
@@ -1120,12 +1128,19 @@ fn work_context_output(root: &Path, area: &str) -> Result<CommandOutput, ZdevErr
     if status_area != area
         || status_lifecycle != lifecycle
         || status_queue != queue
-        || status_task != goal_task
+        || (selected.is_none() && status_task != goal_task)
     {
         return Err(ZdevError::with_details(
             format!("Status and goal disagree for area {area}; retry from fresh repository state"),
             json!({"area": area, "status": status, "goal": goal}),
         ));
+    }
+    if selected.is_some() {
+        status["next"] = goal_task.as_deref().map(Value::from).unwrap_or(Value::Null);
+        status["next_complexity"] = goal
+            .pointer("/task/complexity")
+            .cloned()
+            .unwrap_or(Value::Null);
     }
     let safe = status
         .pointer("/branch_status/task_work/safe")
@@ -1387,11 +1402,21 @@ fn work_context_snapshot_projection(
     if let Some(head) = context.get("head") {
         projection.insert("head".to_owned(), head.clone());
     }
+    if let Some(stale_advisory) = context.get("stale_advisory") {
+        projection.insert("stale_advisory".to_owned(), stale_advisory.clone());
+    }
+    if let Some(complexity) = context.pointer("/goal/task/complexity") {
+        projection.insert("complexity".to_owned(), complexity.clone());
+    }
     Value::Object(projection)
 }
 
-fn store_work_context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
-    let context = work_context_output(root, area)?;
+fn store_work_context(
+    root: &Path,
+    area: &str,
+    selected: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    let context = work_context_output(root, area, selected)?;
     let bytes = work_context_json_bytes(&context)?;
     let snapshot = work_context_snapshot_id(&bytes);
     let _lock = ZdevStateLock::acquire(root)?;
@@ -1465,12 +1490,16 @@ fn compare_work_context(
     snapshot: &str,
 ) -> Result<CommandOutput, ZdevError> {
     project::load_area(root, area)?;
-    let stored = {
+    let (stored, selected) = {
         let _lock = ZdevStateLock::acquire(root)?;
-        let (_, bytes, _) = read_work_context_snapshot(root, area, snapshot)?;
-        bytes
+        let (_, bytes, value) = read_work_context_snapshot(root, area, snapshot)?;
+        let selected = value
+            .get("task_id")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        (bytes, selected)
     };
-    let fresh = work_context_json_bytes(&work_context_output(root, area)?)?;
+    let fresh = work_context_json_bytes(&work_context_output(root, area, selected.as_deref())?)?;
     let equal = stored == fresh;
     Ok(CommandOutput::new(
         format!(

@@ -31,6 +31,12 @@ does not inspect or invoke Claude Code's separate `/goal` command. If the
 packaged workflows are unavailable, continue under coordinator control or stop
 after one task and report the fresh next state.
 
+Before launching a packaged workflow, tell the user which area and fuzzy focus
+will be used. Workflow labels report selection, the chosen task ID, planning,
+implementation, verification, rework, and commit stages; do not replace them
+with a generic “waiting for dynamic workflow” update. Report completed task IDs
+and commits from the final envelope.
+
 {{repository_guidance}}
 
 The [task format](references/task-format.md) defines imported task bundles.

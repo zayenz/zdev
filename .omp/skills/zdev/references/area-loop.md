@@ -1,7 +1,8 @@
 # Zdev area loop (native)
 
-`zdev-loop <area>` is canonical and `zdev-goal <area>` is an exact semantic
-alias. Both follow this contract and emit canonical `zdev-loop` results.
+`zdev-loop <area> [focus...]` is canonical and `zdev-goal <area> [focus...]`
+is an exact semantic alias. Parse everything after the area as optional fuzzy
+focus. Both follow this contract and emit canonical `zdev-loop` results.
 
 Before repository work, inspect the harness-native goal with the adapter's
 named model-callable operation. Native goal state selects one action:
@@ -13,9 +14,17 @@ named model-callable operation. Native goal state selects one action:
 - A different goal is unfinished, or inspection is unavailable: preserve the
   existing state and return `BLOCKER zdev-loop <area>`.
 
-With no unfinished native goal, run fresh
-`zdev work-context <area> --format json`. Never reuse an earlier selection or
-write loop/session state. Classify it before attempting native continuation:
+With no unfinished native goal, select from fresh evidence. With no focus, run
+`zdev work-context <area> --store --format json` and let the binary choose by
+AFK, priority, then numeric order. With a focus, run `zdev tasks list <area>
+--format json`, read every ready task with `zdev task show <area> <task-id>
+--format json`, and let the coordinating model choose the best fit from the
+complete ready frontier. Focus is fuzzy guidance, not an exact filter; do not
+keyword-filter or pre-rank that frontier. Admit the choice with `zdev
+work-context <area> --task <task-id> --store --format json`. For an empty
+frontier, run the no-task work-context form once to classify no-work. Never
+reuse an earlier selection or write focus, loop, or session state. Classify it
+before attempting native continuation:
 
 - Validated `closed` returns `PASS` immediately, before Git or task-work gates.
   Start no worker and omit branch status and advisory.
@@ -26,18 +35,20 @@ write loop/session state. Classify it before attempting native continuation:
 - Open `ready` with `branch_status.task_work.safe: true` may start the area
   continuation below. Report a stale-but-safe advisory once and continue.
 
-Use this exact native area condition, replacing `<area>` with the validated
-tag:
+Use this native area condition, replacing `<area>` with the validated tag.
+Replace the bracketed clause with its inner focus sentence when the user
+supplied focus; otherwise remove it:
 
 ```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. After each exact PASS and commit, run a fresh `zdev work-context <area> --format json`. Continue only while its lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when the fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration.
+For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. [Fuzzy focus: <the user's exact focus words>. Before every iteration, inspect the complete ready frontier and choose the best-fitting task; do not treat the focus as an exact filter.] With no focus, let work-context choose the next task. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration, and report each selected and completed task through normal progress updates.
 ```
 
 Apply it with the native creation operation named by the adapter. The selected
 task's nested `native_goal` remains task-sized context and never replaces this
 area condition. After successful native activation, follow the condition in
-the current session. Every iteration begins with fresh work-context and uses
-the one-task contract below.
+the current session. Every iteration repeats the applicable selection rule and
+uses the one-task contract below. Tell the user which task was selected and
+when its verified commit completes.
 
 The coordinating session owns task selection, branch safety, Git ownership,
 lifecycle changes, staging, commits, and delegation. Workers stay within the
@@ -67,9 +78,9 @@ open/ready and returns `BLOCKER zdev-verify` without starting a verifier for
 every no-work result. Invalid records, task graphs, or context output are
 blockers. For open/ready, retain the complete context unchanged and its task ID
 as the subject. Every worker handoff requires fresh work-context admission and
-the same ready task ID. Use either ordinary `--format json` or, when the same
-boundary also needs the immutable verifier snapshot, one `--store` plus
-`--show` collection. That store-and-show collection satisfies the fresh
+the same ready task ID. At a worker boundary, prefer `--store` and pass the
+compact snapshot locator; the coordinator may use `--show` when it needs the
+complete context. The verifier's store-and-show collection satisfies fresh
 pre-verifier admission without a preceding duplicate ordinary collection.
 Before rework implementation, retain the ordinary refresh and require an
 explainable exact Git delta.
@@ -79,13 +90,23 @@ work-context.
 Authored `routine` uses `routine-implementer`; `standard`, including an omitted
 legacy value, uses `implementer`. Never infer routine work from files or diff
 size. Before any edit for `advanced`, start one fresh read-only `planner` using
-the `advanced-implementer` profile. Give it the complete work-context JSON,
-brief, task, repository guidance, baseline, and task-owned paths. The planner
-returns exactly `verdict`, `summary`, `plan`, and `findings`. A plan uses
+the `advanced-implementer` profile. Give it repository guidance and the stored
+work-context locator; it loads the brief, task, baseline, and task-owned paths
+from that snapshot. The planner returns the required fields
+`verdict`, `summary`, `plan`, and `findings`. A plan uses
 `{"verdict":"plan","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized repository-relative path>"],"validation":["<non-empty validation step>"]},"findings":[]}`;
 a blocker uses verdict `blocker`, `plan: null`, and at least one non-empty
-finding. Reject unknown or duplicate keys, empty values, non-normalized paths,
-contradictory variants, legacy nine-key output, extra text, and malformed JSON.
+finding. Reject duplicate or missing required keys, empty values,
+non-normalized paths, contradictory variants, legacy nine-key output, multiple
+objects, and malformed JSON. A brief sentence or Markdown fence around one
+balanced object is tolerated.
+
+For every role response, extract exactly one unambiguous balanced JSON object
+from the returned text before semantic validation. Brief prose and Markdown
+fences around that object are harmless. Multiple objects, truncation, malformed
+JSON, missing or duplicate required keys, or contradictory values are real
+failures. Never rerun a worker merely to remove formatting around an otherwise
+valid object.
 
 The coordinator reconstructs the compatible public nine-key planner envelope
 with fixed `schema_version: 1`, `kind: "planner"`, selected area and task ID,
@@ -98,8 +119,7 @@ unchanged, to a fresh `advanced-implementer`. A planner blocker,
 including any product decision, stops before edits. Resumption, verification,
 and rework never repeat planning.
 
-Every implementer returns only one JSON object, without a sentinel
-line, Markdown fence, or other text. The object has exactly these keys:
+Every implementer returns one JSON object with these required keys:
 
 ```json
 {
@@ -118,9 +138,9 @@ line, Markdown fence, or other text. The object has exactly these keys:
 `kind` is `implementer`; verdict is `ready` or `blocker`.
 `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`. Schema version, kind, area, task ID,
-keys, types, and combinations must
-match exactly. Reject duplicate or unknown keys, missing keys, extra text, and
-malformed JSON. Inspect the checkout after an implementer result, then use a
+required keys, types, and combinations must
+match. Reject duplicate or missing required keys and malformed JSON after the
+tolerant extraction above. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict.
 
 ## Derived work handoff
@@ -179,7 +199,7 @@ identity to the verifier. The verifier resolves that immutable context with
 `--show`, checks the whole task, runs required validation, reports validation
 writes, and never repairs or discards them.
 
-The verifier returns only this semantic JSON object with no surrounding text:
+The verifier returns one semantic JSON object:
 
 ```json
 {
@@ -190,13 +210,14 @@ The verifier returns only this semantic JSON object with no surrounding text:
 }
 ```
 
-It has exactly those four unique keys. `verdict` is `pass`, `rework`, or
+Those four unique keys are required. `verdict` is `pass`, `rework`, or
 `blocker`; `summary` is non-empty; and `findings` is an array of non-empty
 strings. `pass` has no findings, `rework` has at least one, and `blocker` may
 have findings. `escalation` is `none`, except that `rework` may request
-`advanced-implementer`. Reject legacy nine-key verifier envelopes, duplicate
-or unknown keys, missing keys, extra text, malformed JSON, and contradictory
-combinations.
+`advanced-implementer`. Workflow parsers extract one unambiguous balanced JSON
+object, tolerating a brief sentence or Markdown fence around it. Reject legacy
+nine-key verifier envelopes, duplicate or missing required keys, multiple
+objects, malformed JSON, and contradictory combinations.
 
 For each concrete task-owned file written by validation, `rework` includes one
 exact `validation_write: <normalized repository-relative path>` finding. The
@@ -309,8 +330,8 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Then include `Area`, `Lifecycle`, `Queue`, an exact stale `Advisory` once when
-applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` when
+Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, an exact stale
+`Advisory` once when applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` when
 lifecycle or queue could not be validated and `none` when there is no task or
 commit. `CONTINUE` also includes `Next task`. `BLOCKER` also includes
 `Current task`, `Failed stage`, `Reason`, and `Preserved state`. A direct

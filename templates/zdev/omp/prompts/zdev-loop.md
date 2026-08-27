@@ -18,17 +18,17 @@ Advanced work first uses one blocking read-only `zdev-planner`. Use a fresh
 blocking `zdev-verifier` for every verdict. Ordinary rework may resume the
 selected profile with `hub`; a valid one-time standard escalation starts an
 advanced replacement without replanning. The current Oh My Pi session remains
-the coordinator. Validate the planner's exact four-field semantic JSON,
-reconstruct and validate the compatible nine-key public planner envelope, and
+the coordinator. Validate the planner's four semantic fields, reconstruct and
+validate the compatible nine-key public planner envelope, and
 pass the semantic plan object unchanged to the advanced implementer. A blocker
 has empty public evidence and stops before edits. From that one settled planner
 task result, prefer `details.results[].structuredOutput.data` when it passes the
-semantic validation. Otherwise, strictly validate the complete JSON string in
-the same result's output. Unavailable, malformed, contradictory, legacy, or
+semantic validation. Otherwise, extract one unambiguous balanced JSON object
+from the same result's output, tolerating brief prose or a Markdown fence, then
+validate it. Unavailable, truncated, malformed, contradictory, legacy, or
 mismatched data blocks before edits. Do not retry or revive the planner, send
 it a formatting follow-up, or run another planner or coordinator formatting
 pass.
-Give every agent the complete rendered task-workflow contract
-from the native loop body and a compact payload of brief, task, guidance, and
-source file paths, applicable snapshot IDs, and the short result from the
-preceding role.
+Give every agent the installed route-contract path and a compact payload of
+brief, task, guidance, and source file paths, applicable snapshot IDs, and the
+short result from the preceding role. Do not copy the rendered contract.

@@ -114,17 +114,29 @@ independently verified task and commit at a time. The binary command `zdev goal
 <area>` remains the deterministic projection of one task; it is context for an
 iteration, not this continuing user intent.
 
-The canonical explicit route is `zdev-loop <area>` and `zdev-goal <area>` is
-an exact semantic alias. Both use canonical `zdev-loop` results. Do not treat
-the alias as a one-task mode or confuse either route with the binary projection.
+The canonical explicit route is `zdev-loop <area> [focus...]` and `zdev-goal
+<area> [focus...]` is an exact semantic alias. Both use canonical `zdev-loop`
+results. Everything after the area is optional fuzzy guidance, not a flag or
+exact task filter. Do not treat the alias as a one-task mode or confuse either
+route with the binary projection.
+
+With no focus, let `zdev work-context <area>` select one task using the binary's
+AFK, priority, then numeric ordering. With any focus, obtain the complete ready
+frontier with `zdev tasks list <area> --format json`, read every ready task with
+`zdev task show <area> <task-id> --format json`, and let the coordinating model
+choose the best fit from those full task records. Do not keyword-filter or
+pre-rank the frontier before that choice. Admit the chosen task with
+`zdev work-context <area> --task <task-id>`. Repeat the same focused selection
+from a fresh frontier after every commit; focus never becomes stored zdev state.
 
 Each iteration uses the **Implement** route and stops internally only on a
-verified commit, a blocker, or a user-owned decision. Before another task,
-collect a fresh `zdev work-context <area> --format json`; never reuse the
-completed task's selection. Finish on open `empty`, open `exhausted`, or
-validated `closed`. Closed is classified before Git and branch gates. Open work
-still requires `branch_status.task_work.safe`; a stale-but-safe base is one
-advisory, not a blocker.
+verified commit, a blocker, or a user-owned decision. Tell the user which task
+was selected and when its verified commit completes. Before another task,
+repeat the selection rule above from fresh evidence; never reuse the completed
+task's selection. Finish on open `empty`, open `exhausted`, or validated
+`closed`. Closed is classified before Git and branch gates. Open work still
+requires `branch_status.task_work.safe`; a stale-but-safe base is one advisory,
+not a blocker.
 
 When a workflow uses `zdev work-context <area> --store --format json`, pass its
 compact filesystem reference instead of copying the complete JSON. Read exact
@@ -204,19 +216,19 @@ Route authored routine, standard/default, and advanced work to
 `zdev-planner`.
 For its one settled task result, prefer
 `details.results[].structuredOutput.data` when it passes semantic validation;
-otherwise strictly validate the complete JSON string in that same result's
-output. Invalid planner data blocks without a retry, revival, formatting
-follow-up, or extra coordinator formatting pass.
+otherwise extract one unambiguous balanced JSON object from that result's
+output, tolerating brief prose or a Markdown fence. Invalid planner data blocks
+without a retry, revival, formatting follow-up, or extra coordinator pass.
 Always verify with a fresh `zdev-verifier`. Return ordinary rework to the
 selected profile with `hub` when possible; one valid standard-work escalation
 starts an advanced replacement without replanning. The coordinator retains
 task completion and commits.
 
-Each agent starts with its role definition. Give it the complete rendered
-task-workflow contract and a compact task payload: file paths for the brief,
-task, guidance, and relevant source; the applicable snapshot IDs; and the
-short result from the preceding role. Let the agent read those files instead
-of copying their contents into the prompt.
+Each agent starts with its short role definition. Give it the installed
+route-contract path and a compact task payload: file paths for the brief, task,
+guidance, and relevant source; the applicable snapshot IDs; and the short
+result from the preceding role. Let the agent read those files instead of
+copying their contents or the rendered contract into the prompt.
 
 For an active-zdev goal or loop request, use the packaged continuation prompt. It calls the
 model-facing `goal` tool with `op: "get"` before repository work, never drops,

@@ -517,7 +517,7 @@ null/boolean changes; mode-transition failures use the exact errors above.
 | --- | --- | --- | --- |
 | Default isolated create on `feature` | no `mode`; `branch = "feature"`; normal anchor fields | Existing success and isolated status | New area directory only |
 | One explicit trunk area on checked-out `main` | `mode = "trunk"`; no branch/parent/base; healthy projection above | Named next/completion allowed | Existing task-specific files only |
-| Two ready trunk areas | both store only trunk mode; both match `main` | `next --any` chooses lexical area tag, then its lowest numeric ready task | Read-only |
+| Two ready trunk areas | both store only trunk mode; both match `main` | `next --any` chooses lexical area tag, then AFK suitability, priority, and numeric task ID within that area | Read-only |
 | Checked-out isolated area plus ready trunk areas | mixed records; isolated matches, trunk areas are structurally safe but off-branch | `next --any` chooses matching isolated candidate first | Read-only |
 | Legacy area stored on current trunk | no mode; stored branch remains exclusive; existing same-branch shortcut | A trunk create/bind colliding with it fails | No mutation |
 | Legacy area on former trunk | stored old branch; effective base is newly configured trunk | Existing isolated fresh/stale/unsafe result | Reconfiguration changes config only |

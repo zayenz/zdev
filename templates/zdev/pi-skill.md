@@ -16,10 +16,10 @@ Advanced work first uses one read-only `planner` call. Always use a fresh
 `verifier` call for verification. Ordinary rework keeps the selected profile;
 one valid standard-work escalation uses an advanced replacement without
 replanning. Pi starts each child as a clean, role-specific process. Give every
-child the complete rendered task-workflow contract and a compact payload of
-brief, task, guidance, and source file paths, applicable snapshot IDs, and the
-short result from the preceding role. The child reads those files from the
-shared checkout.
+child the installed route-contract path and a compact payload of brief, task,
+guidance, and source file paths, applicable snapshot IDs, and the short result
+from the preceding role. The child reads those files from the shared checkout;
+do not copy the rendered contract into its prompt.
 
 In Pi, `/skill:zdev-pi` activates this one skill explicitly. The skill selects
 the route and loads its contract from `references/`. It may use the packaged

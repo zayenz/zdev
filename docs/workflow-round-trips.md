@@ -253,8 +253,8 @@ zdev work-context <area> --show <snapshot> --format json
 zdev work-context <area> --compare <snapshot> --format json
 ```
 
-Store returns only the area, opaque ID, path, lifecycle, queue, task ID, and
-HEAD when present. Show validates and reproduces the stored document. Compare
+Store returns compact routing fields: area, opaque ID, path, lifecycle, queue,
+task ID, HEAD, complexity, and stale advisory when present. Show validates and reproduces the stored document. Compare
 validates it, collects fresh ordinary work-context, and returns a compact
 boolean without echoing either document. It is a successful comparison when
 the values differ. Missing or expired, corrupt, and cross-area files are
@@ -264,15 +264,14 @@ tie-break. There is no current pointer, history, approval, or cleanup UI.
 
 This storage lowers handoff context, not freshness requirements. A later
 decision still needs a new collection or `--compare`; no stored snapshot is
-current authority. Coordinator-to-implementer handoffs still use complete
-inline work-context when the worker needs it. Verifier PASS and completion use
-the stored transport.
+current authority. Workers receive the locator and load the immutable context
+with `--show` only when needed. Verifier PASS and completion use the stored
+transport.
 
-Coordinators collect ordinary inline work-context for selection, ownership,
-implementation, and rework. Immediately before each verifier, coordination
-stores and shows the pre-validation context, validates it against the admitted
-checkout, and supplies only its locator. The verifier shows that snapshot and
-runs validation. Coordination parses the four semantic response fields and
+Coordinators store work-context for selection, ownership, implementation, and
+rework. Immediately before each verifier, coordination stores the
+pre-validation context, validates its compact routing fields, and supplies only
+its locator. The verifier shows that snapshot and runs validation. Coordination parses the four semantic response fields and
 uses compact compare afterward. Completion receives only that opaque ID and
 performs one more compact compare before mutation. Neither handoff carries raw
 Git strings, and no worker-supplied locator or identity is trusted.

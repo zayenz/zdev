@@ -55,6 +55,36 @@ impl TaskComplexity {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum TaskPriority {
+    High,
+    Normal,
+    Low,
+}
+
+impl TaskPriority {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::High => "high",
+            Self::Normal => "normal",
+            Self::Low => "low",
+        }
+    }
+
+    fn rank(self) -> u8 {
+        match self {
+            Self::High => 0,
+            Self::Normal => 1,
+            Self::Low => 2,
+        }
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TaskHeader {
@@ -65,6 +95,10 @@ struct TaskHeader {
     status: TaskStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     complexity: Option<TaskComplexity>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    afk: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    priority: Option<TaskPriority>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     slice: Option<String>,
     #[serde(default)]
@@ -82,6 +116,10 @@ struct Task {
 impl Task {
     fn complexity(&self) -> TaskComplexity {
         self.header.complexity.unwrap_or(TaskComplexity::Standard)
+    }
+
+    fn priority(&self) -> TaskPriority {
+        self.header.priority.unwrap_or(TaskPriority::Normal)
     }
 }
 
@@ -139,6 +177,10 @@ struct TaskDraft {
     title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     complexity: Option<TaskComplexity>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    afk: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    priority: Option<TaskPriority>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     slice: Option<String>,
     #[serde(default)]
@@ -211,6 +253,8 @@ struct TaskView<'a> {
     status: &'static str,
     state: &'static str,
     complexity: TaskComplexity,
+    afk: bool,
+    priority: TaskPriority,
     blocked_by: &'a [String],
     slice: Option<&'a str>,
     slice_brief: Option<String>,
@@ -358,6 +402,11 @@ fn render_task_bundle_approval(bundle: &TaskBundle) -> String {
         if let Some(complexity) = task.complexity {
             document.push_str(&format!("\n\n### Complexity\n{}", complexity.as_str()));
         }
+        document.push_str(&format!(
+            "\n\n### AFK\n{}\n\n### Priority\n{}",
+            task.afk,
+            task.priority.unwrap_or(TaskPriority::Normal).as_str(),
+        ));
         document.push_str(&format!(
             "\n\n### Slice\n{}\n\n### Outcome\n{}\n\n### Context\n{}\n\n### Boundaries\n{}\n\n### Blocked by\n{}\n\n### Done when / proof\n{}\n\n### Validation / Testing\n{}",
             approval_value(task.slice.as_deref()),
@@ -1312,6 +1361,8 @@ pub(super) fn apply_derived(
             area: area.to_owned(),
             status: TaskStatus::Open,
             complexity: draft.complexity,
+            afk: draft.afk,
+            priority: draft.priority,
             slice: match proposal.proposal {
                 DerivedProposalKind::InvestigationFollowUp => draft.slice.clone(),
                 DerivedProposalKind::ImplementationSplit => source_task.header.slice.clone(),
@@ -1665,6 +1716,8 @@ pub(super) fn import(
             area: area.to_owned(),
             status: TaskStatus::Open,
             complexity: draft.complexity,
+            afk: draft.afk,
+            priority: draft.priority,
             slice: draft.slice.clone(),
             blocked_by: blockers,
         };
@@ -2468,6 +2521,8 @@ fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
             status: task.header.status.as_str(),
             state: task_state(task, tasks),
             complexity: task.complexity(),
+            afk: task.header.afk,
+            priority: task.priority(),
             blocked_by: &task.header.blocked_by,
             slice: task.header.slice.as_deref(),
             slice_brief: task_slice_brief_path(root, task),
@@ -2507,7 +2562,15 @@ pub(super) fn list(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
 }
 
 fn next_task(tasks: &[Task]) -> Option<&Task> {
-    tasks.iter().find(|task| task_state(task, tasks) == "ready")
+    tasks
+        .iter()
+        .filter(|task| task_state(task, tasks) == "ready")
+        .min_by(|left, right| {
+            (!left.header.afk)
+                .cmp(&!right.header.afk)
+                .then_with(|| left.priority().rank().cmp(&right.priority().rank()))
+                .then_with(|| compare_tasks_by_id(left, right))
+        })
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -2610,6 +2673,8 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         status: task.header.status.as_str(),
         state: "ready",
         complexity: task.complexity(),
+        afk: task.header.afk,
+        priority: task.priority(),
         blocked_by: &task.header.blocked_by,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, task),
@@ -2759,6 +2824,8 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         status: task.header.status.as_str(),
         state: "ready",
         complexity: task.complexity(),
+        afk: task.header.afk,
+        priority: task.priority(),
         blocked_by: &task.header.blocked_by,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, &task),
@@ -2855,6 +2922,8 @@ pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, Z
             "status": task.header.status.as_str(),
             "state": task_state(task, &tasks),
             "complexity": task.complexity(),
+            "afk": task.header.afk,
+            "priority": task.priority(),
             "blocked_by": task.header.blocked_by,
             "slice": task.header.slice,
             "slice_brief": slice_brief,
@@ -2968,12 +3037,20 @@ pub(super) fn reopen(root: &Path, area: &str, id: &str) -> Result<CommandOutput,
     }
     let mut header = task.header.clone();
     header.status = TaskStatus::Open;
-    let body = task
-        .body
-        .split("\n## Result\n")
-        .next()
-        .unwrap_or(&task.body);
-    let body = replace_markdown_section(body, "Done when", &task.path, |section| {
+    let body = if let Some((before, result)) = task.body.split_once("\n## Result\n") {
+        let mut preserved = before.trim_end().to_owned();
+        if preserved.contains("\n## History\n") {
+            preserved.push_str("\n\n### Previous completion\n\n");
+        } else {
+            preserved.push_str("\n\n## History\n\n### Previous completion\n\n");
+        }
+        preserved.push_str(result.trim());
+        preserved.push('\n');
+        preserved
+    } else {
+        task.body.clone()
+    };
+    let body = replace_markdown_section(&body, "Done when", &task.path, |section| {
         section
             .replace("- [x] ", "- [ ] ")
             .replace("- [X] ", "- [ ] ")
@@ -3103,7 +3180,11 @@ pub(super) struct GoalTasksRead {
     pub focus: Option<GoalTaskRead>,
 }
 
-pub(super) fn goal_tasks(root: &Path, area: &str) -> Result<GoalTasksRead, ZdevError> {
+pub(super) fn goal_tasks(
+    root: &Path,
+    area: &str,
+    selected: Option<&str>,
+) -> Result<GoalTasksRead, ZdevError> {
     let tasks = load_tasks(root, area)?;
     let ready = tasks
         .iter()
@@ -3117,7 +3198,18 @@ pub(super) fn goal_tasks(root: &Path, area: &str) -> Result<GoalTasksRead, ZdevE
         .iter()
         .filter(|task| task.header.status == TaskStatus::Done)
         .count();
-    let focus = next_task(&tasks)
+    let selected_task = if let Some(id) = selected {
+        let task = find_task(&tasks, id)?;
+        if task_state(task, &tasks) != "ready" {
+            return Err(ZdevError::new(format!(
+                "Cannot select task {id}: it is not in the ready frontier"
+            )));
+        }
+        Some(task)
+    } else {
+        next_task(&tasks)
+    };
+    let focus = selected_task
         .map(|task| {
             Ok(GoalTaskRead {
                 id: task.header.id.clone(),

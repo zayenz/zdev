@@ -345,6 +345,11 @@ equal. Always compare or collect fresh state at a new decision boundary: the
 stored file is an immutable handoff, not permission to act on later. Zdev keeps
 at most eight distinct snapshots per area, so an older ID can expire.
 
+With only an area, zdev ranks ready tasks by AFK suitability, priority, then
+numeric task ID. When you give a fuzzy loop focus, every supported harness
+reads the full ready frontier and chooses the best fit. The focus is guidance,
+not an exact filter, and is applied again after each commit.
+
 Ask the harness to work on the returned task with zdev. It should:
 
 1. implement against the task, area brief, and repository guidance;
@@ -383,9 +388,11 @@ gets one read-only plan before its first edit, while every route keeps a fresh
 independent standard verifier.
 
 Activate zdev and ask it to loop or set a goal for an area when you explicitly
-want continuation across tasks. Both words select the same route. Codex, Claude Code, and Oh My Pi
-can continue natively. OpenCode and Pi complete at most one task per invocation
-and return `CONTINUE` only after a commit and a fresh ready work-context.
+want continuation across tasks. Both words select the same route. The harness
+reports each selected task and completed verified commit. Codex, Claude Code,
+and Oh My Pi can continue natively. OpenCode and Pi complete at most one task
+per invocation and return `CONTINUE` only after a commit and a fresh ready
+work-context.
 
 Inspect or find a logical change after a rebase with:
 

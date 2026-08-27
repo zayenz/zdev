@@ -68,7 +68,7 @@ Require the verifier to:
 
 ## Verdict
 
-The verifier returns only the strict four-field semantic JSON object defined by
+The verifier returns the four-field semantic JSON object defined by
 the task workflow contract: `verdict`, `summary`, `findings`, and `escalation`.
 Its summary carries checked locations and validation conclusions. It uses
 verdict `pass` when the task and touched code pass

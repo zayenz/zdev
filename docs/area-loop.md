@@ -39,15 +39,17 @@ honestly stop after one committed task.
 The canonical route is `zdev-loop`; `zdev-goal` is an exact semantic alias:
 
 ```text
-zdev-loop <area>
-zdev-goal <area>
+zdev-loop <area> [focus...]
+zdev-goal <area> [focus...]
 ```
 
 Both invocations mean: continue the named area one approved task at a time
 while it is open, ready, and safe. They use the same stop states and emit the
 same canonical `zdev-loop` envelopes. `zdev-goal` is not a one-task mode and
-has no `--native` variant. Retaining both names avoids an unnecessary naming
-migration while giving the implementation one behavioral contract.
+has no `--native` variant. Everything after the area is optional fuzzy task
+selection guidance, not an exact filter or stored setting. Retaining both names
+avoids an unnecessary naming migration while giving the implementation one
+behavioral contract.
 
 Inside an active zdev context, natural-language requests to “goal the
 `<area>` area” and “loop the `<area>` area” are synonyms for that continuing
@@ -55,9 +57,11 @@ route. Zdev is active when the user invoked a zdev entry point, referred to a
 specific `.zdev` area, or explicitly asked to use zdev. Generic uses of
 “goal” or “loop” outside that context never activate zdev.
 
-This user-facing route does not change the binary. Each iteration uses
-`zdev work-context <area> --format json`, whose nested goal remains the
-deterministic projection of one ready task.
+With only an area, each iteration uses `zdev work-context <area>`, whose nested
+goal projects the ready task selected by AFK suitability, priority, then numeric
+ID. With focus text, the harness reads every full task in the ready frontier,
+chooses the best fit, and admits it through `zdev work-context <area> --task
+<task-id>`. It repeats that selection from fresh evidence after every commit.
 
 Each harness has one zdev skill. These requests select its continuation route:
 
@@ -92,10 +96,10 @@ completion, exact staging, and one zdev commit. Claude composes that same
 one-task body into its loop artifact at install time; it does not import or
 invoke another workflow at runtime.
 
-Before every iteration, the coordinator runs one fresh
-`zdev work-context <area> --format json`. The command validates lifecycle,
-records, dependencies, selected task, branch safety, HEAD, and exact Git
-evidence. Validated closed context returns no work before branch or Git
+Before every iteration, the coordinator makes one fresh selection using the
+area-only or fuzzy-focus rule above and stores its work-context. The command
+validates lifecycle, records, dependencies, selected task, branch safety, HEAD,
+and exact Git evidence. Validated closed context returns no work before branch or Git
 collection. Open empty or exhausted context remains fully gated. A true
 `stale_advisory` is reported once and does not stop work.
 
@@ -109,12 +113,12 @@ next iteration.
 
 ## Area condition and stop matrix
 
-Codex and Oh My Pi native continuation use this fixed area-sized condition,
-with `<area>` replaced by the validated tag. Claude's JavaScript workflow
-encodes the same predicate directly in its loop:
+Codex and Oh My Pi native continuation use this area-sized condition, with
+`<area>` and the optional focus replaced from the invocation. Claude's
+JavaScript workflow encodes the same predicate directly in its loop:
 
 ```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. After each exact PASS and commit, run a fresh `zdev work-context <area> --format json`. Continue only while its lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when the fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration.
+For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. With fuzzy focus, inspect the complete ready frontier before every iteration and choose the best-fitting task; without focus, let work-context choose. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration and report each selected and completed task.
 ```
 
 This condition never replaces the selected task's `native_goal`. The area
@@ -148,7 +152,7 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Every body includes `Area`, `Lifecycle`, and `Queue`; then the existing exact
+Every body includes `Area`, optional `Focus`, `Lifecycle`, and `Queue`; then the existing exact
 `Advisory` once if any iteration observed stale advisory; then
 `Tasks completed`, `Commits`, and `Stop reason`. Tasks and commits include only
 successful one-task pairs. Lifecycle or queue is
@@ -184,7 +188,8 @@ same as `zdev-implement` without runtime imports or another workflow call.
 
 Each iteration has four steps:
 
-1. Run one fresh `zdev work-context <area> --format json` preflight.
+1. Select from fresh evidence: use ordinary work-context without focus, or read
+   the complete ready frontier and admit one explicit task when focus exists.
 2. Supply that exact result to the ordinary one-task workflow's initial
    preflight. A valid no-work result stops successfully without a worker.
 3. On an exact task PASS with a commit ID, record the task and commit. Any
@@ -227,6 +232,9 @@ Zdev writes no loop execution record. A new invocation reruns work-context.
 Completed task records and commits are the durable checkpoint. Fresh ready
 state may start the next task; empty, exhausted, or closed stops successfully;
 partial or unexplained state blocks and uses existing recovery guidance.
+
+Focus is also not durable state. A restarted loop uses the focus in that
+invocation; it never inherits selection guidance from a prior result or task.
 
 ## Required scenario behavior
 

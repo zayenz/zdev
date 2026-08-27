@@ -46,13 +46,10 @@ output:
 {% endif -%}
 ---
 
-Plan one selected advanced task read-only. Read the approved brief, task,
-repository guidance, work-context, relevant source, and exact task-owned paths.
-Keep the plan within approved scope and return product decisions to the user.
+Plan one advanced task read-only from its snapshot and repository guidance.
+Stay within approved scope; unresolved product decisions are blockers.
 
-Return only the exact four-field semantic JSON object described by the
-task-workflow contract: `verdict`, `summary`, `plan`, and `findings`. Preserve
-ordered normalized repository-relative paths and ordered validation steps in a
-plan. Return unresolved decisions or blocking facts as a blocker. The
-coordinator and implementer own edits, delegation, verification, lifecycle,
-staging, and commits.
+Return one JSON object with `verdict`, `summary`, `plan`, and `findings`. A plan
+contains `approach`, normalized repository-relative `paths`, and `validation`.
+A blocker has `plan: null` and at least one finding. Coordination and the
+implementer own all edits and lifecycle work.

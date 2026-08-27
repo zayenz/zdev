@@ -4,12 +4,22 @@ description: Continue a zdev area, completing at most one independently verified
 
 # Zdev area loop (bounded)
 
-Use `$ARGUMENTS` as the area. `zdev-loop` is the canonical name;
-`zdev-goal` is an exact alias. Both commands follow this same contract and
-always emit the canonical `zdev-loop` result.
+Parse the first token of `$ARGUMENTS` as the area and the remaining text as
+optional fuzzy focus. `zdev-loop` is the canonical name; `zdev-goal` is an
+exact alias. Both commands follow this same contract and always emit the
+canonical `zdev-loop` result.
 
-Start every invocation by running `zdev work-context <area> --format json`.
-Do not reuse context from an earlier invocation or write loop/session state.
+With no focus, start by running `zdev work-context <area> --store --format
+json`; the binary selects one task by AFK, priority, then numeric order. With a
+focus, run `zdev tasks list <area> --format json`, then `zdev task show <area>
+<task-id> --format json` for every task whose state is `ready`. Give the
+coordinating model the complete ready frontier and the user's words, and let it
+choose the best fit. The focus is guidance, not an exact filter: do not discard
+or pre-rank ready tasks by keywords. Admit the chosen task with `zdev
+work-context <area> --task <task-id> --store --format json`. For an empty
+frontier, run the no-task work-context form once to classify ordinary no-work.
+Do not reuse context from an earlier invocation or write focus, loop, or
+session state.
 Classify the result as follows:
 
 - `closed` returns `PASS` immediately, before Git or task-work gates. Start no
@@ -24,7 +34,8 @@ Classify the result as follows:
   before a worker or further mutation.
 
 For open `ready`, the validated entry context is the one-task contract's
-initial work-context. Reuse it for the first dispatch.
+initial work-context. Reuse it for the first dispatch, and tell the user which
+task was selected before implementation begins.
 
 The coordinating session owns task selection, branch safety, Git ownership,
 lifecycle changes, staging, commits, and delegation. Workers stay within the
@@ -54,9 +65,9 @@ open/ready and returns `BLOCKER zdev-verify` without starting a verifier for
 every no-work result. Invalid records, task graphs, or context output are
 blockers. For open/ready, retain the complete context unchanged and its task ID
 as the subject. Every worker handoff requires fresh work-context admission and
-the same ready task ID. Use either ordinary `--format json` or, when the same
-boundary also needs the immutable verifier snapshot, one `--store` plus
-`--show` collection. That store-and-show collection satisfies the fresh
+the same ready task ID. At a worker boundary, prefer `--store` and pass the
+compact snapshot locator; the coordinator may use `--show` when it needs the
+complete context. The verifier's store-and-show collection satisfies fresh
 pre-verifier admission without a preceding duplicate ordinary collection.
 Before rework implementation, retain the ordinary refresh and require an
 explainable exact Git delta.
@@ -66,13 +77,23 @@ work-context.
 Authored `routine` uses `routine-implementer`; `standard`, including an omitted
 legacy value, uses `implementer`. Never infer routine work from files or diff
 size. Before any edit for `advanced`, start one fresh read-only `planner` using
-the `advanced-implementer` profile. Give it the complete work-context JSON,
-brief, task, repository guidance, baseline, and task-owned paths. The planner
-returns exactly `verdict`, `summary`, `plan`, and `findings`. A plan uses
+the `advanced-implementer` profile. Give it repository guidance and the stored
+work-context locator; it loads the brief, task, baseline, and task-owned paths
+from that snapshot. The planner returns the required fields
+`verdict`, `summary`, `plan`, and `findings`. A plan uses
 `{"verdict":"plan","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized repository-relative path>"],"validation":["<non-empty validation step>"]},"findings":[]}`;
 a blocker uses verdict `blocker`, `plan: null`, and at least one non-empty
-finding. Reject unknown or duplicate keys, empty values, non-normalized paths,
-contradictory variants, legacy nine-key output, extra text, and malformed JSON.
+finding. Reject duplicate or missing required keys, empty values,
+non-normalized paths, contradictory variants, legacy nine-key output, multiple
+objects, and malformed JSON. A brief sentence or Markdown fence around one
+balanced object is tolerated.
+
+For every role response, extract exactly one unambiguous balanced JSON object
+from the returned text before semantic validation. Brief prose and Markdown
+fences around that object are harmless. Multiple objects, truncation, malformed
+JSON, missing or duplicate required keys, or contradictory values are real
+failures. Never rerun a worker merely to remove formatting around an otherwise
+valid object.
 
 The coordinator reconstructs the compatible public nine-key planner envelope
 with fixed `schema_version: 1`, `kind: "planner"`, selected area and task ID,
@@ -85,8 +106,7 @@ unchanged, to a fresh `advanced-implementer`. A planner blocker,
 including any product decision, stops before edits. Resumption, verification,
 and rework never repeat planning.
 
-Every implementer returns only one JSON object, without a sentinel
-line, Markdown fence, or other text. The object has exactly these keys:
+Every implementer returns one JSON object with these required keys:
 
 ```json
 {
@@ -105,9 +125,9 @@ line, Markdown fence, or other text. The object has exactly these keys:
 `kind` is `implementer`; verdict is `ready` or `blocker`.
 `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`. Schema version, kind, area, task ID,
-keys, types, and combinations must
-match exactly. Reject duplicate or unknown keys, missing keys, extra text, and
-malformed JSON. Inspect the checkout after an implementer result, then use a
+required keys, types, and combinations must
+match. Reject duplicate or missing required keys and malformed JSON after the
+tolerant extraction above. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict.
 
 ## Derived work handoff
@@ -166,7 +186,7 @@ identity to the verifier. The verifier resolves that immutable context with
 `--show`, checks the whole task, runs required validation, reports validation
 writes, and never repairs or discards them.
 
-The verifier returns only this semantic JSON object with no surrounding text:
+The verifier returns one semantic JSON object:
 
 ```json
 {
@@ -177,13 +197,14 @@ The verifier returns only this semantic JSON object with no surrounding text:
 }
 ```
 
-It has exactly those four unique keys. `verdict` is `pass`, `rework`, or
+Those four unique keys are required. `verdict` is `pass`, `rework`, or
 `blocker`; `summary` is non-empty; and `findings` is an array of non-empty
 strings. `pass` has no findings, `rework` has at least one, and `blocker` may
 have findings. `escalation` is `none`, except that `rework` may request
-`advanced-implementer`. Reject legacy nine-key verifier envelopes, duplicate
-or unknown keys, missing keys, extra text, malformed JSON, and contradictory
-combinations.
+`advanced-implementer`. Workflow parsers extract one unambiguous balanced JSON
+object, tolerating a brief sentence or Markdown fence around it. Reject legacy
+nine-key verifier envelopes, duplicate or missing required keys, multiple
+objects, malformed JSON, and contradictory combinations.
 
 For each concrete task-owned file written by validation, `rework` includes one
 exact `validation_write: <normalized repository-relative path>` finding. The
@@ -277,7 +298,8 @@ proposal from the same handoff. A later independently selected task may propose
 again under fresh authority checks.
 
 After an exact committed `PASS zdev-implement <area> <task-id>` or a successful
-derived apply, run one fresh `zdev work-context <area> --format json` before deciding the public result. If
+derived apply, tell the user that task finished, then make one fresh selection
+using the same no-focus or focused rule before deciding the public result. If
 it reports open `ready` and safe task work, return `CONTINUE`, name that fresh
 next task, and stop. Do not start it or claim a background loop. If it reports
 open `empty`, open `exhausted`, or validated `closed`, return `PASS` and stop.
@@ -292,8 +314,8 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Then include `Area`, `Lifecycle`, `Queue`, an exact stale `Advisory` once when
-applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` for
+Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, an exact stale
+`Advisory` once when applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` for
 lifecycle or queue when validation failed before classification, and `none`
 when there is no task or commit. `CONTINUE` also includes `Next task` with the
 fresh ready task ID. `BLOCKER` also includes `Current task`, `Failed stage`,

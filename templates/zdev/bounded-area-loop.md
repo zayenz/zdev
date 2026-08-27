@@ -4,12 +4,22 @@ description: Continue a zdev area, completing at most one independently verified
 
 # Zdev area loop (bounded)
 
-Use `$ARGUMENTS` as the area. `zdev-loop` is the canonical name;
-`zdev-goal` is an exact alias. Both commands follow this same contract and
-always emit the canonical `zdev-loop` result.
+Parse the first token of `$ARGUMENTS` as the area and the remaining text as
+optional fuzzy focus. `zdev-loop` is the canonical name; `zdev-goal` is an
+exact alias. Both commands follow this same contract and always emit the
+canonical `zdev-loop` result.
 
-Start every invocation by running `zdev work-context <area> --format json`.
-Do not reuse context from an earlier invocation or write loop/session state.
+With no focus, start by running `zdev work-context <area> --store --format
+json`; the binary selects one task by AFK, priority, then numeric order. With a
+focus, run `zdev tasks list <area> --format json`, then `zdev task show <area>
+<task-id> --format json` for every task whose state is `ready`. Give the
+coordinating model the complete ready frontier and the user's words, and let it
+choose the best fit. The focus is guidance, not an exact filter: do not discard
+or pre-rank ready tasks by keywords. Admit the chosen task with `zdev
+work-context <area> --task <task-id> --store --format json`. For an empty
+frontier, run the no-task work-context form once to classify ordinary no-work.
+Do not reuse context from an earlier invocation or write focus, loop, or
+session state.
 Classify the result as follows:
 
 - `closed` returns `PASS` immediately, before Git or task-work gates. Start no
@@ -24,7 +34,8 @@ Classify the result as follows:
   before a worker or further mutation.
 
 For open `ready`, the validated entry context is the one-task contract's
-initial work-context. Reuse it for the first dispatch.
+initial work-context. Reuse it for the first dispatch, and tell the user which
+task was selected before implementation begins.
 
 {{task_workflow_contract}}
 
@@ -44,7 +55,8 @@ proposal from the same handoff. A later independently selected task may propose
 again under fresh authority checks.
 
 After an exact committed `PASS zdev-implement <area> <task-id>` or a successful
-derived apply, run one fresh `zdev work-context <area> --format json` before deciding the public result. If
+derived apply, tell the user that task finished, then make one fresh selection
+using the same no-focus or focused rule before deciding the public result. If
 it reports open `ready` and safe task work, return `CONTINUE`, name that fresh
 next task, and stop. Do not start it or claim a background loop. If it reports
 open `empty`, open `exhausted`, or validated `closed`, return `PASS` and stop.
@@ -59,8 +71,8 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Then include `Area`, `Lifecycle`, `Queue`, an exact stale `Advisory` once when
-applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` for
+Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, an exact stale
+`Advisory` once when applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` for
 lifecycle or queue when validation failed before classification, and `none`
 when there is no task or commit. `CONTINUE` also includes `Next task` with the
 fresh ready task ID. `BLOCKER` also includes `Current task`, `Failed stage`,

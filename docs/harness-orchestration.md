@@ -135,10 +135,11 @@ intents to internal contracts and harness-native adapters:
 - `zdev-audit [<boundary>]` performs a read-only codebase audit, checks the
   candidate findings, and returns either no findings, checked findings, or a
   blocker. An omitted boundary means the current repository.
-- `zdev-loop <area>` continues an area one verified task and commit at a time;
-  `zdev-goal <area>` is its exact alias. OpenCode and Pi currently expose the
-  same bounded form, which completes at most one task and returns `CONTINUE`
-  only after a verified commit when fresh ready work remains.
+- `zdev-loop <area> [focus...]` continues an area one verified task and commit
+  at a time; `zdev-goal` is its exact alias. The remaining words are fuzzy
+  selection guidance. OpenCode and Pi currently expose the same bounded form,
+  which completes at most one task and returns `CONTINUE` only after a verified
+  commit when fresh ready work remains.
 
 Packaged workflows, commands, and prompts support those routes. They do not
 form additional skills or change the root activation name.
@@ -148,32 +149,21 @@ form additional skills or change the root activation name.
 | Harness | Installed skill and adapters | Native workers |
 | --- | --- | --- |
 | Codex | One `zdev/SKILL.md`; audit, task, verification, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and an honest bounded fallback only after clear inspection when creation is unavailable. |
-| Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects the scoped native agent type and tells the worker to load the rendered contract through `$CLAUDE_PLUGIN_ROOT`; its complete role prompt is the inline fallback when that file is unavailable. |
-| OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; commands use the native task tool. The documented directory is plural `commands/`. |
-| Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` exposes `planner`, `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer` with their resolved model and thinking controls; the installed zdev skill supplies the shared contract. |
-| Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`, invoked through native `task`; paired continuation prompts use OMP's native goal when clear. |
+| Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects a concise scoped role and passes a stored work-context locator. The detailed derived-work contract is loaded only when a split is needed. |
+| OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; commands use the native task tool and compact file/snapshot locators. The documented directory is plural `commands/`. |
+| Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` exposes concise `planner`, `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer` roles with their resolved model and thinking controls. Calls carry compact locators rather than the rendered workflow. |
+| Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | Concise named agents are invoked through native `task`; they receive compact locators, while paired continuation prompts use OMP's native goal when clear. |
 
 These are renderable files, not a new runtime. Install and check must render the
 same bytes through the existing integration renderer. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 
-Claude is the only adapter that also references a task contract outside its
-skill directory. Claude's plugin reference documents `${CLAUDE_PLUGIN_ROOT}`
-substitution in static skill and agent content, and its export to hooks, MCP,
-and LSP subprocesses. It does not guarantee that dynamically spawned workflow
-children receive that variable. Each task-worker prompt therefore prefers the
-installed contract when the variable is non-empty and the file is readable,
-then falls back to the same rendered contract included inline. The fallback
-increases each worker prompt's size, but avoids turning a missing or unusable
-plugin-root path into a task blocker without path discovery or another worker
-call.
-
-Codex, OpenCode, Pi, and Oh My Pi retain inline task guidance. Their child
-workers start from repository working directories, while their user- and
-project-scope installation roots are not exposed through one documented,
-portable child-worker path. Guessing those paths would make global and custom
-installations unreliable, so moving their text to a file would not provide the
-same resolvable handoff.
+Worker prompts contain only their short role, repository guidance, task/file
+locators, snapshot IDs, and the preceding role's small result. Coordination
+supplies the resolved route-contract path when a worker may need rare details,
+such as the derived-work form. It does not paste the full coordinator contract
+into every child call. Claude can additionally use `${CLAUDE_PLUGIN_ROOT}` for
+its plugin contract.
 
 Codex installation targets the shared `skills/` root and manages only the
 `zdev/` skill while leaving unrelated skills untouched.
@@ -188,15 +178,21 @@ as a conflict. No unrelated shared-root file is removed.
 
 ### Deterministic task selection
 
-`zdev-implement` collects and shows a stored work-context snapshot first. The
+`zdev-implement` collects a stored work-context snapshot first. The
 command validates goal lifecycle before collecting branch or Git facts, so a
 validated closed result returns no work without those reads. Open results
 contain nested status and goal projections plus HEAD and exact staged,
 unstaged, and untracked evidence. The coordinator requires the projections to
 agree, requires `branch_status.task_work.safe`, reports `stale_advisory` once,
 and uses only the ready goal's task as its subject. Structurally unsafe state
-still blocks. The complete shown work-context JSON is passed unchanged to the
-initial implementer with the brief, repository guidance, and task-owned paths.
+still blocks. Workers receive the opaque stored locator and read the exact
+context themselves instead of relaying it through a model response.
+
+For an area-only loop or goal, the binary chooses ready work by AFK suitability,
+priority, then numeric task ID. If the user supplies any fuzzy focus, the
+coordinator reads every task in the complete ready frontier, chooses the best
+fit, and admits that explicit ID with `work-context --task`. It repeats that
+selection after every commit and never stores the focus in zdev state.
 
 An implement context that is `open` / `empty`, `open` / `exhausted`, or `closed`
 is a successful no-work result. Closed requires no branch or Git evidence;
@@ -274,17 +270,18 @@ but must render this public form.
 | `zdev-verify` | One coordinator-constructed strict verifier JSON object with verdict `pass`, `rework`, or `blocker` | Exact schema version, kind, area, task ID, summary, generated snapshot/advisory evidence, findings, and constrained escalation. |
 | `zdev-audit` | `PASS zdev-audit`, `FINDINGS zdev-audit`, or `BLOCKER zdev-audit` | Boundary, what was inspected and omitted, and checked findings with location, impact, and confidence. |
 
-An implementer handoff is a strict nine-key JSON object. Planners return the
+An implementer handoff has nine required JSON fields. Planners return the
 four semantic fields `verdict`, `summary`, `plan`, and `findings`; task
 verifiers return `verdict`, `summary`, `findings`, and `escalation`.
-Coordination strictly parses those four-field results. It passes an accepted
+Coordination extracts one balanced JSON object and validates the required
+fields. A short sentence or Markdown fence is harmless. It passes an accepted
 semantic plan unchanged to the advanced implementer and constructs the
 compatible nine-key public planner or verifier envelope itself. For verifier
 results it first compares the stored snapshot.
-Missing output, legacy or malformed JSON, duplicate, unknown, or missing keys,
-contradictory verdict or escalation, extra text, or an unavailable required
-artifact becomes a coordinator-generated `BLOCKER`. It is never interpreted
-as success.
+Missing output, legacy or malformed JSON, duplicate or missing required keys,
+multiple objects, contradictory verdict or escalation, or an unavailable
+required artifact becomes a coordinator-generated `BLOCKER`. It is never
+interpreted as success.
 
 ### Rework, retry, and completion
 

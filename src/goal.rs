@@ -63,8 +63,16 @@ struct GoalProjection {
 }
 
 pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    show_selected(root, area, None)
+}
+
+pub(super) fn show_selected(
+    root: &Path,
+    area: &str,
+    selected: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
     let (metadata, area_path) = project::load_area(root, area)?;
-    let read = tasks::goal_tasks(root, area)?;
+    let read = tasks::goal_tasks(root, area, selected)?;
     let summary = tasks::summary(root, area)?;
     tasks::validate_area_lifecycle(&metadata, &summary)?;
     let lifecycle = metadata.lifecycle.as_str();

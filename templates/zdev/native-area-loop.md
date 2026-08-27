@@ -1,7 +1,8 @@
 # Zdev area loop (native)
 
-`zdev-loop <area>` is canonical and `zdev-goal <area>` is an exact semantic
-alias. Both follow this contract and emit canonical `zdev-loop` results.
+`zdev-loop <area> [focus...]` is canonical and `zdev-goal <area> [focus...]`
+is an exact semantic alias. Parse everything after the area as optional fuzzy
+focus. Both follow this contract and emit canonical `zdev-loop` results.
 
 Before repository work, inspect the harness-native goal with the adapter's
 named model-callable operation. Native goal state selects one action:
@@ -13,9 +14,17 @@ named model-callable operation. Native goal state selects one action:
 - A different goal is unfinished, or inspection is unavailable: preserve the
   existing state and return `BLOCKER zdev-loop <area>`.
 
-With no unfinished native goal, run fresh
-`zdev work-context <area> --format json`. Never reuse an earlier selection or
-write loop/session state. Classify it before attempting native continuation:
+With no unfinished native goal, select from fresh evidence. With no focus, run
+`zdev work-context <area> --store --format json` and let the binary choose by
+AFK, priority, then numeric order. With a focus, run `zdev tasks list <area>
+--format json`, read every ready task with `zdev task show <area> <task-id>
+--format json`, and let the coordinating model choose the best fit from the
+complete ready frontier. Focus is fuzzy guidance, not an exact filter; do not
+keyword-filter or pre-rank that frontier. Admit the choice with `zdev
+work-context <area> --task <task-id> --store --format json`. For an empty
+frontier, run the no-task work-context form once to classify no-work. Never
+reuse an earlier selection or write focus, loop, or session state. Classify it
+before attempting native continuation:
 
 - Validated `closed` returns `PASS` immediately, before Git or task-work gates.
   Start no worker and omit branch status and advisory.
@@ -26,18 +35,20 @@ write loop/session state. Classify it before attempting native continuation:
 - Open `ready` with `branch_status.task_work.safe: true` may start the area
   continuation below. Report a stale-but-safe advisory once and continue.
 
-Use this exact native area condition, replacing `<area>` with the validated
-tag:
+Use this native area condition, replacing `<area>` with the validated tag.
+Replace the bracketed clause with its inner focus sentence when the user
+supplied focus; otherwise remove it:
 
 ```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. After each exact PASS and commit, run a fresh `zdev work-context <area> --format json`. Continue only while its lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when the fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration.
+For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. [Fuzzy focus: <the user's exact focus words>. Before every iteration, inspect the complete ready frontier and choose the best-fitting task; do not treat the focus as an exact filter.] With no focus, let work-context choose the next task. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration, and report each selected and completed task through normal progress updates.
 ```
 
 Apply it with the native creation operation named by the adapter. The selected
 task's nested `native_goal` remains task-sized context and never replaces this
 area condition. After successful native activation, follow the condition in
-the current session. Every iteration begins with fresh work-context and uses
-the one-task contract below.
+the current session. Every iteration repeats the applicable selection rule and
+uses the one-task contract below. Tell the user which task was selected and
+when its verified commit completes.
 
 {{task_workflow_contract}}
 
@@ -76,8 +87,8 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Then include `Area`, `Lifecycle`, `Queue`, an exact stale `Advisory` once when
-applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` when
+Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, an exact stale
+`Advisory` once when applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` when
 lifecycle or queue could not be validated and `none` when there is no task or
 commit. `CONTINUE` also includes `Next task`. `BLOCKER` also includes
 `Current task`, `Failed stage`, `Reason`, and `Preserved state`. A direct

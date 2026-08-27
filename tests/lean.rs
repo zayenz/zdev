@@ -421,12 +421,14 @@ fn work_context_snapshots_round_trip_exact_json_and_compare_fresh_state() {
         keys,
         std::collections::BTreeSet::from([
             "area",
+            "complexity",
             "head",
             "lifecycle",
             "path",
             "queue",
             "schema_version",
             "snapshot",
+            "stale_advisory",
             "task_id",
         ])
     );
@@ -1295,7 +1297,7 @@ fn area_lifecycle_distinguishes_queue_exhaustion_from_explicit_closure() {
     let ready: Value = serde_json::from_slice(&ready_next.stdout).expect("ready next JSON");
     assert_pretty_json(
         &ready_next,
-        json!({"advisory":Value::Null,"area":"general","branch":"main","branch_matches":true,"branch_status":ready["branch_status"].clone(),"lifecycle":"open","mode":"isolated","queue":"ready","schema_version":1,"task":{"blocked_by":[],"complexity":"standard","id":"general-001","path":".zdev/general/tasks/001-complete-one-task.md","slice":Value::Null,"slice_brief":Value::Null,"state":"ready","status":"open","title":"Complete one task"}}),
+        json!({"advisory":Value::Null,"area":"general","branch":"main","branch_matches":true,"branch_status":ready["branch_status"].clone(),"lifecycle":"open","mode":"isolated","queue":"ready","schema_version":1,"task":{"afk":false,"blocked_by":[],"complexity":"standard","id":"general-001","path":".zdev/general/tasks/001-complete-one-task.md","priority":"normal","slice":Value::Null,"slice_brief":Value::Null,"state":"ready","status":"open","title":"Complete one task"}}),
     );
     let rejected_close = run_zdev(root, &["area", "close", "general"]);
     assert!(!rejected_close.status.success());
@@ -2828,6 +2830,30 @@ fn task_files_drive_selection_completion_and_generated_summary() {
             .contains("complexity =")
     );
 
+    assert_eq!(
+        json_output(root, &["task", "reopen", "lean-core", "lean-core-001"])["status"],
+        "open"
+    );
+    let reopened =
+        fs::read_to_string(root.join(".zdev/lean-core/tasks/001-build-the-first-slice.md"))
+            .expect("reopened task");
+    assert!(reopened.contains("## History\n\n### Previous completion"));
+    assert!(reopened.contains("Implemented and independently verified."));
+    assert!(!reopened.contains("\n## Result\n"));
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "lean-core",
+            "lean-core-001",
+            "--summary",
+            "Verified again after reopening.",
+            "--validation",
+            "Focused test passed again.",
+        ],
+    );
+
     let next = json_output(root, &["next", "lean-core"]);
     assert_eq!(next["task"]["id"], "lean-core-002");
     let summary = fs::read_to_string(root.join(".zdev/lean-core/TASKS.md")).expect("summary");
@@ -2895,6 +2921,96 @@ fn task_order_uses_numeric_suffix_with_full_id_as_tie_breaker() {
     let two = summary.find("numeric-order-2").expect("two");
     let ten = summary.find("numeric-order-10").expect("ten");
     assert!(padded_two < two && two < ten);
+}
+
+#[test]
+fn default_ranking_and_explicit_frontier_selection_are_distinct() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "ranking", "main");
+    commit_all(root, "record ranking area");
+
+    let task = |key: &str, title: &str, afk: bool, priority: &str, blocked_by: Value| {
+        json!({
+            "key": key,
+            "title": title,
+            "afk": afk,
+            "priority": priority,
+            "outcome": format!("{title} is complete."),
+            "done_when": [format!("{title} is done.")],
+            "validation": ["Inspect the result."],
+            "blocked_by": blocked_by,
+        })
+    };
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "ranking",
+        "tasks": [
+            task("foreground-high", "Foreground high", false, "high", json!([])),
+            task("afk-low", "AFK low", true, "low", json!([])),
+            task("afk-high", "AFK high", true, "high", json!([])),
+            task("blocked", "Blocked", true, "high", json!(["afk-high"])),
+        ],
+    }))
+    .expect("ranking task bundle");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "ranking", "--from", "-"],
+        &bundle,
+    );
+
+    assert_eq!(
+        json_output(root, &["next", "ranking"])["task"]["id"],
+        "ranking-003"
+    );
+
+    let selected = json_output(root, &["work-context", "ranking", "--task", "ranking-002"]);
+    assert_eq!(selected["task_id"], "ranking-002");
+    assert_eq!(selected["status"]["next"], "ranking-002");
+    assert_eq!(selected["goal"]["task"]["id"], "ranking-002");
+
+    let stored = json_output(
+        root,
+        &[
+            "work-context",
+            "ranking",
+            "--task",
+            "ranking-002",
+            "--store",
+        ],
+    );
+    assert_eq!(stored["task_id"], "ranking-002");
+    assert_eq!(stored["complexity"], "standard");
+    assert_eq!(stored["stale_advisory"], false);
+    assert_eq!(
+        json_output(
+            root,
+            &[
+                "work-context",
+                "ranking",
+                "--compare",
+                stored["snapshot"].as_str().expect("snapshot"),
+            ],
+        )["equal"],
+        true
+    );
+
+    let blocked = run_zdev(
+        root,
+        &[
+            "work-context",
+            "ranking",
+            "--task",
+            "ranking-004",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(!blocked.status.success());
+    assert!(String::from_utf8_lossy(&blocked.stderr).contains("not in the ready frontier"));
 }
 
 #[test]
@@ -6125,12 +6241,12 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
 }
 
 #[test]
-fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() {
+fn claude_task_workflows_extract_one_valid_structured_envelope() {
     let implement = include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
     let verify = include_str!("../templates/zdev/claude/workflows/zdev-verify.js");
 
     let parser_start = implement
-        .find("const expectedOpenContextKeys")
+        .find("const decodeJsonObject")
         .expect("parser start");
     let parser_end = implement
         .find("const workerResultKeys")
@@ -6139,24 +6255,15 @@ fn claude_task_workflows_reject_incomplete_or_mismatched_structured_envelopes() 
         r#"const area = 'general'
 {}
 const head = '0123456789abcdef0123456789abcdef01234567'
-const status = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', next: 'general-001', branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }} }}
-const goal = {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', task: {{ id: 'general-001', complexity: 'standard' }} }}
-const envelope = (changes = {{}}) => JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: 'general-001', stale_advisory: false, status, goal, head, git_status: '', git_diff_cached: '', git_diff: '', ...changes }})
-if (!parseContext(envelope(), area, 'general-001')) throw new Error('valid ready context rejected')
-if (parseContext(envelope({{ task_id: 'general-002' }}), area, 'general-001')) throw new Error('changed task accepted')
-if (parseContext(envelope({{ lifecycle: 'closed' }}), area, 'general-001')) throw new Error('changed lifecycle accepted')
-if (parseContext(envelope({{ head: 'bad' }}), area, 'general-001')) throw new Error('malformed HEAD accepted')
-if (parseContext(envelope({{ git_status: 1 }}), area, 'general-001')) throw new Error('malformed Git evidence accepted')
-if (parseContext(envelope({{ extra: true }}), area, 'general-001')) throw new Error('unknown context key accepted')
-const stored = JSON.stringify({{ snapshot: 'W0123456789abcdef', context: JSON.parse(envelope()) }})
+const stored = JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: 'general-001', complexity: 'standard', stale_advisory: false, head, snapshot: 'W0123456789abcdef', path: '.git/zdev/work-context/general/W0123456789abcdef.json' }})
 if (parseStoredContext(stored, area)?.baselineSnapshot !== 'W0123456789abcdef') throw new Error('stored baseline rejected')
-if (parseStoredContext(JSON.stringify({{ snapshot: '/tmp/context.json', context: JSON.parse(envelope()) }}), area)) throw new Error('baseline path accepted')
-if (parseStoredContext(JSON.stringify({{ snapshot: 'W0123456789abcdef', context: JSON.parse(envelope()), extra: true }}), area)) throw new Error('stored baseline with unknown key accepted')
-const closedGoal = {{ area: {{ tag: area }}, lifecycle: 'closed', queue: 'empty', task: null }}
-const closedEnvelope = goalValue => JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed', queue: 'empty', task_id: null, goal: goalValue }})
-if (!parseContext(closedEnvelope(closedGoal), area)) throw new Error('branch-independent closed no-work rejected')
-if (parseContext(closedEnvelope({{ ...closedGoal, task: undefined }}), area)) throw new Error('closed goal without explicit null task accepted')
-if (parseContext(JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed', queue: 'empty', task_id: null, goal: closedGoal, git_status: '' }}), area)) throw new Error('closed goal with Git evidence accepted')
+if (!parseStoredContext('Stored context:\n```json\n' + stored + '\n```', area)) throw new Error('wrapped stored context rejected')
+if (parseStoredContext(JSON.stringify({{ ...JSON.parse(stored), snapshot: '/tmp/context.json' }}), area)) throw new Error('baseline path accepted')
+if (parseStoredContext(JSON.stringify({{ ...JSON.parse(stored), head: 'bad' }}), area)) throw new Error('malformed HEAD accepted')
+if (parseStoredContext(stored, area, {{ taskId: 'general-002', head, complexity: 'standard' }})) throw new Error('changed task accepted')
+const closed = JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed', queue: 'empty', task_id: null, snapshot: 'W0123456789abcdef', path: '.git/zdev/work-context/general/W0123456789abcdef.json' }})
+if (parseStoredContext(closed, area)?.taskId !== null) throw new Error('closed no-work rejected')
+if (parseStoredContext(closed, area, {{ taskId: 'general-001', head, complexity: 'standard' }})) throw new Error('closed context accepted for a selected task')
 "#,
         &implement[parser_start..parser_end]
     );
@@ -6172,8 +6279,7 @@ if (parseContext(JSON.stringify({{ schema_version: 1, area, lifecycle: 'closed',
 
     for workflow in [implement, verify] {
         let worker_start = workflow
-            .find("const workerResultKeys")
-            .or_else(|| workflow.find("const publicResultKeys"))
+            .find("const decodeJsonObject")
             .expect("worker parser start");
         let worker_end = ["\nconst derivedSplitFrom", "\n\nif (!/^[a-z0-9]"]
             .into_iter()
@@ -6196,9 +6302,10 @@ for (const finding of ['src/generated.rs changed', 'validation_write: /tmp/file'
 if (reportsValidationWrite({{ ...rework, findings: ['validation_write: src/generated.rs', 'validation_write: ../outside'] }})) throw new Error('mixed valid and malformed validation markers accepted')
 if (parseVerifierResult(JSON.stringify({{ ...base, findings: ['contradictory finding'] }}))) throw new Error('PASS with findings accepted')
 if (parseVerifierResult(JSON.stringify({{ ...rework, findings: [] }}))) throw new Error('REWORK without findings accepted')
-if (parseVerifierResult(JSON.stringify({{ ...base, extra: true }}))) throw new Error('unknown semantic key accepted')
+if (!parseVerifierResult(JSON.stringify({{ ...base, extra: true }}))) throw new Error('harmless extra semantic key rejected')
 if (parseVerifierResult(JSON.stringify({{ ...base, escalation: 'advanced-implementer' }}))) throw new Error('contradictory escalation accepted')
-if (parseVerifierResult(`${{JSON.stringify(base)}} trailing`)) throw new Error('extra text accepted')
+if (!parseVerifierResult(`Result:\n\`\`\`json\n${{JSON.stringify(base)}}\n\`\`\``)) throw new Error('wrapped JSON rejected')
+if (parseVerifierResult(`${{JSON.stringify(base)}}\n${{JSON.stringify(base)}}`)) throw new Error('multiple JSON objects accepted')
 const duplicate = '{{"verdict":"pass","summary":"Verified.","findings":[],"findings":[],"escalation":"none"}}'
 if (parseVerifierResult(duplicate)) throw new Error('duplicate semantic key accepted')
 const legacy = {{ schema_version: 1, kind: 'verifier', area, task_id: taskId, ...base, evidence: [] }}
@@ -6252,16 +6359,9 @@ async function run(args, agent) {{
 const area = 'work'
 const task = 'work-001'
 const head = '0123456789abcdef0123456789abcdef01234567'
-const context = JSON.stringify({{
-  schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: task,
-  stale_advisory: false,
-  status: {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', next: task,
-    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }} }},
-  goal: {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'ready', task: {{ id: task }} }},
-  head, git_status: ' M src/lib.rs\n', git_diff_cached: '', git_diff: 'large diff\n',
-}})
 const snapshot = 'W0123456789abcdef'
-const stored = JSON.stringify({{ snapshot, context: JSON.parse(context) }})
+const stored = JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: task,
+  complexity: 'standard', stale_advisory: false, head, snapshot, path: '.git/zdev/work-context/work/' + snapshot + '.json' }})
 const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot, equal }})
 const worker = (verdict, findings = [], escalation = 'none') => JSON.stringify({{
   verdict,
@@ -6273,8 +6373,8 @@ const exercise = async (response, equal = true, invocation = {{ area, task_id: t
   const result = await run(invocation, async (prompt, options) => {{
     prompts.push({{ prompt, options }})
     if (options.agentType) return response
-    if (options.label === 'zdev verification snapshot') return storedResponse
-    if (options.label === 'zdev post-verification compare') return comparedResponse
+    if (options.label === 'zdev ' + task + ': capture verification snapshot') return storedResponse
+    if (options.label === 'zdev ' + task + ': confirm verifier left snapshot unchanged') return comparedResponse
     throw new Error('unexpected coordination call: ' + options.label)
   }})
   return {{ result, prompts }}
@@ -6288,21 +6388,15 @@ for (const invocation of [['work', 'work-001'], 'work work-001']) {{
   if (!direct.result.startsWith('{{"schema_version":1,"kind":"verifier"')) throw new Error('direct args rejected: ' + direct.result)
 }}
 const verifierPrompt = valid.prompts.find(call => call.options.agentType)?.prompt ?? ''
-if (!verifierPrompt.includes('`${{CLAUDE_PLUGIN_ROOT:-}}` is non-empty')) throw new Error('contract root guard missing')
-if (!verifierPrompt.includes('`"${{CLAUDE_PLUGIN_ROOT}}/contracts/task-workflows.md"` is readable')) throw new Error('readable contract preference missing')
-if (!verifierPrompt.includes('rendered canonical contract included inline')) throw new Error('inline fallback instruction missing')
-if (!verifierPrompt.includes('workflow contract')) throw new Error('rendered contract missing')
-if (verifierPrompt.includes('Cannot read installed task-workflow contract')) throw new Error('blocker-only contract behavior retained')
-if (!valid.prompts.find(call => call.options.label === 'zdev verification snapshot')?.prompt.includes('work-context work --store --format json')) throw new Error('coordinator store missing')
+if (verifierPrompt.includes('workflow contract')) throw new Error('full workflow contract was injected')
+if (!valid.prompts.find(call => call.options.label.includes('capture verification snapshot'))?.prompt.includes('work-context work --task work-001 --store --format json')) throw new Error('coordinator store missing')
 if (valid.prompts.some(call => call.options.label === 'zdev verify preflight')) throw new Error('redundant full-context preflight retained')
-if (!verifierPrompt.includes('work-context work --show ' + snapshot + ' --format json')) throw new Error('supplied show missing')
+if (!verifierPrompt.includes(snapshot) || !verifierPrompt.includes('work-context --show')) throw new Error('supplied show missing')
 if (verifierPrompt.includes('--store') || verifierPrompt.includes('--compare')) throw new Error('verifier retained bookkeeping')
-if (!valid.prompts.find(call => call.options.label === 'zdev post-verification compare')?.prompt.includes('work-context work --compare ' + snapshot + ' --format json')) throw new Error('coordinator compare missing')
-if (!verifierPrompt.includes('exact four-field JSON object')) throw new Error('semantic contract missing')
+if (!valid.prompts.find(call => call.options.label.includes('confirm verifier'))?.prompt.includes('work-context work --compare ' + snapshot + ' --format json')) throw new Error('coordinator compare missing')
 if (verifierPrompt.includes('large diff') || verifierPrompt.includes(' M src/lib.rs')) throw new Error('raw coordinator Git evidence transported')
 for (const rejectedWorker of [
   '{{}}',
-  JSON.stringify({{ verdict: 'pass', summary: 'ok', findings: [], escalation: 'none', extra: true }}),
   JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: task, verdict: 'pass', summary: 'legacy', evidence: [], findings: [], escalation: 'none' }}),
 ]) {{
   const rejected = await exercise(rejectedWorker)
@@ -6327,11 +6421,7 @@ const changedPass = await exercise(worker('pass'), false)
 if (!changedPass.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(changedPass.result)
 const malformedCompare = await exercise(worker('pass'), true, {{ area, task_id: task }}, stored, '{{}}')
 if (!malformedCompare.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(malformedCompare.result)
-const stalePayload = JSON.parse(context)
-stalePayload.stale_advisory = true
-stalePayload.status.branch_status.task_work.stale_advisory = true
-const staleContext = JSON.stringify(stalePayload)
-const staleStored = JSON.stringify({{ snapshot, context: stalePayload }})
+const staleStored = JSON.stringify({{ ...JSON.parse(stored), stale_advisory: true }})
 const stale = await exercise(worker('pass'), true, {{ area, task_id: task }}, staleStored, comparison(true))
 const stalePublic = JSON.parse(stale.result)
 if (JSON.stringify(stalePublic.evidence) !== JSON.stringify(['work_context_snapshot: ' + snapshot, 'stale effective-base link; managed rebase remains optional.'])) throw new Error(stale.result)
@@ -6377,47 +6467,20 @@ const structuredPlanner = (verdict, plan = null, findings = [], summary = verdic
   verdict, summary, plan, findings,
 }})
 const semanticPlan = () => ({{ approach: 'inspect then edit', paths: ['src/lib.rs', 'tests/lean.rs'], validation: ['cargo test', 'git diff --check'] }})
-const context = complexity => JSON.stringify({{
-  schema_version: 1,
-  area,
-  lifecycle: 'open',
-  queue: 'ready',
-  task_id: taskId,
-  stale_advisory: false,
-  status: {{
-    area: {{ tag: area }},
-    lifecycle: 'open',
-    queue: 'ready',
-    next: taskId,
-    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }},
-  }},
-  goal: {{
-    area: {{ tag: area }},
-    lifecycle: 'open',
-    queue: 'ready',
-    task: {{ id: taskId, complexity }},
-  }},
-  head,
-  git_status: '',
-  git_diff_cached: '',
-  git_diff: '',
-}})
 const baselineSnapshot = 'Wfedcba9876543210'
 const verificationSnapshot = 'W0123456789abcdef'
-const storedContext = complexity => JSON.stringify({{
-  snapshot: baselineSnapshot,
-  context: JSON.parse(context(complexity)),
+const compactContext = (complexity, snapshot, overrides = {{}}) => JSON.stringify({{
+  schema_version: 1, area, lifecycle: 'open', queue: 'ready',
+  task_id: overrides.taskId ?? taskId,
+  complexity: overrides.complexity ?? complexity,
+  stale_advisory: false,
+  head: overrides.head ?? head,
+  snapshot,
+  path: '.git/zdev/work-context/work/' + snapshot + '.json',
 }})
+const storedContext = complexity => compactContext(complexity, baselineSnapshot)
 const verificationContext = (complexity, overrides = {{}}) => {{
-  const payload = JSON.parse(context(complexity))
-  if (overrides.head) payload.head = overrides.head
-  if (overrides.taskId) {{
-    payload.task_id = overrides.taskId
-    payload.status.next = overrides.taskId
-    payload.goal.task.id = overrides.taskId
-  }}
-  if (overrides.complexity) payload.goal.task.complexity = overrides.complexity
-  return JSON.stringify({{ snapshot: verificationSnapshot, context: payload }})
+  return compactContext(complexity, verificationSnapshot, overrides)
 }}
 const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal }})
 const passEvidence = [
@@ -6434,17 +6497,18 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
       if (responses.length === 0) throw new Error(name + ': unexpected worker')
       return responses.shift()
     }}
-    if (options.label === 'zdev derived split coordination') {{
+    if (options.label.includes('coordinate derived split')) {{
       if (derived === null) throw new Error(name + ': unexpected derived coordination')
       const result = derived
       derived = null
       return result
     }}
-    if (options.label === 'zdev completion and commit') return completion
-    if (options.label === 'zdev implement preflight') return storedContext(complexity)
-    if (options.label === 'zdev verification snapshot') return verificationContext(complexity, verificationOverrides)
-    if (options.label === 'zdev post-verification compare') return comparison(compareEquals.length ? compareEquals.shift() : true)
-    return context(complexity)
+    if (options.label.includes('complete and commit')) return completion
+    if (options.label === 'zdev work: select ready task') return storedContext(complexity)
+    if (options.label.includes('capture verification snapshot')) return verificationContext(complexity, verificationOverrides)
+    if (options.label.includes('confirm verifier')) return comparison(compareEquals.length ? compareEquals.shift() : true)
+    if (options.label.includes('refresh before rework')) return compactContext(complexity, verificationSnapshot)
+    throw new Error(name + ': unexpected coordination call ' + options.label)
   }})
   if (!result.startsWith(expectedPrefix + ' zdev-implement')) throw new Error(name + ': ' + result)
   if (responses.length !== 0) throw new Error(name + ': unused responses')
@@ -6455,11 +6519,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   }}
   const verifierPrompts = calls.filter(call => call.options.agentType === 'zdev:zdev-verifier').map(call => call.prompt)
   for (const call of calls.filter(call => call.options.agentType)) {{
-    if (!call.prompt.includes('`${{CLAUDE_PLUGIN_ROOT:-}}` is non-empty')) throw new Error(name + ': contract root guard missing')
-    if (!call.prompt.includes('`"${{CLAUDE_PLUGIN_ROOT}}/contracts/task-workflows.md"` is readable')) throw new Error(name + ': readable contract preference missing')
-    if (!call.prompt.includes('rendered canonical contract included inline')) throw new Error(name + ': inline fallback instruction missing')
-    if (!call.prompt.includes('workflow contract')) throw new Error(name + ': rendered contract missing')
-    if (call.prompt.includes('Cannot read installed task-workflow contract')) throw new Error(name + ': blocker-only contract behavior retained')
+    if (call.prompt.includes('workflow contract')) throw new Error(name + ': full workflow contract was injected')
   }}
   const plannerCalls = calls.filter(call => call.options.agentType === 'zdev:zdev-planner')
   if (plannerCalls.length > 1) throw new Error(name + ': planner dispatched more than once')
@@ -6470,15 +6530,14 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (call.options.outputFormat || call.options.jsonSchema) throw new Error(name + ': planner used a non-workflow schema option')
   }}
   for (const prompt of verifierPrompts) {{
-    if (!prompt.includes('Compact implementer summary:')) throw new Error(name + ': verifier lost compact implementation summary')
-    if (!prompt.includes('Original baseline snapshot: ' + baselineSnapshot)) throw new Error(name + ': verifier lost original baseline')
-    if (!prompt.includes('Verification snapshot: ' + verificationSnapshot)) throw new Error(name + ': verifier lost supplied snapshot')
-    if (!prompt.includes('exact four-field JSON object')) throw new Error(name + ': verifier retained legacy response contract')
+    if (!prompt.includes('Implementer summary:')) throw new Error(name + ': verifier lost compact implementation summary')
+    if (!prompt.includes(baselineSnapshot)) throw new Error(name + ': verifier lost original baseline')
+    if (!prompt.includes(verificationSnapshot)) throw new Error(name + ': verifier lost supplied snapshot')
     if (prompt.includes('--store') || prompt.includes('--compare')) throw new Error(name + ': verifier retained coordinator bookkeeping')
     if (prompt.includes('implementer history')) throw new Error(name + ': verifier received history')
     if (prompt.includes('"git_status":') || prompt.includes('"git_diff":')) throw new Error(name + ': verifier received raw coordinator context')
   }}
-  const completionPrompt = calls.find(call => call.options.label === 'zdev completion and commit')?.prompt
+  const completionPrompt = calls.find(call => call.options.label.includes('complete and commit'))?.prompt
   if (completionPrompt) {{
     if (completionPrompt.includes('implementer envelope') || completionPrompt.includes('implementer history')) throw new Error(name + ': completion received implementation payload')
     if (completionPrompt.includes('Verifier pass:') || completionPrompt.includes('"kind":"verifier"')) throw new Error(name + ': completion received duplicate verifier payload')
@@ -6558,8 +6617,8 @@ if (ordinaryRework.calls.length !== 11) throw new Error('one REWORK did not use 
 if (ordinaryRework.calls.some(call => call.options.label === 'zdev post-rework verification refresh')) throw new Error('redundant post-rework verification refresh retained')
 if (!ordinaryRework.verifierPrompts[0].includes('initial locator')) throw new Error('first verifier lost initial locator')
 if (!ordinaryRework.verifierPrompts[1].includes('rework locator') || ordinaryRework.verifierPrompts[1].includes('initial locator')) throw new Error('second verifier did not receive only latest locator')
-const reworkPrompt = ordinaryRework.calls.find(call => call.options.label === 'zdev native rework')?.prompt ?? ''
-if (!reworkPrompt.includes('Original baseline snapshot: ' + baselineSnapshot)) throw new Error('rework lost original baseline')
+const reworkPrompt = ordinaryRework.calls.find(call => call.options.label.endsWith(': rework'))?.prompt ?? ''
+if (!reworkPrompt.includes(baselineSnapshot)) throw new Error('rework lost original baseline')
 if (reworkPrompt.includes('"git_status":') || reworkPrompt.includes('"git_diff":')) throw new Error('rework received raw coordinator context')
 const advancedEscalation = await exercise(
   'advanced escalation',
@@ -6683,7 +6742,6 @@ await exercise(
 )
 for (const [name, rejectedPlanner] of [
   ['non-normalized planner path', structuredPlanner('plan', {{ ...semanticPlan(), paths: ['src/../outside.rs'] }})],
-  ['extra semantic planner key', {{ ...structuredPlanner('plan', semanticPlan()), extra: true }}],
   ['duplicate semantic planner key', '{{"verdict":"plan","summary":"first","summary":"second","plan":{{"approach":"inspect","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
   ['duplicate nested semantic plan key', '{{"verdict":"plan","summary":"plan result","plan":{{"approach":"inspect","approach":"edit","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
   ['plan with findings', structuredPlanner('plan', semanticPlan(), ['contradictory finding'])],
@@ -6804,58 +6862,21 @@ const worker = (task, kind, verdict, escalation = 'none', evidence = [], finding
     ? {{ verdict, summary: verdict + ' result', findings, escalation }}
     : {{ schema_version: 1, kind, area, task_id: task, verdict, summary: verdict + ' result', evidence, findings, escalation }}
 )
+const baselineSnapshot = 'Wfedcba9876543210'
+const verificationSnapshot = 'W0123456789abcdef'
 const ready = (task, complexity = 'standard', contextHead = head) => JSON.stringify({{
-  schema_version: 1,
-  area,
-  lifecycle: 'open',
-  queue: 'ready',
-  task_id: task,
-  stale_advisory: false,
-  status: {{
-    area: {{ tag: area }},
-    lifecycle: 'open',
-    queue: 'ready',
-    next: task,
-    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }},
-  }},
-  goal: {{
-    area: {{ tag: area }},
-    lifecycle: 'open',
-    queue: 'ready',
-    task: {{ id: task, complexity }},
-  }},
-  head: contextHead,
-  git_status: '',
-  git_diff_cached: '',
-  git_diff: '',
+  schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: task,
+  complexity, stale_advisory: false, head: contextHead, snapshot: baselineSnapshot,
+  path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})
 const closed = JSON.stringify({{
-  schema_version: 1,
-  area,
-  lifecycle: 'closed',
-  queue: 'empty',
-  task_id: null,
-  goal: {{ area: {{ tag: area }}, lifecycle: 'closed', queue: 'empty', task: null }},
+  schema_version: 1, area, lifecycle: 'closed', queue: 'empty', task_id: null,
+  snapshot: baselineSnapshot, path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})
 const empty = contextHead => JSON.stringify({{
-  schema_version: 1,
-  area,
-  lifecycle: 'open',
-  queue: 'empty',
-  task_id: null,
-  stale_advisory: false,
-  status: {{
-    area: {{ tag: area }},
-    lifecycle: 'open',
-    queue: 'empty',
-    next: null,
-    branch_status: {{ task_work: {{ safe: true, stale_advisory: false }} }},
-  }},
-  goal: {{ area: {{ tag: area }}, lifecycle: 'open', queue: 'empty', task: null }},
-  head: contextHead,
-  git_status: '',
-  git_diff_cached: '',
-  git_diff: '',
+  schema_version: 1, area, lifecycle: 'open', queue: 'empty', task_id: null,
+  stale_advisory: false, head: contextHead, snapshot: baselineSnapshot,
+  path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})
 const passEvidence = _contextHead => ['work_context_snapshot: W0123456789abcdef']
 const completionPass = task =>
@@ -6863,45 +6884,52 @@ const completionPass = task =>
   + '\n\nArea: ' + area + '\nTask: ' + task
   + '\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed'
   + '\nVerifier evidence: checked\nCommit ID: ' + (task.endsWith('1') ? commit1 : commit2)
-const exercise = async (name, contexts, workers, completions, expectedPrefix, derived = [], invocation = {{ area }}) => {{
+const exercise = async (name, contexts, workers, completions, expectedPrefix, derived = [], invocation = {{ area }}, selections = []) => {{
   const calls = []
   let lastContext = null
-  const result = await run(invocation, async (_prompt, options) => {{
-    calls.push({{ label: options.label, type: options.agentType ?? null }})
-    if (options.label === 'zdev loop continuation preflight') {{
-      if (contexts.length === 0) throw new Error(name + ': unexpected context request')
-      lastContext = contexts.shift()
-      return JSON.stringify({{ snapshot: 'Wfedcba9876543210', context: JSON.parse(lastContext) }})
+  const result = await run(invocation, async (prompt, options) => {{
+    calls.push({{ label: options.label, type: options.agentType ?? null, prompt }})
+    if (options.label === 'zdev work: choose from ready frontier') {{
+      if (selections.length === 0) throw new Error(name + ': unexpected focus selection')
+      return selections.shift()
     }}
-    if (options.label === 'zdev implement preflight' || options.label.includes('refresh')) {{
+    if (options.label === 'zdev work: select next task' || options.label.startsWith('zdev work: prepare ')) {{
       if (contexts.length === 0) throw new Error(name + ': unexpected context request')
       lastContext = contexts.shift()
       return lastContext
     }}
-    if (options.label === 'zdev verification snapshot') {{
+    if (options.label.includes('refresh before rework')) {{
+      if (contexts.length === 0) throw new Error(name + ': unexpected context request')
+      lastContext = contexts.shift()
+      return lastContext
+    }}
+    if (options.label.includes('capture verification snapshot')) {{
       if (contexts.length === 0) throw new Error(name + ': unexpected snapshot context request')
       lastContext = contexts.shift()
-      return JSON.stringify({{ snapshot: 'W0123456789abcdef', context: JSON.parse(lastContext) }})
+      const value = JSON.parse(lastContext)
+      value.snapshot = verificationSnapshot
+      value.path = '.git/zdev/work-context/work/' + verificationSnapshot + '.json'
+      return JSON.stringify(value)
     }}
-    if (options.label === 'zdev post-verification compare') {{
-      return JSON.stringify({{ schema_version: 1, area, snapshot: 'W0123456789abcdef', equal: true }})
+    if (options.label.includes('confirm verifier')) {{
+      return JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal: true }})
     }}
     if (options.agentType) {{
       if (workers.length === 0) throw new Error(name + ': unexpected worker')
       return workers.shift()
     }}
-    if (options.label === 'zdev derived split coordination') {{
+    if (options.label.includes('coordinate derived split')) {{
       if (derived.length === 0) throw new Error(name + ': unexpected derived coordination')
       return derived.shift()
     }}
-    if (options.label === 'zdev completion and commit') {{
+    if (options.label.includes('complete and commit')) {{
       if (completions.length === 0) throw new Error(name + ': unexpected completion')
       return completions.shift()
     }}
     throw new Error(name + ': unknown call ' + JSON.stringify(options))
   }})
   if (!result.startsWith(expectedPrefix + ' zdev-loop ' + area)) throw new Error(name + ': ' + result)
-  if (contexts.length || workers.length || completions.length || derived.length) throw new Error(name + ': unused fixture values')
+  if (contexts.length || workers.length || completions.length || derived.length || selections.length) throw new Error(name + ': unused fixture values')
   return {{ result, calls }}
 }}
 
@@ -6921,8 +6949,24 @@ if (!twoTask.result.includes('Tasks completed: work-001, work-002')) throw new E
 if (!twoTask.result.includes('Lifecycle: closed\nQueue: empty')) throw new Error(twoTask.result)
 
 const noWork = await exercise('closed no-work', [closed], [], [], 'PASS', [], 'work')
-if (noWork.calls.length !== 1 || noWork.calls[0].label !== 'zdev loop continuation preflight') throw new Error(JSON.stringify(noWork.calls))
+if (noWork.calls.length !== 1 || noWork.calls[0].label !== 'zdev work: select next task') throw new Error(JSON.stringify(noWork.calls))
 await exercise('closed no-work array args', [closed], [], [], 'PASS', [], ['work'])
+
+const focused = await exercise(
+  'fuzzy focus selection',
+  [ready('work-002'), ready('work-002'), closed],
+  [worker('work-002', 'implementer', 'ready'), worker('work-002', 'verifier', 'pass', 'none', passEvidence(head))],
+  [completionPass('work-002')],
+  'PASS',
+  [],
+  'work focus on database cleanup',
+  [
+    JSON.stringify({{ task_id: 'work-002', ready: ['work-001', 'work-002'], reason: 'best fit' }}),
+    JSON.stringify({{ task_id: null, ready: [], reason: 'frontier empty' }}),
+  ],
+)
+const selectorPrompt = focused.calls.find(call => call.label.includes('choose from ready frontier'))?.prompt ?? ''
+if (!selectorPrompt.includes('zdev task show work <task-id>') || !focused.result.includes('Focus: focus on database cleanup')) throw new Error(focused.result)
 
 const rework = await exercise(
   'rework',
@@ -6948,8 +6992,8 @@ const resumed = await exercise(
   [completionPass('work-001')],
   'PASS',
 )
-const completionIndex = resumed.calls.findIndex(call => call.label === 'zdev completion and commit')
-if (resumed.calls[completionIndex + 1]?.label !== 'zdev loop continuation preflight') throw new Error(JSON.stringify(resumed.calls))
+const completionIndex = resumed.calls.findIndex(call => call.label.includes('complete and commit'))
+if (resumed.calls[completionIndex + 1]?.label !== 'zdev work: select next task') throw new Error(JSON.stringify(resumed.calls))
 
 const staleResumed = await exercise(
   'cached result without repository advance',
@@ -6961,7 +7005,7 @@ const staleResumed = await exercise(
   [completionPass('work-001')],
   'BLOCKER',
 )
-if (staleResumed.calls.at(-1)?.label !== 'zdev loop continuation preflight') throw new Error(JSON.stringify(staleResumed.calls))
+if (staleResumed.calls.at(-1)?.label !== 'zdev work: select next task') throw new Error(JSON.stringify(staleResumed.calls))
 
 const failed = await exercise(
   'completion failure',
@@ -6973,7 +7017,7 @@ const failed = await exercise(
   ['BLOCKER zdev-implement work work-001\n\nArea: work\nTask: work-001\nFailed stage: commit\nReason: commit failed\nPreserved state: task completion and index remain'],
   'BLOCKER',
 )
-if (failed.calls.at(-1)?.label !== 'zdev completion and commit') throw new Error(JSON.stringify(failed.calls))
+if (!failed.calls.at(-1)?.label.includes('complete and commit')) throw new Error(JSON.stringify(failed.calls))
 
 const decision = await exercise(
   'user decision',
@@ -7032,9 +7076,10 @@ fn work_context_round_trip_counts_match_realized_routes() {
     assert!(audit.contains("one-task command does\nnot run an unused post-commit `next` or K"));
     assert!(audit.contains("CS is coordinator snapshot store and\nshow"));
     assert!(audit.contains("returns exactly verdict, summary, findings, and\nescalation"));
-    assert!(loop_contract.contains(
-        "After each exact PASS and commit, run a fresh `zdev work-context <area> --format json`"
-    ));
+    assert!(
+        loop_contract
+            .contains("After each exact PASS and commit, select again from fresh evidence")
+    );
     assert!(
         loop_contract.contains("collect fresh work-context before deciding or dispatching again")
     );
@@ -7261,7 +7306,7 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
                 .join("references/task-workflows.md"),
         )
         .expect("task workflow contract");
-        assert!(task_contract.contains("It has exactly those four unique keys"));
+        assert!(task_contract.contains("Those four unique keys are required"));
         assert!(
             task_contract.contains("Immediately before every verifier dispatch, coordination runs")
         );
@@ -7281,7 +7326,7 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
         )
         .expect("verify workflow contract");
         assert!(
-            verify_contract.contains("Legacy nine-key verifier\nobjects are invalid worker output")
+            verify_contract.contains("Legacy nine-key verifier objects are\ninvalid worker output")
         );
         assert!(verify_contract.contains("coordination runs `zdev work-context <area> --compare"));
         if let Some((implement, verify)) = adapters {
@@ -7290,7 +7335,12 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
             for adapter in [implement, verify] {
                 let rendered =
                     fs::read_to_string(destination.join(adapter)).expect("rendered task adapter");
-                assert!(rendered.contains("four-field"), "{harness} {adapter}");
+                assert!(
+                    rendered.contains("four semantic fields")
+                        || rendered.contains("four-field")
+                        || rendered.contains("verifier object"),
+                    "{harness} {adapter}"
+                );
                 assert!(rendered.contains("coordinator"), "{harness} {adapter}");
             }
         }
@@ -7363,9 +7413,11 @@ fn omp_planner_constrains_one_result_without_formatting_retries() {
     ] {
         let normalized = guidance.split_whitespace().collect::<Vec<_>>().join(" ");
         assert!(normalized.contains("details.results[].structuredOutput.data"));
-        assert!(normalized.contains("same result's output"));
+        assert!(normalized.contains("result's output"));
+        assert!(normalized.contains("balanced JSON object"));
+        assert!(normalized.contains("brief prose or a Markdown fence"));
         assert!(normalized.contains("formatting follow-up"));
-        assert!(normalized.contains("formatting pass"));
+        assert!(!normalized.contains("strictly validate the complete JSON string"));
     }
 
     let verifier = include_str!("../templates/zdev/omp/agents/zdev-verifier.md");
@@ -7399,6 +7451,11 @@ fn bounded_area_loop_aliases_share_one_stop_and_restart_contract() {
         let alias = fs::read_to_string(destination.join(directory).join("zdev-goal.md"))
             .expect("bounded loop alias");
         assert_eq!(canonical, alias, "{harness} aliases must be byte-identical");
+        assert!(canonical.contains("remaining text as\noptional fuzzy focus"));
+        assert!(canonical.contains("complete ready frontier"));
+        assert!(canonical.contains("zdev task show <area>\n<task-id> --format json"));
+        assert!(canonical.contains("--task <task-id> --store --format json"));
+        assert!(canonical.contains("AFK, priority, then numeric order"));
         assert_eq!(
             json_output_with_env(
                 root,
@@ -7445,12 +7502,20 @@ fn native_loop_harnesses_install_one_skill_and_their_area_adapter() {
                 ["zdev/SKILL.md"]
             );
             assert!(destination.join("zdev/references/area-loop.md").is_file());
+            let loop_contract =
+                fs::read_to_string(destination.join("zdev/references/area-loop.md"))
+                    .expect("Codex native loop contract");
+            assert!(loop_contract.contains("complete ready frontier"));
+            assert!(loop_contract.contains("--task <task-id> --store --format json"));
         } else {
             let canonical =
                 fs::read(destination.join("prompts/zdev-loop.md")).expect("native loop adapter");
             let alias =
                 fs::read(destination.join("prompts/zdev-goal.md")).expect("native goal adapter");
             assert_eq!(canonical, alias, "OMP aliases must be byte-identical");
+            let canonical = String::from_utf8(canonical).expect("OMP loop text");
+            assert!(canonical.contains("complete ready frontier"));
+            assert!(canonical.contains("--task <task-id> --store --format json"));
             assert!(
                 destination
                     .join("skills/zdev/references/area-loop.md")
@@ -7472,6 +7537,26 @@ fn native_loop_harnesses_install_one_skill_and_their_area_adapter() {
             "ok"
         );
     }
+}
+
+#[test]
+fn non_claude_worker_handoffs_are_compact_and_wrapper_tolerant() {
+    for prompt in [
+        include_str!("../templates/zdev/opencode/commands/zdev-implement.md"),
+        include_str!("../templates/zdev/pi/prompts/zdev-implement.md"),
+        include_str!("../templates/zdev/omp/prompts/zdev-implement.md"),
+        include_str!("../templates/zdev/omp/prompts/zdev-loop.md"),
+    ] {
+        assert!(prompt.contains("installed route-contract path"));
+        assert!(prompt.contains("balanced"));
+        assert!(prompt.contains("Markdown fence"));
+        assert!(!prompt.contains("complete rendered contract"));
+        assert!(!prompt.contains("strictly validate the complete JSON string"));
+    }
+
+    let pi = include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts");
+    assert!(pi.contains("Installed route-contract path plus compact file paths"));
+    assert!(!pi.contains("Complete rendered task or audit contract"));
 }
 
 #[test]

@@ -30,9 +30,9 @@ open/ready and returns `BLOCKER zdev-verify` without starting a verifier for
 every no-work result. Invalid records, task graphs, or context output are
 blockers. For open/ready, retain the complete context unchanged and its task ID
 as the subject. Every worker handoff requires fresh work-context admission and
-the same ready task ID. Use either ordinary `--format json` or, when the same
-boundary also needs the immutable verifier snapshot, one `--store` plus
-`--show` collection. That store-and-show collection satisfies the fresh
+the same ready task ID. At a worker boundary, prefer `--store` and pass the
+compact snapshot locator; the coordinator may use `--show` when it needs the
+complete context. The verifier's store-and-show collection satisfies fresh
 pre-verifier admission without a preceding duplicate ordinary collection.
 Before rework implementation, retain the ordinary refresh and require an
 explainable exact Git delta.
@@ -42,13 +42,23 @@ work-context.
 Authored `routine` uses `routine-implementer`; `standard`, including an omitted
 legacy value, uses `implementer`. Never infer routine work from files or diff
 size. Before any edit for `advanced`, start one fresh read-only `planner` using
-the `advanced-implementer` profile. Give it the complete work-context JSON,
-brief, task, repository guidance, baseline, and task-owned paths. The planner
-returns exactly `verdict`, `summary`, `plan`, and `findings`. A plan uses
+the `advanced-implementer` profile. Give it repository guidance and the stored
+work-context locator; it loads the brief, task, baseline, and task-owned paths
+from that snapshot. The planner returns the required fields
+`verdict`, `summary`, `plan`, and `findings`. A plan uses
 `{"verdict":"plan","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized repository-relative path>"],"validation":["<non-empty validation step>"]},"findings":[]}`;
 a blocker uses verdict `blocker`, `plan: null`, and at least one non-empty
-finding. Reject unknown or duplicate keys, empty values, non-normalized paths,
-contradictory variants, legacy nine-key output, extra text, and malformed JSON.
+finding. Reject duplicate or missing required keys, empty values,
+non-normalized paths, contradictory variants, legacy nine-key output, multiple
+objects, and malformed JSON. A brief sentence or Markdown fence around one
+balanced object is tolerated.
+
+For every role response, extract exactly one unambiguous balanced JSON object
+from the returned text before semantic validation. Brief prose and Markdown
+fences around that object are harmless. Multiple objects, truncation, malformed
+JSON, missing or duplicate required keys, or contradictory values are real
+failures. Never rerun a worker merely to remove formatting around an otherwise
+valid object.
 
 The coordinator reconstructs the compatible public nine-key planner envelope
 with fixed `schema_version: 1`, `kind: "planner"`, selected area and task ID,
@@ -61,8 +71,7 @@ unchanged, to a fresh `advanced-implementer`. A planner blocker,
 including any product decision, stops before edits. Resumption, verification,
 and rework never repeat planning.
 
-Every implementer returns only one JSON object, without a sentinel
-line, Markdown fence, or other text. The object has exactly these keys:
+Every implementer returns one JSON object with these required keys:
 
 ```json
 {
@@ -81,9 +90,9 @@ line, Markdown fence, or other text. The object has exactly these keys:
 `kind` is `implementer`; verdict is `ready` or `blocker`.
 `summary` is a non-empty string. `evidence` and `findings` are always arrays of non-empty
 strings, including when empty. `escalation` is `none`. Schema version, kind, area, task ID,
-keys, types, and combinations must
-match exactly. Reject duplicate or unknown keys, missing keys, extra text, and
-malformed JSON. Inspect the checkout after an implementer result, then use a
+required keys, types, and combinations must
+match. Reject duplicate or missing required keys and malformed JSON after the
+tolerant extraction above. Inspect the checkout after an implementer result, then use a
 fresh configured `verifier` for every verdict.
 
 ## Derived work handoff
@@ -142,7 +151,7 @@ identity to the verifier. The verifier resolves that immutable context with
 `--show`, checks the whole task, runs required validation, reports validation
 writes, and never repairs or discards them.
 
-The verifier returns only this semantic JSON object with no surrounding text:
+The verifier returns one semantic JSON object:
 
 ```json
 {
@@ -153,13 +162,14 @@ The verifier returns only this semantic JSON object with no surrounding text:
 }
 ```
 
-It has exactly those four unique keys. `verdict` is `pass`, `rework`, or
+Those four unique keys are required. `verdict` is `pass`, `rework`, or
 `blocker`; `summary` is non-empty; and `findings` is an array of non-empty
 strings. `pass` has no findings, `rework` has at least one, and `blocker` may
 have findings. `escalation` is `none`, except that `rework` may request
-`advanced-implementer`. Reject legacy nine-key verifier envelopes, duplicate
-or unknown keys, missing keys, extra text, malformed JSON, and contradictory
-combinations.
+`advanced-implementer`. Workflow parsers extract one unambiguous balanced JSON
+object, tolerating a brief sentence or Markdown fence around it. Reject legacy
+nine-key verifier envelopes, duplicate or missing required keys, multiple
+objects, malformed JSON, and contradictory combinations.
 
 For each concrete task-owned file written by validation, `rework` includes one
 exact `validation_write: <normalized repository-relative path>` finding. The
@@ -243,16 +253,18 @@ preflight, select `zdev-routine-implementer`, `zdev-implementer`, or
 before the first advanced edit. Use a new `zdev-verifier` for every full
 verification. Resume only same-profile ordinary rework; a valid one-time
 standard escalation starts an advanced replacement without replanning.
-Validate the planner's exact four-field semantic JSON, reconstruct and validate
-the compatible nine-key public planner envelope, and pass the semantic plan
-object unchanged to the advanced implementer. A blocker has empty public
-evidence and stops before edits. Do not dispatch another planner.
-Give every subagent the complete rendered contract above and a compact payload
-of brief, task, guidance, and source file paths, applicable snapshot IDs, and
-the short result from the preceding role.
+Extract one balanced object from the planner response, tolerating brief prose
+or a Markdown fence. Validate its four semantic fields, reconstruct the
+compatible nine-key public planner envelope, and pass the semantic plan object
+unchanged to the advanced implementer. A blocker has empty public evidence and
+stops before edits. Do not dispatch another planner.
+Give every subagent the installed route-contract path and a compact payload of
+brief, task, guidance, and source file paths, applicable snapshot IDs, and the
+short result from the preceding role. Do not copy the rendered contract.
 Immediately before each verifier task, the primary agent stores and validates
-the snapshot; after the four-field semantic response it compares that snapshot
-and constructs the strict public nine-key verifier envelope.
+the snapshot; after extracting and validating one balanced semantic object it
+compares that snapshot and constructs the public nine-key verifier envelope.
+Never repeat a worker only to remove wrapping text.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

@@ -69,6 +69,8 @@ key = "model"
 area = "scheduling"
 status = "open"
 complexity = "advanced"
+afk = true
+priority = "high"
 slice = "api"
 blocked_by = []
 +++
@@ -107,6 +109,8 @@ The frontmatter contains only routing state:
 - `area` prevents tasks from being moved between objectives accidentally;
 - `status` is `open` or `done`;
 - optional `complexity` is `routine`, `standard`, or `advanced`;
+- optional `afk` marks work suitable for unattended execution;
+- optional `priority` is `high`, `normal`, or `low`;
 - optional `slice` names an existing slice brief in the same area; and
 - `blocked_by` contains stable task IDs.
 
@@ -116,8 +120,11 @@ ordinary bounded implementation, and `advanced` when the approved task needs
 additional planning or reasoning. Complexity does not change readiness,
 lifecycle, or dependencies.
 
-An open task is ready when every blocker is done. Otherwise it is blocked.
-Zdev chooses the ready task with the lowest numeric ID.
+An open task is ready when every blocker is done. Otherwise it is blocked. With
+no user focus, zdev chooses from the ready frontier by AFK suitability first,
+then priority, then numeric task ID. Omitted values behave as `afk = false` and
+`priority = "normal"`. A fuzzy user focus is handled by the harness instead: it
+reads every ready task and chooses the best fit from the full frontier.
 
 `zdev task done` checks the done-condition boxes, changes the status, and appends
 one result section:
@@ -143,6 +150,8 @@ never an authored source.
 - `key`;
 - `title`;
 - optional `complexity`; omitted means `standard`;
+- optional `afk`; omitted means `false`;
+- optional `priority`; omitted means `normal`;
 - optional `slice`, naming an existing slice brief in the area;
 - `blocked_by`, using keys from the same bundle or existing task IDs;
 - `outcome`;

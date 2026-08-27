@@ -18,11 +18,12 @@ stays on the selected profile; one valid standard-work escalation uses an
 advanced replacement without replanning. Include rendered repository guidance
 and applicable instructions in every prompt.
 
-Each subagent starts with its role definition. Give it the complete rendered
-task-workflow contract and a compact task payload: file paths for the brief,
-task, guidance, and relevant source; the applicable snapshot IDs; and the
-short result from the preceding role. Let the worker read those files instead
-of copying their contents into the prompt.
+Each subagent starts with its short role definition. Give it the installed
+route-contract path and a compact task payload: file paths for the brief, task,
+guidance, and relevant source; the applicable snapshot IDs; and the short
+result from the preceding role. Let the worker read those files instead of
+copying their contents or the full contract into the prompt. An implementer
+loads the derived-work section only if it actually needs a split.
 
 The root zdev skill selects the route and loads its contract from `references/`.
 It may use the packaged commands internally for a complete task cycle,

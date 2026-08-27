@@ -2,6 +2,20 @@
 
 This file records notable changes to zdev.
 
+## [1.2.1] - 2026-08-27
+
+### Fixed
+
+- Claude Code accepts advanced-task plans that include supporting findings or
+  normalized absolute checkout paths. These useful planner results no longer
+  fail the workflow's semantic envelope check.
+
+### Compatibility
+
+- Existing records and task state remain valid. Reinstall integrations with
+  `zdev skill install <harness> --force` to receive the updated planner
+  contract and Claude Code workflow.
+
 ## [1.2.0] - 2026-08-27
 
 ### Added
@@ -146,6 +160,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.2.1]: https://github.com/zayenz/zdev/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/zayenz/zdev/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/zayenz/zdev/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/zayenz/zdev/compare/v1.1.0...v1.1.1

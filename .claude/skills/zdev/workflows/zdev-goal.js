@@ -196,7 +196,7 @@ const validateWorkerResult = (result, expectedKind, expectedArea, expectedTask) 
     : expectedKind === 'implementer' ? ['ready', 'blocker'].includes(result.verdict) : false
   if (!validVerdict) return null
   if (expectedKind === 'planner' && result.verdict === 'plan') {
-    if (result.findings.length !== 0 || result.evidence.length !== 3) return null
+    if (result.evidence.length !== 3) return null
     if (!['Approach: ', 'Paths: ', 'Validation: '].every((prefix, index) =>
       result.evidence[index].startsWith(prefix) && result.evidence[index].length > prefix.length)) return null
   }
@@ -234,8 +234,9 @@ const plannerSchema = {
 const semanticPlannerKeys = ['findings', 'plan', 'summary', 'verdict']
 const semanticPlanKeys = ['approach', 'paths', 'validation']
 const normalizedRepositoryPath = path => typeof path === 'string' && path.trim() === path
-  && path.length > 0 && !path.startsWith('/') && !path.includes('\\')
-  && path.split('/').every(part => part && part !== '.' && part !== '..')
+  && path.length > 0 && !path.includes('\\')
+  && (path.startsWith('/') ? path.slice(1) : path)
+    .split('/').every(part => part && part !== '.' && part !== '..')
 const validateSemanticPlannerResult = result => {
   if (!result || Array.isArray(result) || typeof result !== 'object') return null
   if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(semanticPlannerKeys)) return null
@@ -243,7 +244,7 @@ const validateSemanticPlannerResult = result => {
   if (!Array.isArray(result.findings)
     || !result.findings.every(item => typeof item === 'string' && item.trim())) return null
   if (result.verdict === 'blocker') return result.plan === null && result.findings.length > 0 ? result : null
-  if (result.verdict !== 'plan' || result.findings.length !== 0
+  if (result.verdict !== 'plan'
     || !result.plan || Array.isArray(result.plan) || typeof result.plan !== 'object') return null
   if (JSON.stringify(Object.keys(result.plan).sort()) !== JSON.stringify(semanticPlanKeys)) return null
   if (typeof result.plan.approach !== 'string' || !result.plan.approach.trim()) return null
@@ -407,7 +408,7 @@ const routeDerivedSplit = async (workerResult, coordinatorContext) => {
 let plan = null
 if (complexity === 'advanced') {
   const planRaw = await agent(
-    `${workerContract}\n\nPlan advanced task ${taskId} in area ${area}, keeping the checkout unchanged. Load its immutable context with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json. Return the four-field semantic object described by the supplied schema. A product decision is a blocker.`,
+    `${workerContract}\n\nPlan advanced task ${taskId} in area ${area}, keeping the checkout unchanged. Load its immutable context with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json. Return the four-field semantic object described by the supplied schema. Supporting findings and normalized absolute checkout paths are valid for a plan. A product decision is a blocker.`,
     { agentType: 'zdev:zdev-planner', label: `zdev ${taskId}: plan`, schema: plannerSchema },
   )
   const semanticPlan = parsePlannerResult(typeof planRaw === 'string' ? planRaw.trim() : planRaw)

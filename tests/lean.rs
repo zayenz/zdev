@@ -6819,6 +6819,23 @@ if (!advancedPrompt.includes('"approach":"inspect then edit"')
   || !advancedPrompt.includes('"paths":["src/lib.rs","tests/lean.rs"]')
   || !advancedPrompt.includes('"validation":["cargo test","git diff --check"]')) throw new Error('advanced implementer did not receive unchanged semantic plan')
 if (advancedPrompt.includes('Approach: inspect then edit') || advancedPrompt.includes('"kind":"planner"')) throw new Error('advanced implementer received reconstructed planner envelope')
+const flexiblePlan = {{
+  ...semanticPlan(),
+  paths: ['/opt/software/project/src/lib.rs', '/opt/software/project/tests/lean.rs'],
+}}
+const advancedFlexiblePlan = await exercise(
+  'advanced plan with supporting findings and absolute paths',
+  'advanced',
+  [
+    structuredPlanner('plan', flexiblePlan, ['Located the existing call sites.']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-planner', 'zdev:zdev-advanced-implementer', 'zdev:zdev-verifier'],
+)
+const flexiblePrompt = advancedFlexiblePlan.calls.find(call => call.options.agentType === 'zdev:zdev-advanced-implementer')?.prompt ?? ''
+if (!flexiblePrompt.includes('"paths":["/opt/software/project/src/lib.rs","/opt/software/project/tests/lean.rs"]')
+  || !flexiblePrompt.includes('"findings":["Located the existing call sites."]')) throw new Error('advanced implementer lost tolerated planner evidence')
 await exercise(
   'advanced retained plan rework',
   'advanced',
@@ -6971,11 +6988,11 @@ await exercise(
 )
 for (const [name, rejectedPlanner] of [
   ['non-normalized planner path', structuredPlanner('plan', {{ ...semanticPlan(), paths: ['src/../outside.rs'] }})],
+  ['non-normalized absolute planner path', structuredPlanner('plan', {{ ...semanticPlan(), paths: ['/opt/software/../outside.rs'] }})],
   ['extra semantic planner key', {{ ...structuredPlanner('plan', semanticPlan()), extra: true }}],
   ['extra nested semantic plan key', structuredPlanner('plan', {{ ...semanticPlan(), extra: true }})],
   ['duplicate semantic planner key', '{{"verdict":"plan","summary":"first","summary":"second","plan":{{"approach":"inspect","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
   ['duplicate nested semantic plan key', '{{"verdict":"plan","summary":"plan result","plan":{{"approach":"inspect","approach":"edit","paths":["src/lib.rs"],"validation":["cargo test"]}},"findings":[]}}'],
-  ['plan with findings', structuredPlanner('plan', semanticPlan(), ['contradictory finding'])],
   ['blocker with plan', structuredPlanner('blocker', semanticPlan(), ['blocked'])],
   ['blocker without findings', structuredPlanner('blocker', null, [])],
   ['malformed semantic planner JSON', '{{"verdict":"plan"'],

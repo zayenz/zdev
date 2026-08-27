@@ -208,7 +208,7 @@ if (!/^[a-z0-9][a-z0-9-]*$/.test(area) || !/^[a-z0-9][a-z0-9-]*$/.test(taskId)) 
 
 const storedRaw = await agent(
   `Act only as read-only admission for task ${taskId} in area ${area}. Run zdev work-context ${area} --task ${taskId} --store --format json exactly once and return its JSON stdout. Do not show the snapshot. Keep files and Git state unchanged.`,
-  { label: `zdev ${taskId}: capture verification snapshot` },
+  { label: `zdev ${taskId}: capture verification snapshot`, model: 'haiku' },
 )
 const stored = parseStoredContext(storedRaw?.trim())
 if (!stored) {
@@ -217,13 +217,13 @@ if (!stored) {
 const advisory = stored.staleAdvisory ? advisoryText : null
 
 const verified = await agent(
-  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same ready task at HEAD ${stored.head}. Check the whole task and run required validation. Return the verifier object from your role prompt; never repair or discard validation writes.`,
+  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same ready task at HEAD ${stored.head}. Check the whole task and run required validation. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Never repair or discard validation writes.`,
   { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` },
 )
 const semantic = parseVerifierResult(verified?.trim())
 const comparedRaw = await agent(
   `Act only as deterministic post-verification coordination. Run zdev work-context ${area} --compare ${stored.snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
-  { label: `zdev ${taskId}: confirm verifier left snapshot unchanged` },
+  { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'haiku' },
 )
 const compared = parseComparison(comparedRaw?.trim(), stored.snapshot)
 if (!semantic || !compared || (!compared.equal && !reportsValidationWrite(semantic))) {

@@ -2,6 +2,27 @@
 
 This file records notable changes to zdev.
 
+## [1.2.2] - 2026-08-27
+
+### Changed
+
+- Claude Code uses Haiku for deterministic work-context preflight, snapshot,
+  and comparison agents instead of inheriting the session model.
+- Verifier instructions explicitly forbid extra semantic keys and require
+  validation-written files as `rework` findings across supported harnesses.
+
+### Fixed
+
+- Claude Code accepts completion fields written as blocks, brief prose before
+  a status line, and commit IDs wrapped in backticks. These presentation
+  differences no longer stop a valid workflow result.
+
+### Compatibility
+
+- Existing records and task state remain valid. Reinstall integrations with
+  `zdev skill install <harness> --force` to receive the updated workflows and
+  verifier instructions.
+
 ## [1.2.1] - 2026-08-27
 
 ### Fixed
@@ -160,6 +181,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.2.2]: https://github.com/zayenz/zdev/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/zayenz/zdev/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/zayenz/zdev/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/zayenz/zdev/compare/v1.1.1...v1.1.2

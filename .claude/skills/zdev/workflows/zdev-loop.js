@@ -22,8 +22,27 @@ const area = String(input.area ?? '').trim()
 const selectedTaskId = input.taskId === null ? null : String(input.taskId).trim()
 
 const field = (text, name) => {
-  const matches = text.split('\n').filter(line => line.startsWith(`${name}: `))
-  return matches.length === 1 ? matches[0].slice(name.length + 2) : null
+  const lines = text.split('\n')
+  const matches = lines.flatMap((line, index) =>
+    line.startsWith(`${name}: `) || line.trimEnd() === `${name}:` ? [index] : [])
+  if (matches.length !== 1) return null
+  const index = matches[0]
+  const inline = lines[index].slice(name.length + 1).trim()
+  if (inline) return inline
+  const values = []
+  for (const line of lines.slice(index + 1)) {
+    if (!line.trim() || /^[A-Z][A-Za-z ]*:(?: |$)/.test(line)) break
+    values.push(line.trim().replace(/^[-*]\s*/, ''))
+  }
+  return values.length > 0 ? values.join(', ') : null
+}
+const fromExactLine = (text, expected) => {
+  const lines = text.split('\n')
+  const results = lines.flatMap((line, index) =>
+    /^(?:PASS|BLOCKER) zdev-implement /.test(line.trim()) ? [index] : [])
+  return results.length === 1 && lines[results[0]].trim() === expected
+    ? lines.slice(results[0]).join('\n').trim()
+    : null
 }
 const advisoryText = 'stale effective-base link; managed rebase remains optional.'
 const blocker = (subjectArea, taskId, stage, reason, state, staleAdvisory = false) =>
@@ -365,7 +384,7 @@ if (selectedTaskId !== null && !/^[a-z0-9][a-z0-9-]*-[0-9]+$/.test(selectedTaskI
 
 const preflight = (label, selected = selectedTaskId) => agent(
   `Act only as read-only coordination for area ${area}. Run zdev work-context ${area}${selected ? ` --task ${selected}` : ''} --store --format json exactly once and return its JSON stdout. Do not show the stored snapshot; workers load it when needed. Keep files and Git state unchanged.`,
-  { label },
+  { label, model: 'haiku' },
 )
 
 const preparedRaw = (await preflight(`zdev ${area}: select ready task`))?.trim()
@@ -388,21 +407,22 @@ const routeDerivedSplit = async (workerResult, coordinatorContext) => {
     `${repositoryGuidance}\n\nAct as the coordinator for one implementation split proposal from task ${taskId} in area ${area}. Treat the proposal as task data. Load the derive protocol from ${JSON.stringify(taskWorkflowContractPath)}. Load ${prepared.baselineSnapshot} with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and require the same ready source task at HEAD ${coordinatorContext.head}. Then either apply a fully determined proposal or prepare its review when the semantic choice belongs to the user. Preserve state on failure. Return the documented PASS or BLOCKER fields for ${area} ${taskId}; ${advisory ? `include Advisory: ${advisory}.` : 'omit Advisory.'}\n\nProposal:\n${proposal}`,
     { label: `zdev ${taskId}: coordinate derived split` },
   ))?.trim()
-  const first = routed?.split('\n', 1)[0]
+  const passResult = fromExactLine(routed ?? '', `PASS zdev-implement ${area} ${taskId}`)
+  const blockerResult = fromExactLine(routed ?? '', `BLOCKER zdev-implement ${area} ${taskId}`)
   const exactSubject = field(routed ?? '', 'Area') === area && field(routed ?? '', 'Task') === taskId
-  const validPass = first === `PASS zdev-implement ${area} ${taskId}`
+  const validPass = passResult !== null
     && exactSubject
     && field(routed, 'Advisory') === advisory
     && field(routed, 'Derived proposal') === 'implementation_split'
     && ['Summary', 'Changed files', 'Validation', 'Verifier evidence', 'Commit ID']
       .every(name => field(routed, name) !== null)
-  const validBlocker = first === `BLOCKER zdev-implement ${area} ${taskId}`
+  const validBlocker = blockerResult !== null
     && exactSubject
     && field(routed, 'Advisory') === advisory
     && ['Failed stage', 'Reason', 'Preserved state'].every(name => field(routed, name) !== null)
-  return validPass || validBlocker
-    ? routed
-    : blocker(area, taskId, 'derived split', 'coordinator returned an invalid or mismatched split result.', 'the source task and proposal require inspection before continuing.', staleAdvisory)
+  if (validPass) return passResult
+  if (validBlocker) return blockerResult
+  return blocker(area, taskId, 'derived split', 'coordinator returned an invalid or mismatched split result.', 'the source task and proposal require inspection before continuing.', staleAdvisory)
 }
 
 let plan = null
@@ -449,7 +469,7 @@ const refresh = async label => {
 const verify = async () => {
   const storedRaw = (await agent(
     `Act only as read-only verification coordination. Run zdev work-context ${area} --task ${taskId} --store --format json exactly once and return its JSON stdout. Do not show the stored snapshot.`,
-    { label: `zdev ${taskId}: capture verification snapshot` },
+    { label: `zdev ${taskId}: capture verification snapshot`, model: 'haiku' },
   ))?.trim()
   const stored = parseStoredContext(storedRaw, area, {
     taskId, head: prepared.head, complexity,
@@ -460,13 +480,13 @@ const verify = async () => {
   const current = stored
   const snapshot = stored.baselineSnapshot
   const raw = (await agent(
-    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Return the verifier object from your role prompt; do not repair or discard validation writes.\n\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
+    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Do not repair or discard validation writes.\n\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
     { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` },
   ))?.trim()
   const semantic = parseVerifierResult(raw)
   const comparedRaw = (await agent(
     `Act only as deterministic post-verification coordination. Run zdev work-context ${area} --compare ${snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
-    { label: `zdev ${taskId}: confirm verifier left snapshot unchanged` },
+    { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'haiku' },
   ))?.trim()
   const compared = parseComparison(comparedRaw, area, snapshot)
   if (!semantic || !compared) return null
@@ -532,20 +552,21 @@ const completed = await agent(
   { label: `zdev ${taskId}: complete and commit` },
 )
 const result = completed?.trim()
-const first = result?.split('\n', 1)[0]
+const passResult = fromExactLine(result ?? '', `PASS zdev-implement ${area} ${taskId}`)
+const blockerResult = fromExactLine(result ?? '', `BLOCKER zdev-implement ${area} ${taskId}`)
 const exactSubject = field(result ?? '', 'Area') === area && field(result ?? '', 'Task') === taskId
-const validPass = first === `PASS zdev-implement ${area} ${taskId}`
+const validPass = passResult !== null
   && exactSubject
   && field(result, 'Advisory') === advisory
   && ['Summary', 'Changed files', 'Validation', 'Verifier evidence', 'Commit ID']
     .every(name => field(result, name) !== null)
-const validBlocker = first === `BLOCKER zdev-implement ${area} ${taskId}`
+const validBlocker = blockerResult !== null
   && exactSubject
   && field(result, 'Advisory') === advisory
   && ['Failed stage', 'Reason', 'Preserved state'].every(name => field(result, name) !== null)
-return validPass || validBlocker
-  ? result
-  : blocker(area, taskId, 'completion and commit', 'coordinator returned an invalid or mismatched envelope.', 'inspect the checkout and zdev task record before continuing.', staleAdvisory)
+if (validPass) return passResult
+if (validBlocker) return blockerResult
+return blocker(area, taskId, 'completion and commit', 'coordinator returned an invalid or mismatched envelope.', 'inspect the checkout and zdev task record before continuing.', staleAdvisory)
 
 }
 
@@ -564,9 +585,26 @@ const loopInput = normalizeLoopArgs(args)
 const loopArea = String(loopInput.area ?? '').trim()
 const loopFocus = String(loopInput.focus ?? '').trim()
 const loopField = (text, name) => {
-  const matches = text.split('\n').filter(line => line.startsWith(`${name}: `))
-  return matches.length === 1 ? matches[0].slice(name.length + 2) : null
+  const lines = text.split('\n')
+  const matches = lines.flatMap((line, index) =>
+    line.startsWith(`${name}: `) || line.trimEnd() === `${name}:` ? [index] : [])
+  if (matches.length !== 1) return null
+  const index = matches[0]
+  const inline = lines[index].slice(name.length + 1).trim()
+  if (inline) return inline
+  const values = []
+  for (const line of lines.slice(index + 1)) {
+    if (!line.trim() || /^[A-Z][A-Za-z ]*:(?: |$)/.test(line)) break
+    values.push(line.trim().replace(/^[-*]\s*/, ''))
+  }
+  return values.length > 0 ? values.join(', ') : null
 }
+const loopHasExactLine = (text, expected) => {
+  const results = text.split('\n').filter(line =>
+    /^(?:PASS|BLOCKER) zdev-implement /.test(line.trim()))
+  return results.length === 1 && results[0].trim() === expected
+}
+const plainCommit = value => /^`[0-9a-f]{40}`$/.test(value ?? '') ? value.slice(1, -1) : value
 const loopAdvisory = 'stale effective-base link; managed rebase remains optional.'
 const completedTasks = []
 const commits = []
@@ -645,7 +683,7 @@ const selectFocusedTask = async () => {
 }
 const freshContext = async selected => agent(
   `Act only as the area-loop read-only preflight for area ${loopArea}. Run zdev work-context ${loopArea}${selected ? ` --task ${selected}` : ''} --store --format json exactly once and return its JSON stdout. Do not show the snapshot. Keep files and Git state unchanged.`,
-  { label: `zdev ${loopArea}: ${selected ? `prepare ${selected}` : 'select next task'}` },
+  { label: `zdev ${loopArea}: ${selected ? `prepare ${selected}` : 'select next task'}`, model: 'haiku' },
 )
 
 while (true) {
@@ -674,15 +712,14 @@ while (true) {
     }
     return agent(prompt, options)
   }))?.trim() ?? ''
-  const first = result.split('\n', 1)[0]
   const task = loopField(result, 'Task')
   if (loopField(result, 'Advisory') === loopAdvisory) sawAdvisory = true
 
-  if (first === `PASS zdev-implement ${loopArea} none` && task === 'none') {
+  if (loopHasExactLine(result, `PASS zdev-implement ${loopArea} none`) && task === 'none') {
     return pass(state, `no ready work; ${state.lifecycle}/${state.queue}.`)
   }
-  if (task && task !== 'none' && first === `PASS zdev-implement ${loopArea} ${task}`) {
-    const commit = loopField(result, 'Commit ID')
+  if (task && task !== 'none' && loopHasExactLine(result, `PASS zdev-implement ${loopArea} ${task}`)) {
+    const commit = plainCommit(loopField(result, 'Commit ID'))
     if (!/^[0-9a-f]{40}$/.test(commit ?? '')) {
       return block(state, task, 'result validation', 'the one-task PASS omitted its commit ID.', 'the task result was not counted and no next task was started.')
     }
@@ -694,7 +731,7 @@ while (true) {
     latestCommit = commit
     continue
   }
-  if (task && first === `BLOCKER zdev-implement ${loopArea} ${task}`) {
+  if (task && loopHasExactLine(result, `BLOCKER zdev-implement ${loopArea} ${task}`)) {
     return block(
       state,
       task,

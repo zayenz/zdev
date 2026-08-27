@@ -6605,6 +6605,9 @@ const exercise = async (response, equal = true, invocation = {{ area, task_id: t
 }}
 const valid = await exercise(worker('pass'))
 if (valid.prompts.length !== 3) throw new Error('explicit verify did not use three Claude calls')
+for (const call of valid.prompts.filter(call => !call.options.agentType)) {{
+  if (call.options.model !== 'haiku') throw new Error('deterministic verification coordination did not use Haiku')
+}}
 const publicPass = JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: task, verdict: 'pass', summary: 'Checked task and validation.', evidence: ['work_context_snapshot: ' + snapshot], findings: [], escalation: 'none' }})
 if (valid.result !== publicPass) throw new Error(valid.result)
 for (const invocation of [['work', 'work-001'], 'work work-001']) {{
@@ -6613,6 +6616,7 @@ for (const invocation of [['work', 'work-001'], 'work work-001']) {{
 }}
 const verifierPrompt = valid.prompts.find(call => call.options.agentType)?.prompt ?? ''
 if (verifierPrompt.includes('workflow contract')) throw new Error('full workflow contract was injected')
+if (!verifierPrompt.includes('exactly these four keys') || !verifierPrompt.includes('validation_writes')) throw new Error('verifier dispatch omitted its exact semantic contract')
 if (!valid.prompts.find(call => call.options.label.includes('capture verification snapshot'))?.prompt.includes('work-context work --task work-001 --store --format json')) throw new Error('coordinator store missing')
 if (valid.prompts.some(call => call.options.label === 'zdev verify preflight')) throw new Error('redundant full-context preflight retained')
 if (!verifierPrompt.includes('work-context work --show ' + snapshot + ' --format json')) throw new Error('supplied show command incomplete')
@@ -6715,7 +6719,7 @@ const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot:
 const passEvidence = [
   'work_context_snapshot: W0123456789abcdef',
 ]
-const completion = 'PASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: abc123'
+const completion = 'Completion finished.\nPASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files:\n- src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: `abc123`'
 const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = [], verificationOverrides = {{}}) => {{
   const types = []
   const calls = []
@@ -6765,6 +6769,12 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (prompt.includes('--store') || prompt.includes('--compare')) throw new Error(name + ': verifier retained coordinator bookkeeping')
     if (prompt.includes('implementer history')) throw new Error(name + ': verifier received history')
     if (prompt.includes('"git_status":') || prompt.includes('"git_diff":')) throw new Error(name + ': verifier received raw coordinator context')
+    if (!prompt.includes('exactly these four keys') || !prompt.includes('validation_writes')) throw new Error(name + ': verifier dispatch omitted its exact semantic contract')
+  }}
+  for (const call of calls.filter(call => !call.options.agentType
+    && !call.options.label.includes('coordinate derived split')
+    && !call.options.label.includes('complete and commit'))) {{
+    if (call.options.model !== 'haiku') throw new Error(name + ': deterministic coordination did not use Haiku: ' + call.options.label)
   }}
   const completionPrompt = calls.find(call => call.options.label.includes('complete and commit'))?.prompt
   if (completionPrompt) {{
@@ -7133,15 +7143,15 @@ const empty = contextHead => JSON.stringify({{
 }})
 const passEvidence = _contextHead => ['work_context_snapshot: W0123456789abcdef']
 const completionPass = task =>
-  'PASS zdev-implement ' + area + ' ' + task
+  'Completion finished.\nPASS zdev-implement ' + area + ' ' + task
   + '\n\nArea: ' + area + '\nTask: ' + task
-  + '\nSummary: complete\nChanged files: src/lib.rs\nValidation: passed'
-  + '\nVerifier evidence: checked\nCommit ID: ' + (task.endsWith('1') ? commit1 : commit2)
+  + '\nSummary: complete\nChanged files:\n- src/lib.rs\nValidation: passed'
+  + '\nVerifier evidence: checked\nCommit ID: `' + (task.endsWith('1') ? commit1 : commit2) + '`'
 const exercise = async (name, contexts, workers, completions, expectedPrefix, derived = [], invocation = {{ area }}, selections = []) => {{
   const calls = []
   let lastContext = null
   const result = await run(invocation, async (prompt, options) => {{
-    calls.push({{ label: options.label, type: options.agentType ?? null, prompt }})
+    calls.push({{ label: options.label, type: options.agentType ?? null, model: options.model ?? null, prompt }})
     if (options.label === 'zdev work: choose from ready frontier') {{
       if (selections.length === 0) throw new Error(name + ': unexpected focus selection')
       return selections.shift()
@@ -7200,6 +7210,10 @@ const twoTask = await exercise(
 )
 if (!twoTask.result.includes('Tasks completed: work-001, work-002')) throw new Error(twoTask.result)
 if (!twoTask.result.includes('Lifecycle: closed\nQueue: empty')) throw new Error(twoTask.result)
+for (const call of twoTask.calls.filter(call => call.type === null
+  && !call.label.includes('complete and commit'))) {{
+  if (call.model !== 'haiku') throw new Error('loop deterministic coordination did not use Haiku: ' + call.label)
+}}
 
 const noWork = await exercise('closed no-work', [closed], [], [], 'PASS', [], 'work')
 if (noWork.calls.length !== 1 || noWork.calls[0].label !== 'zdev work: select next task') throw new Error(JSON.stringify(noWork.calls))
@@ -7607,7 +7621,8 @@ fn all_harness_task_workflows_are_discoverable_and_keep_coordinator_boundaries()
                 assert!(
                     rendered.contains("four semantic fields")
                         || rendered.contains("four-field")
-                        || rendered.contains("verifier object"),
+                        || rendered.contains("verifier object")
+                        || rendered.contains("exactly these four keys"),
                     "{harness} {adapter}"
                 );
                 assert!(rendered.contains("coordinator"), "{harness} {adapter}");

@@ -22,9 +22,26 @@ const loopInput = normalizeLoopArgs(args)
 const loopArea = String(loopInput.area ?? '').trim()
 const loopFocus = String(loopInput.focus ?? '').trim()
 const loopField = (text, name) => {
-  const matches = text.split('\n').filter(line => line.startsWith(`${name}: `))
-  return matches.length === 1 ? matches[0].slice(name.length + 2) : null
+  const lines = text.split('\n')
+  const matches = lines.flatMap((line, index) =>
+    line.startsWith(`${name}: `) || line.trimEnd() === `${name}:` ? [index] : [])
+  if (matches.length !== 1) return null
+  const index = matches[0]
+  const inline = lines[index].slice(name.length + 1).trim()
+  if (inline) return inline
+  const values = []
+  for (const line of lines.slice(index + 1)) {
+    if (!line.trim() || /^[A-Z][A-Za-z ]*:(?: |$)/.test(line)) break
+    values.push(line.trim().replace(/^[-*]\s*/, ''))
+  }
+  return values.length > 0 ? values.join(', ') : null
 }
+const loopHasExactLine = (text, expected) => {
+  const results = text.split('\n').filter(line =>
+    /^(?:PASS|BLOCKER) zdev-implement /.test(line.trim()))
+  return results.length === 1 && results[0].trim() === expected
+}
+const plainCommit = value => /^`[0-9a-f]{40}`$/.test(value ?? '') ? value.slice(1, -1) : value
 const loopAdvisory = 'stale effective-base link; managed rebase remains optional.'
 const completedTasks = []
 const commits = []
@@ -103,7 +120,7 @@ const selectFocusedTask = async () => {
 }
 const freshContext = async selected => agent(
   `Act only as the area-loop read-only preflight for area ${loopArea}. Run zdev work-context ${loopArea}${selected ? ` --task ${selected}` : ''} --store --format json exactly once and return its JSON stdout. Do not show the snapshot. Keep files and Git state unchanged.`,
-  { label: `zdev ${loopArea}: ${selected ? `prepare ${selected}` : 'select next task'}` },
+  { label: `zdev ${loopArea}: ${selected ? `prepare ${selected}` : 'select next task'}`, model: 'haiku' },
 )
 
 while (true) {
@@ -132,15 +149,14 @@ while (true) {
     }
     return agent(prompt, options)
   }))?.trim() ?? ''
-  const first = result.split('\n', 1)[0]
   const task = loopField(result, 'Task')
   if (loopField(result, 'Advisory') === loopAdvisory) sawAdvisory = true
 
-  if (first === `PASS zdev-implement ${loopArea} none` && task === 'none') {
+  if (loopHasExactLine(result, `PASS zdev-implement ${loopArea} none`) && task === 'none') {
     return pass(state, `no ready work; ${state.lifecycle}/${state.queue}.`)
   }
-  if (task && task !== 'none' && first === `PASS zdev-implement ${loopArea} ${task}`) {
-    const commit = loopField(result, 'Commit ID')
+  if (task && task !== 'none' && loopHasExactLine(result, `PASS zdev-implement ${loopArea} ${task}`)) {
+    const commit = plainCommit(loopField(result, 'Commit ID'))
     if (!/^[0-9a-f]{40}$/.test(commit ?? '')) {
       return block(state, task, 'result validation', 'the one-task PASS omitted its commit ID.', 'the task result was not counted and no next task was started.')
     }
@@ -152,7 +168,7 @@ while (true) {
     latestCommit = commit
     continue
   }
-  if (task && first === `BLOCKER zdev-implement ${loopArea} ${task}`) {
+  if (task && loopHasExactLine(result, `BLOCKER zdev-implement ${loopArea} ${task}`)) {
     return block(
       state,
       task,

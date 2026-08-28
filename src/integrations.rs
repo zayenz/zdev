@@ -199,6 +199,7 @@ impl Harness {
         guidance: Option<(&str, &str)>,
         workers: ResolvedWorkers,
         destination: &Path,
+        scope: &str,
     ) -> Result<SkillIntegration, ZdevError> {
         let mut files = Vec::new();
         match self {
@@ -436,14 +437,18 @@ impl Harness {
                 ]);
             }
         }
-        let task_workflows_contract_path =
-            canonicalize_with_missing_suffix(&destination.join(match self {
-                Self::Codex => "zdev/references/task-workflows.md",
-                Self::Claude => "contracts/task-workflows.md",
-                Self::Opencode => "skills/zdev-opencode/references/task-workflows.md",
-                Self::Pi => "skills/zdev-pi/references/task-workflows.md",
-                Self::Omp => "skills/zdev/references/task-workflows.md",
-            }));
+        let contract_suffix = match self {
+            Self::Codex => "zdev/references/task-workflows.md",
+            Self::Claude => "contracts/task-workflows.md",
+            Self::Opencode => "skills/zdev-opencode/references/task-workflows.md",
+            Self::Pi => "skills/zdev-pi/references/task-workflows.md",
+            Self::Omp => "skills/zdev/references/task-workflows.md",
+        };
+        let task_workflows_contract_path = if self == Self::Claude && scope == "project" {
+            PathBuf::from(".claude/skills/zdev").join(contract_suffix)
+        } else {
+            canonicalize_with_missing_suffix(&destination.join(contract_suffix))
+        };
         realize_templates(
             self,
             guidance,
@@ -892,7 +897,12 @@ pub(super) fn run_skill_command(
                     .as_deref()
                     .map(|content| (guidance.source.as_str(), content))
             });
-            let integration = harness.integration(guidance_view, workers, &destination.path)?;
+            let integration = harness.integration(
+                guidance_view,
+                workers,
+                &destination.path,
+                destination.scope,
+            )?;
             let result = publish_integration(&integration, &destination.path, *force)?;
             if let (Some(root), Some(guidance)) = (project_root.as_deref(), guidance.as_ref()) {
                 let recorded = if guidance_selection == "agents" {
@@ -922,7 +932,12 @@ pub(super) fn run_skill_command(
                     .map(|content| (guidance.source.as_str(), content))
             });
             check_integration(
-                harness.integration(guidance_view, workers, &destination.path)?,
+                harness.integration(
+                    guidance_view,
+                    workers,
+                    &destination.path,
+                    destination.scope,
+                )?,
                 destination,
                 guidance,
                 project_root.as_ref().map(|_| guidance_selection.as_str()),

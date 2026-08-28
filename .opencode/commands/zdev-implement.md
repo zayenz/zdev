@@ -46,9 +46,9 @@ the `advanced-implementer` profile. Give it repository guidance and the stored
 work-context locator; it loads the brief, task, baseline, and task-owned paths
 from that snapshot. The planner returns the required fields
 `verdict`, `summary`, `plan`, and `findings`. A plan uses
-`{"verdict":"plan","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized path>"],"validation":["<non-empty validation step>"]},"findings":[]}`.
+`{"verdict":"plan","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized path>"],"validation":["<non-empty validation step>"]},"findings":["<supporting observation>"]}`.
 Its paths may be repository-relative or absolute checkout paths, and its
-findings may contain supporting observations. A blocker uses verdict `blocker`,
+findings may be empty or contain supporting observations. A blocker uses verdict `blocker`,
 `plan: null`, and at least one non-empty finding. Reject duplicate or missing
 required keys, empty values, non-normalized paths, contradictory variants,
 legacy nine-key output, multiple objects, unknown keys, and malformed JSON. A

@@ -9680,6 +9680,12 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
         json!(canonical_root.join(".claude/skills/zdev"))
     );
     assert_eq!(claude_project["scope"], "project");
+    let claude_workflow =
+        fs::read_to_string(canonical_root.join(".claude/skills/zdev/workflows/zdev-implement.js"))
+            .expect("Claude project workflow");
+    assert!(claude_workflow.contains(
+        "const taskWorkflowContractPath = \".claude/skills/zdev/contracts/task-workflows.md\""
+    ));
 
     let opencode_project = json_output(
         root,

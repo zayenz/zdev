@@ -6720,7 +6720,7 @@ const passEvidence = [
   'work_context_snapshot: W0123456789abcdef',
 ]
 const completion = 'Completion finished.\nPASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files:\n- src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: `abc123`'
-const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = [], verificationOverrides = {{}}) => {{
+const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = [], verificationOverrides = {{}}, blockerDecisions = []) => {{
   const types = []
   const calls = []
   const result = await run(invocation, async (prompt, options) => {{
@@ -6736,16 +6736,22 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
       derived = null
       return result
     }}
+    if (options.label.includes('classify implementer blocker')) {{
+      if (blockerDecisions.length === 0) throw new Error(name + ': unexpected blocker classification')
+      return blockerDecisions.shift()
+    }}
     if (options.label.includes('complete and commit')) return completion
     if (options.label === 'zdev work: select ready task') return storedContext(complexity)
     if (options.label.includes('capture verification snapshot')) return verificationContext(complexity, verificationOverrides)
     if (options.label.includes('confirm verifier')) return comparison(compareEquals.length ? compareEquals.shift() : true)
-    if (options.label.includes('refresh before rework')) return compactContext(complexity, verificationSnapshot)
+    if (options.label.includes('compare implementation blocker progress')) return comparison(true)
+    if (options.label.includes('refresh before rework') || options.label.includes('refresh after implementation blocker')) return compactContext(complexity, verificationSnapshot)
     throw new Error(name + ': unexpected coordination call ' + options.label)
   }})
   if (!result.startsWith(expectedPrefix + ' zdev-implement')) throw new Error(name + ': ' + result)
   if (responses.length !== 0) throw new Error(name + ': unused responses')
   if (compareEquals.length !== 0) throw new Error(name + ': unused comparison responses')
+  if (blockerDecisions.length !== 0) throw new Error(name + ': unused blocker decisions')
   if (derived !== null) throw new Error(name + ': unused derived response')
   if (JSON.stringify(types) !== JSON.stringify(expectedTypes)) {{
     throw new Error(name + ': ' + JSON.stringify(types))
@@ -6769,7 +6775,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (prompt.includes('--store') || prompt.includes('--compare')) throw new Error(name + ': verifier retained coordinator bookkeeping')
     if (prompt.includes('implementer history')) throw new Error(name + ': verifier received history')
     if (prompt.includes('"git_status":') || prompt.includes('"git_diff":')) throw new Error(name + ': verifier received raw coordinator context')
-    if (!prompt.includes('exactly these four keys') || !prompt.includes('validation_writes')) throw new Error(name + ': verifier dispatch omitted its exact semantic contract')
+    if (!prompt.includes('exactly these four keys') || !prompt.includes('validation_writes') || !prompt.includes('check or dry-run')) throw new Error(name + ': verifier dispatch omitted its exact semantic contract')
   }}
   for (const call of calls.filter(call => !call.options.agentType
     && !call.options.label.includes('coordinate derived split')
@@ -6894,6 +6900,49 @@ await exercise(
   ['{{}}'],
   ['zdev:zdev-implementer'],
   'BLOCKER',
+)
+await exercise(
+  'actionable implementer blocker continues',
+  'standard',
+  [
+    worker('implementer', 'blocker', 'none', [], ['another task-owned file is required']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-implementer', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'PASS',
+  null,
+  {{ area }},
+  [],
+  {{}},
+  [JSON.stringify({{ action: 'continue', reason: 'The remaining file is directly in scope.' }})],
+)
+await exercise(
+  'external implementer blocker stops',
+  'standard',
+  [worker('implementer', 'blocker', 'none', [], ['physical device is unavailable'])],
+  ['zdev:zdev-implementer'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [],
+  {{}},
+  [JSON.stringify({{ action: 'stop', reason: 'The required physical device is unavailable.' }})],
+)
+await exercise(
+  'repeated blocker without progress stops',
+  'standard',
+  [
+    worker('implementer', 'blocker', 'none', [], ['another task-owned file is required']),
+    worker('implementer', 'blocker', 'none', [], ['another task-owned file is still required']),
+  ],
+  ['zdev:zdev-implementer', 'zdev:zdev-implementer'],
+  'BLOCKER',
+  null,
+  {{ area }},
+  [],
+  {{}},
+  [JSON.stringify({{ action: 'continue', reason: 'The remaining file is directly in scope.' }})],
 )
 await exercise(
   'invalid verifier envelope',
@@ -7233,7 +7282,7 @@ const focused = await exercise(
   ],
 )
 const selectorPrompt = focused.calls.find(call => call.label.includes('choose from ready frontier'))?.prompt ?? ''
-if (!selectorPrompt.includes('zdev task show work <task-id>') || !focused.result.includes('Focus: focus on database cleanup')) throw new Error(focused.result)
+if (!selectorPrompt.includes('zdev task show work <task-id>') || !selectorPrompt.includes('If any ready task has afk true') || !focused.result.includes('Focus: focus on database cleanup')) throw new Error(focused.result)
 
 const rework = await exercise(
   'rework',

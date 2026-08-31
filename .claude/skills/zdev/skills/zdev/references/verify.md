@@ -51,15 +51,17 @@ Require the verifier to:
    regressions or unsafe behavior at touched interfaces. Treat an invented test
    harness, unfamiliar testing style, or unnecessary test expansion as a scope
    or standards concern rather than extra credit.
-6. Run every listed required validation command. If required validation or
+6. Run every listed required validation command. Prefer a check or dry-run form
+   for generators and other commands expected to rewrite tracked files; do not
+   run a mutating generator merely to prove implementation should have run it.
+   If required validation or
    evidence is unsafe or unavailable, return `BLOCKER`; do not downgrade it to
    a limitation. Run only small, established optional checks targeted at a
    concrete concern found by either pass. An unavailable optional check may be
    reported as a residual limitation. After the semantic response,
    coordination runs `zdev work-context <area> --compare <snapshot> --format
    json` and requires the exact compact comparison for that area and snapshot.
-   Validation that
-   writes files is not read-only evidence: report the
+   Validation that unexpectedly writes files is not read-only evidence: report the
    new state as `REWORK` when it is a concrete task-owned correction, with one
    exact `validation_write: <normalized repository-relative path>` finding per
    written file, or

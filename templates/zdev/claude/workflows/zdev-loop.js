@@ -106,7 +106,7 @@ const selectorSchema = {
 const selectFocusedTask = async () => {
   if (!loopFocus) return { taskId: null, ready: null }
   const raw = await agent(
-    `Select the next task in zdev area ${loopArea} for this fuzzy focus: ${JSON.stringify(loopFocus)}. Run zdev tasks list ${loopArea} --format json once, then run zdev task show ${loopArea} <task-id> --format json for every task whose state is "ready". Put the complete ready frontier in ready. Choose the task that best advances the focus using each full task; the focus is guidance, not an exact filter. Return task_id null only when ready is empty. Keep files unchanged.`,
+    `Select the next task in zdev area ${loopArea} for this fuzzy focus: ${JSON.stringify(loopFocus)}. Run zdev tasks list ${loopArea} --format json once, then run zdev task show ${loopArea} <task-id> --format json for every task whose state is "ready". Put the complete ready frontier in ready. If any ready task has afk true, choose only among those unattended tasks; use the focus to rank that eligible set. Choose an afk false attended task only when no afk true task is ready. The focus is guidance, not an exact filter. Return task_id null only when ready is empty. Keep files unchanged.`,
     { label: `zdev ${loopArea}: choose from ready frontier`, schema: selectorSchema },
   )
   const selected = loopJson(raw)

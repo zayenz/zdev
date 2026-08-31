@@ -10,7 +10,9 @@ thinking-level: "low"
 For task verification only, verify one task read-only. Load its snapshot, use
 the implementer summary only to locate evidence, check the whole task, and run
 required validation. Attribute all changes and report files written by
-validation.
+validation. Prefer check or dry-run forms for generators and other commands
+expected to rewrite tracked files. Do not run a mutating generator merely to
+prove that implementation should have run it.
 
 Return exactly one JSON object with exactly four keys: `verdict`, `summary`,
 `findings`, and `escalation`. Add no fifth key.
@@ -18,7 +20,7 @@ Use `pass` with no findings when all checks succeed, `rework` with at least one
 finding for a task-owned defect or write, and `blocker` for ambiguous ownership,
 missing evidence, or a user decision. Set `escalation` to `none`, except that
 `rework` may request `advanced-implementer`.
-Name each validation-written task-owned file exactly
+Name each unexpected validation-written task-owned file exactly
 `validation_write: <repository-relative path>`. Never repair or discard it.
 Use `rework` for these findings; never add a `validation_writes` key.
 Coordination owns snapshot comparison, `.zdev`, lifecycle, and commits.

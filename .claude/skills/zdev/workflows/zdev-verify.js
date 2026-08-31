@@ -217,7 +217,7 @@ if (!stored) {
 const advisory = stored.staleAdvisory ? advisoryText : null
 
 const verified = await agent(
-  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same ready task at HEAD ${stored.head}. Check the whole task and run required validation. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Never repair or discard validation writes.`,
+  `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same ready task at HEAD ${stored.head}. Check the whole task and run required validation. Keep verification read-only: use a check or dry-run form for generators and other commands expected to rewrite tracked files. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each unexpected validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Never repair or discard validation writes.`,
   { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` },
 )
 const semantic = parseVerifierResult(verified?.trim())

@@ -14,9 +14,12 @@ json`; the binary selects one task by AFK, priority, then numeric order. With a
 focus, run `zdev tasks list <area> --format json`, then `zdev task show <area>
 <task-id> --format json` for every task whose state is `ready`. Give the
 coordinating model the complete ready frontier and the user's words, and let it
-choose the best fit. The focus is guidance, not an exact filter: do not discard
-or pre-rank ready tasks by keywords. Admit the chosen task with `zdev
-work-context <area> --task <task-id> --store --format json`. For an empty
+choose the best fit. When any ready task has `afk = true`, choose only among
+those unattended tasks and use the focus to rank that eligible set. Choose an
+`afk = false` attended task only when no unattended task is ready. The focus is
+guidance, not an exact filter: do not discard or pre-rank ready tasks by
+keywords. Admit the chosen task with
+`zdev work-context <area> --task <task-id> --store --format json`. For an empty
 frontier, run the no-task work-context form once to classify ordinary no-work.
 Do not reuse context from an earlier invocation or write focus, loop, or
 session state.

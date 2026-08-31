@@ -129,10 +129,13 @@ With no focus, let `zdev work-context <area>` select one task using the binary's
 AFK, priority, then numeric ordering. With any focus, obtain the complete ready
 frontier with `zdev tasks list <area> --format json`, read every ready task with
 `zdev task show <area> <task-id> --format json`, and let the coordinating model
-choose the best fit from those full task records. Do not keyword-filter or
-pre-rank the frontier before that choice. Admit the chosen task with
-`zdev work-context <area> --task <task-id>`. Repeat the same focused selection
-from a fresh frontier after every commit; focus never becomes stored zdev state.
+choose the best fit from those full task records. When any ready task has
+`afk = true`, choose only among those unattended tasks and use the focus to rank
+that eligible set. Choose an `afk = false` attended task only when no unattended
+task is ready. Do not keyword-filter or pre-rank the frontier before that
+choice. Admit the chosen task with `zdev work-context <area> --task <task-id>`.
+Repeat the same focused selection from a fresh frontier after every commit;
+focus never becomes stored zdev state.
 
 Each iteration uses the **Implement** route and stops internally only on a
 verified commit, a blocker, or a user-owned decision. Tell the user which task

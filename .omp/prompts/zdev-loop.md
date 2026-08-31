@@ -31,9 +31,12 @@ With no unfinished native goal, select from fresh evidence. With no focus, run
 AFK, priority, then numeric order. With a focus, run `zdev tasks list <area>
 --format json`, read every ready task with `zdev task show <area> <task-id>
 --format json`, and let the coordinating model choose the best fit from the
-complete ready frontier. Focus is fuzzy guidance, not an exact filter; do not
-keyword-filter or pre-rank that frontier. Admit the choice with `zdev
-work-context <area> --task <task-id> --store --format json`. For an empty
+complete ready frontier. When any ready task has `afk = true`, choose only among
+those unattended tasks and use the focus to rank that eligible set. Choose an
+`afk = false` attended task only when no unattended task is ready. Focus is
+fuzzy guidance, not an exact filter; do not keyword-filter or pre-rank that
+frontier. Admit the choice with
+`zdev work-context <area> --task <task-id> --store --format json`. For an empty
 frontier, run the no-task work-context form once to classify no-work. Never
 reuse an earlier selection or write focus, loop, or session state. Classify it
 before attempting native continuation:

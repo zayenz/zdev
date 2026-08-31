@@ -8,6 +8,16 @@ with other explicit trunk areas, and never needs a rebase or freshness step.
 In both modes, `task_work.safe` and the exact selected area/task govern work;
 sharing trunk never grants ownership of another area's or unrelated paths.
 
+Task scope is semantic. The brief, outcome, done conditions, and explicit
+boundaries define it. Source, test, and planner paths identify expected seams;
+they are not a closed allowlist unless an explicit boundary says so. A worker
+may add a path when it explains why the change is directly necessary, the
+path's baseline ownership is unambiguous, and the change remains within the
+selected task and area. Coordination confirms that attribution on refresh.
+Another file, by itself, is not scope expansion. A new product or compatibility
+decision, a cross-area outcome, an explicit boundary violation, destructive or
+external action without authority, or overlap with user-owned work is.
+
 Before starting an implementer or verifier, collect fresh complete work-context
 through one of the admitted forms below and retain the complete result. The
 command classifies goal lifecycle first. A validated closed context contains
@@ -33,6 +43,14 @@ pre-verifier admission without a preceding duplicate ordinary collection.
 Before rework implementation, retain the ordinary refresh and require an
 explainable exact Git delta.
 
+Safe attributable state is resumable. When an interrupted selected task has an
+explainable unstaged delta, continue from it. When a complete independently
+verified task is waiting only for lifecycle, staging, or commit, finish that
+normal completion flow before selecting again. Likewise, use an existing
+zdev-managed commit step for a complete planning or repair checkpoint when the
+route defines one. Never create a checkpoint commit for incomplete
+implementation or mix unrelated paths merely to clear the checkout.
+
 `zdev-implement <area>` reads effective complexity from the selected task in
 work-context.
 Authored `routine` uses `routine-implementer`; `standard`, including an omitted
@@ -44,7 +62,9 @@ from that snapshot. The planner returns the required fields
 `verdict`, `summary`, `plan`, and `findings`. A plan uses
 `{"verdict":"plan","summary":"<non-empty>","plan":{"approach":"<non-empty>","paths":["<normalized path>"],"validation":["<non-empty validation step>"]},"findings":["<supporting observation>"]}`.
 Its paths may be repository-relative or absolute checkout paths, and its
-findings may be empty or contain supporting observations. A blocker uses verdict `blocker`,
+findings may be empty or contain supporting observations. Plan paths are the
+best known implementation seams, not an exhaustive ownership boundary. A
+blocker uses verdict `blocker`,
 `plan: null`, and at least one non-empty finding. Reject duplicate or missing
 required keys, empty values, non-normalized paths, contradictory variants,
 legacy nine-key output, multiple objects, unknown keys, and malformed JSON. A
@@ -89,8 +109,20 @@ Every implementer returns one JSON object with these required keys:
 strings, including when empty. `escalation` is `none`. Schema version, kind, area, task ID,
 required keys, types, and combinations must
 match. Reject unknown, duplicate, or missing keys and malformed JSON after the
-tolerant extraction above. Inspect the checkout after an implementer result, then use a
-fresh configured `verifier` for every verdict.
+tolerant extraction above. Inspect the checkout after every implementer result.
+Route a split or nonterminal partial result as defined below. Use a fresh
+configured `verifier` when the worker claims readiness, and when independent
+checking can resolve whether a reported blocker is genuine.
+
+An implementer blocker is terminal only when progress requires a user-owned
+decision, unavailable external state, unsafe or ambiguous ownership, an
+explicit scope change, or another concrete impasse. A partial implementation,
+remaining directly actionable task work, an underestimated file count, or a
+new attributable in-scope path is not terminal. With safe refreshed state,
+return that work to the same profile or a replacement with the current diff and
+remaining requirements, then verify normally. Stop repeated attempts only when
+they make no meaningful progress for a concrete reason that cannot be resolved
+inside the task.
 
 ## Derived work handoff
 
@@ -205,7 +237,7 @@ Reject a second escalation, an escalation after routine or advanced
 implementation, and every escalation attached to `pass` or `blocker`. There is
 no fixed ordinary-rework count. After each correction, a fresh standard
 verifier checks the whole task again. Stop only on verifier `pass`, a genuine
-blocker, unsafe scope expansion, or a required user-owned decision.
+blocker, unsafe semantic scope expansion, or a required user-owned decision.
 
 After an exact matching coordinator-constructed verifier object with verdict `pass`, the coordinator
 gives completion the opaque snapshot ID plus the accepted implementation and

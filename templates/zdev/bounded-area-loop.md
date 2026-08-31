@@ -44,8 +44,10 @@ path in every worker payload.
 {{task_workflow_contract}}
 
 Concrete task-owned `rework` remains inside that one task cycle with fresh
-independent verification and no fixed retry count. A malformed worker result,
-worker blocker, unsafe refresh, failed completion, or failed commit returns
+independent verification and no fixed retry count. Partial progress, remaining
+in-scope work, or an additional attributable path also remains inside the
+cycle. A malformed worker result, genuine worker blocker, unsafe refresh,
+failed completion, or failed commit returns
 `BLOCKER` and stops. Each ordinary successful invocation completes and commits
 at most one selected task through exactly one independently accepted
 verification. The split exception below commits the derived graph change

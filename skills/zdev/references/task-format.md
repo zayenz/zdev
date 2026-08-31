@@ -109,7 +109,8 @@ The frontmatter contains only routing state:
 - `area` prevents tasks from being moved between objectives accidentally;
 - `status` is `open` or `done`;
 - optional `complexity` is `routine`, `standard`, or `advanced`;
-- optional `afk` marks work suitable for unattended execution;
+- optional `afk` marks work whose implementation and required validation can
+  complete unattended with the available repository-local authority;
 - optional `priority` is `high`, `normal`, or `low`;
 - optional `slice` names an existing slice brief in the same area; and
 - `blocked_by` contains stable task IDs.
@@ -125,6 +126,15 @@ no user focus, zdev chooses from the ready frontier by AFK suitability first,
 then priority, then numeric task ID. Omitted values behave as `afk = false` and
 `priority = "normal"`. A fuzzy user focus is handled by the harness instead: it
 reads every ready task and chooses the best fit from the full frontier.
+
+Do not mark a task `afk = true` when its required completion evidence needs a
+physical device, interactive sign-in, unavailable credential, production
+access, or another human action. Prefer a committed unattended implementation
+task followed by an `afk = false` attended acceptance task. Express that order
+with `blocked_by`, give the attended gate low priority while useful ready work
+remains, and leave unrelated unattended work independent. Credential or device
+setup belongs at the point where the first task actually consumes it, not at
+the start of the area.
 
 `zdev task done` checks the done-condition boxes, changes the status, and appends
 one result section:
@@ -232,7 +242,8 @@ constraints, and relevant source or test seams. Point to the brief or
 background documents instead of copying their shared material. Version 1
 bundles and task files without `context` are accepted. Use task
 boundaries only for limits the implementation and verification agents need for
-that slice. Test-related done conditions and validation must apply the agreed
+that slice; do not turn expected source or test paths into an implicit
+allowlist. Test-related done conditions and validation must apply the agreed
 level, not silently expand it.
 
 `zdev check` requires non-empty `Outcome`, `Done when`, and `Validation` sections.

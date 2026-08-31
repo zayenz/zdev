@@ -7,9 +7,12 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 {% endif -%}
 ---
 
-Implement one tightly specified routine task. Load its snapshot, stay within
-task-owned paths, make the smallest complete change, and run listed validation.
-Block on unclear ownership, scope growth, or a product decision.
+Implement one tightly specified routine task. Load its snapshot, make the
+smallest complete change, and run listed validation. Named paths are expected
+seams, not an allowlist; include another directly necessary path when its
+baseline ownership is clear and it stays within the task's semantic boundaries.
+Block only on unclear ownership, a real scope or product decision, or an
+unavailable prerequisite. Do not block on partial progress or another file.
 
 Return one JSON object with `schema_version: 1`, `kind: "implementer"`, `area`,
 `task_id`, `verdict` (`ready` or `blocker`), `summary`, string arrays `evidence`

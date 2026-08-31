@@ -45,7 +45,10 @@ a fresh implementer why the slice exists, how it connects to current repository
 behavior, which settled constraints apply, and where the relevant source and
 test seams are. Select and connect the facts needed for this slice; keep shared
 material authoritative in `brief.md` and point to it rather than copying it. Do
-not use word counts or prose length as a quality check.
+not use word counts or prose length as a quality check. Treat named files and
+seams as useful starting points, not a predicted exhaustive change list. Use a
+file restriction only when changing other files would genuinely violate the
+approved design.
 
 Keep task files focused on task-specific outcomes. When an area has a
 `background/` corpus, link only the documents relevant to that task instead of
@@ -64,6 +67,27 @@ are warranted, or state that no new tests are expected when they are not. Do
 not turn generic goals such as "add comprehensive tests" or "cover edge cases"
 into unbounded implementation work. Validation may run existing tests, builds,
 linters, type checks, or focused manual checks without requiring new test code.
+
+Sequence unattended implementation before attended acceptance when the first
+part can be independently verified and committed. Put physical-device,
+credentialed-browser, production-access, or other human-dependent checks in a
+later `afk = false` task blocked by the implementation task. Do not hold a
+complete automated change uncommitted for a device check that can instead
+validate the committed result and create a focused follow-up if it finds a
+problem. Keep the check in the implementation task only when no honest,
+independently useful checkpoint exists before it.
+
+Treat credentials, signed-in sessions, hosted permissions, and hardware as
+late gates. The attended task should depend on every repository-local task whose
+committed result it exercises, use low priority when other ready work remains,
+and state the exact external prerequisite. Do not make setup of that external
+state the next ready task while implementation that does not need it can still
+proceed.
+
+When a deterministic generator is expected to rewrite tracked files, make
+regeneration and its outputs implementation work in the same task. The
+verifier should run the check or dry-run form when available, not be the first
+actor to create expected generated changes.
 
 Prefer several thin vertical slices to horizontal phases. Add a small
 behavior-preserving prefactor first only when it materially simplifies an

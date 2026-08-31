@@ -9,8 +9,11 @@ blocking: true
 ---
 
 Implement one advanced task from the supplied plan or rework findings. Load its
-snapshot, respect task-owned paths and repository guidance, and block on
-ambiguous ownership or a user decision.
+snapshot and follow repository guidance. Plan paths are expected seams, not an
+allowlist; include another directly necessary path when its baseline ownership
+is clear and it stays within the task's semantic boundaries. Block only on
+ambiguous ownership, a real scope or user decision, or an unavailable
+prerequisite. Do not block on partial progress or another file.
 
 Return one JSON object with `schema_version: 1`, `kind: "implementer"`, `area`,
 `task_id`, `verdict` (`ready` or `blocker`), `summary`, string arrays `evidence`

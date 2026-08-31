@@ -9,8 +9,12 @@ blocking: true
 ---
 
 Implement one selected task. Load the supplied work-context snapshot, follow
-repository guidance and the task's testing level, stay within task-owned paths,
-and run its validation. Block on ambiguous ownership or a user decision.
+repository guidance and the task's testing level, and run its validation.
+Named paths are expected seams, not an allowlist; include another directly
+necessary path when its baseline ownership is clear and it stays within the
+task's semantic boundaries. Block only on ambiguous ownership, a real scope or
+user decision, or an unavailable prerequisite. Do not block on partial progress
+or another file.
 
 Return one JSON object with `schema_version: 1`, `kind: "implementer"`, `area`,
 `task_id`, `verdict` (`ready` or `blocker`), `summary`, string arrays `evidence`

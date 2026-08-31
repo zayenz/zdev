@@ -54,7 +54,10 @@ areas; do not infer project-wide selection from an omitted area.
    Give the selected implementer repository-relative locators for the brief,
    optional slice and linked background files, task, repository guidance, and
    relevant source and tests, plus the baseline snapshot and task-owned path
-   boundaries.
+   evidence. Named and planned paths are expected seams, not an allowlist,
+   unless the task states an explicit file boundary. The implementer may touch
+   another path when it is directly necessary for the approved outcome, has
+   unambiguous baseline ownership, and stays inside the task and area.
    It may edit source and tests and run validation. It must not edit `.zdev`, run
    `zdev task done`, change task lifecycle state, or commit.
 5. Ask it to satisfy every done condition, stay within the task boundaries, and
@@ -74,17 +77,25 @@ areas; do not infer project-wide selection from an omitted area.
    no other path. Keep the current selection and consider those additions only
    at the next `zdev next` boundary. Stop and review every other intervening
    change, including changes to an existing task, the selected task, `brief.md`,
-   area metadata, lifecycle state, or source. Then apply the independent
+   area metadata, lifecycle state, or source. If the implementer reported a
+   blocker, classify it under the next step. Otherwise apply the independent
    verification contract below with a fresh verifier.
-7. Return every concrete task-owned verifier `rework` finding with escalation
+7. Treat an implementer blocker as terminal only for a concrete impasse: a
+   user-owned decision, unavailable external state, unsafe or ambiguous
+   ownership, or an actual semantic scope change. Partial progress, remaining
+   directly actionable work, an underestimated file count, and newly discovered
+   attributable in-scope paths continue with the same profile or a replacement
+   from the current diff. Do not commit incomplete implementation merely to
+   clear the checkout.
+8. Return every concrete task-owned verifier `rework` finding with escalation
    `none` to the same selected profile when possible. Otherwise give a
    same-profile replacement the task, current diff, and exact findings. A
    verifier may request `advanced-implementer` once only after standard/default
    implementation; use an advanced replacement without replanning. Reject a
    second or inapplicable escalation. After every correction, use a fresh
    standard verifier.
-8. Repeat implementation and fresh verification without a fixed retry count.
-   Stop only for verifier `pass`, a real blocker, unsafe scope expansion, or a
+9. Repeat implementation and fresh verification without a fixed retry count.
+   Stop only for verifier `pass`, a real blocker, unsafe semantic scope expansion, or a
    user-owned decision.
 
 If the implementer discovers that the approved task must be split, it may

@@ -90,7 +90,7 @@ or unavailable independent verification returns
 `BLOCKER zdev-verify <area> <task-id>` with no mutation.
 
 The exact installed task-workflows contract path is
-".opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
+"/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
 path in the verifier payload.
 
 Parse `$ARGUMENTS` as `<area> <task-id>`. The primary agent performs preflight

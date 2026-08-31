@@ -60,10 +60,12 @@ One ordinary iteration selects, implements, independently verifies, completes,
 and commits at most one task. The split exception below commits the derived
 graph change without completing or claiming verification of its source.
 Concrete task-owned `rework` remains inside that
-iteration with no fixed retry count. After an exact committed
+iteration with no fixed retry count. A worker result that reports only partial
+progress, remaining in-scope work, or an additional attributable path continues
+inside the iteration; it is not a terminal blocker. After an exact committed
 `PASS zdev-implement <area> <task-id>`, obtain fresh work-context before the
 native runtime continues. Stop on terminal state, malformed worker output,
-worker blocker, unsafe refresh, user-owned decision, or failed completion or
+genuine worker blocker, unsafe refresh, user-owned decision, or failed completion or
 commit. Never combine tasks in one verification or commit.
 
 A successful derived apply is one managed commit and an iteration boundary.

@@ -45,7 +45,9 @@ An area moves from a brief to approved tasks, implementation, independent
 verification, completion, and commit. **Explore** and **Discuss** shape the
 brief, including scope and testing. **Create tasks** turns that brief into an
 exact bundle for approval. **Implement** selects one ready task, records the Git
-baseline, and changes only task-owned paths. Immediately before a fresh
+baseline, and changes only attributable task-owned paths. Paths named during
+planning are starting points, not an allowlist, unless an explicit boundary
+says otherwise. Immediately before a fresh
 verifier, coordination stores and validates its work-context snapshot. The
 verifier checks the task requirements, touched code, and required validation,
 then returns four semantic fields. Coordination compares the snapshot and
@@ -70,7 +72,10 @@ it has no status or required task membership. The area brief remains
 authoritative for shared decisions and testing.
 
 The brief and selected task define the outcome, boundaries, testing level, and
-done conditions throughout this process.
+done conditions throughout this process. A newly discovered file may become
+task-owned when changing it is directly necessary for those requirements, its
+baseline ownership is clear, and the change stays within the approved semantic
+boundaries. File count alone is never scope expansion.
 
 Use `general` as the conventional tag for recurring one-off work when the user
 wants one standing area instead of a new area for each small improvement. It
@@ -152,7 +157,9 @@ or `BLOCKER zdev-loop <area>`. `CONTINUE` is valid only after one independently
 verified task was completed and committed and fresh work-context reports
 another open, ready, safe task. `REWORK` stays inside the current task; worker,
 validation, completion, commit, refresh, unsafe-state, and user-decision
-failures stop as `BLOCKER`. No invocation stores durable loop state.
+failures stop as `BLOCKER` only when they are genuine impasses. Partial progress,
+remaining in-scope work, or a newly discovered attributable path stays inside
+the current iteration. No invocation stores durable loop state.
 
 The harness-native section says whether continuation is native or bounded. A
 bounded fallback completes at most one task, reports the fresh next state, and
@@ -208,7 +215,7 @@ what remains; mention commands only when they help the user continue or recover.
 ## OpenCode orchestration
 
 The exact installed task-workflows contract path for this installation is
-".opencode/skills/zdev-opencode/references/task-workflows.md". Decode that JSON string and include the
+"/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.
 
 Route authored routine, standard/default, and advanced work to

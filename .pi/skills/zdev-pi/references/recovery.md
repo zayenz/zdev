@@ -43,6 +43,14 @@ before committing or reopening it. Ask the user when ownership cannot be
 re-established from the task, baseline, and conversation. Do not assume an
 existing diff belongs to the selected task.
 
+Prefer a durable managed checkpoint when the work is already complete enough
+for one. Finish lifecycle, exact staging, and `zdev commit` for an independently
+verified task instead of repeatedly reporting its attributable diff as a dirty
+state. Use a route-defined zdev commit for complete planning, import, derived
+graph, or repair work before refreshing task context. Do not checkpoint
+incomplete implementation, skip required verification, or include unrelated
+paths merely to make task work appear clean.
+
 Recover derived work from current filesystem state:
 
 - For an unapplied proposal, preserve its bytes and collect fresh work-context.

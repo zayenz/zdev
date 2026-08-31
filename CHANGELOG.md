@@ -2,6 +2,32 @@
 
 This file records notable changes to zdev.
 
+## [1.2.3] - 2026-08-31
+
+### Fixed
+
+- Task and planner paths are treated as expected implementation seams rather
+  than exhaustive allowlists. Directly necessary, attributable files no longer
+  turn otherwise in-scope work into a blocker.
+- Goal loops distinguish genuine external or safety blockers from partial,
+  directly actionable implementation. Claude Code retries actionable worker
+  blockers and stops repeated attempts when snapshot comparison shows no
+  attributable progress.
+- Task drafting and focused selection keep unattended repository work ahead of
+  physical-device, credential, production-access, and other attended gates.
+- Verified, coherent work proceeds through the normal completion and commit
+  flow instead of remaining dirty solely because a later attended check exists.
+- Verifiers prefer check or dry-run forms for generators, avoiding dirty
+  worktrees caused by verification when generation belongs to implementation.
+- Claude Code project integrations resolve their installed task-workflow
+  contract from the project destination instead of a user-scoped path.
+
+### Compatibility
+
+- Existing records and task state remain valid. Reinstall integrations with
+  `zdev skill install <harness> --force` to receive the updated loop,
+  task-writing, worker, and verifier contracts.
+
 ## [1.2.2] - 2026-08-27
 
 ### Changed
@@ -181,6 +207,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.2.3]: https://github.com/zayenz/zdev/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/zayenz/zdev/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/zayenz/zdev/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/zayenz/zdev/compare/v1.1.2...v1.2.0

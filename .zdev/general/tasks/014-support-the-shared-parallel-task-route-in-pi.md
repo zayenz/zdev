@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-014"
 key = "run-parallel-tasks-in-pi"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,14 +27,22 @@ Read Harness adaptation, User choices, Stops and recovery, and Testing in the [p
 
 ## Done when
 
-- [ ] The installed Pi route can dispatch a bounded set of workers with distinct assigned directories, delivering each task result to coordination as it becomes available.
-- [ ] Current single-role invocations remain compatible, and all active child roles respect the agreed and available limit.
-- [ ] An individual child failure or malformed result is attributed to its task without losing completed sibling results; cancellation stops further dispatch and reports any child not confirmed stopped.
-- [ ] Coordination uses the shared serial integration, independent verification, completion, and resume path for the returned results.
-- [ ] Canonical extension and prompt sources, documentation, registration, and regenerated fixtures expose the supported route accurately.
+- [x] The installed Pi route can dispatch a bounded set of workers with distinct assigned directories, delivering each task result to coordination as it becomes available.
+- [x] Current single-role invocations remain compatible, and all active child roles respect the agreed and available limit.
+- [x] An individual child failure or malformed result is attributed to its task without losing completed sibling results; cancellation stops further dispatch and reports any child not confirmed stopped.
+- [x] Coordination uses the shared serial integration, independent verification, completion, and resume path for the returned results.
+- [x] Canonical extension and prompt sources, documentation, registration, and regenerated fixtures expose the supported route accurately.
 
 ## Validation
 
 - Use a controlled child executable to verify distinct cwd values, overlapping execution within the limit, individual result delivery, and cancellation/failure preservation without model calls.
 - Run existing Pi installation, profile, handoff, and fixture checks, adding focused assertions only for changed executable behavior.
 - Regenerate affected integrations and run standard area validation.
+
+## Result
+
+Added Pi parallel support with transient task-keyed batch handles, distinct assigned directories, arrival-driven coordinator gates, bounded role accounting, cancellation preservation, and serial shared completion.
+
+Validation:
+
+- Independent verification passed from exact snapshot W095eff29b8aa0a7c: focused child-process timing and race tests, all 157 tests, fmt, clippy with warnings denied, build, diff check, Pi fixture parity, and legacy behavior.

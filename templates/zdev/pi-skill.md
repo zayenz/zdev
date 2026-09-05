@@ -25,6 +25,14 @@ guidance, and source file paths, applicable snapshot IDs, and the short result
 from the preceding role. The child reads those files from the shared checkout;
 do not copy the rendered contract into its prompt.
 
+For an explicitly approved Parallel route, use the packaged `zdev-parallel`
+prompt. Its bounded `zdev_subagent` batch form is only for planners and initial
+source implementers in assigned worktrees. Its session-local start, continue,
+and cancel handle returns one settled result at a time. Keep verifier and rework
+calls single-worker between continuations so the Pi coordinator can prioritize
+integration, verify, complete, and recover each task through the shared serial
+path.
+
 When an implementer will author human-facing prose, include the shared `Write
 human-facing prose plainly` section in its compact payload. Other children do
 not need that editorial guidance.

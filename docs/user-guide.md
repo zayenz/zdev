@@ -259,8 +259,9 @@ permission to create task worktrees and branches, a total worker-role limit,
 and cleanup preference. Zdev checks likely source overlap, shared interfaces,
 validation resources, repository instructions, and visible competing work.
 Compatible implementations may overlap in separate trees; integration and
-verification still happen one task and one commit at a time. The other shipped
-harness adapters currently offer sequential Implement for this request.
+verification still happen one task and one commit at a time. Codex, Claude
+Code, and Pi support this route. OpenCode and Oh My Pi currently offer
+sequential Implement for this request.
 
 **Discuss the brief** reads the brief and relevant indexed sources, then
 identifies choices that could materially change behavior, scope, task splitting,
@@ -498,8 +499,11 @@ skills when started from a subdirectory in the worktree.
 
 Pi installs a skill, prompt templates, and the `zdev_subagent` extension under
 `.pi`. The extension starts a fresh child Pi process for each implementation or
-verification handoff. Goal and loop are the same bounded one-task continuation
-route. A user installation goes to
+verification handoff. Its explicit parallel prompt can bound initial planner
+and source-implementer children across assigned worktrees. A session-local run
+returns one result at a time; Pi integrates and verifies it before explicitly
+continuing queued work, then completes and commits each result serially. Goal
+and loop are the same bounded one-task continuation route. A user installation goes to
 `$PI_CODING_AGENT_DIR`, or `~/.pi/agent` when the variable is unset.
 
 ### Oh My Pi

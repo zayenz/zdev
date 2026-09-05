@@ -111,6 +111,7 @@ const PI_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/pi-skill.md");
 const PI_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-implement.md");
 const PI_VERIFY_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-verify.md");
 const PI_AUDIT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-audit.md");
+const PI_PARALLEL_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-parallel.md");
 const PI_SUBAGENT_EXTENSION: &str =
     include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts");
 const OMP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/omp-skill.md");
@@ -376,6 +377,10 @@ impl Harness {
                     IntegrationFile {
                         path: "prompts/zdev-audit.md".to_owned(),
                         content: PI_AUDIT_PROMPT.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-parallel.md".to_owned(),
+                        content: PI_PARALLEL_PROMPT.to_owned(),
                     },
                     IntegrationFile {
                         path: "prompts/zdev-loop.md".to_owned(),
@@ -659,7 +664,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude),
+            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -680,7 +685,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude),
+            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -696,7 +701,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude),
+            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -712,7 +717,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude),
+            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -741,7 +746,7 @@ fn realize_templates(
                 &task_workflow_contract,
                 &verify_workflow_contract,
                 &task_workflows_contract_path_json,
-                matches!(harness, Harness::Codex | Harness::Claude),
+                matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
             ),
             &repository_guidance,
             &question_tool_guidance,

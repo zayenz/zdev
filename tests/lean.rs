@@ -8189,7 +8189,7 @@ fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
 }
 
 #[test]
-fn parallel_route_is_shared_and_codex_and_claude_report_execution_support() {
+fn parallel_route_is_shared_and_supported_harnesses_report_execution_support() {
     let repository = repository();
     let root = repository.path();
 
@@ -8219,7 +8219,7 @@ fn parallel_route_is_shared_and_codex_and_claude_report_execution_support() {
                 .expect("parallel reference");
 
         assert!(skill.contains("references/parallel.md"));
-        if matches!(harness, "codex" | "claude") {
+        if matches!(harness, "codex" | "claude" | "pi") {
             assert!(parallel.contains("## Native harness support"));
             assert!(parallel.contains("in-memory set of dispatched task IDs"));
             assert!(parallel.contains("configured implementation\nprofile"));
@@ -8230,6 +8230,181 @@ fn parallel_route_is_shared_and_codex_and_claude_report_execution_support() {
             assert!(!parallel.contains("## Native harness support"));
         }
     }
+}
+
+#[test]
+fn pi_subagent_preserves_single_calls_and_runs_attributed_bounded_batches() {
+    let mut source = include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts")
+        .replace(
+            "import type { ExtensionAPI } from \"@earendil-works/pi-coding-agent\";",
+            "",
+        )
+        .replace("import { Type } from \"typebox\";", "")
+        .replace("} as const;", "};")
+        .replace(
+            "export default function (pi: ExtensionAPI)",
+            "function install(pi)",
+        )
+        .replace("new Map<string, BatchRun>()", "new Map()")
+        .replace(
+            "function childArgs(role: WorkerRole, prompt: string): string[]",
+            "function childArgs(role, prompt)",
+        )
+        .replace(
+            "const items = params.items as BatchItem[];",
+            "const items = params.items;",
+        )
+        .replace("const results: BatchResult[] = [];", "const results = [];")
+        .replace(
+            "const resultBase = (item: BatchItem) =>",
+            "const resultBase = (item) =>",
+        )
+        .replace(
+            "const publish = (run: BatchRun, result: BatchResult) =>",
+            "const publish = (run, result) =>",
+        )
+        .replace(
+            "const launch = (run: BatchRun, item: BatchItem) =>",
+            "const launch = (run, item) =>",
+        )
+        .replace(
+            "const fillAvailableSlots = (run: BatchRun) =>",
+            "const fillAvailableSlots = (run) =>",
+        )
+        .replace(
+            "const takeNext = async (run: BatchRun): Promise<BatchResult> =>",
+            "const takeNext = async (run) =>",
+        )
+        .replace("new Promise<void>", "new Promise")
+        .replace(
+            "return run.settled.shift()!;",
+            "return run.settled.shift();",
+        )
+        .replace(
+            "const response = (runId: string, run: BatchRun, result: BatchResult) =>",
+            "const response = (runId, run, result) =>",
+        )
+        .replace("const run: BatchRun =", "const run =");
+    for value in [
+        "{{ routine_implementer_model }}",
+        "{{ routine_implementer_effort }}",
+        "{{ implementer_model }}",
+        "{{ implementer_effort }}",
+        "{{ verifier_model }}",
+        "{{ verifier_effort }}",
+        "{{ advanced_implementer_model }}",
+        "{{ advanced_implementer_effort }}",
+    ] {
+        source = source.replace(value, "null");
+    }
+    let type_start = source.find("type WorkerRole").expect("Pi worker types");
+    let type_end = source.find("const roleType").expect("Pi runtime schema");
+    source.replace_range(type_start..type_end, "");
+
+    let probe = format!(
+        r#"
+const Type = new Proxy({{}}, {{ get: () => (...args) => ({{ args }}) }})
+{source}
+let tool
+let active = 0
+let maximum = 0
+let mode = 'single'
+const starts = []
+const pi = {{
+  registerTool(value) {{ tool = value }},
+  async exec(_command, args, options) {{
+    starts.push({{ args, cwd: options.cwd }})
+    active += 1
+    maximum = Math.max(maximum, active)
+    const prompt = args.at(-1)
+    if (mode === 'cancel' && prompt === 'slow') {{
+      return await new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => {{
+        active -= 1
+        reject(new Error('child stop not confirmed'))
+      }}, {{ once: true }}))
+    }}
+    const delay = mode === 'single' ? 0 : prompt === 'first' ? 12 : prompt === 'second' ? 2 : prompt === 'failure' ? 4 : prompt === 'verify-wave' ? 30 : 10
+    await new Promise(resolve => setTimeout(resolve, delay))
+    active -= 1
+    return prompt === 'failure'
+      ? {{ code: 7, stdout: 'partial', stderr: 'failed child' }}
+      : prompt === 'malformed'
+        ? {{ code: 0, stdout: 'not-json', stderr: '' }}
+      : {{ code: 0, stdout: 'result-' + prompt, stderr: '' }}
+  }},
+}}
+install(pi)
+const singleSignal = new AbortController()
+const single = await tool.execute('single', {{ role: 'verifier', prompt: 'one' }}, singleSignal.signal, undefined, {{ cwd: '/parent' }})
+if (single.content[0].text !== 'result-one' || starts[0].cwd !== '/parent') throw new Error('legacy single call changed')
+if (!starts[0].args.includes('read,bash,grep,find,ls')) throw new Error('single role tools changed')
+
+mode = 'batch'
+starts.length = 0
+maximum = 0
+const batchSignal = new AbortController()
+let rejected = false
+try {{
+  await tool.execute('bad-cwd', {{ operation: 'start', run_id: 'bad-cwd', worker_limit: 2, items: [
+    {{ task_id: 'work-101', role: 'implementer', prompt: 'one', cwd: '/source/a/../b' }},
+    {{ task_id: 'work-102', role: 'implementer', prompt: 'two', cwd: '/source/c' }},
+  ] }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+}} catch (error) {{ rejected = String(error).includes('normalized absolute path') }}
+if (!rejected || starts.length !== 0) throw new Error('non-normalized cwd was accepted')
+
+const started = await tool.execute('batch', {{ operation: 'start', run_id: 'main-run', worker_limit: 3, items: [
+  {{ task_id: 'work-001', role: 'implementer', prompt: 'first', cwd: '/source/one' }},
+  {{ task_id: 'work-002', role: 'planner', prompt: 'second', cwd: '/source/two' }},
+  {{ task_id: 'work-003', role: 'advanced-implementer', prompt: 'failure', cwd: '/source/three' }},
+  {{ task_id: 'work-004', role: 'routine-implementer', prompt: 'malformed', cwd: '/source/four' }},
+] }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+if (started.details.result.task_id !== 'work-002' || active !== 2) throw new Error('start waited for slow siblings')
+if (starts.map(start => start.cwd).join(',') !== '/source/one,/source/two,/source/three') throw new Error('start launched queued work')
+const verifier = await tool.execute('verify', {{ role: 'verifier', prompt: 'verify-wave' }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+if (verifier.content[0].text !== 'result-verify-wave') throw new Error('serial verifier failed')
+if (starts.some(start => start.cwd === '/source/four')) throw new Error('queued implementation beat verifier')
+const continued = await tool.execute('continue', {{ operation: 'continue', run_id: 'main-run' }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+if (continued.details.result.task_id !== 'work-003' || continued.details.result.status !== 'failed') throw new Error('continue lost failed result')
+if (starts.some(start => start.cwd === '/source/four')) throw new Error('buffered result launched queued implementation')
+await tool.execute('verify', {{ role: 'verifier', prompt: 'verify-failure' }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+const continuedAgain = await tool.execute('continue', {{ operation: 'continue', run_id: 'main-run' }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+if (continuedAgain.details.result.task_id !== 'work-001') throw new Error('second buffered result lost')
+if (starts.some(start => start.cwd === '/source/four')) throw new Error('second buffered result launched queued implementation')
+await tool.execute('verify', {{ role: 'verifier', prompt: 'verify-first' }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+const last = await tool.execute('continue', {{ operation: 'continue', run_id: 'main-run' }}, batchSignal.signal, undefined, {{ cwd: '/parent' }})
+if (last.details.result.task_id !== 'work-004' || last.details.result.output !== 'not-json') throw new Error('queued malformed result lost attribution')
+rejected = false
+try {{ await tool.execute('expired', {{ operation: 'continue', run_id: 'main-run' }}, batchSignal.signal, undefined, {{ cwd: '/parent' }}) }}
+catch (error) {{ rejected = String(error).includes('Unknown or completed') }}
+if (!rejected) throw new Error('completed handle did not expire')
+if (maximum !== 3) throw new Error('worker limit was not exercised: ' + maximum)
+if (starts.map(start => start.cwd).join(',') !== '/source/one,/source/two,/source/three,/parent,/parent,/parent,/source/four') throw new Error('serial gates did not control queued starts')
+
+mode = 'cancel'
+starts.length = 0
+const cancelledSignal = new AbortController()
+const cancelStarted = await tool.execute('cancel-start', {{ operation: 'start', run_id: 'cancel-run', worker_limit: 2, items: [
+  {{ task_id: 'work-011', role: 'implementer', prompt: 'second', cwd: '/source/eleven' }},
+  {{ task_id: 'work-012', role: 'implementer', prompt: 'slow', cwd: '/source/twelve' }},
+  {{ task_id: 'work-013', role: 'implementer', prompt: 'queued-a', cwd: '/source/thirteen' }},
+] }}, cancelledSignal.signal, undefined, {{ cwd: '/parent' }})
+if (cancelStarted.details.result.task_id !== 'work-011') throw new Error('cancel setup lost completed result')
+const cancelled = await tool.execute('cancel', {{ operation: 'cancel', run_id: 'cancel-run' }}, cancelledSignal.signal, undefined, {{ cwd: '/parent' }})
+const states = Object.fromEntries(cancelled.details.results.map(result => [result.task_id, result.status]))
+if (states['work-011'] !== 'completed' || states['work-012'] !== 'unconfirmed-stop') throw new Error('active cancellation accounting lost')
+if (states['work-013'] !== 'not-dispatched') throw new Error('queued cancellation accounting lost')
+if (starts.length !== 2) throw new Error('cancellation started queued children')
+"#
+    );
+    let output = Command::new("node")
+        .args(["--input-type=module", "--eval", &probe])
+        .output()
+        .expect("run Pi subagent probe");
+    assert!(
+        output.status.success(),
+        "Pi subagent probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -10208,6 +10383,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "prompts/zdev-goal.md",
             "prompts/zdev-implement.md",
             "prompts/zdev-loop.md",
+            "prompts/zdev-parallel.md",
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev-pi/SKILL.md",
@@ -10237,6 +10413,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         "prompts/zdev-implement.md",
         "prompts/zdev-goal.md",
         "prompts/zdev-loop.md",
+        "prompts/zdev-parallel.md",
         "prompts/zdev-verify.md",
         "prompts/zdev-audit.md",
         "extensions/zdev-subagent.ts",

@@ -642,6 +642,10 @@ fn render_template(
             advanced_implementer_has_effort => workers.advanced_implementer.has_effort(),
             advanced_implementer_model => workers.advanced_implementer.model_literal(),
             advanced_implementer_effort => workers.advanced_implementer.effort_literal(),
+            planner_has_model => workers.planner.has_model(),
+            planner_has_effort => workers.planner.has_effort(),
+            planner_model => workers.planner.model_literal(),
+            planner_effort => workers.planner.effort_literal(),
             parallel_supported => contracts.5,
         })
         .map_err(|error| {

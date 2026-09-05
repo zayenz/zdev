@@ -223,6 +223,11 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum ConfigCommand {
+    /// Define, inspect, and resolve named execution profiles
+    Profile {
+        #[command(subcommand)]
+        command: ProfileCommand,
+    },
     /// Show effective configuration or values stored in one scope
     Show {
         /// Show only values stored in the global worker-profile file
@@ -278,6 +283,77 @@ enum ConfigCommand {
         /// Permit only a project-trunk ancestry discontinuity
         #[arg(long)]
         allow_divergent: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProfileCommand {
+    /// List normal, built-in, and configured profile names
+    List,
+    /// Show every resolved role in one profile for one harness
+    Show {
+        /// Profile name; custom names use lowercase letters, digits, and hyphens
+        name: String,
+        /// Harness: codex, claude, opencode, pi, or omp
+        harness: String,
+    },
+    /// Create or replace one atomic model-and-effort role row
+    Set {
+        /// Custom profile name; normal is configured with the existing worker keys
+        name: String,
+        /// Harness: codex, claude, opencode, pi, or omp
+        harness: String,
+        /// Role: routine-implementer, implementer, verifier, advanced-implementer, or planner
+        role: String,
+        /// Either `inherit`, or exactly MODEL EFFORT as one atomic row
+        #[arg(value_name = "VALUE", num_args = 1..)]
+        values: Vec<String>,
+        /// Write user-global configuration instead of this repository's local configuration
+        #[arg(long)]
+        global: bool,
+    },
+    /// Remove one named profile role row from the selected scope
+    Unset {
+        /// Custom profile name
+        name: String,
+        /// Harness: codex, claude, opencode, pi, or omp
+        harness: String,
+        /// Role: routine-implementer, implementer, verifier, advanced-implementer, or planner
+        role: String,
+        /// Write user-global configuration instead of this repository's local configuration
+        #[arg(long)]
+        global: bool,
+    },
+    /// Persist the default profile explicitly in the selected scope
+    SetDefault {
+        /// Normal, a built-in profile, or a configured custom profile name
+        name: String,
+        /// Write user-global configuration instead of this repository's local configuration
+        #[arg(long)]
+        global: bool,
+    },
+    /// Clear the explicitly saved default in the selected scope
+    UnsetDefault {
+        /// Write user-global configuration instead of this repository's local configuration
+        #[arg(long)]
+        global: bool,
+    },
+    /// Resolve one concrete role without changing configuration
+    ///
+    /// Selection order is --profile, --run-profile, saved local default, saved
+    /// global default, then normal. Missing named roles fall back to normal;
+    /// planner first falls back to the same profile's advanced implementer.
+    Resolve {
+        /// Harness: codex, claude, opencode, pi, or omp
+        harness: String,
+        /// Role: routine-implementer, implementer, verifier, advanced-implementer, or planner
+        role: String,
+        /// One-off profile for this role; takes precedence over --run-profile
+        #[arg(long)]
+        profile: Option<String>,
+        /// Profile selected for the interaction or authorized run
+        #[arg(long = "run-profile")]
+        run_profile: Option<String>,
     },
 }
 
@@ -640,6 +716,48 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
     }
     if let Command::Config { command } = &cli.command {
         match command {
+            ConfigCommand::Profile {
+                command:
+                    ProfileCommand::Set {
+                        name,
+                        harness,
+                        role,
+                        values,
+                        global: true,
+                    },
+            } => {
+                return config::profile_set(
+                    None,
+                    config::ConfigWriteScope::Global,
+                    name,
+                    harness,
+                    role,
+                    values,
+                );
+            }
+            ConfigCommand::Profile {
+                command:
+                    ProfileCommand::Unset {
+                        name,
+                        harness,
+                        role,
+                        global: true,
+                    },
+            } => {
+                return config::profile_unset(
+                    None,
+                    config::ConfigWriteScope::Global,
+                    name,
+                    harness,
+                    role,
+                );
+            }
+            ConfigCommand::Profile {
+                command: ProfileCommand::SetDefault { name, global: true },
+            } => return config::profile_set_default(None, config::ConfigWriteScope::Global, name),
+            ConfigCommand::Profile {
+                command: ProfileCommand::UnsetDefault { global: true },
+            } => return config::profile_unset_default(None, config::ConfigWriteScope::Global),
             ConfigCommand::Show { global: true, .. } => {
                 return config::show(None, config::ConfigReadScope::Global);
             }
@@ -675,6 +793,56 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             CleanupCommand::Squash => project::cleanup_squash(&root),
         },
         Command::Config { command } => match command {
+            ConfigCommand::Profile { command } => match command {
+                ProfileCommand::List => config::profile_list(Some(&root)),
+                ProfileCommand::Show { name, harness } => {
+                    config::profile_show(Some(&root), name, harness)
+                }
+                ProfileCommand::Set {
+                    name,
+                    harness,
+                    role,
+                    values,
+                    ..
+                } => config::profile_set(
+                    Some(&root),
+                    config::ConfigWriteScope::Local,
+                    name,
+                    harness,
+                    role,
+                    values,
+                ),
+                ProfileCommand::Unset {
+                    name,
+                    harness,
+                    role,
+                    ..
+                } => config::profile_unset(
+                    Some(&root),
+                    config::ConfigWriteScope::Local,
+                    name,
+                    harness,
+                    role,
+                ),
+                ProfileCommand::SetDefault { name, .. } => {
+                    config::profile_set_default(Some(&root), config::ConfigWriteScope::Local, name)
+                }
+                ProfileCommand::UnsetDefault { .. } => {
+                    config::profile_unset_default(Some(&root), config::ConfigWriteScope::Local)
+                }
+                ProfileCommand::Resolve {
+                    harness,
+                    role,
+                    profile,
+                    run_profile,
+                } => config::profile_resolve(
+                    Some(&root),
+                    harness,
+                    role,
+                    profile.as_deref(),
+                    run_profile.as_deref(),
+                ),
+            },
             ConfigCommand::Show { local, .. } => config::show(
                 Some(&root),
                 if *local {

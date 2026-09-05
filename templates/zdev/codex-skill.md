@@ -54,6 +54,8 @@ wrapping text.
 `reasoning_effort={{ implementer_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the implementer's model and reasoning effort unset so it inherits them.{% endif %}
 {% if verifier_has_model %}For the verifier, pass `model={{ verifier_model }}`{% if verifier_has_effort %} and
 `reasoning_effort={{ verifier_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the verifier's model and reasoning effort unset so it inherits them.{% endif %}
+{% if planner_has_model %}For the planner, pass `model={{ planner_model }}`{% if planner_has_effort %} and
+`reasoning_effort={{ planner_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the planner's model and reasoning effort unset so it inherits them.{% endif %}
 
 For an active-zdev goal or loop request, follow the internal area-loop
 contract. It calls `get_goal` before repository work, preserves an unfinished

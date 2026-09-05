@@ -2,8 +2,8 @@
 name: zdev-planner
 description: Produce the one read-only plan required before an advanced zdev task is edited
 tools: Read, Bash, Grep, Glob
-{% if advanced_implementer_has_model %}model: {{ advanced_implementer_model }}
-{% endif %}{% if advanced_implementer_has_effort %}effort: {{ advanced_implementer_effort }}
+{% if planner_has_model %}model: {{ planner_model }}
+{% endif %}{% if planner_has_effort %}effort: {{ planner_effort }}
 {% endif -%}
 ---
 

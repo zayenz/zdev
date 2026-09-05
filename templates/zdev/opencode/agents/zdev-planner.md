@@ -4,8 +4,8 @@ mode: subagent
 permission:
   edit: deny
   task: deny
-{% if advanced_implementer_has_model %}model: {{ advanced_implementer_model }}
-{% endif %}{% if advanced_implementer_has_effort %}reasoningEffort: {{ advanced_implementer_effort }}
+{% if planner_has_model %}model: {{ planner_model }}
+{% endif %}{% if planner_has_effort %}reasoningEffort: {{ planner_effort }}
 {% endif -%}
 ---
 

@@ -15,6 +15,380 @@ fn run_zdev(root: &Path, arguments: &[&str]) -> Output {
         .expect("run zdev")
 }
 
+#[test]
+fn named_execution_profiles_resolve_precedence_fallbacks_and_preserve_bytes() {
+    let repository = repository();
+    let root = repository.path();
+    assert!(
+        run_zdev(root, &["init", "--record", "project"])
+            .status
+            .success()
+    );
+    let home = root.join("home");
+    fs::create_dir_all(&home).expect("profile home");
+    let env = [("HOME", home.as_path())];
+
+    let set = |args: &[&str]| {
+        let output = run_zdev_with_env(root, args, &env);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    set(&[
+        "config",
+        "profile",
+        "set",
+        "advanced-max",
+        "codex",
+        "advanced-implementer",
+        "gpt-6-astra",
+        "max",
+    ]);
+    set(&[
+        "config",
+        "profile",
+        "set",
+        "advanced-max",
+        "codex",
+        "implementer",
+        "gpt-6-astra",
+        "high",
+    ]);
+    set(&["config", "profile", "set-default", "advanced-max"]);
+
+    let planner = json_output_with_env(
+        root,
+        &["config", "profile", "resolve", "codex", "planner"],
+        &env,
+    );
+    assert_eq!(planner["profile"], "advanced-max");
+    assert_eq!(
+        planner["value"],
+        json!({"model":"gpt-6-astra", "effort":"max"})
+    );
+    assert_eq!(planner["fallback"], "advanced-implementer");
+    let normal = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "resolve",
+            "codex",
+            "verifier",
+            "--profile",
+            "normal",
+        ],
+        &env,
+    );
+    assert_eq!(normal["profile"], "normal");
+
+    let before = fs::read(root.join(".zdev/workers.toml")).expect("worker bytes");
+    let _ = json_output_with_env(root, &["config", "profile", "list"], &env);
+    let _ = json_output_with_env(
+        root,
+        &["config", "profile", "show", "advanced", "codex"],
+        &env,
+    );
+    assert_eq!(
+        fs::read(root.join(".zdev/workers.toml")).expect("worker bytes"),
+        before
+    );
+
+    let bad = run_zdev_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "set",
+            "broken",
+            "opencode",
+            "implementer",
+            "anthropic/model",
+            "high",
+        ],
+        &env,
+    );
+    assert!(!bad.status.success());
+    assert_eq!(
+        fs::read(root.join(".zdev/workers.toml")).expect("worker bytes"),
+        before
+    );
+    let unknown = run_zdev_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "resolve",
+            "pi",
+            "implementer",
+            "--profile",
+            "advanced",
+        ],
+        &env,
+    );
+    assert!(!unknown.status.success());
+}
+
+#[test]
+fn named_profile_layers_seeds_dispatch_and_default_refresh_are_concrete() {
+    let repository = repository();
+    let root = repository.path();
+    assert!(
+        run_zdev(root, &["init", "--record", "project"])
+            .status
+            .success()
+    );
+    let home = root.join("home");
+    fs::create_dir_all(&home).expect("profile home");
+    let env = [("HOME", home.as_path())];
+    let invoke = |args: &[&str]| json_output_with_env(root, args, &env);
+
+    invoke(&[
+        "config",
+        "profile",
+        "set",
+        "layered",
+        "codex",
+        "implementer",
+        "global-model",
+        "low",
+        "--global",
+    ]);
+    invoke(&[
+        "config",
+        "profile",
+        "set",
+        "layered",
+        "codex",
+        "implementer",
+        "local-model",
+        "high",
+    ]);
+    invoke(&[
+        "config",
+        "profile",
+        "set",
+        "run",
+        "codex",
+        "implementer",
+        "run-model",
+        "medium",
+    ]);
+    invoke(&[
+        "config",
+        "profile",
+        "set",
+        "role",
+        "codex",
+        "implementer",
+        "role-model",
+        "xhigh",
+    ]);
+    let saved = invoke(&["config", "profile", "set-default", "layered"]);
+    assert_eq!(saved["integration_refresh_required"], true);
+    assert!(
+        saved["integration_refresh_command"]
+            .as_str()
+            .unwrap()
+            .contains("--scope project")
+    );
+    let global_saved = invoke(&["config", "profile", "set-default", "layered", "--global"]);
+    assert!(
+        global_saved["integration_refresh_command"]
+            .as_str()
+            .unwrap()
+            .contains("--scope user")
+    );
+    let global_cleared = invoke(&["config", "profile", "unset-default", "--global"]);
+    assert!(
+        global_cleared["integration_refresh_command"]
+            .as_str()
+            .unwrap()
+            .contains("--scope user")
+    );
+
+    let selected = invoke(&["config", "profile", "resolve", "codex", "implementer"]);
+    assert_eq!(selected["value"]["model"], "local-model");
+    let run = invoke(&[
+        "config",
+        "profile",
+        "resolve",
+        "codex",
+        "implementer",
+        "--run-profile",
+        "run",
+    ]);
+    assert_eq!(run["value"]["model"], "run-model");
+    let role = invoke(&[
+        "config",
+        "profile",
+        "resolve",
+        "codex",
+        "implementer",
+        "--run-profile",
+        "run",
+        "--profile",
+        "role",
+    ]);
+    assert_eq!(role["value"]["model"], "role-model");
+
+    for (name, harness, role, model, effort) in [
+        (
+            "advanced",
+            "codex",
+            "routine-implementer",
+            "gpt-5.6-luna",
+            "low",
+        ),
+        ("advanced", "codex", "implementer", "gpt-6-astra", "high"),
+        (
+            "advanced",
+            "codex",
+            "advanced-implementer",
+            "gpt-6-astra",
+            "xhigh",
+        ),
+        ("advanced", "codex", "planner", "gpt-6-astra", "xhigh"),
+        ("advanced", "codex", "verifier", "gpt-6-astra", "high"),
+        (
+            "simple",
+            "codex",
+            "routine-implementer",
+            "gpt-5.6-luna",
+            "low",
+        ),
+        ("simple", "codex", "implementer", "gpt-5.6-luna", "low"),
+        (
+            "simple",
+            "codex",
+            "advanced-implementer",
+            "gpt-5.6-luna",
+            "high",
+        ),
+        ("simple", "codex", "planner", "gpt-5.6-luna", "high"),
+        ("simple", "codex", "verifier", "gpt-5.6-sol", "low"),
+        ("advanced", "claude", "routine-implementer", "haiku", "low"),
+        (
+            "advanced",
+            "claude",
+            "implementer",
+            "claude-fable-5-1",
+            "high",
+        ),
+        (
+            "advanced",
+            "claude",
+            "advanced-implementer",
+            "claude-fable-5-1",
+            "xhigh",
+        ),
+        ("advanced", "claude", "planner", "claude-fable-5-1", "xhigh"),
+        ("advanced", "claude", "verifier", "claude-fable-5-1", "high"),
+    ] {
+        let value = invoke(&[
+            "config",
+            "profile",
+            "resolve",
+            harness,
+            role,
+            "--profile",
+            name,
+        ]);
+        assert_eq!(value["value"], json!({"model": model, "effort": effort}));
+    }
+
+    invoke(&[
+        "config",
+        "profile",
+        "set",
+        "layered",
+        "codex",
+        "advanced-implementer",
+        "advanced-model",
+        "max",
+    ]);
+    let fallback = invoke(&["config", "profile", "resolve", "codex", "planner"]);
+    assert_eq!(fallback["value"]["model"], "advanced-model");
+    invoke(&[
+        "config",
+        "profile",
+        "set",
+        "layered",
+        "codex",
+        "planner",
+        "planner-model",
+        "xhigh",
+    ]);
+    let explicit = invoke(&["config", "profile", "resolve", "codex", "planner"]);
+    assert_eq!(explicit["value"]["model"], "planner-model");
+
+    let destination = root.join("codex-profile");
+    let installed = invoke(&[
+        "skill",
+        "install",
+        "codex",
+        "--scope",
+        "project",
+        "--to",
+        destination.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        installed["workers"]["planner"]["value"]["model"],
+        "planner-model"
+    );
+    assert_eq!(
+        installed["workers"]["implementer"]["value"]["model"],
+        "local-model"
+    );
+    let skill = fs::read_to_string(destination.join("zdev/SKILL.md")).expect("Codex skill");
+    assert!(skill.contains("model=\"planner-model\""));
+    assert!(skill.contains("reasoning_effort=\"xhigh\""));
+    let checked = invoke(&[
+        "skill",
+        "check",
+        "codex",
+        "--scope",
+        "project",
+        "--to",
+        destination.to_str().unwrap(),
+    ]);
+    assert_eq!(checked["status"], "ok");
+
+    invoke(&[
+        "config",
+        "profile",
+        "set",
+        "solo",
+        "codex",
+        "implementer",
+        "solo-model",
+        "low",
+    ]);
+    invoke(&["config", "profile", "set-default", "solo"]);
+    let preserved = fs::read(root.join(".zdev/workers.toml")).expect("worker bytes");
+    let last = run_zdev_with_env(
+        root,
+        &["config", "profile", "unset", "solo", "codex", "implementer"],
+        &env,
+    );
+    assert!(!last.status.success());
+    assert_eq!(
+        fs::read(root.join(".zdev/workers.toml")).expect("worker bytes"),
+        preserved
+    );
+
+    let cleared = invoke(&["config", "profile", "unset-default"]);
+    assert_eq!(cleared["integration_refresh_required"], true);
+    assert!(
+        cleared["integration_refresh_command"]
+            .as_str()
+            .unwrap()
+            .contains("--scope project")
+    );
+}
+
 fn json_output(root: &Path, arguments: &[&str]) -> Value {
     let mut arguments = arguments.to_vec();
     arguments.extend(["--format", "json"]);
@@ -6113,6 +6487,62 @@ fn every_help_page_explains_its_command_and_inputs() {
             &["Inspect or change layered project and worker configuration"],
         ),
         (
+            &["config", "profile", "--help"],
+            &[
+                "normal, built-in, and configured profile names",
+                "Persist the default profile",
+                "Resolve one concrete role",
+            ],
+        ),
+        (
+            &["config", "profile", "list", "--help"],
+            &["List normal, built-in, and configured profile names"],
+        ),
+        (
+            &["config", "profile", "show", "--help"],
+            &["<NAME>", "<HARNESS>", "codex, claude, opencode, pi, or omp"],
+        ),
+        (
+            &["config", "profile", "set", "--help"],
+            &[
+                "<NAME>",
+                "<HARNESS>",
+                "<ROLE>",
+                "[VALUE]...",
+                "exactly MODEL EFFORT",
+                "--global",
+            ],
+        ),
+        (
+            &["config", "profile", "unset", "--help"],
+            &[
+                "Remove one named profile role row",
+                "routine-implementer",
+                "--global",
+            ],
+        ),
+        (
+            &["config", "profile", "set-default", "--help"],
+            &[
+                "Persist the default profile explicitly",
+                "<NAME>",
+                "--global",
+            ],
+        ),
+        (
+            &["config", "profile", "unset-default", "--help"],
+            &["Clear the explicitly saved default", "--global"],
+        ),
+        (
+            &["config", "profile", "resolve", "--help"],
+            &[
+                "without changing configuration",
+                "Selection order is --profile",
+                "planner first falls back",
+                "--run-profile",
+            ],
+        ),
+        (
             &["config", "show", "--help"],
             &[
                 "Show effective configuration or values stored in one scope",
@@ -8294,6 +8724,8 @@ fn pi_subagent_preserves_single_calls_and_runs_attributed_bounded_batches() {
         "{{ verifier_effort }}",
         "{{ advanced_implementer_model }}",
         "{{ advanced_implementer_effort }}",
+        "{{ planner_model }}",
+        "{{ planner_effort }}",
     ] {
         source = source.replace(value, "null");
     }
@@ -9503,25 +9935,30 @@ worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [lo
 worker.codex.verifier = {{ model = \"gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
   shadows {{ model = \"gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
 worker.codex.advanced-implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.codex.planner = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
 worker.claude.routine-implementer = {{ model = \"haiku\", effort = \"low\" }}  [default]\n\
 worker.claude.implementer = {{ model = \"claude-opus-5\", effort = \"low\" }}  [default]\n\
 worker.claude.verifier = {{ inherit = true }}  [local .zdev/workers.toml]\n\
   shadows {{ model = \"claude-opus-5\", effort = \"medium\" }}  [global {global}]\n\
   shadows {{ model = \"claude-opus-5\", effort = \"low\" }}  [default]\n\
 worker.claude.advanced-implementer = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
+worker.claude.planner = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
 worker.opencode.routine-implementer = {{ model = \"openai/gpt-5.6-luna\", effort = \"low\" }}  [default]\n\
 worker.opencode.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
 worker.opencode.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"inherit\" }}  [default]\n\
 worker.opencode.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.opencode.planner = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
 worker.pi.routine-implementer = {{ model = \"openai/gpt-5.6-luna\", effort = \"low\" }}  [default]\n\
 worker.pi.implementer = {{ model = \"openai/gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
   shadows {{ model = \"openai/gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
 worker.pi.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
 worker.pi.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.pi.planner = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
 worker.omp.routine-implementer = {{ model = \"openai/gpt-5.6-luna\", effort = \"low\" }}  [default]\n\
 worker.omp.implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"low\" }}  [default]\n\
 worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
-worker.omp.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n"
+worker.omp.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n\
+worker.omp.planner = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n"
     )
     .replace("\nshadows", "\n  shadows");
     assert_eq!(
@@ -9532,7 +9969,7 @@ worker.omp.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"
     let effective = json_output_with_env(root, &["config", "show"], &environment);
     assert_eq!(effective["scope"], "effective");
     let values = effective["values"].as_array().expect("effective values");
-    assert_eq!(values.len(), 25);
+    assert_eq!(values.len(), 30);
     assert_eq!(
         values
             .iter()
@@ -9548,31 +9985,36 @@ worker.omp.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"
             "worker.codex.implementer",
             "worker.codex.verifier",
             "worker.codex.advanced-implementer",
+            "worker.codex.planner",
             "worker.claude.routine-implementer",
             "worker.claude.implementer",
             "worker.claude.verifier",
             "worker.claude.advanced-implementer",
+            "worker.claude.planner",
             "worker.opencode.routine-implementer",
             "worker.opencode.implementer",
             "worker.opencode.verifier",
             "worker.opencode.advanced-implementer",
+            "worker.opencode.planner",
             "worker.pi.routine-implementer",
             "worker.pi.implementer",
             "worker.pi.verifier",
             "worker.pi.advanced-implementer",
+            "worker.pi.planner",
             "worker.omp.routine-implementer",
             "worker.omp.implementer",
             "worker.omp.verifier",
             "worker.omp.advanced-implementer",
+            "worker.omp.planner",
         ]
     );
     assert_eq!(values[2]["value"], Value::Null);
     assert_eq!(values[3]["shadowed"][0]["value"], Value::Null);
     assert_eq!(values[6]["origin"]["scope"], "local");
     assert_eq!(values[6]["shadowed"][0]["origin"]["path"], global);
-    assert_eq!(values[11]["value"], json!({"inherit": true}));
+    assert_eq!(values[12]["value"], json!({"inherit": true}));
     assert_eq!(
-        values[15]["value"],
+        values[17]["value"],
         json!({"model": "anthropic/claude-opus-5", "effort": "inherit"})
     );
 

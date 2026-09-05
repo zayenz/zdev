@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -49,6 +50,19 @@ impl WorkerHarness {
             Self::Opencode => "opencode",
             Self::Pi => "pi",
             Self::Omp => "omp",
+        }
+    }
+
+    fn parse(value: &str) -> Result<Self, ZdevError> {
+        match value {
+            "codex" => Ok(Self::Codex),
+            "claude" => Ok(Self::Claude),
+            "opencode" => Ok(Self::Opencode),
+            "pi" => Ok(Self::Pi),
+            "omp" => Ok(Self::Omp),
+            _ => Err(ZdevError::new(format!(
+                "Unknown worker harness {value}; expected codex, claude, opencode, pi, or omp"
+            ))),
         }
     }
 }
@@ -153,6 +167,8 @@ struct HarnessProfiles {
         skip_serializing_if = "Option::is_none"
     )]
     advanced_implementer: Option<RawWorkerProfile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    planner: Option<RawWorkerProfile>,
 }
 
 impl HarnessProfiles {
@@ -161,6 +177,29 @@ impl HarnessProfiles {
             && self.implementer.is_none()
             && self.verifier.is_none()
             && self.advanced_implementer.is_none()
+            && self.planner.is_none()
+    }
+
+    fn get(&self, role: WorkerRole) -> Option<&RawWorkerProfile> {
+        match role {
+            WorkerRole::RoutineImplementer => self.routine_implementer.as_ref(),
+            WorkerRole::Implementer => self.implementer.as_ref(),
+            WorkerRole::Verifier => self.verifier.as_ref(),
+            WorkerRole::AdvancedImplementer => self.advanced_implementer.as_ref(),
+            WorkerRole::Planner => self.planner.as_ref(),
+        }
+    }
+    fn set_role(&mut self, role: WorkerRole, value: Option<RawWorkerProfile>) -> bool {
+        let target = match role {
+            WorkerRole::RoutineImplementer => &mut self.routine_implementer,
+            WorkerRole::Implementer => &mut self.implementer,
+            WorkerRole::Verifier => &mut self.verifier,
+            WorkerRole::AdvancedImplementer => &mut self.advanced_implementer,
+            WorkerRole::Planner => &mut self.planner,
+        };
+        let existed = target.is_some();
+        *target = value;
+        existed
     }
 }
 
@@ -168,6 +207,25 @@ impl HarnessProfiles {
 #[serde(deny_unknown_fields)]
 struct WorkerFile {
     schema_version: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    default_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
+    codex: HarnessProfiles,
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
+    claude: HarnessProfiles,
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
+    opencode: HarnessProfiles,
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
+    pi: HarnessProfiles,
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
+    omp: HarnessProfiles,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    profiles: BTreeMap<String, NamedProfile>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NamedProfile {
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     codex: HarnessProfiles,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
@@ -180,15 +238,45 @@ struct WorkerFile {
     omp: HarnessProfiles,
 }
 
+impl NamedProfile {
+    fn harness(&self, harness: WorkerHarness) -> &HarnessProfiles {
+        match harness {
+            WorkerHarness::Codex => &self.codex,
+            WorkerHarness::Claude => &self.claude,
+            WorkerHarness::Opencode => &self.opencode,
+            WorkerHarness::Pi => &self.pi,
+            WorkerHarness::Omp => &self.omp,
+        }
+    }
+    fn harness_mut(&mut self, harness: WorkerHarness) -> &mut HarnessProfiles {
+        match harness {
+            WorkerHarness::Codex => &mut self.codex,
+            WorkerHarness::Claude => &mut self.claude,
+            WorkerHarness::Opencode => &mut self.opencode,
+            WorkerHarness::Pi => &mut self.pi,
+            WorkerHarness::Omp => &mut self.omp,
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.codex.is_empty()
+            && self.claude.is_empty()
+            && self.opencode.is_empty()
+            && self.pi.is_empty()
+            && self.omp.is_empty()
+    }
+}
+
 impl Default for WorkerFile {
     fn default() -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
+            default_profile: None,
             codex: HarnessProfiles::default(),
             claude: HarnessProfiles::default(),
             opencode: HarnessProfiles::default(),
             pi: HarnessProfiles::default(),
             omp: HarnessProfiles::default(),
+            profiles: BTreeMap::new(),
         }
     }
 }
@@ -211,6 +299,7 @@ impl WorkerFile {
             WorkerRole::Implementer => &mut profiles.implementer,
             WorkerRole::Verifier => &mut profiles.verifier,
             WorkerRole::AdvancedImplementer => &mut profiles.advanced_implementer,
+            WorkerRole::Planner => &mut profiles.planner,
         };
         let existed = target.is_some();
         *target = value;
@@ -233,6 +322,19 @@ struct RoleProfiles {
     implementer: Option<WorkerProfile>,
     verifier: Option<WorkerProfile>,
     advanced_implementer: Option<WorkerProfile>,
+    planner: Option<WorkerProfile>,
+}
+
+impl RoleProfiles {
+    fn role(&self, role: WorkerRole) -> Option<&WorkerProfile> {
+        match role {
+            WorkerRole::RoutineImplementer => self.routine_implementer.as_ref(),
+            WorkerRole::Implementer => self.implementer.as_ref(),
+            WorkerRole::Verifier => self.verifier.as_ref(),
+            WorkerRole::AdvancedImplementer => self.advanced_implementer.as_ref(),
+            WorkerRole::Planner => self.planner.as_ref(),
+        }
+    }
 }
 
 impl WorkerLayer {
@@ -253,6 +355,7 @@ impl WorkerLayer {
             WorkerRole::Implementer => roles.implementer.as_ref(),
             WorkerRole::Verifier => roles.verifier.as_ref(),
             WorkerRole::AdvancedImplementer => roles.advanced_implementer.as_ref(),
+            WorkerRole::Planner => roles.planner.as_ref(),
         }
     }
 }
@@ -305,12 +408,28 @@ impl ResolvedWorkerProfile {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 enum WorkerRole {
     RoutineImplementer,
     Implementer,
     Verifier,
     AdvancedImplementer,
+    Planner,
+}
+
+impl WorkerRole {
+    fn parse(value: &str) -> Result<Self, ZdevError> {
+        match value {
+            "routine-implementer" => Ok(Self::RoutineImplementer),
+            "implementer" => Ok(Self::Implementer),
+            "verifier" => Ok(Self::Verifier),
+            "advanced-implementer" => Ok(Self::AdvancedImplementer),
+            "planner" => Ok(Self::Planner),
+            _ => Err(ZdevError::new(format!(
+                "Unknown worker role {value}; expected routine-implementer, implementer, verifier, advanced-implementer, or planner"
+            ))),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -320,7 +439,7 @@ struct WorkerKey {
     role: WorkerRole,
 }
 
-const WORKER_KEYS: [WorkerKey; 20] = [
+const WORKER_KEYS: [WorkerKey; 25] = [
     WorkerKey {
         name: "worker.codex.routine-implementer",
         harness: WorkerHarness::Codex,
@@ -340,6 +459,11 @@ const WORKER_KEYS: [WorkerKey; 20] = [
         name: "worker.codex.advanced-implementer",
         harness: WorkerHarness::Codex,
         role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.codex.planner",
+        harness: WorkerHarness::Codex,
+        role: WorkerRole::Planner,
     },
     WorkerKey {
         name: "worker.claude.routine-implementer",
@@ -362,6 +486,11 @@ const WORKER_KEYS: [WorkerKey; 20] = [
         role: WorkerRole::AdvancedImplementer,
     },
     WorkerKey {
+        name: "worker.claude.planner",
+        harness: WorkerHarness::Claude,
+        role: WorkerRole::Planner,
+    },
+    WorkerKey {
         name: "worker.opencode.routine-implementer",
         harness: WorkerHarness::Opencode,
         role: WorkerRole::RoutineImplementer,
@@ -380,6 +509,11 @@ const WORKER_KEYS: [WorkerKey; 20] = [
         name: "worker.opencode.advanced-implementer",
         harness: WorkerHarness::Opencode,
         role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.opencode.planner",
+        harness: WorkerHarness::Opencode,
+        role: WorkerRole::Planner,
     },
     WorkerKey {
         name: "worker.pi.routine-implementer",
@@ -402,6 +536,11 @@ const WORKER_KEYS: [WorkerKey; 20] = [
         role: WorkerRole::AdvancedImplementer,
     },
     WorkerKey {
+        name: "worker.pi.planner",
+        harness: WorkerHarness::Pi,
+        role: WorkerRole::Planner,
+    },
+    WorkerKey {
         name: "worker.omp.routine-implementer",
         harness: WorkerHarness::Omp,
         role: WorkerRole::RoutineImplementer,
@@ -420,6 +559,11 @@ const WORKER_KEYS: [WorkerKey; 20] = [
         name: "worker.omp.advanced-implementer",
         harness: WorkerHarness::Omp,
         role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.omp.planner",
+        harness: WorkerHarness::Omp,
+        role: WorkerRole::Planner,
     },
 ];
 
@@ -805,6 +949,7 @@ fn worker_role_name(role: WorkerRole) -> &'static str {
         WorkerRole::Implementer => "implementer",
         WorkerRole::Verifier => "verifier",
         WorkerRole::AdvancedImplementer => "advanced-implementer",
+        WorkerRole::Planner => "planner",
     }
 }
 
@@ -847,6 +992,25 @@ fn with_integration_refresh(
     output
         .text
         .push_str(&format!("\nRefresh integration: {command}"));
+    output.value["integration_refresh_command"] = json!(command);
+    output.value["integration_refresh_required"] = json!(true);
+    output
+}
+
+fn with_all_integration_refresh(
+    mut output: CommandOutput,
+    scope: ConfigWriteScope,
+) -> CommandOutput {
+    let command = format!(
+        "zdev skill install <codex|claude|opencode|pi|omp> --scope {} --force",
+        match scope {
+            ConfigWriteScope::Local => "project",
+            ConfigWriteScope::Global => "user",
+        }
+    );
+    output
+        .text
+        .push_str(&format!("\nRefresh each installed integration: {command}"));
     output.value["integration_refresh_command"] = json!(command);
     output.value["integration_refresh_required"] = json!(true);
     output
@@ -1104,8 +1268,17 @@ fn effective_worker_value(
     global: Option<&WorkerLayer>,
     global_path: &Path,
 ) -> ConfigValue {
-    let local_profile = local.and_then(|layer| layer.profile(key));
-    let global_profile = global.and_then(|layer| layer.profile(key));
+    let mut local_profile = local.and_then(|layer| layer.profile(key));
+    let mut global_profile = global.and_then(|layer| layer.profile(key));
+    if key.role == WorkerRole::Planner && local_profile.is_none() && global_profile.is_none() {
+        let advanced = WorkerKey {
+            name: key.name,
+            harness: key.harness,
+            role: WorkerRole::AdvancedImplementer,
+        };
+        local_profile = local.and_then(|layer| layer.profile(advanced));
+        global_profile = global.and_then(|layer| layer.profile(advanced));
+    }
     let built_in = built_in_profile(key);
     let (profile, origin) = if let Some(profile) = local_profile {
         (profile, local_origin_value())
@@ -1202,6 +1375,9 @@ fn built_in_profile(key: WorkerKey) -> WorkerProfile {
         WorkerRole::AdvancedImplementer => profiles
             .advanced_implementer
             .expect("built-in advanced implementer"),
+        WorkerRole::Planner => profiles
+            .advanced_implementer
+            .expect("built-in planner fallback"),
     }
 }
 
@@ -1211,6 +1387,7 @@ pub(super) struct ResolvedWorkers {
     pub(super) implementer: ResolvedWorkerProfile,
     pub(super) verifier: ResolvedWorkerProfile,
     pub(super) advanced_implementer: ResolvedWorkerProfile,
+    pub(super) planner: ResolvedWorkerProfile,
 }
 
 impl ResolvedWorkers {
@@ -1220,11 +1397,12 @@ impl ResolvedWorkers {
             "implementer": self.implementer.value(),
             "verifier": self.verifier.value(),
             "advanced-implementer": self.advanced_implementer.value(),
+            "planner": self.planner.value(),
         })
     }
 }
 
-pub(super) fn resolve_worker_profiles(
+fn resolve_normal_worker_profiles(
     project_root: Option<&Path>,
     harness: WorkerHarness,
 ) -> Result<ResolvedWorkers, ZdevError> {
@@ -1240,6 +1418,36 @@ pub(super) fn resolve_worker_profiles(
     let local_roles = local.as_ref().map(|layer| layer.roles(harness));
     let global_roles = global.as_ref().map(|layer| layer.roles(harness));
 
+    let advanced_implementer = resolve_role(
+        local_roles.and_then(|roles| roles.advanced_implementer.as_ref()),
+        global_roles.and_then(|roles| roles.advanced_implementer.as_ref()),
+        built_in
+            .advanced_implementer
+            .as_ref()
+            .expect("built-in advanced implementer"),
+        local_path.as_deref(),
+        &global_path,
+    );
+    let planner = if local_roles
+        .and_then(|roles| roles.planner.as_ref())
+        .is_some()
+        || global_roles
+            .and_then(|roles| roles.planner.as_ref())
+            .is_some()
+    {
+        resolve_role(
+            local_roles.and_then(|roles| roles.planner.as_ref()),
+            global_roles.and_then(|roles| roles.planner.as_ref()),
+            built_in
+                .advanced_implementer
+                .as_ref()
+                .expect("built-in advanced implementer"),
+            local_path.as_deref(),
+            &global_path,
+        )
+    } else {
+        advanced_implementer.clone()
+    };
     Ok(ResolvedWorkers {
         routine_implementer: resolve_role(
             local_roles.and_then(|roles| roles.routine_implementer.as_ref()),
@@ -1265,16 +1473,35 @@ pub(super) fn resolve_worker_profiles(
             local_path.as_deref(),
             &global_path,
         ),
-        advanced_implementer: resolve_role(
-            local_roles.and_then(|roles| roles.advanced_implementer.as_ref()),
-            global_roles.and_then(|roles| roles.advanced_implementer.as_ref()),
-            built_in
-                .advanced_implementer
-                .as_ref()
-                .expect("built-in advanced implementer"),
-            local_path.as_deref(),
-            &global_path,
-        ),
+        advanced_implementer,
+        planner,
+    })
+}
+
+pub(super) fn resolve_worker_profiles(
+    project_root: Option<&Path>,
+    harness: WorkerHarness,
+) -> Result<ResolvedWorkers, ZdevError> {
+    let global_path = global_worker_path()?;
+    let global = read_worker_document(&global_path)?;
+    let local = project_root
+        .map(|r| read_worker_document(&r.join(".zdev/workers.toml")))
+        .transpose()?
+        .flatten();
+    let selected = choose_profile(local.as_ref(), global.as_ref(), None, None);
+    if selected == "normal" {
+        return resolve_normal_worker_profiles(project_root, harness);
+    }
+    let resolve = |role| {
+        resolve_named_role(project_root, harness, role, Some(&selected), None)
+            .map(|(_, value, _)| value)
+    };
+    Ok(ResolvedWorkers {
+        routine_implementer: resolve(WorkerRole::RoutineImplementer)?,
+        implementer: resolve(WorkerRole::Implementer)?,
+        verifier: resolve(WorkerRole::Verifier)?,
+        advanced_implementer: resolve(WorkerRole::AdvancedImplementer)?,
+        planner: resolve(WorkerRole::Planner)?,
     })
 }
 
@@ -1303,8 +1530,18 @@ pub(super) fn built_in_worker_profiles(harness: WorkerHarness) -> ResolvedWorker
         advanced_implementer: ResolvedWorkerProfile {
             profile: profiles
                 .advanced_implementer
+                .clone()
                 .expect("built-in advanced implementer"),
             origin,
+        },
+        planner: ResolvedWorkerProfile {
+            profile: profiles
+                .advanced_implementer
+                .expect("built-in planner fallback"),
+            origin: Origin {
+                scope: "default",
+                path: None,
+            },
         },
     }
 }
@@ -1388,6 +1625,18 @@ fn read_worker_document(path: &Path) -> Result<Option<WorkerFile>, ZdevError> {
 }
 
 fn validate_worker_file(path: &Path, file: &WorkerFile) -> Result<WorkerLayer, ZdevError> {
+    for (name, profile) in &file.profiles {
+        validate_profile_name(name)?;
+        for (harness, rows) in [
+            (WorkerHarness::Codex, &profile.codex),
+            (WorkerHarness::Claude, &profile.claude),
+            (WorkerHarness::Opencode, &profile.opencode),
+            (WorkerHarness::Pi, &profile.pi),
+            (WorkerHarness::Omp, &profile.omp),
+        ] {
+            validate_roles(path, harness, rows)?;
+        }
+    }
     Ok(WorkerLayer {
         codex: validate_roles(path, WorkerHarness::Codex, &file.codex)?,
         claude: validate_roles(path, WorkerHarness::Claude, &file.claude)?,
@@ -1422,6 +1671,11 @@ fn validate_roles(
             .advanced_implementer
             .as_ref()
             .map(|profile| validate_profile(path, harness, "advanced-implementer", profile))
+            .transpose()?,
+        planner: profiles
+            .planner
+            .as_ref()
+            .map(|profile| validate_profile(path, harness, "planner", profile))
             .transpose()?,
     })
 }
@@ -1494,26 +1748,469 @@ fn built_in_profiles(harness: WorkerHarness) -> RoleProfiles {
             implementer: Some(profile("gpt-5.6-sol", Some(Effort::Low))),
             verifier: Some(profile("gpt-5.6-sol", Some(Effort::Low))),
             advanced_implementer: Some(profile("gpt-5.6-sol", Some(Effort::High))),
+            planner: None,
         },
         WorkerHarness::Claude => RoleProfiles {
             routine_implementer: Some(profile("haiku", Some(Effort::Low))),
             implementer: Some(profile("claude-opus-5", Some(Effort::Low))),
             verifier: Some(profile("claude-opus-5", Some(Effort::Low))),
             advanced_implementer: Some(profile("claude-opus-5", Some(Effort::High))),
+            planner: None,
         },
         WorkerHarness::Opencode => RoleProfiles {
             routine_implementer: Some(profile("openai/gpt-5.6-luna", Some(Effort::Low))),
             implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::Low))),
             verifier: Some(profile("anthropic/claude-opus-5", None)),
             advanced_implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::High))),
+            planner: None,
         },
         WorkerHarness::Pi | WorkerHarness::Omp => RoleProfiles {
             routine_implementer: Some(profile("openai/gpt-5.6-luna", Some(Effort::Low))),
             implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::Low))),
             verifier: Some(profile("anthropic/claude-opus-5", Some(Effort::Low))),
             advanced_implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::High))),
+            planner: None,
         },
     }
+}
+
+fn built_in_named(name: &str, harness: WorkerHarness) -> Option<RoleProfiles> {
+    let profile = |model: &str, effort| {
+        Some(WorkerProfile {
+            model: Some(model.to_owned()),
+            effort: Some(effort),
+        })
+    };
+    let inherit = || None;
+    match (name, harness) {
+        ("advanced", WorkerHarness::Codex) => Some(RoleProfiles {
+            routine_implementer: inherit(),
+            implementer: profile("gpt-6-astra", Effort::High),
+            advanced_implementer: profile("gpt-6-astra", Effort::Xhigh),
+            planner: profile("gpt-6-astra", Effort::Xhigh),
+            verifier: profile("gpt-6-astra", Effort::High),
+        }),
+        ("simple", WorkerHarness::Codex) => Some(RoleProfiles {
+            routine_implementer: profile("gpt-5.6-luna", Effort::Low),
+            implementer: profile("gpt-5.6-luna", Effort::Low),
+            advanced_implementer: profile("gpt-5.6-luna", Effort::High),
+            planner: profile("gpt-5.6-luna", Effort::High),
+            verifier: inherit(),
+        }),
+        ("advanced", WorkerHarness::Claude) => Some(RoleProfiles {
+            routine_implementer: inherit(),
+            implementer: profile("claude-fable-5-1", Effort::High),
+            advanced_implementer: profile("claude-fable-5-1", Effort::Xhigh),
+            planner: profile("claude-fable-5-1", Effort::Xhigh),
+            verifier: profile("claude-fable-5-1", Effort::High),
+        }),
+        _ => None,
+    }
+}
+
+fn named_role<'a>(
+    file: Option<&'a WorkerFile>,
+    name: &str,
+    harness: WorkerHarness,
+    role: WorkerRole,
+) -> Option<&'a RawWorkerProfile> {
+    file?.profiles.get(name)?.harness(harness).get(role)
+}
+
+fn validate_profile_name(name: &str) -> Result<(), ZdevError> {
+    if name == "normal"
+        || name.is_empty()
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    {
+        return Err(ZdevError::new(
+            "Profile names use lowercase letters, digits, and hyphens; normal is reserved",
+        ));
+    }
+    Ok(())
+}
+
+fn raw_to_resolved(
+    path: &Path,
+    harness: WorkerHarness,
+    role: WorkerRole,
+    raw: &RawWorkerProfile,
+    scope: &'static str,
+) -> Result<ResolvedWorkerProfile, ZdevError> {
+    Ok(ResolvedWorkerProfile {
+        profile: validate_profile(path, harness, worker_role_name(role), raw)?,
+        origin: Origin {
+            scope,
+            path: Some(if scope == "local" {
+                ".zdev/workers.toml".to_owned()
+            } else {
+                path.to_string_lossy().replace('\\', "/")
+            }),
+        },
+    })
+}
+
+fn choose_profile(
+    local: Option<&WorkerFile>,
+    global: Option<&WorkerFile>,
+    explicit_role: Option<&str>,
+    run: Option<&str>,
+) -> String {
+    explicit_role
+        .or(run)
+        .or_else(|| local.and_then(|f| f.default_profile.as_deref()))
+        .or_else(|| global.and_then(|f| f.default_profile.as_deref()))
+        .unwrap_or("normal")
+        .to_owned()
+}
+
+fn resolve_named_role(
+    project_root: Option<&Path>,
+    harness: WorkerHarness,
+    role: WorkerRole,
+    explicit_role: Option<&str>,
+    run: Option<&str>,
+) -> Result<(String, ResolvedWorkerProfile, Option<&'static str>), ZdevError> {
+    let global_path = global_worker_path()?;
+    let global = read_worker_document(&global_path)?;
+    let local_path = project_root.map(|r| r.join(".zdev/workers.toml"));
+    let local = local_path
+        .as_deref()
+        .map(read_worker_document)
+        .transpose()?
+        .flatten();
+    let name = choose_profile(local.as_ref(), global.as_ref(), explicit_role, run);
+    if name == "normal" {
+        let workers = resolve_normal_worker_profiles(project_root, harness)?;
+        let value = match role {
+            WorkerRole::RoutineImplementer => workers.routine_implementer,
+            WorkerRole::Implementer => workers.implementer,
+            WorkerRole::Verifier => workers.verifier,
+            WorkerRole::AdvancedImplementer => workers.advanced_implementer,
+            WorkerRole::Planner => workers.planner,
+        };
+        return Ok((
+            name,
+            value,
+            (role == WorkerRole::Planner).then_some("advanced-implementer"),
+        ));
+    }
+    let builtin = built_in_named(&name, harness);
+    let defined = local
+        .as_ref()
+        .and_then(|f| f.profiles.get(&name))
+        .map(|p| !p.harness(harness).is_empty())
+        .unwrap_or(false)
+        || global
+            .as_ref()
+            .and_then(|f| f.profiles.get(&name))
+            .map(|p| !p.harness(harness).is_empty())
+            .unwrap_or(false)
+        || builtin.is_some();
+    if !defined {
+        return Err(ZdevError::new(format!(
+            "Execution profile {name} is undefined for harness {}",
+            harness.as_str()
+        )));
+    }
+    let requested = named_role(local.as_ref(), &name, harness, role)
+        .map(|r| (r, local_path.as_deref().unwrap(), "local"))
+        .or_else(|| {
+            named_role(global.as_ref(), &name, harness, role)
+                .map(|r| (r, global_path.as_path(), "global"))
+        });
+    if let Some((raw, path, scope)) = requested {
+        return Ok((
+            name,
+            raw_to_resolved(path, harness, role, raw, scope)?,
+            None,
+        ));
+    }
+    if let Some(value) = builtin.as_ref().and_then(|p| p.role(role).cloned()) {
+        return Ok((
+            name,
+            ResolvedWorkerProfile {
+                profile: value,
+                origin: Origin {
+                    scope: "built-in-profile",
+                    path: None,
+                },
+            },
+            None,
+        ));
+    }
+    if role == WorkerRole::Planner {
+        let (_, value, _) = resolve_named_role(
+            project_root,
+            harness,
+            WorkerRole::AdvancedImplementer,
+            Some(&name),
+            None,
+        )?;
+        return Ok((name, value, Some("advanced-implementer")));
+    }
+    let (_, value, _) = resolve_named_role(project_root, harness, role, Some("normal"), None)?;
+    Ok((name, value, Some("normal")))
+}
+
+pub(super) fn profile_resolve(
+    root: Option<&Path>,
+    harness: &str,
+    role: &str,
+    role_profile: Option<&str>,
+    run_profile: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    let harness = WorkerHarness::parse(harness)?;
+    let role = WorkerRole::parse(role)?;
+    let (selected, value, fallback) =
+        resolve_named_role(root, harness, role, role_profile, run_profile)?;
+    Ok(CommandOutput::new(
+        format!(
+            "{} {} = {}  [{}]",
+            selected,
+            worker_role_name(role),
+            value.profile.text(),
+            value.origin.text()
+        ),
+        json!({
+        "schema_version": SCHEMA_VERSION, "profile": selected, "harness": harness.as_str(), "role": worker_role_name(role),
+        "value": value.profile.value(), "origin": value.origin.value(), "fallback": fallback }),
+    ))
+}
+
+pub(super) fn profile_list(root: Option<&Path>) -> Result<CommandOutput, ZdevError> {
+    let global_path = global_worker_path()?;
+    let global = read_worker_document(&global_path)?;
+    let local = root
+        .map(|r| read_worker_document(&r.join(".zdev/workers.toml")))
+        .transpose()?
+        .flatten();
+    let mut names = std::collections::BTreeSet::from([
+        "normal".to_owned(),
+        "advanced".to_owned(),
+        "simple".to_owned(),
+    ]);
+    for file in [global.as_ref(), local.as_ref()].into_iter().flatten() {
+        names.extend(file.profiles.keys().cloned());
+    }
+    let names: Vec<_> = names.into_iter().collect();
+    Ok(CommandOutput::new(
+        names.join("\n"),
+        json!({"schema_version": SCHEMA_VERSION, "profiles": names}),
+    ))
+}
+
+pub(super) fn profile_show(
+    root: Option<&Path>,
+    name: &str,
+    harness: &str,
+) -> Result<CommandOutput, ZdevError> {
+    let mut rows = serde_json::Map::new();
+    for role in [
+        WorkerRole::RoutineImplementer,
+        WorkerRole::Implementer,
+        WorkerRole::AdvancedImplementer,
+        WorkerRole::Planner,
+        WorkerRole::Verifier,
+    ] {
+        let out = profile_resolve(root, harness, worker_role_name(role), Some(name), None)?;
+        rows.insert(worker_role_name(role).to_owned(), out.value);
+    }
+    Ok(CommandOutput::new(
+        format!("Profile {name} for {harness}"),
+        json!({"schema_version": SCHEMA_VERSION, "profile": name, "harness": harness, "roles": rows}),
+    ))
+}
+
+fn mutate_profile(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    mutator: impl FnOnce(&mut WorkerFile) -> Result<(), ZdevError>,
+) -> Result<PathBuf, ZdevError> {
+    let path = worker_target(root, scope)?;
+    let _local_lock;
+    let _global_lock;
+    match scope {
+        ConfigWriteScope::Local => {
+            let project = root.expect("local profile write has project");
+            _local_lock = Some(ZdevStateLock::acquire(project)?);
+            _global_lock = None;
+            read_config(project)?;
+        }
+        ConfigWriteScope::Global => {
+            _global_lock = Some(GlobalWorkerLock::acquire(&path)?);
+            _local_lock = None;
+        }
+    }
+    let mut document = read_worker_document(&path)?.unwrap_or_default();
+    validate_worker_file(&path, &document)?;
+    mutator(&mut document)?;
+    validate_worker_file(&path, &document)?;
+    if let Some(name) = document
+        .default_profile
+        .as_deref()
+        .filter(|name| *name != "normal" && *name != "advanced" && *name != "simple")
+    {
+        let inherited = if scope == ConfigWriteScope::Local {
+            read_worker_document(&global_worker_path()?)?
+                .is_some_and(|file| file.profiles.contains_key(name))
+        } else {
+            false
+        };
+        if !document.profiles.contains_key(name) && !inherited {
+            return Err(ZdevError::new(format!(
+                "default_profile refers to undefined execution profile {name}"
+            )));
+        }
+    }
+    let rendered = toml::to_string_pretty(&document)
+        .map_err(|e| ZdevError::new(format!("Cannot render {}: {e}", path.display())))?;
+    write_atomic(&path, rendered.as_bytes())?;
+    Ok(path)
+}
+
+pub(super) fn profile_set(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    name: &str,
+    harness: &str,
+    role: &str,
+    values: &[String],
+) -> Result<CommandOutput, ZdevError> {
+    validate_profile_name(name)?;
+    let harness = WorkerHarness::parse(harness)?;
+    let role = WorkerRole::parse(role)?;
+    let raw = parse_worker_value("profile role", values)?;
+    let value = validate_profile(
+        Path::new("workers.toml"),
+        harness,
+        worker_role_name(role),
+        &raw,
+    )?
+    .value();
+    let path = mutate_profile(root, scope, |f| {
+        f.profiles
+            .entry(name.to_owned())
+            .or_default()
+            .harness_mut(harness)
+            .set_role(role, Some(raw));
+        Ok(())
+    })?;
+    Ok(with_integration_refresh(
+        set_output(
+            &format!(
+                "profiles.{name}.{}.{}",
+                harness.as_str(),
+                worker_role_name(role)
+            ),
+            value,
+            worker_target_origin(scope, &path),
+        ),
+        scope,
+        harness,
+    ))
+}
+
+pub(super) fn profile_unset(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    name: &str,
+    harness: &str,
+    role: &str,
+) -> Result<CommandOutput, ZdevError> {
+    validate_profile_name(name)?;
+    let harness = WorkerHarness::parse(harness)?;
+    let role = WorkerRole::parse(role)?;
+    let path = mutate_profile(root, scope, |f| {
+        let named = f
+            .profiles
+            .get_mut(name)
+            .ok_or_else(|| not_set_error(name, "selected"))?;
+        if !named.harness_mut(harness).set_role(role, None) {
+            return Err(not_set_error(worker_role_name(role), "selected"));
+        }
+        if named.is_empty() {
+            f.profiles.remove(name);
+        }
+        Ok(())
+    })?;
+    Ok(with_integration_refresh(
+        CommandOutput::new(
+            format!(
+                "Unset profiles.{name}.{}.{} from {}.",
+                harness.as_str(),
+                worker_role_name(role),
+                worker_target_origin(scope, &path).text()
+            ),
+            json!({"schema_version": SCHEMA_VERSION, "status":"unset", "profile":name, "harness":harness.as_str(), "role":worker_role_name(role)}),
+        ),
+        scope,
+        harness,
+    ))
+}
+
+pub(super) fn profile_set_default(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    name: &str,
+) -> Result<CommandOutput, ZdevError> {
+    if name != "normal" {
+        validate_profile_name(name)?;
+    }
+    if name != "normal" {
+        let global_path = global_worker_path()?;
+        let global = read_worker_document(&global_path)?;
+        let local = root
+            .map(|r| read_worker_document(&r.join(".zdev/workers.toml")))
+            .transpose()?
+            .flatten();
+        let known = [local.as_ref(), global.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|f| f.profiles.contains_key(name))
+            || name == "advanced"
+            || name == "simple";
+        if !known {
+            return Err(ZdevError::new(format!(
+                "Cannot save undefined execution profile {name}"
+            )));
+        }
+    }
+    let path = mutate_profile(root, scope, |f| {
+        f.default_profile = Some(name.to_owned());
+        Ok(())
+    })?;
+    Ok(with_all_integration_refresh(
+        set_output(
+            "default_profile",
+            json!(name),
+            worker_target_origin(scope, &path),
+        ),
+        scope,
+    ))
+}
+
+pub(super) fn profile_unset_default(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+) -> Result<CommandOutput, ZdevError> {
+    let path = mutate_profile(root, scope, |f| {
+        if f.default_profile.take().is_none() {
+            return Err(not_set_error("default_profile", "selected"));
+        }
+        Ok(())
+    })?;
+    Ok(with_all_integration_refresh(
+        CommandOutput::new(
+            format!(
+                "Unset default_profile from {}.",
+                worker_target_origin(scope, &path).text()
+            ),
+            json!({"schema_version":SCHEMA_VERSION,"status":"unset","key":"default_profile"}),
+        ),
+        scope,
+    ))
 }
 
 fn global_worker_path() -> Result<PathBuf, ZdevError> {

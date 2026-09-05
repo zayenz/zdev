@@ -289,6 +289,8 @@ For the implementer, pass `model="gpt-5.6-sol"` and
 `reasoning_effort="low"` together with `fork_turns="none"`.
 For the verifier, pass `model="gpt-5.6-sol"` and
 `reasoning_effort="low"` together with `fork_turns="none"`.
+For the planner, pass `model="gpt-5.6-sol"` and
+`reasoning_effort="high"` together with `fork_turns="none"`.
 
 For an active-zdev goal or loop request, follow the internal area-loop
 contract. It calls `get_goal` before repository work, preserves an unfinished

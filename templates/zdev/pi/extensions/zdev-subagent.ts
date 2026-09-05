@@ -19,7 +19,7 @@ const workerProfiles = {
   "routine-implementer": { model: {{ routine_implementer_model }}, effort: {{ routine_implementer_effort }} },
   implementer: { model: {{ implementer_model }}, effort: {{ implementer_effort }} },
   verifier: { model: {{ verifier_model }}, effort: {{ verifier_effort }} },
-  planner: { model: {{ advanced_implementer_model }}, effort: {{ advanced_implementer_effort }} },
+  planner: { model: {{ planner_model }}, effort: {{ planner_effort }} },
   "advanced-implementer": { model: {{ advanced_implementer_model }}, effort: {{ advanced_implementer_effort }} },
 } as const;
 

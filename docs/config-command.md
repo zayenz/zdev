@@ -768,6 +768,24 @@ documentation](https://git-scm.com/docs/git-worktree) (accessed 2026-08-20).
 The command names and concepts are familiar, but the grammar, files, values,
 and exit behavior are zdev's own. Zdev makes no Git-config compatibility claim.
 
+## Named execution profiles
+
+`zdev config profile` provides typed `list`, `show`, `set`, `unset`,
+`set-default`, `unset-default`, and `resolve` commands. Definitions remain in
+the schema-version-1 worker file under `profiles.<name>.<harness>.<role>`;
+`default_profile` is optional. Existing top-level harness rows continue to be
+the `normal` profile. Model and effort are written together, and the complete
+document and harness controls are validated before an atomic write.
+
+Resolution uses an explicit role profile, then `--run-profile`, then an
+explicit local or global saved default, then `normal`. Local named rows win
+over global rows. Missing named roles use effective `normal`, except an omitted
+planner first uses the selected profile's advanced implementer. Unknown names
+and profiles undefined for a requested harness are errors. Read-only list,
+show, and resolve commands do not rewrite either configuration file.
+Changing or clearing the saved default reports the refresh command template
+for each installed integration at the selected project or user scope.
+
 ## Backward compatibility
 
 Existing `.zdev/config.toml` files remain valid without migration. Their field

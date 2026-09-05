@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-017"
 key = "configure-named-execution-profiles"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,15 +27,23 @@ Read Named settings, Initial mappings, Selection and scope, and Testing and boun
 
 ## Done when
 
-- [ ] Typed zdev config commands can list, inspect, create/update, and remove named profile settings and explicitly save or clear a default, with useful read-only output for resolving a harness and role.
-- [ ] Resolution follows explicit role choice, interaction/run choice, saved default, then normal; local/global named rows and missing-role fallback behave as the brief states without cycles or cross-profile leakage.
-- [ ] An optional planner row can differ from implementation; when absent it uses the selected profile's advanced implementer. Existing four-role configurations preserve their behavior.
-- [ ] The approved seed mappings and a custom advanced-max profile resolve to the intended concrete models and efforts, while unknown or undefined-for-harness names report an error rather than silently selecting normal.
-- [ ] Legacy configuration and existing normal installation/check behavior remain compatible; invalid writes preserve existing files, and read-only resolution does not modify configuration.
-- [ ] Configuration help and user documentation explain named profiles, role settings, fallback, supported harness controls, and explicit persistence using the existing vocabulary.
+- [x] Typed zdev config commands can list, inspect, create/update, and remove named profile settings and explicitly save or clear a default, with useful read-only output for resolving a harness and role.
+- [x] Resolution follows explicit role choice, interaction/run choice, saved default, then normal; local/global named rows and missing-role fallback behave as the brief states without cycles or cross-profile leakage.
+- [x] An optional planner row can differ from implementation; when absent it uses the selected profile's advanced implementer. Existing four-role configurations preserve their behavior.
+- [x] The approved seed mappings and a custom advanced-max profile resolve to the intended concrete models and efforts, while unknown or undefined-for-harness names report an error rather than silently selecting normal.
+- [x] Legacy configuration and existing normal installation/check behavior remain compatible; invalid writes preserve existing files, and read-only resolution does not modify configuration.
+- [x] Configuration help and user documentation explain named profiles, role settings, fallback, supported harness controls, and explicit persistence using the existing vocabulary.
 
 ## Validation
 
 - Extend existing black-box configuration tests for legacy normal behavior, named-row precedence, planner fallback, custom profiles, saved-default selection, unknown profile/harness pairs, and failed-write preservation.
 - Reuse existing profile rendering and inheritance checks; do not add a model catalog test matrix or live provider calls.
 - Run the standard area validation and regenerate any integration fixtures affected by additive planner support.
+
+## Result
+
+Added named execution-profile configuration with typed management and resolution commands, local/global/default precedence, exact built-in seeds, independent planner settings, strict atomic validation, integration rendering, and useful CLI help.
+
+Validation:
+
+- Independent verification passed from exact snapshot Wf0f46ac1d7c2cbb0: all 160 tests, focused profile/help/integration cases, fmt, clippy with warnings denied, build, diff check, and legacy compatibility.

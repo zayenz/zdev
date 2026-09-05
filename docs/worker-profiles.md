@@ -1,7 +1,7 @@
 # Worker profiles
 
 > **Status: current behavior and dated defaults.** Zdev resolves and renders
-> all four profiles below. The model evidence remains a dated decision record,
+> all worker roles below. The model evidence remains a dated decision record,
 > not a permanent ranking.
 
 This note records a design decision, not a permanent model ranking. Model
@@ -10,7 +10,7 @@ defaults below were checked on 2026-08-20.
 
 ## Roles
 
-Zdev exposes four worker roles. `implementer` and `verifier` are the standard
+Zdev exposes five worker roles. `implementer` and `verifier` are the standard
 defaults; the other two are explicit implementation tiers rather than a role
 matrix.
 
@@ -26,8 +26,9 @@ matrix.
   Its main risks are confirmation bias, trusting the implementer's summary, and
   accepting tests as a substitute for inspecting the change.
 - `advanced-implementer` handles authored advanced implementation and explicit
-  advanced rework. Advanced-task planning reuses it read-only; there is
-  no separate planner or advanced-verifier key.
+  advanced rework.
+- `planner` performs read-only advanced-task planning. When omitted, it uses
+  the selected profile's `advanced-implementer` row.
 
 The coordinator is not another worker profile. It owns task selection, user
 decisions, branch safety, dispatch, rework, completion, and commits. A verifier
@@ -185,7 +186,7 @@ effort = "inherit"
 ```
 
 Each optional table is named `<harness>.<role>`, using the five harness names
-`codex`, `claude`, `opencode`, `pi`, and `omp` and the four roles above. A table
+`codex`, `claude`, `opencode`, `pi`, and `omp` and the five roles above. A table
 must contain either `inherit = true`, or both a non-empty `model` and an
 `effort`. Effort is one of `inherit`, `low`, `medium`, `high`, `xhigh`, or
 `max`. `inherit` as a whole table omits both controls; `effort = "inherit"`
@@ -203,6 +204,21 @@ Resolution is per harness and role:
 4. If the selected row says `inherit`, or zdev cannot express a built-in field
    in that harness, the generated integration omits that field and lets the
    harness inherit its native value.
+
+Named profiles use strict tables such as
+`[profiles.advanced-max.codex.implementer]`. Local named rows override global
+rows. A missing named role uses effective `normal`; a missing `planner` first
+uses that named profile's `advanced-implementer`. The built-in named mappings
+are Codex `advanced` and `simple`, and Claude `advanced`, as documented in the
+execution-profiles brief. Other harnesses require user-defined named rows.
+
+Use `zdev config profile list`, `show NAME HARNESS`, and `resolve HARNESS ROLE`
+to inspect them. `set NAME HARNESS ROLE MODEL EFFORT` (or `inherit`) and
+`unset` edit one atomic row. `set-default NAME` and `unset-default` persist a
+choice only when explicitly requested; `--global` selects user scope. Resolve
+chooses `--profile` for a role before `--run-profile`, then the saved local or
+global default, then `normal`, and reports the concrete value, origin, and
+fallback in JSON.
 
 Harness-native policy still applies after generation. For example, a Claude
 Code environment override or an Oh My Pi settings override can supersede agent

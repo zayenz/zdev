@@ -4,8 +4,8 @@
 
 - Total: 20
 - Ready: 1
-- Blocked: 3
-- Done: 16
+- Blocked: 2
+- Done: 17
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -25,7 +25,7 @@
 | [general-014](tasks/014-support-the-shared-parallel-task-route-in-pi.md) | Support the shared parallel task route in Pi | done | general-012 |
 | [general-015](tasks/015-support-the-shared-parallel-task-route-in-opencode.md) | Support the shared parallel task route in OpenCode | done | general-012 |
 | [general-016](tasks/016-support-the-shared-parallel-task-route-in-oh-my-pi.md) | Support the shared parallel task route in Oh My Pi | done | general-012 |
-| [general-017](tasks/017-configure-and-inspect-named-execution-profiles.md) | Configure and inspect named execution profiles | ready | — |
-| [general-018](tasks/018-select-scoped-profiles-and-plan-one-task-without-implementin.md) | Select scoped profiles and plan one task without implementing it in Codex | blocked | general-017 |
+| [general-017](tasks/017-configure-and-inspect-named-execution-profiles.md) | Configure and inspect named execution profiles | done | — |
+| [general-018](tasks/018-select-scoped-profiles-and-plan-one-task-without-implementin.md) | Select scoped profiles and plan one task without implementing it in Codex | ready | general-017 |
 | [general-019](tasks/019-support-scoped-execution-profiles-and-plan-only-work-in-clau.md) | Support scoped execution profiles and plan-only work in Claude Code | blocked | general-018 |
 | [general-020](tasks/020-support-scoped-execution-profiles-in-opencode-pi-and-oh-my-p.md) | Support scoped execution profiles in OpenCode, Pi, and Oh My Pi | blocked | general-018 |

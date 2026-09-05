@@ -88,6 +88,13 @@ areas; do not infer project-wide selection from an omitted area.
    attributable in-scope paths continue with the same profile or a replacement
    from the current diff. Do not commit incomplete implementation merely to
    clear the checkout.
+   When the blocker proposes correcting an incidental planner-written technical
+   restriction, coordination checks it against the agreed outcome, explicit
+   constraints, compatibility promises, original Git baseline, and ownership.
+   If clear, update only the active task or brief, explain the adjustment,
+   capture fresh work-context for the same task and HEAD, and resume with the
+   original baseline still available. Do not use this route for a pending
+   reviewed bundle, a changed acceptance criterion, or an ambiguous owner.
 8. Return every concrete task-owned verifier `rework` finding with escalation
    `none` to the same selected profile when possible. Otherwise give a
    same-profile replacement the task, current diff, and exact findings. A
@@ -147,6 +154,12 @@ git add <explicit-task-source-path>... .zdev/<area>/tasks/<exact-task-file> .zde
 git diff --cached
 zdev commit -m <message>
 ```
+
+Include any task or brief records intentionally clarified by coordination in
+the explicit staged paths and completion handoff. The verifier checks their
+updated requirements and receives both the original baseline and the fresh
+post-adjustment snapshot. Unrelated record changes remain outside task
+ownership and stop completion.
 
 Stage only explicit task-owned source paths, the exact completed task file, and
 the generated `TASKS.md`; never stage the whole area directory. Before commit,

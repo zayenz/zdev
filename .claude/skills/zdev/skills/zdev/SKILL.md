@@ -34,9 +34,11 @@ selection rules.
 Load only the references named by the selected row, read each completely once,
 and do not ask a reference to choose another route. Run requested interactions
 in their requested order; load a shared reference only at its first use. After
-the last interaction, report the result and wait. If an approved artifact
-changes, show the revision and ask for approval again. Ask which interaction
-comes first only when the requested order is unclear.
+the last interaction, report the result and wait. If a pending reviewed bundle
+changes, show the revision and ask for exact approval again. During authorized
+task work, coordination may instead clarify an incidental technical restriction
+under the active-task rules in the task workflow. Ask which interaction comes
+first only when the requested order is unclear.
 
 ## Ask only for undecided choices
 

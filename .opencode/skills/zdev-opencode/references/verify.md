@@ -40,6 +40,10 @@ Require the verifier to:
    `BLOCKER` when ownership or overlap with existing user changes is ambiguous.
    Other areas sharing trunk and unrelated trunk paths remain outside this
    task's ownership.
+   When coordination recorded an active-task technical clarification, read the
+   updated task and brief from the post-adjustment snapshot and check those
+   updated requirements. Keep the separately supplied original baseline for
+   attribution; the clarification does not replace it.
 4. **Check the task requirements:** evaluate every `Done when` condition, task
    boundary, area decision, and the brief's `Testing` section against the implementation.
    Check that any tests called for exercise the requested behavior rather than

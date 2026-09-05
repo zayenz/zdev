@@ -179,18 +179,21 @@ An edited checkout does not by itself force manual review. The coordinator may
 retain an exact captured delta with the open source task when each child names
 only future work in `split_ownership` paths absent from that delta and none of
 the retained delta is staged. For each child, apply appends this canonical
-boundary to the rendered task:
+allocation to the rendered task:
 
 ```text
-- Task-owned paths (exact): ["src/retry_policy.rs","tests/retry_policy.rs"]
+- Initial task-owned path allocation: ["src/retry_policy.rs","tests/retry_policy.rs"]. Coordination may extend it only after checking retained parent edits and sibling assignments.
 ```
 
 The JSON array uses normalized paths in the proposal's order. This ordinary
-task boundary makes ownership actionable after the transient envelope is gone;
+task context makes the initial ownership allocation actionable after the transient envelope is gone;
 it adds no TOML field or lineage record. The split transaction commits only the
 task records and leaves the parent's unstaged bytes exactly as they were. Later
 child work treats that delta as pre-existing parent-owned state under the
-ordinary baseline rules and may change only its rendered path set.
+ordinary baseline rules. Coordination may extend a child's rendered allocation
+only after checking the retained parent delta and every sibling allocation.
+Legacy children rendered with `Task-owned paths (exact)` remain readable and
+use the same coordination rule.
 
 If a child must change a path already changed by the parent, any path is
 staged, another unstaged path exists, or attribution is uncertain, the split

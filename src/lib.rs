@@ -1422,6 +1422,9 @@ fn work_context_snapshot_projection(
     if let Some(complexity) = context.pointer("/goal/task/complexity") {
         projection.insert("complexity".to_owned(), complexity.clone());
     }
+    if let Some(task_path) = context.pointer("/goal/task/path") {
+        projection.insert("task_path".to_owned(), task_path.clone());
+    }
     Value::Object(projection)
 }
 

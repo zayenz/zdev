@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-008"
 key = "resolve-routine-technical-scope-adjustments"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "high"
@@ -28,14 +28,24 @@ Read Coordinator discretion, its examples, and Boundaries in the [settled workfl
 
 ## Done when
 
-- [ ] A necessary helper edit or second file can proceed after coordination checks ownership, updates an incidental technical restriction when needed, and explains the adjustment.
-- [ ] Derived children can extend planned paths only after coordination checks retained parent edits and sibling assignments; existing records remain readable and explicit user constraints remain binding.
-- [ ] An intentional brief or task clarification can be followed by fresh work-context admission without being mistaken for unrelated drift. The original Git baseline remains available, and verification checks the updated requirements.
-- [ ] Normal completion includes the attributable clarified records in the task commit; unrelated record changes and source changes still trigger ownership review.
-- [ ] Canonical contracts, executable adapters where applicable, relevant docs, and regenerated integrations express the same rule.
+- [x] A necessary helper edit or second file can proceed after coordination checks ownership, updates an incidental technical restriction when needed, and explains the adjustment.
+- [x] Derived children can extend planned paths only after coordination checks retained parent edits and sibling assignments; existing records remain readable and explicit user constraints remain binding.
+- [x] An intentional brief or task clarification can be followed by fresh work-context admission without being mistaken for unrelated drift. The original Git baseline remains available, and verification checks the updated requirements.
+- [x] Normal completion includes the attributable clarified records in the task commit; unrelated record changes and source changes still trigger ownership review.
+- [x] Canonical contracts, executable adapters where applicable, relevant docs, and regenerated integrations express the same rule.
 
 ## Validation
 
 - Use focused behavioral regressions for any changed executable rendering, routing, or completion behavior; retain existing split-ownership, snapshot, and commit-scope checks.
 - Review both the permitted helper/file adjustment and a prohibited user-constraint or ownership violation against the rendered coordinator and verifier instructions.
 - Regenerate affected integrations and run the standard validation in the area brief.
+
+## Result
+
+Allowed coordinator-owned incidental technical clarifications while preserving exact active-task ownership, original baselines, user constraints, split safeguards, updated-requirements verification, and scoped completion.
+
+Validation:
+
+- Focused derived-task and Claude workflow simulations passed, including sibling-ID and same-number alternate task-path rejection.
+- All five generated integrations remained in deterministic parity and harness discovery passed.
+- cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check all passed.

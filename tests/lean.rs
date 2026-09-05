@@ -471,7 +471,12 @@ fn work_context_snapshots_round_trip_exact_json_and_compare_fresh_state() {
             "snapshot",
             "stale_advisory",
             "task_id",
+            "task_path",
         ])
+    );
+    assert_eq!(
+        stored["task_path"],
+        ".zdev/general/tasks/001-complete-one-task.md"
     );
     let snapshot = stored["snapshot"].as_str().expect("snapshot ID");
     let path = reported_path(root, &stored["path"]);
@@ -4422,7 +4427,24 @@ fn derived_apply_split_preserves_retained_bytes_and_uses_ordinary_ready_order() 
     assert!(source.contains("blocked_by = [\"split-002\", \"split-003\"]"));
     let child =
         fs::read_to_string(root.join(".zdev/split/tasks/003-implement-second-child.md")).unwrap();
-    assert!(child.contains("Task-owned paths (exact): [\"src/second.rs\",\"tests/second.rs\"]"));
+    assert!(
+        child.contains(
+            "Initial task-owned path allocation: [\"src/second.rs\",\"tests/second.rs\"]"
+        )
+    );
+    assert!(child.contains("Coordination may extend it only after checking retained parent edits and sibling assignments."));
+
+    let legacy = child.replace(
+        "Initial task-owned path allocation: [\"src/second.rs\",\"tests/second.rs\"]. Coordination may extend it only after checking retained parent edits and sibling assignments.",
+        "Task-owned paths (exact): [\"src/second.rs\",\"tests/second.rs\"]",
+    );
+    fs::write(
+        root.join(".zdev/split/tasks/003-implement-second-child.md"),
+        legacy,
+    )
+    .expect("write legacy child record");
+    let shown = json_output(root, &["task", "show", "split", "split-003"]);
+    assert_eq!(shown["id"], "split-003");
 }
 
 #[test]
@@ -6630,7 +6652,7 @@ fn claude_task_workflows_extract_one_valid_structured_envelope() {
         r#"const area = 'general'
 {}
 const head = '0123456789abcdef0123456789abcdef01234567'
-const stored = JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: 'general-001', complexity: 'standard', stale_advisory: false, head, snapshot: 'W0123456789abcdef', path: '.git/zdev/work-context/general/W0123456789abcdef.json' }})
+const stored = JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: 'general-001', task_path: '.zdev/general/tasks/001-complete-one-task.md', complexity: 'standard', stale_advisory: false, head, snapshot: 'W0123456789abcdef', path: '.git/zdev/work-context/general/W0123456789abcdef.json' }})
 if (parseStoredContext(stored, area)?.baselineSnapshot !== 'W0123456789abcdef') throw new Error('stored baseline rejected')
 if (!parseStoredContext('Stored context:\n```json\n' + stored + '\n```', area)) throw new Error('wrapped stored context rejected')
 if (parseStoredContext(JSON.stringify({{ ...JSON.parse(stored), snapshot: '/tmp/context.json' }}), area)) throw new Error('baseline path accepted')
@@ -6857,6 +6879,7 @@ const verificationSnapshot = 'W0123456789abcdef'
 const compactContext = (complexity, snapshot, overrides = {{}}) => JSON.stringify({{
   schema_version: 1, area, lifecycle: 'open', queue: 'ready',
   task_id: overrides.taskId ?? taskId,
+  task_path: overrides.taskPath ?? '.zdev/work/tasks/001-implement-work.md',
   complexity: overrides.complexity ?? complexity,
   stale_advisory: false,
   head: overrides.head ?? head,
@@ -6872,7 +6895,7 @@ const passEvidence = [
   'work_context_snapshot: W0123456789abcdef',
 ]
 const completion = 'Completion finished.\nPASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files:\n- src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: `abc123`'
-const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = [], verificationOverrides = {{}}, blockerDecisions = []) => {{
+const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = [], verificationOverrides = {{}}, blockerDecisions = [], adjustmentDecisions = []) => {{
   const types = []
   const calls = []
   const result = await run(invocation, async (prompt, options) => {{
@@ -6892,18 +6915,23 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
       if (blockerDecisions.length === 0) throw new Error(name + ': unexpected blocker classification')
       return blockerDecisions.shift()
     }}
+    if (options.label.includes('coordinate technical adjustment')) {{
+      if (adjustmentDecisions.length === 0) throw new Error(name + ': unexpected technical adjustment')
+      return adjustmentDecisions.shift()
+    }}
     if (options.label.includes('complete and commit')) return completion
     if (options.label === 'zdev work: select ready task') return storedContext(complexity)
     if (options.label.includes('capture verification snapshot')) return verificationContext(complexity, verificationOverrides)
     if (options.label.includes('confirm verifier')) return comparison(compareEquals.length ? compareEquals.shift() : true)
     if (options.label.includes('compare implementation blocker progress')) return comparison(true)
-    if (options.label.includes('refresh before rework') || options.label.includes('refresh after implementation blocker')) return compactContext(complexity, verificationSnapshot)
+    if (options.label.includes('refresh before rework') || options.label.includes('refresh after implementation blocker') || options.label.includes('refresh after technical adjustment')) return compactContext(complexity, verificationSnapshot)
     throw new Error(name + ': unexpected coordination call ' + options.label)
   }})
   if (!result.startsWith(expectedPrefix + ' zdev-implement')) throw new Error(name + ': ' + result)
   if (responses.length !== 0) throw new Error(name + ': unused responses')
   if (compareEquals.length !== 0) throw new Error(name + ': unused comparison responses')
   if (blockerDecisions.length !== 0) throw new Error(name + ': unused blocker decisions')
+  if (adjustmentDecisions.length !== 0) throw new Error(name + ': unused adjustment decisions')
   if (derived !== null) throw new Error(name + ': unused derived response')
   if (JSON.stringify(types) !== JSON.stringify(expectedTypes)) {{
     throw new Error(name + ': ' + JSON.stringify(types))
@@ -6941,6 +6969,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (!completionPrompt.includes('"snapshot":"W0123456789abcdef"')) throw new Error(name + ': completion lost snapshot locator')
     if (!completionPrompt.includes('"implementation":"ready result"')) throw new Error(name + ': completion lost implementation summary')
     if (!completionPrompt.includes('"verification":"pass result"')) throw new Error(name + ': completion lost verification summary')
+    if (!completionPrompt.includes('"technical_adjustments":')) throw new Error(name + ': completion lost technical adjustments')
     if (completionPrompt.includes('"git_status":') || completionPrompt.includes('"git_diff":')) throw new Error(name + ': completion received raw Git evidence')
     if (!completionPrompt.includes('zdev work-context work --compare W0123456789abcdef --format json')) throw new Error(name + ': completion lost compact comparison')
   }}
@@ -7069,6 +7098,60 @@ await exercise(
   {{}},
   [JSON.stringify({{ action: 'continue', reason: 'The remaining file is directly in scope.' }})],
 )
+const adjustmentProposal = explanation => 'PROPOSE zdev-adjustment work work-001\n' + JSON.stringify({{
+  record_paths: ['.zdev/work/tasks/001-implement-work.md'], explanation,
+}})
+const adjusted = await exercise(
+  'permitted technical adjustment',
+  'standard',
+  [
+    worker('implementer', 'blocker', 'none', [adjustmentProposal('Allow the necessary shared helper.')]),
+    worker('implementer', 'ready', 'none', ['adjusted implementation']),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-implementer', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'PASS', null, {{ area }}, [], {{}}, [],
+  [JSON.stringify({{ action: 'adjusted', reason: 'The helper is necessary and ownership is clear.', record_paths: ['.zdev/work/tasks/001-implement-work.md'] }})],
+)
+const adjustedVerifier = adjusted.verifierPrompts[0]
+if (!adjustedVerifier.includes('Technical adjustments: [{{"record_paths":[".zdev/work/tasks/001-implement-work.md"],"explanation":"The helper is necessary and ownership is clear."}}]')) throw new Error('verifier lost technical adjustment evidence')
+if (!adjustedVerifier.includes('work-context work --show ' + baselineSnapshot + ' --format json')) throw new Error('adjusted verification lost original baseline')
+if (!adjusted.completionPrompt.includes('.zdev/work/tasks/001-implement-work.md')) throw new Error('completion lost clarified record path')
+const siblingAdjustment = await exercise(
+  'sibling task adjustment is rejected',
+  'standard',
+  [worker('implementer', 'blocker', 'none', [
+    'PROPOSE zdev-adjustment work work-001\n' + JSON.stringify({{ record_paths: ['.zdev/work/tasks/002-sibling.md'], explanation: 'Change a sibling.' }}),
+  ])],
+  ['zdev:zdev-implementer'],
+  'BLOCKER', null, {{ area }}, [], {{}},
+  [JSON.stringify({{ action: 'stop', reason: 'A sibling task record is outside the active task.' }})],
+)
+if (siblingAdjustment.calls.some(call => call.options.label.includes('coordinate technical adjustment'))) throw new Error('sibling task path reached adjustment coordination')
+const alternateFilenameAdjustment = await exercise(
+  'same-number alternate task filename is rejected',
+  'standard',
+  [worker('implementer', 'blocker', 'none', [
+    'PROPOSE zdev-adjustment work work-001\n' + JSON.stringify({{ record_paths: ['.zdev/work/tasks/001-other.md'], explanation: 'Change another record with the same number.' }}),
+  ])],
+  ['zdev:zdev-implementer'],
+  'BLOCKER', null, {{ area }}, [], {{}},
+  [JSON.stringify({{ action: 'stop', reason: 'The alternate filename is not the active task record.' }})],
+)
+if (alternateFilenameAdjustment.calls.some(call => call.options.label.includes('coordinate technical adjustment'))) throw new Error('same-number alternate filename reached adjustment coordination')
+for (const [name, reason] of [
+  ['explicit constraint adjustment stops', 'The proposal crosses an explicit user constraint.'],
+  ['ambiguous ownership adjustment stops', 'Ownership of the proposed helper is ambiguous.'],
+]) {{
+  await exercise(
+    name,
+    'standard',
+    [worker('implementer', 'blocker', 'none', [adjustmentProposal(reason)])],
+    ['zdev:zdev-implementer'],
+    'BLOCKER', null, {{ area }}, [], {{}}, [],
+    [JSON.stringify({{ action: 'stop', reason, record_paths: [] }})],
+  )
+}}
 await exercise(
   'external implementer blocker stops',
   'standard',
@@ -7330,6 +7413,7 @@ const baselineSnapshot = 'Wfedcba9876543210'
 const verificationSnapshot = 'W0123456789abcdef'
 const ready = (task, complexity = 'standard', contextHead = head) => JSON.stringify({{
   schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: task,
+  task_path: '.zdev/work/tasks/' + task.slice(task.lastIndexOf('-') + 1).padStart(3, '0') + '-task.md',
   complexity, stale_advisory: false, head: contextHead, snapshot: baselineSnapshot,
   path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})

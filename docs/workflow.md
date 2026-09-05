@@ -299,6 +299,16 @@ commit command adds a stable `Zdev-Change-Id` trailer.
 Task completion records a short result and validation summary. It does not
 copy the prompt, response, diff, commit hash, or agent tree into another store.
 
+An active authorized task may need a routine technical clarification after
+implementation begins. Coordination may edit the active task or brief when a
+necessary helper or path conflicts only with a planner-written restriction. It
+checks the agreed outcome, explicit constraints, compatibility promises,
+original Git baseline, and ownership; explains the adjustment; captures fresh
+work-context; and resumes the same task. Verification uses the updated records
+and the original baseline, and completion includes the clarified records in the
+scoped commit. Pending reviewed bundles still require exact renewed approval
+after revision.
+
 ## Recovery
 
 The repository contains enough recovery state:

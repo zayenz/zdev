@@ -371,6 +371,15 @@ Ask the harness to work on the returned task with zdev. It should:
 4. stop for a real blocker or mark the task ready for completion after both
    checks pass.
 
+During an active authorized task, coordination may correct an incidental
+planner-written technical restriction when the agreed outcome requires another
+helper or file. It first checks the original baseline, explicit constraints,
+compatibility promises, and ownership, updates only the active brief or task,
+explains the adjustment, and captures fresh work-context. Changes to the
+outcome or acceptance criteria, explicit user constraints, and unclear
+ownership still require the user. Pending reviewed task bundles retain exact
+revision approval.
+
 After both checks pass, mark the task done and commit:
 
 ```sh

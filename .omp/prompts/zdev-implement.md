@@ -22,6 +22,18 @@ Another file, by itself, is not scope expansion. A new product or compatibility
 decision, a cross-area outcome, an explicit boundary violation, destructive or
 external action without authority, or overlap with user-owned work is.
 
+During an authorized active task, a worker may report that an incidental
+planner-written restriction prevents necessary direct work. Coordination checks
+the proposed helper or path against the agreed outcome, acceptance criteria,
+explicit user constraints, compatibility promises, the original Git baseline,
+and current ownership. When those checks are clear, it may update only the
+active task or area brief to correct that technical restriction, explain the
+adjustment, capture fresh work-context, and resume the same task while retaining
+the original baseline. A changed outcome, acceptance criterion, compatibility
+promise, explicit user constraint, ambiguous ownership, or material unresolved
+choice still stops for the user. This exception never changes a pending reviewed
+bundle, which requires renewed exact approval after any revision.
+
 Before starting an implementer or verifier, collect fresh complete work-context
 through one of the admitted forms below and retain the complete result. The
 command classifies goal lifecycle first. A validated closed context contains
@@ -54,6 +66,13 @@ normal completion flow before selecting again. Likewise, use an existing
 zdev-managed commit step for a complete planning or repair checkpoint when the
 route defines one. Never create a checkpoint commit for incomplete
 implementation or mix unrelated paths merely to clear the checkout.
+
+An intentional clarification made through the active-task rule is attributable
+state, not unrelated drift. Fresh work-context must still admit the same ready
+task at the original HEAD. Verification reads the updated brief and task while
+also receiving the original baseline. Completion stages the clarified record
+paths with the other attributable task-owned paths; any other record or source
+change still requires ownership review.
 
 `zdev-implement <area>` reads effective complexity from the selected task in
 work-context.
@@ -127,6 +146,24 @@ return that work to the same profile or a replacement with the current diff and
 remaining requirements, then verify normally. Stop repeated attempts only when
 they make no meaningful progress for a concrete reason that cannot be resolved
 inside the task.
+
+A worker that finds an incidental technical restriction puts one transient
+adjustment proposal in its blocker evidence. It identifies the active task or
+brief record paths and explains the necessary correction. The coordinator owns
+the record edit and applies the checks above before changing it. This proposal
+adds no durable state or approval record. After the edit, coordination records
+the exact clarified paths and explanation in the current handoff, captures
+fresh work-context, and resumes implementation. Explicit constraints and unclear
+ownership are ordinary terminal blockers, not adjustment proposals.
+
+The implementer object keeps verdict `blocker`, escalation `none`, no findings,
+and exactly one evidence string. That string is
+`PROPOSE zdev-adjustment <area> <task-id>\n` followed by exactly one JSON object
+with only `record_paths` and `explanation`. `record_paths` contains one or more
+unique paths naming only `.zdev/<area>/brief.md` or the active task record.
+The explanation names the incidental restriction and why the agreed
+outcome requires correcting it. Prefixes, suffixes, unknown keys, duplicate
+paths, and other managed records make the proposal invalid.
 
 ## Derived work handoff
 

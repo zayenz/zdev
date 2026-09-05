@@ -103,12 +103,16 @@ const parseStoredContext = (raw, expectedArea, expected = null) => {
   if (typeof stored.task_id !== 'string' || stored.queue !== 'ready'
     || !['routine', 'standard', 'advanced'].includes(stored.complexity)
     || !/^[0-9a-f]{40}$/.test(stored.head ?? '')
-    || typeof stored.stale_advisory !== 'boolean') return null
+    || typeof stored.stale_advisory !== 'boolean'
+    || typeof stored.task_path !== 'string'
+    || !stored.task_path.startsWith(`.zdev/${expectedArea}/tasks/`)
+    || !stored.task_path.endsWith('.md')) return null
   if (expected && (stored.task_id !== expected.taskId || stored.head !== expected.head
-    || stored.complexity !== expected.complexity)) return null
+    || stored.complexity !== expected.complexity
+    || (expected.taskPath && stored.task_path !== expected.taskPath))) return null
   return { lifecycle: stored.lifecycle, queue: stored.queue, taskId: stored.task_id,
     complexity: stored.complexity, staleAdvisory: stored.stale_advisory, head: stored.head,
-    baselineSnapshot: stored.snapshot }
+    baselineSnapshot: stored.snapshot, taskPath: stored.task_path }
 }
 const workerResultKeys = [
   'area',
@@ -259,6 +263,15 @@ const blockerDispositionSchema = {
     reason: { type: 'string', minLength: 1 },
   },
 }
+const technicalAdjustmentSchema = {
+  type: 'object', additionalProperties: false,
+  required: ['action', 'reason', 'record_paths'],
+  properties: {
+    action: { type: 'string', enum: ['adjusted', 'stop'] },
+    reason: { type: 'string', minLength: 1 },
+    record_paths: { type: 'array', items: { type: 'string', minLength: 1 } },
+  },
+}
 const parseBlockerDisposition = raw => {
   const decoded = decodeJsonObject(raw)
   const result = decoded?.value
@@ -267,6 +280,18 @@ const parseBlockerDisposition = raw => {
     && ['continue', 'stop'].includes(result.action)
     && typeof result.reason === 'string' && result.reason.trim()
     ? result : null
+}
+const parseTechnicalAdjustmentResult = raw => {
+  const result = decodeJsonObject(raw)?.value
+  if (!result || Array.isArray(result) || typeof result !== 'object'
+    || JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(['action', 'reason', 'record_paths'])
+    || !['adjusted', 'stop'].includes(result.action)
+    || typeof result.reason !== 'string' || !result.reason.trim()
+    || !Array.isArray(result.record_paths)
+    || !result.record_paths.every(path => typeof path === 'string' && path.trim())) return null
+  if (result.action === 'adjusted' && result.record_paths.length === 0) return null
+  if (result.action === 'stop' && result.record_paths.length !== 0) return null
+  return result
 }
 const semanticPlannerKeys = ['findings', 'plan', 'summary', 'verdict']
 const semanticPlanKeys = ['approach', 'paths', 'validation']
@@ -392,6 +417,23 @@ const derivedSplitFrom = (result, expectedArea, expectedTask) => {
     return null
   }
 }
+const technicalAdjustmentFrom = (result, expectedArea, expectedTask, expectedTaskPath) => {
+  if (result?.kind !== 'implementer' || result.verdict !== 'blocker'
+    || result.escalation !== 'none' || result.findings.length !== 0
+    || result.evidence.length !== 1) return null
+  const first = `PROPOSE zdev-adjustment ${expectedArea} ${expectedTask}\n`
+  if (!result.evidence[0].startsWith(first)) return null
+  let proposal
+  try { proposal = JSON.parse(result.evidence[0].slice(first.length)) } catch { return null }
+  if (!proposal || Array.isArray(proposal) || typeof proposal !== 'object'
+    || JSON.stringify(Object.keys(proposal).sort()) !== JSON.stringify(['explanation', 'record_paths'])
+    || typeof proposal.explanation !== 'string' || !proposal.explanation.trim()
+    || !Array.isArray(proposal.record_paths) || proposal.record_paths.length === 0
+    || new Set(proposal.record_paths).size !== proposal.record_paths.length
+    || !proposal.record_paths.every(path => path === `.zdev/${expectedArea}/brief.md`
+      || path === expectedTaskPath)) return null
+  return proposal
+}
 
 if (!/^[a-z0-9][a-z0-9-]*$/.test(area)) {
   return blocker('unknown', 'unknown', 'input', 'a lowercase area is required.', 'no preflight or worker was started.')
@@ -465,13 +507,14 @@ const implementationAgentType = complexity === 'routine'
     ? 'zdev:zdev-advanced-implementer'
     : 'zdev:zdev-implementer'
 const implementationRaw = (await agent(
-  `${workerContract}\n\nImplement ${complexity} task ${taskId} in area ${area}. Load its immutable context with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json.${plan ? ` Follow this validated plan: ${JSON.stringify(plan)}.` : ''} Treat named and planned paths as expected seams rather than an allowlist. Change every attributable path directly needed by the task's semantic boundaries, validate the result, and return the implementer envelope from your role prompt. Do not block merely for partial progress or another file. If direct work must split, load ${JSON.stringify(taskWorkflowContractPath)}, use its typed implementation_split blocker, and leave derive commands to the coordinator.`,
+  `${workerContract}\n\nImplement ${complexity} task ${taskId} in area ${area}. Load its immutable context with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json.${plan ? ` Follow this validated plan: ${JSON.stringify(plan)}.` : ''} Treat named and planned paths as expected seams rather than an allowlist. Change every attributable path directly needed by the task's semantic boundaries, validate the result, and return the implementer envelope from your role prompt. Do not block merely for partial progress or another file. If a planner-written technical restriction itself must be corrected, load ${JSON.stringify(taskWorkflowContractPath)} and use its transient adjustment blocker so coordination can check and edit the record. If direct work must split, use its typed implementation_split blocker and leave derive commands to the coordinator.`,
   { agentType: implementationAgentType, label: `zdev ${taskId}: implement (${complexity})` },
 ))?.trim()
 const implementation = parseWorkerResult(implementationRaw, 'implementer', area, taskId)
 let latestImplementation = implementation
 let activeAgentType = implementationAgentType
 let escalated = false
+const technicalAdjustments = []
 const compactWorkerSummary = result => JSON.stringify({
   summary: result.summary,
   evidence: result.evidence,
@@ -479,7 +522,7 @@ const compactWorkerSummary = result => JSON.stringify({
 
 const refresh = async label => {
   const current = parseStoredContext((await preflight(label, taskId))?.trim(), area, {
-    taskId, head: prepared.head, complexity,
+    taskId, head: prepared.head, complexity, taskPath: prepared.taskPath,
   })
   if (current?.staleAdvisory) staleAdvisory = true
   return current?.queue === 'ready' && current.complexity === complexity ? current : blocker(area, taskId, 'context refresh', `expected ready task ${taskId} with unchanged complexity ${complexity} and complete work-context evidence.`, 'lifecycle and commit were not changed.', staleAdvisory)
@@ -495,6 +538,16 @@ const classifyImplementerBlocker = async (result, current, madeProgress) => {
   )
   return parseBlockerDisposition(typeof raw === 'string' ? raw.trim() : raw)
 }
+const coordinateTechnicalAdjustment = async (proposal, current) => {
+  const raw = await agent(
+    `${repositoryGuidance}\n\nAct as coordination for one proposed incidental technical adjustment in active task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and current context with zdev work-context ${area} --show ${current.baselineSnapshot} --format json. Check the proposed helper or path against the agreed outcome, acceptance criteria, explicit user constraints, compatibility promises, original Git baseline, and ownership. If it changes only a planner-written technical restriction and ownership is clear, edit only the proposed active task or brief records, then return action adjusted with the exact edited record_paths and a concise explanation. Return action stop with no record paths for an explicit constraint, changed outcome or acceptance criterion, compatibility change, ambiguous ownership, or unresolved material choice. Do not edit a pending reviewed bundle or create state.\n\nProposal: ${JSON.stringify(proposal)}`,
+    { label: `zdev ${taskId}: coordinate technical adjustment`, model: 'haiku', schema: technicalAdjustmentSchema },
+  )
+  const result = parseTechnicalAdjustmentResult(typeof raw === 'string' ? raw.trim() : raw)
+  return result?.action === 'adjusted'
+    && JSON.stringify(result.record_paths) !== JSON.stringify(proposal.record_paths)
+    ? null : result
+}
 const resolveImplementerResult = async (initial, initialContext, phase) => {
   let result = initial
   let context = initialContext
@@ -502,6 +555,30 @@ const resolveImplementerResult = async (initial, initialContext, phase) => {
   while (result.verdict === 'blocker') {
     const split = await routeDerivedSplit(result, context)
     if (split) return { terminal: split }
+    const proposedAdjustment = technicalAdjustmentFrom(result, area, taskId, prepared.taskPath)
+    if (proposedAdjustment) {
+      const adjusted = await coordinateTechnicalAdjustment(proposedAdjustment, context)
+      if (!adjusted) {
+        return { terminal: blocker(area, taskId, phase, 'coordinator returned an invalid technical-adjustment result.', 'lifecycle and commit were not changed.', staleAdvisory) }
+      }
+      if (adjusted.action === 'stop') {
+        return { terminal: blocker(area, taskId, phase, adjusted.reason, 'the proposed record adjustment was not applied.', staleAdvisory) }
+      }
+      const refreshed = await refresh(`zdev ${taskId}: refresh after technical adjustment`)
+      if (typeof refreshed === 'string') return { terminal: refreshed }
+      technicalAdjustments.push({ record_paths: adjusted.record_paths, explanation: adjusted.reason })
+      context = refreshed
+      const retryRaw = (await agent(
+        `${workerContract}\n\nResume task ${taskId} in area ${area} after coordination clarified an incidental technical restriction. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and fresh context with zdev work-context ${area} --show ${refreshed.baselineSnapshot} --format json. Read the updated task and brief, complete the directly necessary work, and run validation. Return the implementer envelope from your role prompt.\n\nAdjustment: ${JSON.stringify(technicalAdjustments.at(-1))}`,
+        { agentType: activeAgentType, label: `zdev ${taskId}: resume after technical adjustment` },
+      ))?.trim()
+      const retry = parseWorkerResult(retryRaw, 'implementer', area, taskId)
+      if (!retry) {
+        return { terminal: blocker(area, taskId, phase, 'replacement implementer returned an invalid or mismatched envelope.', 'the clarified records remain in the checkout.', staleAdvisory) }
+      }
+      result = retry
+      continue
+    }
     const refreshed = await refresh(`zdev ${taskId}: refresh after ${phase} blocker`)
     if (typeof refreshed === 'string') return { terminal: refreshed }
     let madeProgress = null
@@ -545,7 +622,7 @@ const verify = async () => {
     { label: `zdev ${taskId}: capture verification snapshot`, model: 'haiku' },
   ))?.trim()
   const stored = parseStoredContext(storedRaw, area, {
-    taskId, head: prepared.head, complexity,
+    taskId, head: prepared.head, complexity, taskPath: prepared.taskPath,
   })
   if (!stored) return null
   if (stored.staleAdvisory) staleAdvisory = true
@@ -553,7 +630,7 @@ const verify = async () => {
   const current = stored
   const snapshot = stored.baselineSnapshot
   const raw = (await agent(
-    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Keep verification read-only: use a check or dry-run form for generators and other commands expected to rewrite tracked files. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each unexpected validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Do not repair or discard validation writes.\n\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
+    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Read any clarified records from the verification snapshot and check their updated requirements while retaining the original baseline for attribution. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Keep verification read-only: use a check or dry-run form for generators and other commands expected to rewrite tracked files. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each unexpected validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Do not repair or discard validation writes.\n\nTechnical adjustments: ${JSON.stringify(technicalAdjustments)}\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
     { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` },
   ))?.trim()
   const semantic = parseVerifierResult(raw)
@@ -618,7 +695,7 @@ if (verdict.result.verdict !== 'pass') {
 
 const advisory = staleAdvisory ? advisoryText : null
 const completed = await agent(
-  `${repositoryGuidance}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, before mutation run exactly one zdev work-context ${area} --compare ${verdict.approved} --format json. Accept the exact four-key JSON object {"schema_version":1,"area":"${area}","snapshot":"${verdict.approved}","equal":true}. On an exact match, run zdev task done, stage the attributed task-owned paths and exact task records, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit needs recovery. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nCompletion handoff: ${JSON.stringify({ snapshot: verdict.approved, implementation: latestImplementation.summary, verification: verdict.result.summary })}`,
+  `${repositoryGuidance}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, before mutation run exactly one zdev work-context ${area} --compare ${verdict.approved} --format json. Accept the exact four-key JSON object {"schema_version":1,"area":"${area}","snapshot":"${verdict.approved}","equal":true}. On an exact match, run zdev task done, stage the attributed task-owned paths, every clarified record path in the handoff, and exact task records, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit needs recovery. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nCompletion handoff: ${JSON.stringify({ snapshot: verdict.approved, implementation: latestImplementation.summary, verification: verdict.result.summary, technical_adjustments: technicalAdjustments })}`,
   { label: `zdev ${taskId}: complete and commit` },
 )
 const result = completed?.trim()

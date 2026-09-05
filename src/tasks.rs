@@ -1415,9 +1415,9 @@ pub(super) fn apply_derived(
             let paths = serde_json::to_string(paths).map_err(|error| {
                 ZdevError::new(format!("Cannot render derived ownership paths: {error}"))
             })?;
-            rendered
-                .boundaries
-                .push(format!("Task-owned paths (exact): {paths}"));
+            rendered.boundaries.push(format!(
+                "Initial task-owned path allocation: {paths}. Coordination may extend it only after checking retained parent edits and sibling assignments."
+            ));
         }
         writes.push((path, render_draft(&header, &rendered)?));
     }

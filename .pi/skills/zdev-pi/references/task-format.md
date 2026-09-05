@@ -102,6 +102,13 @@ vocabulary settled in `brief.md` and extend the focused model tests in
 - Run the focused model tests.
 ```
 
+For children created by an implementation split, the rendered path list is the
+initial allocation used to preserve parent and sibling ownership. Coordination
+may extend that allocation during authorized work only after checking retained
+parent edits and sibling assignments. Existing task records that say
+`Task-owned paths (exact)` remain valid and readable; treat that legacy text as
+the same initial allocation unless it records an explicit user constraint.
+
 The frontmatter contains only routing state:
 
 - `id` is stable and allocated by zdev;

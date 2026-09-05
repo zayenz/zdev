@@ -4,9 +4,9 @@ Parallel execution is an explicit, finite route. A discussion, ready queue,
 goal, loop, or ordinary Implement request does not select it.
 
 
-## Codex support
+## Native harness support
 
-Codex supports this route with its collaboration tools. Before any source
+This harness supports this route through its native parallel runtime. Before any source
 mutation, collect or reuse explicit authorization for all of these choices:
 
 - two or more existing task IDs from one area;
@@ -27,7 +27,7 @@ task. Require at least two ready tasks whose likely source changes, shared
 interfaces, validation resources, generated outputs, services, ownership, and
 local resource needs are mutually compatible. Dependency readiness alone is
 insufficient. Reject duplicate task IDs. If fewer than two candidates remain,
-or Codex cannot provide isolated workers within the agreed limit, explain the
+or the harness cannot provide isolated workers within the agreed limit, explain the
 reason and offer ordinary sequential Implement before creating a source tree.
 
 Reuse the **Optional assigned source worktree** contract in the installed
@@ -41,12 +41,17 @@ run in that cwd. Never copy authoritative records into a source tree.
 
 ## Dispatch and role capacity
 
+Freeze the batch's concrete role settings at admission and include them in
+every assigned-task handoff. Each lane uses those values for planning,
+implementation, verification, and rework even if shared profile preferences
+change while the batch runs.
+
 Maintain an in-memory set of dispatched task IDs and never dispatch one twice.
-Inspect live agents and available capacity before every dispatch. Run the
+Inspect available capacity before every dispatch. Run the
 required advanced planner before edits, then spawn the configured implementation
 profile with `fork_turns="none"` and the explicit source cwd. Count every live
 planner, implementer, and verifier against the agreed and harness limits.
-Wait for results with the collaboration wait tool. When a candidate is ready,
+Accept results as workers finish. When a candidate is ready,
 give the next available role slot to its destination integration verifier
 before starting another implementation.
 

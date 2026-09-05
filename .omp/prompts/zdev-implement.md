@@ -78,6 +78,12 @@ the same ready task ID. At a worker boundary, prefer `--store` and pass the
 compact snapshot locator; the coordinator may use `--show` when it needs the
 complete context. The verifier's store-and-show collection satisfies fresh
 pre-verifier admission without a preceding duplicate ordinary collection.
+
+Before the first worker in a logical run, apply the shared **Scoped execution
+profiles** contract and retain its concrete role settings beside the admitted
+context. Every dispatch below uses those retained values. A fresh one-off role
+request resolves only that logical step. Authored complexity selects the role;
+it never selects or upgrades an execution profile.
 Before rework implementation, retain the ordinary refresh and require an
 explainable exact Git delta.
 
@@ -145,7 +151,7 @@ work-context.
 Authored `routine` uses `routine-implementer`; `standard`, including an omitted
 legacy value, uses `implementer`. Never infer routine work from files or diff
 size. Before any edit for `advanced`, start one fresh read-only `planner` using
-the `advanced-implementer` profile. Give it repository guidance and the stored
+the run's retained planner settings. Give it repository guidance and the stored
 work-context locator; it loads the brief, task, baseline, and task-owned paths
 from that snapshot. The planner returns the required fields
 `verdict`, `summary`, `plan`, and `findings`. A plan uses
@@ -335,11 +341,11 @@ returning it. Put checked locations and validation conclusions in `summary`.
 The opaque snapshot is never accepted from worker output.
 
 Every concrete task-owned verifier `rework` with escalation `none` goes to the
-same selected profile when the harness can resume it, or a same-profile
+same retained concrete role settings when the harness can resume it, or a replacement with those settings and the
 replacement with the unchanged goal, baseline, current checkout, and full
 findings. A verifier may request `advanced-implementer` once, only after the
 initial standard/default implementation. That starts a replacement advanced
-implementer without planning and is followed by a fresh standard verifier.
+implementer using the retained advanced-implementer settings without planning and is followed by a fresh verifier using the retained verifier settings.
 Reject a second escalation, an escalation after routine or advanced
 implementation, and every escalation attached to `pass` or `blocker`. There is
 no fixed ordinary-rework count. After each correction, a fresh standard

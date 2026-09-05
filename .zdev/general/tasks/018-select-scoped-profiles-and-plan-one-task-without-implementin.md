@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-018"
 key = "select-scoped-profiles-and-plan-only-in-codex"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,16 +27,24 @@ Read Selection and scope, Plan-only requests, Workflow coverage, and Testing and
 
 ## Done when
 
-- [ ] The shared router and Codex integration distinguish profile choice, one-off role choice, and task complexity. At the start of the authorized interaction/run, coordination resolves and retains concrete model/effort values for its roles; it passes those values to later dispatches rather than re-resolving names after shared preferences change. A newly requested one-off choice is resolved for that logical step.
-- [ ] The exact request 'plan next task with advanced planner' selects and retains the correct ready task, captures explicit task context, runs a fresh read-only advanced-profile planner, returns its plan and settings, and stops without implementation, verification, lifecycle changes, new tasks, branches, or worktrees.
-- [ ] A subsequent explicit implementation request revalidates and reuses an available applicable plan; an unavailable or materially stale plan is explained and handled through normal planning requirements. The earlier planner override does not become the implementation or verifier profile.
-- [ ] Run-level choices reach implementation, required planning, verification, audits, task-draft challenge, and any already-requested delegated discussion or investigation; a one-off override reaches only its logical role step and same-step retries.
-- [ ] The retained concrete selections survive authorized continuation and are handed to parallel routes when present, without shared-configuration rewrites or a dependency on the parallel feature. Mid-run preference changes do not alter existing selections; a later independent run resolves its own request or saved default.
-- [ ] Unsupported model/effort dispatch or an unknown profile reports the requested choice without silent substitution; observable runtime overrides are stated and no claim is made to have changed the coordinating conversation's model.
-- [ ] Canonical guidance, route discovery, relevant documentation, and regenerated integrations describe the new shared behavior and Codex support while keeping other adapters' interim support accurate.
+- [x] The shared router and Codex integration distinguish profile choice, one-off role choice, and task complexity. At the start of the authorized interaction/run, coordination resolves and retains concrete model/effort values for its roles; it passes those values to later dispatches rather than re-resolving names after shared preferences change. A newly requested one-off choice is resolved for that logical step.
+- [x] The exact request 'plan next task with advanced planner' selects and retains the correct ready task, captures explicit task context, runs a fresh read-only advanced-profile planner, returns its plan and settings, and stops without implementation, verification, lifecycle changes, new tasks, branches, or worktrees.
+- [x] A subsequent explicit implementation request revalidates and reuses an available applicable plan; an unavailable or materially stale plan is explained and handled through normal planning requirements. The earlier planner override does not become the implementation or verifier profile.
+- [x] Run-level choices reach implementation, required planning, verification, audits, task-draft challenge, and any already-requested delegated discussion or investigation; a one-off override reaches only its logical role step and same-step retries.
+- [x] The retained concrete selections survive authorized continuation and are handed to parallel routes when present, without shared-configuration rewrites or a dependency on the parallel feature. Mid-run preference changes do not alter existing selections; a later independent run resolves its own request or saved default.
+- [x] Unsupported model/effort dispatch or an unknown profile reports the requested choice without silent substitution; observable runtime overrides are stated and no claim is made to have changed the coordinating conversation's model.
+- [x] Canonical guidance, route discovery, relevant documentation, and regenerated integrations describe the new shared behavior and Codex support while keeping other adapters' interim support accurate.
 
 ## Validation
 
 - Review rendered scenarios for advanced planning only, normal implementation after that plan, role override within a simple run, task-draft review, explicit non-default task identity, stale plan, and unauthorized automatic upgrade. Change shared preferences between planning and implementation/verification and verify that the existing run retains its concrete choices while a later run sees the new settings.
 - Use controlled role invocations to check model/effort payloads and phase boundaries without paid model calls; add focused tests only where executable routing logic changes.
 - Regenerate affected fixtures, run existing snapshot, worker handoff, route/discovery/parity checks, and run standard area validation.
+
+## Result
+
+Added shared scoped profile selection and a stateless Codex dispatch-spec route for frozen concrete worker settings, read-only advanced plan-only runs, retained-plan validation, and cross-route handoffs.
+
+Validation:
+
+- Independent verification passed from exact snapshot Wacc578c6c815fa17: production dispatch scenarios, stale-context rejection equality, generated parity, all 160 tests, fmt fmt, clippy with warnings denied, build, and diff check.

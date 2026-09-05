@@ -7016,6 +7016,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/references/improve.md",
             "zdev/references/investigate.md",
             "zdev/references/parallel.md",
+            "zdev/references/plan-task.md",
             "zdev/references/recovery.md",
             "zdev/references/setup.md",
             "zdev/references/shape-work.md",
@@ -7045,6 +7046,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
             "skills/zdev/references/parallel.md",
+            "skills/zdev/references/plan-task.md",
             "skills/zdev/references/recovery.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
@@ -10837,6 +10839,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev-pi/references/improve.md",
             "skills/zdev-pi/references/investigate.md",
             "skills/zdev-pi/references/parallel.md",
+            "skills/zdev-pi/references/plan-task.md",
             "skills/zdev-pi/references/recovery.md",
             "skills/zdev-pi/references/setup.md",
             "skills/zdev-pi/references/shape-work.md",
@@ -10976,6 +10979,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
             "skills/zdev/references/parallel.md",
+            "skills/zdev/references/plan-task.md",
             "skills/zdev/references/recovery.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
@@ -12367,4 +12371,433 @@ fn missing_task_slice_references_fail_before_publication_and_during_check() {
     let checked = run_zdev(root, &["check", "feature"]);
     assert!(!checked.status.success());
     assert!(String::from_utf8_lossy(&checked.stderr).contains("unknown slice missing"));
+}
+
+#[test]
+fn codex_run_freezes_concrete_profiles_and_one_off_role_choices_expire() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    import_one_task(root, "work");
+    let home = root.join("home");
+    fs::create_dir_all(&home).expect("home");
+    let environment = [("HOME", home.as_path())];
+    let context = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    let snapshot = context["snapshot"].as_str().expect("snapshot");
+    let frozen = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            snapshot,
+            "--run-profile",
+            "normal",
+        ],
+        &environment,
+    );
+    json_output_with_env(
+        root,
+        &["config", "profile", "set-default", "advanced"],
+        &environment,
+    );
+    assert_eq!(frozen["dispatches"][0]["model"], "gpt-5.6-sol");
+    assert_eq!(frozen["dispatches"][1]["role"], "verifier");
+    assert_eq!(frozen["dispatches"][1]["reasoning_effort"], "low");
+    let still_frozen = frozen.clone();
+    assert_eq!(still_frozen, frozen);
+    let refreshed = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    let refreshed_snapshot = refreshed["snapshot"].as_str().expect("refreshed snapshot");
+    let later = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            refreshed_snapshot,
+        ],
+        &environment,
+    );
+    assert_eq!(later["dispatches"][0]["model"], "gpt-6-astra");
+
+    let one_off = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "plan-next-task",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            refreshed_snapshot,
+            "--run-profile",
+            "normal",
+            "--role-profile",
+            "planner=advanced",
+        ],
+        &environment,
+    );
+    let retry = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "plan-next-task",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            refreshed_snapshot,
+            "--run-profile",
+            "normal",
+            "--role-profile",
+            "planner=advanced",
+        ],
+        &environment,
+    );
+    assert_eq!(retry, one_off);
+    assert_eq!(one_off["dispatches"][0]["profile"], "advanced");
+    let expired = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            refreshed_snapshot,
+            "--run-profile",
+            "normal",
+        ],
+        &environment,
+    );
+    assert_eq!(expired["dispatches"][0]["profile"], "normal");
+}
+
+#[test]
+fn codex_plan_only_uses_real_explicit_context_and_makes_one_planner_call() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    import_one_task(root, "work");
+
+    let before_status = git(root, &["status", "--short", "--untracked-files=all"]);
+    let before_branch = git(root, &["branch", "--show-current"]);
+    let before_worktrees = git(root, &["worktree", "list", "--porcelain"]);
+    let task_path = root.join(".zdev/work/tasks/001-complete-one-task.md");
+    let before_task = fs::read(&task_path).expect("task record");
+    let before_config = fs::read(root.join(".zdev/config.toml")).expect("config");
+
+    let context = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    assert_eq!(context["task_id"], "work-001");
+    let snapshot = context["snapshot"].as_str().expect("snapshot");
+    let shown = json_output(root, &["work-context", "work", "--show", snapshot]);
+    assert_eq!(shown["task_id"], "work-001");
+    let spec = json_output(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "plan-next-task",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            snapshot,
+        ],
+    );
+    assert_eq!(spec["dispatches"].as_array().expect("dispatches").len(), 1);
+    assert_eq!(
+        spec["dispatches"][0],
+        json!({
+            "role":"planner", "profile":"advanced", "model":"gpt-6-astra",
+            "reasoning_effort":"xhigh", "task_id":"work-001", "snapshot":snapshot,
+            "next_phase":"plan-only-stop"
+        })
+    );
+    assert_eq!(spec["stop"], "plan-only");
+
+    assert_eq!(
+        git(root, &["status", "--short", "--untracked-files=all"]),
+        before_status
+    );
+    assert_eq!(git(root, &["branch", "--show-current"]), before_branch);
+    assert_eq!(
+        git(root, &["worktree", "list", "--porcelain"]),
+        before_worktrees
+    );
+    assert_eq!(fs::read(&task_path).expect("unchanged task"), before_task);
+    assert_eq!(
+        fs::read(root.join(".zdev/config.toml")).expect("unchanged config"),
+        before_config
+    );
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-001"])["status"],
+        "open"
+    );
+}
+
+#[test]
+fn codex_implementation_reuses_applicable_plan_and_rejects_stale_plan_without_override_leak() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    import_one_task(root, "work");
+
+    let planned = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    let snapshot = planned["snapshot"].as_str().expect("snapshot");
+    let applicable = json_output(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            snapshot,
+            "--run-profile",
+            "normal",
+            "--retained-plan",
+            "applicable",
+            "--plan-snapshot",
+            snapshot,
+        ],
+    );
+    assert_eq!(applicable["dispatches"][0]["role"], "implementer");
+    assert_eq!(applicable["dispatches"][1]["role"], "verifier");
+    assert_eq!(applicable["dispatches"].as_array().unwrap().len(), 2);
+    assert!(
+        applicable["dispatches"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|call| call["profile"] == "normal")
+    );
+
+    fs::write(root.join("planned-input.txt"), "changed after planning\n").expect("stale input");
+    let current = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    let current_snapshot = current["snapshot"].as_str().expect("current snapshot");
+    let stale = json_output(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            current_snapshot,
+            "--run-profile",
+            "normal",
+            "--retained-plan",
+            "stale",
+            "--plan-snapshot",
+            snapshot,
+        ],
+    );
+    assert_eq!(stale["dispatches"].as_array().unwrap().len(), 2);
+    assert_eq!(stale["dispatches"][0]["role"], "implementer");
+    assert_eq!(stale["dispatches"][0]["profile"], "normal");
+    assert_eq!(stale["dispatches"][1]["role"], "verifier");
+}
+
+#[test]
+fn codex_unknown_profile_fails_before_dispatch_without_substitution() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    import_one_task(root, "work");
+    let context = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    let snapshot = context["snapshot"].as_str().expect("snapshot");
+    let output = run_zdev(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "plan-next-task",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            snapshot,
+            "--role-profile",
+            "planner=missing-choice",
+            "--format",
+            "json",
+        ],
+    );
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("missing-choice"));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("dispatches"));
+
+    let unsupported = run_zdev(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "plan-next-task",
+            "--harness",
+            "opencode",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            snapshot,
+            "--format",
+            "json",
+        ],
+    );
+    assert!(!unsupported.status.success());
+    assert!(String::from_utf8_lossy(&unsupported.stderr).contains("opencode"));
+    assert!(!String::from_utf8_lossy(&unsupported.stderr).contains("dispatches"));
+}
+
+#[test]
+fn codex_dispatch_spec_rejects_stale_dispatch_snapshots_for_plan_and_implementation() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    import_one_task(root, "work");
+    let context = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    let snapshot = context["snapshot"].as_str().expect("snapshot");
+    let task_path = root.join(".zdev/work/tasks/001-complete-one-task.md");
+    let config_path = root.join(".zdev/config.toml");
+    fs::write(root.join("seed.txt"), "new authoritative bytes\n").expect("change source");
+    let before_status = git(root, &["status", "--short", "--untracked-files=all"]);
+    let before_source = fs::read(root.join("seed.txt")).expect("source");
+    let before_task = fs::read(&task_path).expect("task");
+    let before_config = fs::read(&config_path).expect("config");
+
+    for route in ["plan-next-task", "implement"] {
+        let output = run_zdev(
+            root,
+            &[
+                "config",
+                "profile",
+                "dispatch-spec",
+                route,
+                "--harness",
+                "codex",
+                "--area",
+                "work",
+                "--task",
+                "work-001",
+                "--snapshot",
+                snapshot,
+                "--run-profile",
+                "advanced",
+                "--format",
+                "json",
+            ],
+        );
+        assert!(!output.status.success());
+        let error: Value = serde_json::from_slice(&output.stderr).expect("structured error");
+        assert_eq!(error["details"]["route"], route);
+        assert_eq!(error["details"]["run_profile"], "advanced");
+        assert_eq!(error["details"]["task_id"], "work-001");
+        assert_eq!(error["details"]["snapshot"], snapshot);
+        assert_eq!(error["details"]["dispatches"], json!([]));
+    }
+
+    assert_eq!(
+        git(root, &["status", "--short", "--untracked-files=all"]),
+        before_status
+    );
+    assert_eq!(
+        fs::read(root.join("seed.txt")).expect("source unchanged"),
+        before_source
+    );
+    assert_eq!(fs::read(&task_path).expect("task unchanged"), before_task);
+    assert_eq!(
+        fs::read(&config_path).expect("config unchanged"),
+        before_config
+    );
 }

@@ -7,6 +7,8 @@ locators for the area brief, task, relevant source and tests, repository
 verification instructions, and the recorded pre-implementation baseline
 snapshot. The verifier inspects and tests without making intentional edits.
 It receives the coordinator-stored opaque snapshot and shows it before review.
+Resolve and retain the concrete verifier settings at the start of this
+interaction, or use the frozen verifier settings from its authorized run.
 
 ## Do
 

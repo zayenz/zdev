@@ -4,6 +4,10 @@ description: Continue a zdev area, completing at most one independently verified
 
 # Zdev area loop (bounded)
 
+Resolve and retain the run's concrete role settings before the one admitted
+iteration. Include them in the continuation handoff; a later independent run
+resolves afresh.
+
 Parse the first token of `$ARGUMENTS` as the area and the remaining text as
 optional fuzzy focus. `zdev-loop` is the canonical name; `zdev-goal` is an
 exact alias. Both commands follow this same contract and always emit the

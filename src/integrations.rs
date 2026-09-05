@@ -59,6 +59,10 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
         include_str!("../templates/zdev/references/parallel.md"),
     ),
     (
+        "references/plan-task.md",
+        include_str!("../templates/zdev/references/plan-task.md"),
+    ),
+    (
         "references/verify.md",
         include_str!("../templates/zdev/references/verify.md"),
     ),

@@ -38,6 +38,11 @@ and active Git recovery operations remain blockers.
 
 ## Resume task work
 
+Restore the concrete role selections retained in the interrupted conversation
+or workflow handoff. Do not re-resolve their profile names after configuration
+changes. If the old handoff has no concrete selection evidence, explain that
+and resolve a fresh run before dispatch rather than guessing.
+
 Run work-context and use its exact HEAD, untracked status, cached diff, and
 unstaged diff as the reconstructed baseline. Finish or abort an active rebase
 first, or finalize a rebase completed directly through Git. Then rerun

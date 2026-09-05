@@ -13,7 +13,10 @@ grilling skill.
 1. Read `brief.md` first, then repository instructions and the source, tests,
    domain documentation, ADRs, and indexed background material relevant to the
    decisions under discussion. When the user asks about imported or background
-   material, treat the relevant parts of that corpus as required input.
+   material, treat the relevant parts of that corpus as required input. If the
+   user already requested delegated discussion, resolve and retain that
+   worker's concrete run settings before dispatch; profile selection alone does
+   not add a worker.
 2. Identify unresolved choices that could materially change behavior, scope,
    task splitting, or validation. Do not assume the brief's open-question list
    is complete. Challenge a settled decision only with a concrete scenario,

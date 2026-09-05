@@ -1,5 +1,9 @@
 # Zdev area loop (native)
 
+Resolve the run's concrete role settings once before the first iteration and
+retain them in the goal conversation. Every continued iteration uses those
+values; do not re-resolve profile names between tasks.
+
 `zdev-loop <area> [focus...]` is canonical and `zdev-goal <area> [focus...]`
 is an exact semantic alias. Parse everything after the area as optional fuzzy
 focus. Both follow this contract and emit canonical `zdev-loop` results.

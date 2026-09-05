@@ -1,5 +1,8 @@
 # Claude Code area continuation
 
+Resolve and retain the run's concrete role settings before the first admitted
+iteration. Every continued iteration uses those values.
+
 Treat “goal” and “loop” as the same zdev route. When packaged workflows are
 available, the root zdev skill uses `zdev-loop` internally; `zdev-goal` is the
 same workflow under an alias. The workflow repeats the ordinary one-task route,

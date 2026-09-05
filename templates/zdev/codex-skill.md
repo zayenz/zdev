@@ -12,6 +12,8 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 The root `$zdev` skill selects the route and loads its contract from
 `references/`. Treat “goal” and “loop” as the same native continuation route.
 Codex supports the explicit **Parallel** route in `references/parallel.md`.
+Codex also supports the read-only **Plan one task** route in
+`references/plan-task.md`.
 The exact installed task-workflows contract path for this installation is
 {{ task_workflows_contract_path_json }}. Decode that JSON string and include the
 resulting path in every worker payload.
@@ -38,6 +40,26 @@ exact installed route-contract path; applicable repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns the route's required fields in one JSON object.
+
+For plan-only and implementation interactions, run `zdev config profile
+dispatch-spec <plan-next-task|implement> --area <area> --task <task-id>
+--harness codex --snapshot <snapshot> ... --format json` after storing the explicit task
+context. Pass any run choice with `--run-profile`, a one-off choice with
+`--role-profile ROLE=PROFILE`, and retained-plan evidence with
+`--retained-plan <applicable|stale> --plan-snapshot <snapshot>`. Accept only its
+strict `codex-dispatch-spec` object and execute its ordered `dispatches` until
+the stated `stop` boundary. Retain the complete concrete specification in the
+conversation handoff; same-step retry reuses it instead of resolving again.
+The command compares the supplied explicit-task snapshot with current
+authoritative context before emitting a dispatch. A stale-snapshot error has an
+empty dispatch list; collect fresh explicit-task context and reassess the route
+instead of dispatching from historical state.
+Pass each emitted `model` and `reasoning_effort` to `spawn_agent`.
+If Codex rejects those arguments or reports a substitution, preserve the
+requested values in the result and report the rejection or observed values;
+do not retry silently with the baked installation setting. The rendered values
+below are the installed normal defaults only when no runtime selection was
+requested or saved.
 
 When an implementer will author human-facing prose, include the shared `Write
 human-facing prose plainly` section in its compact payload. Other workers do not

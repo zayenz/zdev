@@ -145,6 +145,9 @@ the area `brief.md`, relevant decisions, repository guidance, source and tests,
 and linked background documents. It does not need the bundle JSON or adjacent
 review metadata. Ask for concrete revisions covering:
 
+Use the run's retained concrete `verifier` settings for this challenge and its
+focused retries. A one-off verifier choice ends with this logical challenge.
+
 - missing task-specific context or repository evidence;
 - hidden decisions that still belong to the user;
 - vague or non-observable done conditions and proof;

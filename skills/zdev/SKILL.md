@@ -21,6 +21,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](references/to-tasks.md) and [references/task-format.md](references/task-format.md) |
 | **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | [references/task-workflows.md](references/task-workflows.md), [references/implement.md](references/implement.md), and [references/verify.md](references/verify.md) |
 | **Parallel** — run one finite approved batch of compatible tasks; aliases: “parallel tasks,” “parallel batch” | [references/parallel.md](references/parallel.md) and [references/task-workflows.md](references/task-workflows.md) |
+| **Plan one task** — select and plan one ready task without implementation; exact request: “plan next task with advanced planner” | [references/plan-task.md](references/plan-task.md) and [references/task-workflows.md](references/task-workflows.md) |
 | **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](references/verify-workflow.md) and [references/verify.md](references/verify.md) |
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
@@ -139,6 +140,44 @@ stops implementation, verification, completion, and commit preparation.
 Keep existing Git changes in place. Establish ownership before touching an
 overlapping path or changing the index.
 
+## Scoped execution profiles
+
+A named execution profile chooses concrete model and effort settings for worker
+roles. It does not choose the coordinator model, add workers, or authorize a
+different route. Authored task complexity still chooses only
+`routine-implementer`, `implementer`, or `advanced-implementer` and whether the
+ordinary advanced planning step is required.
+
+At the start of each interaction or authorized multi-task run, resolve every
+role that the route can use with `zdev config profile resolve <harness> <role>
+--run-profile <name> --format json`. Omit `--run-profile` when the user did not
+choose one. Retain the returned profile name and concrete model and effort for
+the whole logical run; pass those concrete values at every later dispatch,
+including rework, escalation, verification, continuation, recovery, and a
+parallel handoff. Do not resolve the name again after shared preferences
+change. A later independent run resolves afresh.
+
+A one-off role choice adds `--profile <name>` for that role and has precedence
+over the run profile. Its concrete result lasts through retries or replacement
+of that same logical step, then expires. Selection precedence is one-off role,
+run, saved local default, saved global default, then `normal`. Use the resolver
+for this logic; do not reproduce its fallback rules in a harness workflow or
+rewrite `.zdev/workers.toml` or an installed integration.
+
+Resolve workers before their first dispatch. This includes implementers,
+required planners, verifiers used for implementation or standalone verify,
+audit verifiers, task-bundle challenge reviewers, and workers already requested
+for delegated discussion or investigation. A profile choice by itself never
+adds delegation. When an authorized continuation or parallel batch is already
+active, its handoff retains the frozen concrete selections.
+
+Report the selected profile and requested concrete model and effort at the
+dispatch boundary. If the harness rejects or substitutes either value, report
+the requested and observed values and stop or continue only according to the
+harness's explicit result. Never silently substitute a worker or claim that a
+worker selection changed the coordinating conversation's model. An unknown or
+unsupported profile is a blocker before dispatch.
+
 ## Goal and loop
 
 Inside active zdev, “goal” and “loop” are synonyms: continue one named area one
@@ -247,6 +286,8 @@ what remains; mention commands only when they help the user continue or recover.
 The root `$zdev` skill selects the route and loads its contract from
 `references/`. Treat “goal” and “loop” as the same native continuation route.
 Codex supports the explicit **Parallel** route in `references/parallel.md`.
+Codex also supports the read-only **Plan one task** route in
+`references/plan-task.md`.
 The exact installed task-workflows contract path for this installation is
 "/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.
@@ -273,6 +314,26 @@ exact installed route-contract path; applicable repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns the route's required fields in one JSON object.
+
+For plan-only and implementation interactions, run `zdev config profile
+dispatch-spec <plan-next-task|implement> --area <area> --task <task-id>
+--harness codex --snapshot <snapshot> ... --format json` after storing the explicit task
+context. Pass any run choice with `--run-profile`, a one-off choice with
+`--role-profile ROLE=PROFILE`, and retained-plan evidence with
+`--retained-plan <applicable|stale> --plan-snapshot <snapshot>`. Accept only its
+strict `codex-dispatch-spec` object and execute its ordered `dispatches` until
+the stated `stop` boundary. Retain the complete concrete specification in the
+conversation handoff; same-step retry reuses it instead of resolving again.
+The command compares the supplied explicit-task snapshot with current
+authoritative context before emitting a dispatch. A stale-snapshot error has an
+empty dispatch list; collect fresh explicit-task context and reassess the route
+instead of dispatching from historical state.
+Pass each emitted `model` and `reasoning_effort` to `spawn_agent`.
+If Codex rejects those arguments or reports a substitution, preserve the
+requested values in the result and report the rejection or observed values;
+do not retry silently with the baked installation setting. The rendered values
+below are the installed normal defaults only when no runtime selection was
+requested or saved.
 
 When an implementer will author human-facing prose, include the shared `Write
 human-facing prose plainly` section in its compact payload. Other workers do not

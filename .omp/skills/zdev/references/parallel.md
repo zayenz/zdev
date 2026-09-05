@@ -41,6 +41,11 @@ run in that cwd. Never copy authoritative records into a source tree.
 
 ## Dispatch and role capacity
 
+Freeze the batch's concrete role settings at admission and include them in
+every assigned-task handoff. Each lane uses those values for planning,
+implementation, verification, and rework even if shared profile preferences
+change while the batch runs.
+
 Maintain an in-memory set of dispatched task IDs and never dispatch one twice.
 Inspect available capacity before every dispatch. Run the
 required advanced planner before edits, then spawn the configured implementation

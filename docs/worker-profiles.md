@@ -240,6 +240,24 @@ zdev performs no automatic model search. The user can set that row to
 are not errors: they use the built-in row, then native inheritance where the
 table above records a gap.
 
+## Runtime selection
+
+An installed integration resolves a named profile when an interaction or
+authorized run starts. It freezes the returned concrete model and effort for
+each role the run can use, so a later preference edit cannot change workers in
+the middle of implementation, verification, continuation, recovery, or a
+parallel batch. Selection uses a one-off role profile first, then a run profile,
+then saved local and global defaults, then `normal`. This calls the existing
+`zdev config profile resolve` command; it does not rewrite configuration or
+reinstall an integration.
+
+The exact request “plan next task with advanced planner” is a Codex-supported
+read-only route. It selects and snapshots one ready task explicitly, resolves
+`advanced` only for that planner step, returns the validated plan and concrete
+planner settings, and stops before implementation or lifecycle and Git work.
+Claude Code, OpenCode, Pi, and Oh My Pi currently report this scoped plan-only
+route as unsupported; their adapter work follows separately.
+
 ## Implemented seam
 
 The implementation stays inside integration generation:

@@ -1,6 +1,8 @@
 Audit the requested boundary without changing files, zdev state, Git state, or
 task lifecycle. An omitted or blank boundary means the current repository.
 Use only the resolved `verifier` worker profile; there is no auditor role.
+Resolve it once at audit start under the shared scoped-profile contract and use
+the retained concrete settings for every lens and the final evidence check.
 
 With no explicit lenses, use exactly one fresh verifier to inspect the boundary,
 check the evidence, and return the public result. An explicit list of one to

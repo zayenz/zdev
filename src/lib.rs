@@ -355,6 +355,62 @@ enum ProfileCommand {
         #[arg(long = "run-profile")]
         run_profile: Option<String>,
     },
+    /// Produce a read-only Codex worker dispatch sequence for one logical step
+    DispatchSpec {
+        /// Worker harness; currently only codex is supported
+        #[arg(long)]
+        harness: String,
+        /// Logical route: plan-next-task or implement
+        #[arg(value_enum)]
+        route: CodexDispatchRoute,
+        /// Area containing the explicitly selected task
+        #[arg(long)]
+        area: String,
+        /// Explicit selected task ID
+        #[arg(long)]
+        task: String,
+        /// Stored work-context snapshot identity
+        #[arg(long)]
+        snapshot: String,
+        /// Snapshot retained with an earlier plan; required when plan state is applicable or stale
+        #[arg(long = "plan-snapshot")]
+        plan_snapshot: Option<String>,
+        /// Profile selected for the interaction or authorized run
+        #[arg(long = "run-profile")]
+        run_profile: Option<String>,
+        /// One-off role choice as ROLE=PROFILE; repeat only for distinct roles
+        #[arg(long = "role-profile")]
+        role_profiles: Vec<String>,
+        /// Retained plan state for implementation
+        #[arg(long, value_enum, default_value_t = RetainedPlan::None)]
+        retained_plan: RetainedPlan,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum CodexDispatchRoute {
+    PlanNextTask,
+    Implement,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+enum RetainedPlan {
+    #[default]
+    None,
+    Applicable,
+    Stale,
+}
+
+struct CodexDispatchSpecInput<'a> {
+    route: CodexDispatchRoute,
+    harness: &'a str,
+    area: &'a str,
+    task: &'a str,
+    snapshot: &'a str,
+    plan_snapshot: Option<&'a str>,
+    run_profile: Option<&'a str>,
+    role_profiles: &'a [String],
+    retained_plan: RetainedPlan,
 }
 
 #[derive(Debug, Subcommand)]
@@ -842,6 +898,30 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                     profile.as_deref(),
                     run_profile.as_deref(),
                 ),
+                ProfileCommand::DispatchSpec {
+                    route,
+                    harness,
+                    area,
+                    task,
+                    snapshot,
+                    plan_snapshot,
+                    run_profile,
+                    role_profiles,
+                    retained_plan,
+                } => codex_dispatch_spec(
+                    &root,
+                    CodexDispatchSpecInput {
+                        route: *route,
+                        harness,
+                        area,
+                        task,
+                        snapshot,
+                        plan_snapshot: plan_snapshot.as_deref(),
+                        run_profile: run_profile.as_deref(),
+                        role_profiles,
+                        retained_plan: *retained_plan,
+                    },
+                ),
             },
             ConfigCommand::Show { local, .. } => config::show(
                 Some(&root),
@@ -1287,6 +1367,195 @@ fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevEr
         untracked.insert(path.to_owned(), evidence);
     }
     Ok(untracked)
+}
+
+fn codex_dispatch_spec(
+    root: &Path,
+    input: CodexDispatchSpecInput<'_>,
+) -> Result<CommandOutput, ZdevError> {
+    let CodexDispatchSpecInput {
+        route,
+        harness,
+        area,
+        task,
+        snapshot,
+        plan_snapshot,
+        run_profile,
+        role_profiles,
+        retained_plan,
+    } = input;
+    if harness != "codex" {
+        return Err(ZdevError::new(format!(
+            "Dispatch specifications are not supported for harness {harness}"
+        )));
+    }
+    let mut overrides = BTreeMap::new();
+    for entry in role_profiles {
+        let (role, profile) = entry
+            .split_once('=')
+            .ok_or_else(|| ZdevError::new("--role-profile must use ROLE=PROFILE"))?;
+        if !matches!(
+            role,
+            "routine-implementer" | "implementer" | "advanced-implementer" | "planner" | "verifier"
+        ) {
+            return Err(ZdevError::new(format!(
+                "Unknown Codex dispatch role {role}"
+            )));
+        }
+        if profile.is_empty()
+            || overrides
+                .insert(role.to_owned(), profile.to_owned())
+                .is_some()
+        {
+            return Err(ZdevError::new(format!(
+                "Duplicate or empty one-off profile for {role}"
+            )));
+        }
+    }
+
+    let shown = show_work_context(root, area, snapshot)?.value;
+    if required_json_string(&shown, "/task_id", "Stored work context")? != task
+        || required_json_string(&shown, "/lifecycle", "Stored work context")? != "open"
+        || required_json_string(&shown, "/queue", "Stored work context")? != "ready"
+        || shown
+            .pointer("/status/branch_status/task_work/safe")
+            .and_then(Value::as_bool)
+            != Some(true)
+    {
+        return Err(ZdevError::new(format!(
+            "Stored work context {snapshot} does not admit ready safe task {task}"
+        )));
+    }
+    let admission = compare_work_context(root, area, snapshot)?.value;
+    if admission["equal"].as_bool() != Some(true) {
+        return Err(ZdevError::with_details(
+            format!(
+                "Requested {} dispatch context {snapshot} is stale for explicit task {task}",
+                match route {
+                    CodexDispatchRoute::PlanNextTask => "plan-next-task",
+                    CodexDispatchRoute::Implement => "implement",
+                }
+            ),
+            json!({
+                "route": match route {
+                    CodexDispatchRoute::PlanNextTask => "plan-next-task",
+                    CodexDispatchRoute::Implement => "implement",
+                },
+                "harness": harness,
+                "task_id": task,
+                "snapshot": snapshot,
+                "run_profile": run_profile,
+                "role_profiles": role_profiles,
+                "dispatches": [],
+            }),
+        ));
+    }
+
+    let resolve = |role: &str, default_one_off: Option<&str>| -> Result<Value, ZdevError> {
+        let one_off = overrides.get(role).map(String::as_str).or(default_one_off);
+        Ok(config::profile_resolve(Some(root), "codex", role, one_off, run_profile)?.value)
+    };
+    let dispatch = |role: &str, resolved: Value, next_phase: &str| {
+        json!({
+            "role": role,
+            "profile": resolved["profile"],
+            "model": resolved["value"].get("model").cloned().unwrap_or(Value::Null),
+            "reasoning_effort": resolved["value"].get("effort").cloned().unwrap_or(Value::Null),
+            "task_id": task,
+            "snapshot": snapshot,
+            "next_phase": next_phase,
+        })
+    };
+
+    let (dispatches, stop) = match route {
+        CodexDispatchRoute::PlanNextTask => {
+            if retained_plan != RetainedPlan::None || plan_snapshot.is_some() {
+                return Err(ZdevError::new(
+                    "plan-next-task does not accept retained plan state",
+                ));
+            }
+            (
+                vec![dispatch(
+                    "planner",
+                    resolve("planner", Some("advanced"))?,
+                    "plan-only-stop",
+                )],
+                "plan-only",
+            )
+        }
+        CodexDispatchRoute::Implement => {
+            let fresh = work_context_output(root, area, Some(task))?.value;
+            if required_json_string(&fresh, "/task_id", "Fresh work context")? != task {
+                return Err(ZdevError::new(format!(
+                    "Fresh context no longer selects {task}"
+                )));
+            }
+            let plan_equal = match retained_plan {
+                RetainedPlan::None => None,
+                RetainedPlan::Applicable | RetainedPlan::Stale => {
+                    let retained = plan_snapshot.ok_or_else(|| {
+                        ZdevError::new("--plan-snapshot is required for retained plan state")
+                    })?;
+                    Some(
+                        compare_work_context(root, area, retained)?.value["equal"]
+                            .as_bool()
+                            .ok_or_else(|| ZdevError::new("Work-context comparison lacks equal"))?,
+                    )
+                }
+            };
+            if retained_plan == RetainedPlan::Applicable && plan_equal != Some(true) {
+                return Err(ZdevError::new("Retained plan is materially stale"));
+            }
+            if retained_plan == RetainedPlan::Stale && plan_equal != Some(false) {
+                return Err(ZdevError::new("Retained plan is still applicable"));
+            }
+            let complexity =
+                required_json_string(&fresh, "/goal/task/complexity", "Fresh work context")?;
+            let implementation_role = match complexity {
+                "routine" => "routine-implementer",
+                "standard" => "implementer",
+                "advanced" => "advanced-implementer",
+                other => {
+                    return Err(ZdevError::new(format!(
+                        "Unsupported task complexity {other}"
+                    )));
+                }
+            };
+            let mut sequence = Vec::new();
+            if complexity == "advanced" && retained_plan != RetainedPlan::Applicable {
+                sequence.push(dispatch(
+                    "planner",
+                    resolve("planner", None)?,
+                    "implementation",
+                ));
+            }
+            sequence.push(dispatch(
+                implementation_role,
+                resolve(implementation_role, None)?,
+                "verification",
+            ));
+            sequence.push(dispatch(
+                "verifier",
+                resolve("verifier", None)?,
+                "completion",
+            ));
+            (sequence, "completion")
+        }
+    };
+    let value = json!({
+        "schema_version": SCHEMA_VERSION,
+        "kind": "codex-dispatch-spec",
+        "route": match route { CodexDispatchRoute::PlanNextTask => "plan-next-task", CodexDispatchRoute::Implement => "implement" },
+        "area": area,
+        "task_id": task,
+        "snapshot": snapshot,
+        "dispatches": dispatches,
+        "stop": stop,
+    });
+    Ok(CommandOutput::new(
+        format!("Codex dispatch specification for {area} {task}"),
+        value,
+    ))
 }
 
 fn work_context_output(

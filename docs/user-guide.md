@@ -530,3 +530,15 @@ upstream discovery is fixed.
 
 Run `zdev --help` or `zdev <command> --help`. The [task format](task-format.md)
 documents every task field.
+# Scoped worker choices
+
+Choose a named profile for one zdev interaction or an authorized multi-task
+run without saving it as the default. Zdev resolves concrete role settings at
+the start and keeps them for that run, including retries and continuation. A
+one-off role choice overrides only that logical step. Task complexity still
+chooses the implementation role; it does not choose the profile.
+
+In Codex, “plan next task with advanced planner” selects and snapshots the next
+ready task, returns a read-only plan with the selected planner model and effort,
+and stops. A later implementation request rechecks that exact task and reuses
+the plan only while its task requirements and baseline remain applicable.

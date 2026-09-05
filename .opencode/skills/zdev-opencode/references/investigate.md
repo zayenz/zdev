@@ -16,6 +16,10 @@ first.
 
 State the question and choose the smallest useful evidence loop:
 
+If the user already requested a delegated investigation, resolve and retain
+that worker's concrete run settings before dispatch. Do not introduce
+delegation merely because a profile was selected.
+
 - **Research:** Prefer primary sources for external facts and cite them near
   the claims they support.
 - **Diagnose:** State the exact symptom, reproduce it safely, minimize the

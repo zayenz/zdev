@@ -46,11 +46,13 @@ areas; do not infer project-wide selection from an omitted area.
    paths this task may change. If an existing change overlaps a task path and
    ownership is unclear, stop and ask the user; do not stash, reset, restore,
    clean, or alter the index to manufacture a clean baseline.
-4. Read effective complexity from the selected task in work-context. Dispatch
+4. Read effective complexity from the selected task in work-context. Resolve
+   and freeze this run's concrete role settings under the shared scoped-profile
+   contract before dispatch. Dispatch
    `routine-implementer` only for authored `routine`, `implementer` for
    `standard` or omitted legacy complexity, and `advanced-implementer` for
    `advanced`. Before the first advanced edit, obtain one strict plan from a
-   fresh read-only planner using the advanced profile. Extract one unambiguous
+   fresh read-only planner using the retained planner settings. Extract one unambiguous
    balanced JSON object from its response, tolerating brief prose or a Markdown
    fence, then validate its four semantic fields and reconstruct the compatible public
    nine-key planner envelope, and pass the semantic plan object unchanged to
@@ -99,7 +101,8 @@ areas; do not infer project-wide selection from an omitted area.
    capture fresh work-context for the same task and HEAD, and resume with the
    original baseline still available. Do not use this route for a pending
    reviewed bundle, a changed acceptance criterion, or an ambiguous owner.
-8. Return every concrete task-owned verifier `rework` finding with escalation
+8. Run every verifier with the run's retained concrete verifier settings.
+   Return every concrete task-owned verifier `rework` finding with escalation
    `none` to the same selected profile when possible. Otherwise give a
    same-profile replacement the task, current diff, and exact findings. A
    verifier may request `advanced-implementer` once only after standard/default

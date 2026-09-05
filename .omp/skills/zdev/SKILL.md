@@ -21,6 +21,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](skill://zdev/references/to-tasks.md) and [references/task-format.md](skill://zdev/references/task-format.md) |
 | **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | [references/task-workflows.md](skill://zdev/references/task-workflows.md), [references/implement.md](skill://zdev/references/implement.md), and [references/verify.md](skill://zdev/references/verify.md) |
 | **Parallel** — run one finite approved batch of compatible tasks; aliases: “parallel tasks,” “parallel batch” | [references/parallel.md](skill://zdev/references/parallel.md) and [references/task-workflows.md](skill://zdev/references/task-workflows.md) |
+| **Plan one task** — select and plan one ready task without implementation; exact request: “plan next task with advanced planner” | [references/plan-task.md](skill://zdev/references/plan-task.md) and [references/task-workflows.md](skill://zdev/references/task-workflows.md) |
 | **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](skill://zdev/references/verify-workflow.md) and [references/verify.md](skill://zdev/references/verify.md) |
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](skill://zdev/references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](skill://zdev/references/recovery.md) |
@@ -138,6 +139,44 @@ stops implementation, verification, completion, and commit preparation.
 
 Keep existing Git changes in place. Establish ownership before touching an
 overlapping path or changing the index.
+
+## Scoped execution profiles
+
+A named execution profile chooses concrete model and effort settings for worker
+roles. It does not choose the coordinator model, add workers, or authorize a
+different route. Authored task complexity still chooses only
+`routine-implementer`, `implementer`, or `advanced-implementer` and whether the
+ordinary advanced planning step is required.
+
+At the start of each interaction or authorized multi-task run, resolve every
+role that the route can use with `zdev config profile resolve <harness> <role>
+--run-profile <name> --format json`. Omit `--run-profile` when the user did not
+choose one. Retain the returned profile name and concrete model and effort for
+the whole logical run; pass those concrete values at every later dispatch,
+including rework, escalation, verification, continuation, recovery, and a
+parallel handoff. Do not resolve the name again after shared preferences
+change. A later independent run resolves afresh.
+
+A one-off role choice adds `--profile <name>` for that role and has precedence
+over the run profile. Its concrete result lasts through retries or replacement
+of that same logical step, then expires. Selection precedence is one-off role,
+run, saved local default, saved global default, then `normal`. Use the resolver
+for this logic; do not reproduce its fallback rules in a harness workflow or
+rewrite `.zdev/workers.toml` or an installed integration.
+
+Resolve workers before their first dispatch. This includes implementers,
+required planners, verifiers used for implementation or standalone verify,
+audit verifiers, task-bundle challenge reviewers, and workers already requested
+for delegated discussion or investigation. A profile choice by itself never
+adds delegation. When an authorized continuation or parallel batch is already
+active, its handoff retains the frozen concrete selections.
+
+Report the selected profile and requested concrete model and effort at the
+dispatch boundary. If the harness rejects or substitutes either value, report
+the requested and observed values and stop or continue only according to the
+harness's explicit result. Never silently substitute a worker or claim that a
+worker selection changed the coordinating conversation's model. An unknown or
+unsupported profile is a blocker before dispatch.
 
 ## Goal and loop
 

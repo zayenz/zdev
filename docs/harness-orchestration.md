@@ -357,8 +357,12 @@ workflow progress rendering, and the plugin workflow namespace. Other adapters
 express the same sequence through their own skills, commands, prompts, and
 tools; the common contract does not imitate the JavaScript runtime.
 
-Claude retains the canonical `zdev-implement.js`, `zdev-verify.js`, and
-`zdev-audit.js` scripts. One canonical continuation source renders
+Claude retains the canonical `zdev-implement.js`, `zdev-verify.js`,
+`zdev-audit.js`, and `zdev-parallel.js` scripts. The parallel workflow accepts
+an explicitly consented finite batch, overlaps bounded implementation lanes in
+ordinary assigned worktrees, and serializes transport, independent
+verification, completion, and commits in the authoritative checkout. One
+canonical continuation source renders
 `zdev-loop.js` and its `zdev-goal.js` alias. The implementation workflow keeps
 its deterministic preflight, implementation, fresh-verification, and
 `while (REWORK)` control flow, but routes `agent()` calls through the scoped
@@ -389,9 +393,9 @@ The current contract requires:
 
 - all five harnesses install exactly one discoverable zdev skill, and
   install/check agree on the generated integration;
-- Claude's manifest exposes all five plugin-root JavaScript workflows under the
+- Claude's manifest exposes all six plugin-root JavaScript workflows under the
   `zdev:` namespace. Three canonical sources render implementation,
-  verification, and audit; one shared continuation source renders both
+  verification, audit, and parallel execution; one shared continuation source renders both
   `zdev-loop` and its exact `zdev-goal` alias. Each script preserves the common
   identity, envelope, and lifecycle contract;
 - `zdev-implement` selects the deterministic ready focus, preserves its task ID

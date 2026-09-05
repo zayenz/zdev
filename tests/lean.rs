@@ -6627,6 +6627,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "workflows/zdev-goal.js",
             "workflows/zdev-implement.js",
             "workflows/zdev-loop.js",
+            "workflows/zdev-parallel.js",
             "workflows/zdev-verify.js",
         ]
     );
@@ -8188,7 +8189,7 @@ fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
 }
 
 #[test]
-fn parallel_route_is_shared_and_only_codex_reports_execution_support() {
+fn parallel_route_is_shared_and_codex_and_claude_report_execution_support() {
     let repository = repository();
     let root = repository.path();
 
@@ -8218,17 +8219,222 @@ fn parallel_route_is_shared_and_only_codex_reports_execution_support() {
                 .expect("parallel reference");
 
         assert!(skill.contains("references/parallel.md"));
-        if harness == "codex" {
-            assert!(parallel.contains("## Codex support"));
+        if matches!(harness, "codex" | "claude") {
+            assert!(parallel.contains("## Native harness support"));
             assert!(parallel.contains("in-memory set of dispatched task IDs"));
             assert!(parallel.contains("configured implementation\nprofile"));
             assert!(!parallel.contains("## Unsupported adapter"));
         } else {
             assert!(parallel.contains("## Unsupported adapter"));
             assert!(parallel.contains("ordinary sequential **Implement**"));
-            assert!(!parallel.contains("## Codex support"));
+            assert!(!parallel.contains("## Native harness support"));
         }
     }
+}
+
+#[test]
+fn claude_parallel_workflow_bounds_lanes_maps_identity_and_serializes_destination() {
+    let source = include_str!("../templates/zdev/claude/workflows/zdev-parallel.js")
+        .replacen("export const meta =", "const meta =", 1)
+        .replace(
+            "{{task_workflows_contract_path_json}}",
+            &serde_json::to_string("/installed/zdev/contracts/task-workflows.md")
+                .expect("contract path JSON"),
+        )
+        .replace(
+            "{{repository_guidance}}",
+            &serde_json::to_string("repository guidance").expect("guidance JSON"),
+        );
+    let probe = format!(
+        r#"
+async function run(args, agent) {{
+{source}
+}}
+const ids = ['work-001', 'work-002', 'work-003']
+const baseline = '1'.repeat(40)
+const assignment = (task_id, index) => ({{ task_id, worktree: '/tmp/' + task_id,
+  branch: 'zdev/' + task_id, baseline, snapshot: 'W' + String(index).repeat(16),
+  complexity: 'standard', task_path: '.zdev/work/tasks/' + task_id + '.md' }})
+let duplicateAdmissionWorkers = 0
+const duplicateAdmission = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
+  destination_branch: 'main', worker_limit: 2, cleanup: false, consent: true }}, async (_prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return '{{"area":"work","area":"other","destination_branch":"main","destination_root":"/repo","assignments":[]}}'
+  duplicateAdmissionWorkers += 1
+  throw new Error('duplicate admission reached source worker')
+}})
+if (!duplicateAdmission.startsWith('BLOCKER zdev-parallel work') || duplicateAdmissionWorkers !== 0) throw new Error('duplicate admission accepted')
+let activeWorkers = 0
+let maximumWorkers = 0
+let activeGate = 0
+let maximumGate = 0
+const completedWorkers = []
+const gated = []
+let integratedWhileWorkerActive = false
+const agent = async (prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
+    destination_root: '/repo', assignments: ids.map(assignment) }}
+  const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
+  if (options.agentType && options.agentType.includes('implementer')) {{
+    activeWorkers += 1
+    maximumWorkers = Math.max(maximumWorkers, activeWorkers)
+    await new Promise(resolve => setTimeout(resolve, task === 'work-001' ? 35 : task === 'work-002' ? 5 : 10))
+    activeWorkers -= 1
+    completedWorkers.push(task)
+    return {{ schema_version: 1, kind: 'implementer', area: 'work', task_id: task,
+      verdict: 'ready', summary: 'ready ' + task, evidence: [], findings: [], escalation: 'none' }}
+  }}
+  if (options.label.includes('serial transport')) {{
+    activeGate += 1
+    maximumGate = Math.max(maximumGate, activeGate)
+    integratedWhileWorkerActive ||= activeWorkers > 0
+    await new Promise(resolve => setTimeout(resolve, 2))
+    gated.push(task)
+    activeGate -= 1
+    return {{ task_id: task, status: 'integrated', head: task.at(-1).repeat(40), summary: 'integrated', findings: [], preserved: '/tmp/' + task }}
+  }}
+  if (options.label.includes('fresh verifier admission')) return {{ schema_version: 1, area: 'work', task_id: task,
+    head: task.at(-1).repeat(40), snapshot: 'W' + task.at(-1).repeat(16), lifecycle: 'open', queue: 'ready',
+    safe: true, stale_advisory: false, checkout: '/repo' }}
+  if (options.agentType === 'zdev:zdev-verifier') return {{ verdict: 'pass', summary: 'verified ' + task, findings: [], escalation: 'none' }}
+  if (options.label.includes('compare verification snapshot')) return {{ schema_version: 1, area: 'work', snapshot: 'W' + task.at(-1).repeat(16), equal: true }}
+  if (options.label.includes('complete and commit')) return {{ task_id: task, status: 'committed', summary: 'done', commit: task.at(-1).repeat(40), findings: [], preserved: '' }}
+  throw new Error('unexpected call ' + options.label)
+}}
+const result = await run({{ area: 'work', task_ids: ids, destination_root: '/repo',
+  destination_branch: 'main', worker_limit: 2, cleanup: true, consent: true }}, agent)
+if (maximumWorkers !== 2) throw new Error('worker limit was not exercised: ' + maximumWorkers)
+if (maximumGate !== 1) throw new Error('destination gate overlapped')
+if (!integratedWhileWorkerActive) throw new Error('integration waited for every implementation')
+if (completedWorkers.join(',') !== 'work-002,work-003,work-001') throw new Error('workers did not finish out of order: ' + completedWorkers)
+if (gated.join(',') !== completedWorkers.join(',')) throw new Error('task identity was lost: ' + gated)
+if (!result.startsWith('PASS zdev-parallel work') || !result.includes('work-001') || !result.includes('work-003')) throw new Error(result)
+const stopped = await run({{ area: 'work', task_ids: ids, destination_root: '/repo',
+  destination_branch: 'main', worker_limit: 2, cleanup: true, consent: true }}, async (prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
+    destination_root: '/repo', assignments: ids.map(assignment) }}
+  const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
+  if (options.agentType && options.agentType.includes('implementer')) {{
+    if (task === 'work-001') throw new Error('cancelled')
+    return {{ schema_version: 1, kind: 'implementer', area: 'work', task_id: task,
+      verdict: task === 'work-002' ? 'blocker' : 'ready', summary: 'worker ' + task,
+      evidence: [], findings: task === 'work-002' ? ['choice required'] : [], escalation: 'none' }}
+  }}
+  if (options.label.includes('serial transport')) return {{ task_id: task, status: 'shared-decision', head: null,
+    summary: 'choose shared API', findings: ['choice required'], preserved: '/tmp/' + task }}
+  throw new Error('unexpected stop call ' + options.label)
+}})
+if (!stopped.startsWith('BLOCKER zdev-parallel work')) throw new Error(stopped)
+if (!stopped.includes('work-001 [preserved] Error: cancelled')) throw new Error('cancelled result lost: ' + stopped)
+if (!stopped.includes('work-002 [shared-decision]') || !stopped.includes('choice required')) throw new Error('shared finding lost: ' + stopped)
+if (!stopped.includes('work-003 [preserved] not dispatched after cancellation or capacity loss')) throw new Error('cancelled run dispatched sibling: ' + stopped)
+if (!stopped.includes('Cleanup: withheld')) throw new Error('unsafe cleanup: ' + stopped)
+
+let advancedImplementers = 0
+const plannerCases = [
+  ['malformed', {{ verdict: 'plan', summary: 'bad', plan: {{ approach: '', paths: ['src/lib.rs'], validation: ['cargo test'] }}, findings: [] }}, 'invalid planner result'],
+  ['blocker', {{ verdict: 'blocker', summary: 'stop', plan: null, findings: ['choice'] }}, 'planner blocker: stop; choice'],
+  ['contradictory', {{ verdict: 'blocker', summary: 'bad', plan: {{ approach: 'x', paths: ['src/lib.rs'], validation: ['test'] }}, findings: ['choice'] }}, 'invalid planner result'],
+  ['wrong task', {{ verdict: 'plan', summary: 'bad', plan: {{ approach: 'x', paths: ['src/lib.rs'], validation: ['test'] }}, findings: [], task_id: 'work-999' }}, 'invalid planner result'],
+  ['duplicate key', '{{"verdict":"plan","verdict":"blocker","summary":"bad","plan":null,"findings":["choice"]}}', 'invalid planner result'],
+  ['dot path', {{ verdict: 'plan', summary: 'bad', plan: {{ approach: 'x', paths: ['src/../lib.rs'], validation: ['test'] }}, findings: [] }}, 'invalid planner result'],
+  ['backslash path', {{ verdict: 'plan', summary: 'bad', plan: {{ approach: 'x', paths: ['src\\lib.rs'], validation: ['test'] }}, findings: [] }}, 'invalid planner result'],
+]
+for (const [name, plannerResult, expected] of plannerCases) {{
+  const planned = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
+    destination_branch: 'main', worker_limit: 1, cleanup: false, consent: true }}, async (prompt, options) => {{
+    if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main', destination_root: '/repo',
+      assignments: [{{ ...assignment('work-001', 1), complexity: 'advanced' }}, {{ ...assignment('work-002', 2), complexity: 'standard' }}] }}
+    if (options.agentType === 'zdev:zdev-planner') return plannerResult
+    if (options.agentType && options.agentType.includes('implementer')) {{ advancedImplementers += 1; throw new Error('planner failure reached mutation') }}
+    throw new Error('unexpected planner call ' + options.label)
+  }})
+  if (!planned.includes('work-001 [preserved] ' + expected)) throw new Error(name + ' planner failure lost: ' + planned)
+  if (!planned.includes('work-002 [preserved] not dispatched after cancellation or capacity loss')) throw new Error(name + ' planner dispatched sibling: ' + planned)
+}}
+if (advancedImplementers !== 0) throw new Error('planner failure reached implementer')
+
+let absolutePlannerReachedImplementer = false
+await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo', destination_branch: 'main',
+  worker_limit: 1, cleanup: false, consent: true }}, async (prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main', destination_root: '/repo',
+    assignments: [{{ ...assignment('work-001', 1), complexity: 'advanced' }}, assignment('work-002', 2)] }}
+  if (options.agentType === 'zdev:zdev-planner') return {{ verdict: 'plan', summary: 'ok',
+    plan: {{ approach: 'edit', paths: ['/repo/src/lib.rs'], validation: ['cargo test'] }}, findings: [] }}
+  if (options.agentType && options.agentType.includes('implementer')) {{ absolutePlannerReachedImplementer = true; throw new Error('stop after accepted absolute plan') }}
+  throw new Error('unexpected absolute planner call')
+}})
+if (!absolutePlannerReachedImplementer) throw new Error('normalized absolute planner path was rejected')
+
+const boundaryModes = ['implementer duplicate', 'transport duplicate', 'verifier duplicate', 'completion duplicate',
+  'admission malformed', 'admission mismatch', 'admission unsafe', 'admission stale']
+for (const mode of boundaryModes) {{
+  let verifierCalls = 0
+  const boundary = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
+    destination_branch: 'main', worker_limit: 1, cleanup: false, consent: true }}, async (prompt, options) => {{
+    if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main', destination_root: '/repo',
+      assignments: [assignment('work-001', 1), assignment('work-002', 2)] }}
+    if (options.agentType && options.agentType.includes('implementer')) return mode === 'implementer duplicate'
+      ? '{{"schema_version":1,"kind":"implementer","area":"work","task_id":"work-001","verdict":"ready","summary":"ok","summary":"duplicate","evidence":[],"findings":[],"escalation":"none"}}'
+      : {{ schema_version: 1, kind: 'implementer', area: 'work', task_id: 'work-001', verdict: 'ready', summary: 'ok', evidence: [], findings: [], escalation: 'none' }}
+    if (options.label.includes('serial transport')) return mode === 'transport duplicate'
+      ? '{{"task_id":"work-001","status":"integrated","head":"1111111111111111111111111111111111111111","summary":"ok","summary":"duplicate","findings":[],"preserved":"/tmp/work-001"}}'
+      : {{ task_id: 'work-001', status: 'integrated', head: '1'.repeat(40), summary: 'ok', findings: [], preserved: '/tmp/work-001' }}
+    if (options.label.includes('fresh verifier admission')) {{
+      if (mode === 'admission malformed') return '{{"schema_version":1}}'
+      return {{ schema_version: 1, area: 'work', task_id: mode === 'admission mismatch' ? 'work-999' : 'work-001',
+        head: '1'.repeat(40), snapshot: 'W' + '1'.repeat(16), lifecycle: 'open', queue: 'ready',
+        safe: mode !== 'admission unsafe', stale_advisory: mode === 'admission stale', checkout: '/repo' }}
+    }}
+    if (options.agentType === 'zdev:zdev-verifier') {{ verifierCalls += 1; return mode === 'verifier duplicate'
+      ? '{{"verdict":"pass","summary":"ok","summary":"duplicate","findings":[],"escalation":"none"}}'
+      : {{ verdict: 'pass', summary: 'ok', findings: [], escalation: 'none' }} }}
+    if (options.label.includes('compare verification snapshot')) return {{ schema_version: 1, area: 'work', snapshot: 'W' + '1'.repeat(16), equal: true }}
+    if (options.label.includes('complete and commit')) return mode === 'completion duplicate'
+      ? '{{"task_id":"work-001","status":"committed","summary":"ok","summary":"duplicate","commit":"1111111111111111111111111111111111111111","findings":[],"preserved":""}}'
+      : {{ task_id: 'work-001', status: 'committed', summary: 'ok', commit: '1'.repeat(40), findings: [], preserved: '' }}
+    throw new Error(mode + ': unexpected ' + options.label)
+  }})
+  if (!boundary.includes('work-001 [preserved]')) throw new Error(mode + ' was accepted: ' + boundary)
+  if (mode.startsWith('admission ') && verifierCalls !== 0) throw new Error(mode + ' reached verifier')
+}}
+
+const recovery = [{{ task_id: 'work-001', worktree: '/tmp/work-001', branch: 'zdev/work-001', baseline,
+  status: 'completion', commit: null, last_result: 'verified; completion pending' }}]
+let recoveredFirst = false
+let recoveredImplemented = []
+const recoveredResult = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
+  destination_branch: 'main', worker_limit: 1, cleanup: false, consent: true, resume: recovery }}, async (prompt, options) => {{
+  if (options.label.includes('recover completion checkpoint')) {{ recoveredFirst = true; return {{ task_id: 'work-001', status: 'committed',
+    summary: 'recovered', commit: '1'.repeat(40), findings: [], preserved: '' }} }}
+  if (options.label.includes('admit parallel batch')) {{
+    if (!recoveredFirst || !prompt.includes('verified; completion pending')) throw new Error('recovery context or ordering lost')
+    return {{ area: 'work', destination_branch: 'main', destination_root: '/repo', assignments: [assignment('work-002', 2)] }}
+  }}
+  const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
+  if (options.agentType && options.agentType.includes('implementer')) {{ recoveredImplemented.push(task); return {{ schema_version: 1,
+    kind: 'implementer', area: 'work', task_id: task, verdict: 'ready', summary: 'ok', evidence: [], findings: [], escalation: 'none' }} }}
+  if (options.label.includes('serial transport')) return {{ task_id: task, status: 'integrated', head: '2'.repeat(40), summary: 'ok', findings: [], preserved: '/tmp/work-002' }}
+  if (options.label.includes('fresh verifier admission')) return {{ schema_version: 1, area: 'work', task_id: task,
+    head: '2'.repeat(40), snapshot: 'W' + '2'.repeat(16), lifecycle: 'open', queue: 'ready', safe: true,
+    stale_advisory: false, checkout: '/repo' }}
+  if (options.agentType === 'zdev:zdev-verifier') return {{ verdict: 'pass', summary: 'ok', findings: [], escalation: 'none' }}
+  if (options.label.includes('compare verification snapshot')) return {{ schema_version: 1, area: 'work', snapshot: 'W' + '2'.repeat(16), equal: true }}
+  if (options.label.includes('complete and commit')) return {{ task_id: task, status: 'committed', summary: 'done', commit: '2'.repeat(40), findings: [], preserved: '' }}
+  throw new Error('unexpected recovery call ' + options.label)
+}})
+if (recoveredImplemented.join(',') !== 'work-002') throw new Error('recovery re-dispatched committed task: ' + recoveredImplemented)
+if (!recoveredResult.includes('work-001 ' + '1'.repeat(40)) || !recoveredResult.includes('work-002 ' + '2'.repeat(40))) throw new Error('recovery commits lost: ' + recoveredResult)
+"#
+    );
+    let output = Command::new("node")
+        .args(["--input-type=module", "--eval", &probe])
+        .output()
+        .expect("run Claude parallel workflow probe");
+    assert!(
+        output.status.success(),
+        "Claude parallel workflow probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[cfg(unix)]

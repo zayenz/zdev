@@ -85,6 +85,8 @@ const CLAUDE_PLANNER: &str = include_str!("../templates/zdev/claude/agents/zdev-
 const CLAUDE_VERIFIER: &str = include_str!("../templates/zdev/claude/agents/zdev-verifier.md");
 const CLAUDE_IMPLEMENT_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
+const CLAUDE_PARALLEL_WORKFLOW: &str =
+    include_str!("../templates/zdev/claude/workflows/zdev-parallel.js");
 const CLAUDE_LOOP_WORKFLOW: &str = include_str!("../templates/zdev/claude/workflows/zdev-loop.js");
 const CLAUDE_VERIFY_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-verify.js");
@@ -272,6 +274,10 @@ impl Harness {
                     IntegrationFile {
                         path: "workflows/zdev-loop.js".to_owned(),
                         content: claude_loop_workflow("zdev-loop")?,
+                    },
+                    IntegrationFile {
+                        path: "workflows/zdev-parallel.js".to_owned(),
+                        content: CLAUDE_PARALLEL_WORKFLOW.to_owned(),
                     },
                     IntegrationFile {
                         path: "workflows/zdev-goal.js".to_owned(),
@@ -653,7 +659,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -674,7 +680,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -690,7 +696,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -706,7 +712,7 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -735,7 +741,7 @@ fn realize_templates(
                 &task_workflow_contract,
                 &verify_workflow_contract,
                 &task_workflows_contract_path_json,
-                harness == Harness::Codex,
+                matches!(harness, Harness::Codex | Harness::Claude),
             ),
             &repository_guidance,
             &question_tool_guidance,

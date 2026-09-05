@@ -263,6 +263,12 @@ cycle, explicit verification, audit, or continuing area work. “Goal” and
 “loop” select the same continuation workflow. The ordinary subagent loop also
 works.
 
+An explicit parallel request uses the packaged `zdev-parallel` workflow when
+it is installed. Collect the finite task list, destination, worktree authority,
+worker limit, cleanup choice, and explicit consent before launching it. If the
+workflow runtime is unavailable, report that parallel execution is unavailable
+and offer the unchanged sequential Implement route.
+
 For an active-zdev goal or loop request, use the packaged continuation workflow
 when available. It repeats the ordinary one-task route, refreshes work
 context after every verified commit, and applies the shared stop states. It

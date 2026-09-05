@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-013"
 key = "run-parallel-tasks-in-claude"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,14 +27,22 @@ Read Harness adaptation, User choices, Integration and completion, Stops and rec
 
 ## Done when
 
-- [ ] The installed Claude integration discovers the parallel route and can dispatch independent implementations concurrently to their assigned worktrees after the shared approval and admission gates.
-- [ ] Controlled worker completion in a different order is mapped to the correct tasks, respects the worker limit, and produces serial independent verification and one destination commit per completed task.
-- [ ] A malformed result, a task-local blocker, a shared decision, and cancellation follow the shared preservation and stop behavior without losing verifier findings.
-- [ ] Recovery uses retained Git work and fresh task admission, and runtime fallback reports unavailable parallel capability without changing sequential behavior.
-- [ ] Canonical Claude sources, affected shared rendering, documentation, and regenerated fixtures agree.
+- [x] The installed Claude integration discovers the parallel route and can dispatch independent implementations concurrently to their assigned worktrees after the shared approval and admission gates.
+- [x] Controlled worker completion in a different order is mapped to the correct tasks, respects the worker limit, and produces serial independent verification and one destination commit per completed task.
+- [x] A malformed result, a task-local blocker, a shared decision, and cancellation follow the shared preservation and stop behavior without losing verifier findings.
+- [x] Recovery uses retained Git work and fresh task admission, and runtime fallback reports unavailable parallel capability without changing sequential behavior.
+- [x] Canonical Claude sources, affected shared rendering, documentation, and regenerated fixtures agree.
 
 ## Validation
 
 - Extend the existing Claude workflow simulation with bounded overlapping dispatch, out-of-order results with serial completion, and interruption preserving an unfinished sibling.
 - Retain existing one-task parsing, verification, rework, blocker-detail, and area-loop checks; use scenario review for user questions.
 - Regenerate affected integrations and run discovery/parity and standard area validation.
+
+## Result
+
+Added the Claude-native approved parallel workflow with bounded task-keyed source lanes, arrival-driven serial destination verification and commits, strict semantic gates, preservation, and retained-state recovery.
+
+Validation:
+
+- Independent verification passed from exact snapshot We66d9872d8cdba2d: focused Claude workflow and route tests, all 156 tests, fmt, clippy with warnings denied, build, diff check, generated parity, and unchanged sequential behavior.

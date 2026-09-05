@@ -412,6 +412,7 @@ fn work_context_returns_nested_ready_context_and_untrimmed_git_stdout() {
             "git_status": expected_git_status,
             "git_diff_cached": expected_git_diff_cached,
             "git_diff": expected_git_diff,
+            "git_untracked": context["git_untracked"].clone(),
         }),
     );
     assert_eq!(context["area"], "general");
@@ -517,6 +518,52 @@ fn work_context_snapshots_round_trip_exact_json_and_compare_fresh_state() {
             "equal": true,
         })
     );
+    fs::write(root.join("notes.txt"), b"changed\0binary\n").expect("change untracked content");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        false
+    );
+    fs::write(root.join("notes.txt"), "untracked\n").expect("restore untracked content");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        true
+    );
+
+    let mut legacy: Value = serde_json::from_slice(&inline.stdout).expect("snapshot JSON");
+    legacy
+        .as_object_mut()
+        .expect("snapshot object")
+        .remove("git_untracked");
+    let mut legacy_bytes = serde_json::to_vec_pretty(&legacy).expect("legacy snapshot JSON");
+    legacy_bytes.push(b'\n');
+    let hash = legacy_bytes
+        .iter()
+        .fold(0xcbf29ce484222325_u64, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+        });
+    let legacy_id = format!("W{hash:016x}");
+    fs::write(
+        path.with_file_name(format!("{legacy_id}.json")),
+        &legacy_bytes,
+    )
+    .expect("legacy snapshot");
+    let shown = run_zdev(
+        root,
+        &[
+            "work-context",
+            "general",
+            "--show",
+            &legacy_id,
+            "--format",
+            "json",
+        ],
+    );
+    assert!(shown.status.success());
+    assert_eq!(shown.stdout, legacy_bytes);
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", &legacy_id])["equal"],
+        false
+    );
     let files_before = fs::read_dir(path.parent().expect("snapshot store"))
         .expect("snapshot store")
         .count();
@@ -554,6 +601,75 @@ fn work_context_snapshots_round_trip_exact_json_and_compare_fresh_state() {
     assert_eq!(closed["lifecycle"], "closed");
     assert_eq!(closed["task_id"], Value::Null);
     assert!(closed.get("head").is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn work_context_comparison_detects_untracked_symlink_target_changes() {
+    use std::os::unix::fs::symlink;
+
+    let checkout = repository();
+    let root = checkout.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+    commit_all(root, "record area");
+    symlink("missing-before", root.join("link")).expect("untracked dangling symlink");
+    let stored = json_output(root, &["work-context", "general", "--store"]);
+    let snapshot = stored["snapshot"].as_str().expect("snapshot ID");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        true
+    );
+    fs::remove_file(root.join("link")).expect("remove symlink");
+    symlink("missing-after", root.join("link")).expect("changed untracked symlink");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        false
+    );
+}
+
+#[test]
+fn work_context_compares_untracked_nested_repository_contents() {
+    let checkout = repository();
+    let root = checkout.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "general", "main");
+    commit_all(root, "record area");
+    let nested = root.join("nested");
+    fs::create_dir(&nested).expect("nested repository directory");
+    git(&nested, &["init", "-q", "--initial-branch", "main"]);
+    git(&nested, &["config", "user.name", "Zdev Test"]);
+    git(&nested, &["config", "user.email", "zdev@example.invalid"]);
+    fs::write(nested.join(".git/info/exclude"), "ignored.txt\n").expect("nested ignore rule");
+    fs::write(nested.join("notes.bin"), b"before\0").expect("nested untracked file");
+    fs::write(nested.join("ignored.txt"), "before\n").expect("nested ignored file");
+
+    let stored = json_output(root, &["work-context", "general", "--store"]);
+    let snapshot = stored["snapshot"].as_str().expect("snapshot ID");
+    fs::write(nested.join("ignored.txt"), "after\n").expect("change ignored file");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        true
+    );
+    fs::write(nested.join("notes.bin"), b"after\0").expect("change nested untracked file");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        false
+    );
+    commit_file(&nested, "tracked.txt", "before\n", "nested seed");
+    let stored = json_output(root, &["work-context", "general", "--store"]);
+    let snapshot = stored["snapshot"].as_str().expect("snapshot ID");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        true
+    );
+    fs::write(nested.join("tracked.txt"), b"after\0").expect("change nested tracked file");
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        false
+    );
 }
 
 #[test]
@@ -810,6 +926,7 @@ fn closed_work_context_is_branch_independent_and_never_invokes_git() {
         "git_status",
         "git_diff_cached",
         "git_diff",
+        "git_untracked",
     ] {
         assert!(context.get(omitted).is_none(), "unexpected {omitted}");
     }
@@ -5564,6 +5681,41 @@ fn commit_human_output_reports_the_commit_change_id_and_subject() {
     assert!(text.starts_with("Committed "));
     assert!(text.contains(" (Z"));
     assert!(text.ends_with(": feat: report the commit\n"));
+}
+
+#[test]
+fn commit_uses_requested_root_despite_inherited_git_environment() {
+    let selected = repository();
+    let inherited = repository();
+    for checkout in [&selected, &inherited] {
+        let root = checkout.path();
+        commit_file(root, "file.txt", "before\n", "seed");
+        fs::write(root.join("file.txt"), "after\n").expect("changed file");
+        git(root, &["add", "file.txt"]);
+    }
+    let selected_head = git(selected.path(), &["rev-parse", "HEAD"]);
+    let inherited_head = git(inherited.path(), &["rev-parse", "HEAD"]);
+    let inherited_status = git(inherited.path(), &["status", "--porcelain=v1"]);
+    let committed = json_output_with_env(
+        selected.path(),
+        &["commit", "-m", "Commit to the selected repository"],
+        &[
+            ("GIT_DIR", &inherited.path().join(".git")),
+            ("GIT_WORK_TREE", inherited.path()),
+        ],
+    );
+    let new_head = git(selected.path(), &["rev-parse", "HEAD"]);
+    assert_ne!(new_head, selected_head);
+    assert_eq!(committed["commit"], new_head);
+    assert!(git(selected.path(), &["status", "--porcelain=v1"]).is_empty());
+    assert_eq!(
+        git(inherited.path(), &["rev-parse", "HEAD"]),
+        inherited_head
+    );
+    assert_eq!(
+        git(inherited.path(), &["status", "--porcelain=v1"]),
+        inherited_status
+    );
 }
 
 #[test]

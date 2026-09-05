@@ -2,6 +2,16 @@
 
 This file records notable changes to zdev.
 
+## Unreleased
+
+### Fixed
+
+- `zdev commit --root` commits the selected repository even when inherited
+  `GIT_DIR` or `GIT_WORK_TREE` variables point elsewhere.
+- Work-context snapshots detect content changes in existing untracked files,
+  so validation cannot silently change a new implementation file while its
+  snapshot still compares equal.
+
 ## [1.2.3] - 2026-08-31
 
 ### Fixed

@@ -1076,6 +1076,51 @@ fn work_context_git_stdout(root: &Path, arguments: &[&str]) -> Result<String, Zd
         .map_err(|_| ZdevError::new(format!("{command} returned invalid UTF-8")))
 }
 
+fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevError> {
+    let paths =
+        work_context_git_stdout(root, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    let mut untracked = BTreeMap::new();
+    for path in paths.split('\0').filter(|path| !path.is_empty()) {
+        let absolute = root.join(path);
+        let metadata = fs::symlink_metadata(&absolute).map_err(|error| {
+            ZdevError::io(format!("Cannot inspect untracked path {path}"), error)
+        })?;
+        let evidence = if metadata.file_type().is_symlink() {
+            let target = fs::read_link(&absolute).map_err(|error| {
+                ZdevError::io(format!("Cannot read untracked symlink {path}"), error)
+            })?;
+            let target = target.to_str().ok_or_else(|| {
+                ZdevError::new(format!("Untracked symlink {path} has a non-UTF-8 target"))
+            })?;
+            json!({"kind": "symlink", "target": target})
+        } else if metadata.is_file() {
+            let hash = git_output(root, &["hash-object", "--no-filters", "--", path])?;
+            json!({"kind": "file", "hash": hash})
+        } else if metadata.is_dir() {
+            // Git lists an untracked nested repository as one directory.
+            let status = work_context_git_stdout(
+                &absolute,
+                &["status", "--short", "--untracked-files=all"],
+            )?;
+            let head = git_output(&absolute, &["rev-parse", "--verify", "HEAD"]).ok();
+            json!({
+                "kind": "repository",
+                "head": head,
+                "git_status": status,
+                "git_diff_cached": work_context_git_stdout(&absolute, &["diff", "--cached"])?,
+                "git_diff": work_context_git_stdout(&absolute, &["diff"])?,
+                "git_untracked": work_context_untracked(&absolute)?,
+            })
+        } else {
+            return Err(ZdevError::new(format!(
+                "Cannot capture untracked path {path}: expected a regular file, symlink, or nested repository"
+            )));
+        };
+        untracked.insert(path.to_owned(), evidence);
+    }
+    Ok(untracked)
+}
+
 fn work_context_output(
     root: &Path,
     area: &str,
@@ -1168,6 +1213,7 @@ fn work_context_output(
         work_context_git_stdout(root, &["status", "--short", "--untracked-files=all"])?;
     let git_diff_cached = work_context_git_stdout(root, &["diff", "--cached"])?;
     let git_diff = work_context_git_stdout(root, &["diff"])?;
+    let git_untracked = work_context_untracked(root)?;
     let task_id = goal_task.as_deref().map(Value::from).unwrap_or(Value::Null);
     let task_text = goal_task.as_deref().unwrap_or("none");
     let text = format!(
@@ -1189,6 +1235,7 @@ fn work_context_output(
             "git_status": git_status,
             "git_diff_cached": git_diff_cached,
             "git_diff": git_diff,
+            "git_untracked": git_untracked,
         }),
     ))
 }
@@ -1288,8 +1335,18 @@ fn validate_work_context_snapshot_bytes(
         ],
         _ => &[],
     };
-    let actual_keys = object.keys().map(String::as_str).collect::<Vec<_>>();
+    // Older open snapshots remain readable, but differ from fresh snapshots
+    // because they lack content evidence for untracked paths.
+    let valid_untracked = object
+        .get("git_untracked")
+        .is_none_or(|value| lifecycle == Some("open") && value.is_object());
+    let actual_keys = object
+        .keys()
+        .map(String::as_str)
+        .filter(|key| *key != "git_untracked")
+        .collect::<Vec<_>>();
     if actual_keys != expected_keys
+        || !valid_untracked
         || object.get("schema_version").and_then(Value::as_u64) != Some(SCHEMA_VERSION)
         || object.get("area").and_then(Value::as_str) != Some(area)
         || !object.get("queue").is_some_and(Value::is_string)
@@ -1719,6 +1776,8 @@ fn commit(root: &Path, message: &str, body: &[String]) -> Result<CommandOutput, 
         .arg(format!("{CHANGE_ID_TRAILER}: {change_id}"));
     let output = command
         .current_dir(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
         .output()
         .map_err(|error| ZdevError::io("Cannot run git commit", error))?;
     if !output.status.success() {

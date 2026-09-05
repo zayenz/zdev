@@ -327,7 +327,11 @@ zdev work-context scheduling --format json
 
 For open work this returns matching status and goal projections, HEAD, and the
 exact staged, unstaged, and untracked evidence. A validated closed area returns
-before branch and Git collection.
+before branch and Git collection. The `git_untracked` map records content hashes
+for untracked regular files and targets for untracked symlinks, so edits to new
+files also invalidate a snapshot comparison.
+For an untracked nested Git repository, it records HEAD and the repository's
+tracked and untracked changes, excluding ignored files.
 
 When that complete JSON would be expensive to carry between workers, use its
 optional filesystem transport:
@@ -344,6 +348,8 @@ Compare collects a new ordinary work-context and returns only whether it is
 equal. Always compare or collect fresh state at a new decision boundary: the
 stored file is an immutable handoff, not permission to act on later. Snapshots
 remain available so an active workflow can keep loading its original baseline.
+Older open snapshots without untracked content evidence remain readable but
+compare unequal to fresh state; capture a new snapshot before verification.
 
 With only an area, zdev ranks ready tasks by AFK suitability, priority, then
 numeric task ID. When you give a fuzzy loop focus, every supported harness

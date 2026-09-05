@@ -210,6 +210,7 @@ order:
   "git_diff": "<complete stdout, possibly empty>",
   "git_diff_cached": "<complete stdout, possibly empty>",
   "git_status": "<complete stdout, possibly empty>",
+  "git_untracked": {"<path>": {"kind": "file", "hash": "<Git blob hash>"}},
   "goal": {"<complete goal projection>": "<nested JSON value>"},
   "head": "<full lowercase commit ID>",
   "lifecycle": "open",
@@ -260,6 +261,14 @@ boolean without echoing either document. It is a successful comparison when
 the values differ. Missing, corrupt, and cross-area files are errors. Files are
 immutable and content-addressed, and remain available for active baseline and
 verification handoffs. There is no current pointer, approval, or cleanup UI.
+
+The `git_untracked` map uses unfiltered Git blob hashes for regular files and
+`{"kind": "symlink", "target": "<link target>"}` for symlinks, including dangling
+links. Capturing it does not stage files or write Git objects. Older open
+snapshots without this map remain readable and compare unequal to fresh state.
+Untracked nested repositories record their HEAD (null before the first commit),
+status, binary-capable diffs, and their own `git_untracked` map. Ignored files
+remain outside the snapshot.
 
 This storage lowers handoff context, not freshness requirements. A later
 decision still needs a new collection or `--compare`; no stored snapshot is

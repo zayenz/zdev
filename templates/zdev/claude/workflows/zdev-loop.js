@@ -14,13 +14,18 @@ const normalizeLoopArgs = value => {
     return { area, focus: rest.join(' ').replace(/^--focus(?:=|\s+)?/, '') }
   }
   if (value && typeof value === 'object') {
-    return { area: value.area, focus: value.focus ?? value.intent ?? '' }
+    return { area: value.area, focus: value.focus ?? value.intent ?? '',
+      runProfile: value.run_profile ?? value.runProfile ?? null,
+      roleProfiles: value.role_profiles ?? value.roleProfiles ?? {} }
   }
   return { area: '', focus: '' }
 }
 const loopInput = normalizeLoopArgs(args)
 const loopArea = String(loopInput.area ?? '').trim()
 const loopFocus = String(loopInput.focus ?? '').trim()
+const loopRunProfile = loopInput.runProfile ?? null
+const loopRoleProfiles = loopInput.roleProfiles && !Array.isArray(loopInput.roleProfiles)
+  && typeof loopInput.roleProfiles === 'object' ? loopInput.roleProfiles : {}
 const loopField = (text, name) => {
   const lines = text.split('\n')
   const matches = lines.flatMap((line, index) =>
@@ -48,6 +53,7 @@ const commits = []
 let sawAdvisory = false
 let latestCompletedTask = null
 let latestCommit = null
+let frozenProfiles = null
 
 const loopJson = raw => {
   if (raw && !Array.isArray(raw) && typeof raw === 'object') return raw
@@ -75,12 +81,33 @@ const loopJson = raw => {
   }
   return depth === 0 && values.length === 1 ? values[0] : null
 }
+const loopHasDuplicateKeys = raw => {
+  if (typeof raw !== 'string') return false
+  const stack = []
+  for (let i = 0; i < raw.length; i += 1) {
+    if (raw[i] === '"') {
+      const start = i++
+      while (i < raw.length && raw[i] !== '"') { if (raw[i] === '\\') i += 1; i += 1 }
+      if (i >= raw.length) return true
+      let next = i + 1; while (/\s/.test(raw[next] ?? '')) next += 1
+      const current = stack.at(-1)
+      if (raw[next] === ':' && current instanceof Set) {
+        let key; try { key = JSON.parse(raw.slice(start, i + 1)) } catch { return true }
+        if (current.has(key)) return true; current.add(key)
+      }
+    } else if (raw[i] === '{') stack.push(new Set())
+    else if (raw[i] === '[') stack.push(null)
+    else if (raw[i] === '}' || raw[i] === ']') stack.pop()
+  }
+  return false
+}
 const stateFrom = raw => {
   const context = loopJson(raw)
   return context?.area === loopArea
     && ['open', 'closed'].includes(context.lifecycle)
     && ['ready', 'empty', 'exhausted'].includes(context.queue)
-    ? { lifecycle: context.lifecycle, queue: context.queue, taskId: context.task_id, head: context.head }
+    ? { lifecycle: context.lifecycle, queue: context.queue, taskId: context.task_id,
+      head: context.head, snapshot: context.snapshot, complexity: context.complexity }
     : { lifecycle: 'unknown', queue: 'unknown', taskId: null, head: null }
 }
 const list = values => values.length === 0 ? 'none' : values.join(', ')
@@ -141,8 +168,49 @@ while (true) {
     && (state.head !== latestCommit || state.taskId === latestCompletedTask)) {
     return block(state, latestCompletedTask, 'continuation refresh', 'fresh work-context did not confirm the committed task advanced.', 'the committed pair remains recorded and no next worker was started.')
   }
+  if (!frozenProfiles && state.queue === 'ready') {
+    const flags = `${loopRunProfile ? ` --run-profile ${String(loopRunProfile)}` : ''}${Object.entries(loopRoleProfiles).map(([role, profile]) => ` --role-profile ${role}=${profile}`).join('')}`
+    const raw = await agent(
+      `Act only as deterministic loop profile coordination. Run zdev config profile dispatch-spec implement --harness claude --area ${loopArea} --task ${state.taskId} --snapshot ${state.snapshot}${flags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and configuration unchanged.`,
+      { label: `zdev ${loopArea}: freeze loop worker profiles`, model: 'haiku' },
+    )
+    const spec = loopHasDuplicateKeys(raw) ? null : loopJson(raw)
+    const roles = ['routine-implementer', 'implementer', 'advanced-implementer', 'planner', 'verifier']
+    const exact = (value, keys) => value && !Array.isArray(value) && typeof value === 'object'
+      && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort())
+    const validRole = (record, role) => exact(record,
+      ['schema_version', 'profile', 'harness', 'role', 'value', 'origin', 'fallback'])
+      && record.schema_version === 1 && record.role === role && record.harness === 'claude'
+      && typeof record.profile === 'string' && record.profile
+      && ((exact(record.value, ['inherit']) && record.value.inherit === true)
+        || (exact(record.value, ['model', 'effort']) && typeof record.value.model === 'string'
+          && record.value.model && ['inherit', 'low', 'medium', 'high', 'xhigh', 'max'].includes(record.value.effort)))
+    const implementationRole = state.complexity === 'routine' ? 'routine-implementer'
+      : state.complexity === 'advanced' ? 'advanced-implementer' : 'implementer'
+    const expectedRoles = state.complexity === 'advanced'
+      ? ['planner', implementationRole, 'verifier'] : [implementationRole, 'verifier']
+    const expectedPhases = state.complexity === 'advanced'
+      ? ['implementation', 'verification', 'completion'] : ['verification', 'completion']
+    if (!exact(spec, ['schema_version', 'kind', 'harness', 'route', 'area', 'task_id', 'snapshot', 'dispatches', 'profiles', 'stop'])
+      || spec.schema_version !== 1 || spec.kind !== 'dispatch-spec' || spec.harness !== 'claude'
+      || spec.route !== 'implement' || spec.area !== loopArea || spec.task_id !== state.taskId
+      || spec.snapshot !== state.snapshot || spec.stop !== 'completion'
+      || !exact(spec.profiles, roles) || !roles.every(role => validRole(spec.profiles[role], role))
+      || !Array.isArray(spec.dispatches)
+      || JSON.stringify(spec.dispatches.map(item => item.role)) !== JSON.stringify(expectedRoles)
+      || JSON.stringify(spec.dispatches.map(item => item.next_phase)) !== JSON.stringify(expectedPhases)
+      || spec.dispatches.some(item => !exact(item, ['role', 'profile', 'model', 'reasoning_effort', 'task_id', 'snapshot', 'next_phase'])
+        || item.task_id !== state.taskId || item.snapshot !== state.snapshot
+        || item.profile !== spec.profiles[item.role]?.profile
+        || item.model !== (spec.profiles[item.role]?.value.model ?? null)
+        || item.reasoning_effort !== (spec.profiles[item.role]?.value.effort ?? null))) {
+      return block(state, state.taskId ?? 'none', 'profile selection', 'could not freeze the requested worker profiles.', 'no task worker was started.')
+    }
+    frozenProfiles = spec.profiles
+  }
   let supplied = false
-  const result = (await runOneTask({ area: loopArea, task_id: chosenTask }, async (prompt, options) => {
+  const result = (await runOneTask({ area: loopArea, task_id: chosenTask,
+    run_profile: loopRunProfile, role_profiles: loopRoleProfiles, frozen_profiles: frozenProfiles }, async (prompt, options) => {
     if (!supplied && options?.label === `zdev ${loopArea}: select ready task`) {
       supplied = true
       return contextRaw

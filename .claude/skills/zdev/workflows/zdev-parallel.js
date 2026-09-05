@@ -43,6 +43,26 @@ const decodedObject = raw => {
   }
   return depth === 0 && values.length === 1 ? values[0] : null
 }
+const hasDuplicateObjectKeys = raw => {
+  if (typeof raw !== 'string') return false
+  const stack = []
+  for (let i = 0; i < raw.length; i += 1) {
+    if (raw[i] === '"') {
+      const start = i++
+      while (i < raw.length && raw[i] !== '"') { if (raw[i] === '\\') i += 1; i += 1 }
+      if (i >= raw.length) return true
+      let next = i + 1; while (/\s/.test(raw[next] ?? '')) next += 1
+      const current = stack.at(-1)
+      if (raw[next] === ':' && current instanceof Set) {
+        let key; try { key = JSON.parse(raw.slice(start, i + 1)) } catch { return true }
+        if (current.has(key)) return true; current.add(key)
+      }
+    } else if (raw[i] === '{') stack.push(new Set())
+    else if (raw[i] === '[') stack.push(null)
+    else if (raw[i] === '}' || raw[i] === ']') stack.pop()
+  }
+  return false
+}
 const topLevelKeys = raw => {
   let i = 0
   const keys = []
@@ -80,6 +100,7 @@ const topLevelKeys = raw => {
   return i === raw.length ? keys : null
 }
 const strictObject = (raw, keys) => {
+  if (hasDuplicateObjectKeys(typeof raw === 'string' ? raw : '')) return null
   const decoded = decodedObject(raw)
   const actual = decoded && topLevelKeys(decoded.raw)
   return actual && new Set(actual).size === actual.length
@@ -98,6 +119,10 @@ const limit = Number(input.worker_limit)
 const cleanup = input.cleanup === true
 const consent = input.consent === true
 const resume = Array.isArray(input.resume) ? input.resume : []
+const runProfile = input.run_profile ?? input.runProfile ?? null
+const requestedRoleProfiles = input.role_profiles ?? input.roleProfiles ?? {}
+const roleProfiles = requestedRoleProfiles && !Array.isArray(requestedRoleProfiles)
+  && typeof requestedRoleProfiles === 'object' ? requestedRoleProfiles : {}
 const resumeKeys = ['task_id', 'worktree', 'branch', 'baseline', 'status', 'commit', 'last_result']
 const validResume = resume.every(item => exactKeys(item, resumeKeys) && tasks.includes(item.task_id)
   && absolute(item.worktree) && typeof item.branch === 'string' && item.branch && /^[0-9a-f]{40}$/.test(item.baseline)
@@ -156,6 +181,55 @@ const validPrepared = exactKeys(prepared, ['area', 'destination_branch', 'destin
 if (!validPrepared) {
   return `BLOCKER zdev-parallel ${area}\n\nReason: admission did not return exact safe assignments.\nPreserved state: inspect any reported worktrees before retrying.`
 }
+let batchProfiles = null
+if (assignments.length > 0) {
+  const first = assignments[0]
+  const flags = `${runProfile ? ` --run-profile ${String(runProfile)}` : ''}${Object.entries(roleProfiles).map(([role, profile]) => ` --role-profile ${role}=${profile}`).join('')}`
+  const raw = await agent(
+    `${repositoryGuidance}\n\nAct only as deterministic batch profile coordination in ${destinationRoot}. Run zdev config profile dispatch-spec implement --harness claude --area ${area} --task ${first.task_id} --snapshot ${first.snapshot}${flags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and configuration unchanged.`,
+    { label: `zdev ${area}: freeze parallel worker profiles`, model: 'haiku' },
+  )
+  const spec = strictObject(raw, ['schema_version', 'kind', 'harness', 'route', 'area', 'task_id', 'snapshot', 'dispatches', 'profiles', 'stop'])
+  const roles = ['routine-implementer', 'implementer', 'advanced-implementer', 'planner', 'verifier']
+  const exact = (value, keys) => value && !Array.isArray(value) && typeof value === 'object'
+    && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort())
+  const validRole = (record, role) => exact(record,
+    ['schema_version', 'profile', 'harness', 'role', 'value', 'origin', 'fallback'])
+    && record.schema_version === 1 && record.role === role && record.harness === 'claude'
+    && typeof record.profile === 'string' && record.profile
+    && ((exact(record.value, ['inherit']) && record.value.inherit === true)
+      || (exact(record.value, ['model', 'effort']) && typeof record.value.model === 'string'
+        && record.value.model && ['inherit', 'low', 'medium', 'high', 'xhigh', 'max'].includes(record.value.effort)))
+  const implementationRole = first.complexity === 'routine' ? 'routine-implementer'
+    : first.complexity === 'advanced' ? 'advanced-implementer' : 'implementer'
+  const expectedRoles = first.complexity === 'advanced'
+    ? ['planner', implementationRole, 'verifier'] : [implementationRole, 'verifier']
+  const expectedPhases = first.complexity === 'advanced'
+    ? ['implementation', 'verification', 'completion'] : ['verification', 'completion']
+  if (!exact(spec, ['schema_version', 'kind', 'harness', 'route', 'area', 'task_id', 'snapshot', 'dispatches', 'profiles', 'stop'])
+    || spec.schema_version !== 1 || spec.kind !== 'dispatch-spec' || spec.harness !== 'claude'
+    || spec.route !== 'implement' || spec.area !== area || spec.task_id !== first.task_id
+    || spec.snapshot !== first.snapshot || spec.stop !== 'completion'
+    || !exact(spec.profiles, roles) || !roles.every(role => validRole(spec.profiles[role], role))
+    || !Array.isArray(spec.dispatches)
+    || JSON.stringify(spec.dispatches.map(item => item.role)) !== JSON.stringify(expectedRoles)
+    || JSON.stringify(spec.dispatches.map(item => item.next_phase)) !== JSON.stringify(expectedPhases)
+    || spec.dispatches.some(item => !exact(item, ['role', 'profile', 'model', 'reasoning_effort', 'task_id', 'snapshot', 'next_phase'])
+      || item.task_id !== first.task_id || item.snapshot !== first.snapshot
+      || item.profile !== spec.profiles[item.role]?.profile
+      || item.model !== (spec.profiles[item.role]?.value.model ?? null)
+      || item.reasoning_effort !== (spec.profiles[item.role]?.value.effort ?? null))) {
+    return `BLOCKER zdev-parallel ${area}\n\nReason: profile resolution failed before worker dispatch.\nPreserved state: inspect admitted worktrees before retrying.`
+  }
+  batchProfiles = spec.profiles
+}
+const profiled = (role, options) => {
+  if (!batchProfiles) return options
+  const value = batchProfiles?.[role]?.value
+  if (value?.inherit === true) return options
+  return value?.effort === 'inherit' ? { ...options, model: value.model }
+    : { ...options, model: value?.model, effort: value?.effort }
+}
 
 const implementerSchema = {
   type: 'object', additionalProperties: false,
@@ -199,7 +273,7 @@ const runLane = async assignment => {
   if (assignment.complexity === 'advanced') {
     plan = parsePlanner(await agent(
       `${repositoryGuidance}\n\nPlan task ${assignment.task_id} read-only. Load authoritative snapshot ${assignment.snapshot} from ${destinationRoot}; source work will occur at ${assignment.worktree} from baseline ${assignment.baseline}. Return the semantic planner object required by the installed task-workflows contract.`,
-      { agentType: 'zdev:zdev-planner', label: `zdev ${assignment.task_id}: plan` },
+      profiled('planner', { agentType: 'zdev:zdev-planner', label: `zdev ${assignment.task_id}: plan` }),
     ))
     if (!plan || plan.verdict === 'blocker') {
       return { task_id: assignment.task_id, assignment, result: null,
@@ -210,7 +284,9 @@ const runLane = async assignment => {
     : assignment.complexity === 'advanced' ? 'zdev:zdev-advanced-implementer' : 'zdev:zdev-implementer'
   const raw = await agent(
     `${workerContract}\n\nImplement only task ${assignment.task_id} in assigned source worktree ${assignment.worktree}. Use that absolute path as cwd for every source, Git, and validation command. The authoritative checkout is ${destinationRoot}; read task record ${assignment.task_path} and snapshot ${assignment.snapshot} there. Baseline is ${assignment.baseline}; branch is ${assignment.branch}. Never edit .zdev, stage, commit, complete, integrate, or use Claude native isolation. Return the implementer envelope with task_id ${assignment.task_id}. ${plan === null ? '' : `Validated planner result: ${JSON.stringify(plan)}`}`,
-    { agentType: profile, label: `zdev ${assignment.task_id}: implement`, schema: implementerSchema },
+    profiled(assignment.complexity === 'routine' ? 'routine-implementer'
+      : assignment.complexity === 'advanced' ? 'advanced-implementer' : 'implementer',
+    { agentType: profile, label: `zdev ${assignment.task_id}: implement`, schema: implementerSchema }),
   )
   const result = parseImplementer(raw, assignment.task_id)
   return { task_id: assignment.task_id, assignment, result,
@@ -281,7 +357,7 @@ const runDestinationGate = async candidate => {
     const snapshot = admitted.snapshot
     const verification = parseVerifier(await agent(
       `${workerContract}\n\nIndependently verify parallel task ${candidate.task_id} in authoritative checkout ${destinationRoot}. Load only fresh snapshot ${snapshot} with zdev work-context ${area} --show ${snapshot} --format json and require exact task ${candidate.task_id}. Check the whole task and run required validation. Keep verification read-only and return exactly the four-key semantic verifier object.`,
-      { agentType: 'zdev:zdev-verifier', label: `zdev ${candidate.task_id}: verify destination` },
+      profiled('verifier', { agentType: 'zdev:zdev-verifier', label: `zdev ${candidate.task_id}: verify destination` }),
     ))
     const compared = strictObject(await agent(
       `Act only as deterministic verification coordination. Run zdev work-context ${area} --compare ${snapshot} --format json exactly once in ${destinationRoot} and return its JSON stdout unchanged.`,
@@ -308,7 +384,9 @@ const runDestinationGate = async candidate => {
         : candidate.assignment.complexity === 'advanced' ? 'zdev:zdev-advanced-implementer' : 'zdev:zdev-implementer'
       const corrected = parseImplementer(await agent(
         `${workerContract}\n\nCorrect every verifier finding for task ${candidate.task_id} in assigned source worktree ${candidate.assignment.worktree}. Use that absolute cwd for all source and validation commands. Reconcile against the currently integrated destination ${destinationRoot}; do not edit .zdev, integrate, complete, stage, or commit. Findings: ${JSON.stringify(verification)}`,
-        { agentType: profile, label: `zdev ${candidate.task_id}: rework`, schema: implementerSchema },
+        profiled(escalated || candidate.assignment.complexity === 'advanced' ? 'advanced-implementer'
+          : candidate.assignment.complexity === 'routine' ? 'routine-implementer' : 'implementer',
+        { agentType: profile, label: `zdev ${candidate.task_id}: rework`, schema: implementerSchema }),
       ), candidate.task_id)
       if (!validImplementer(corrected, candidate.task_id)) return preserved(candidate, 'rework returned an invalid result', verification.findings)
       implementation = corrected

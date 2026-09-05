@@ -2,7 +2,7 @@
 
 This route is selected by the exact request “plan next task with advanced
 planner.” It is read-only planning even when the selected task is routine or
-standard. Codex supports this route now. Claude Code, OpenCode, Pi, and Oh My
+standard. Codex and Claude Code support this route now. OpenCode, Pi, and Oh My
 Pi must report that scoped plan-only dispatch is not yet supported by their
 current adapter; they must not approximate it with implementation.
 
@@ -13,9 +13,11 @@ open, ready, safe context. Keep the selected task ID explicit in every later
 refresh. Closed, empty, exhausted, unsafe, ambiguous, or mismatched context
 stops without changing it.
 
-Resolve the run's concrete role settings once under **Scoped execution
-profiles**. For this step only, resolve `planner` with one-off profile
-`advanced`; retain that concrete result for a same-step retry. The task's
+After storing and validating context, run the `config profile
+dispatch-spec plan-next-task` command described by the installed skill. It
+resolves `advanced` for the planner unless a more specific authorized one-off
+planner choice was supplied. Retain the returned specification for a same-step
+retry. The task's
 authored complexity remains unchanged, and the planner choice does not become
 the run's implementation, advanced-implementation, or verifier choice.
 

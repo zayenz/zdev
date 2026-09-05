@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-019"
 key = "select-scoped-execution-profiles-in-claude"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,14 +27,22 @@ Read Selection and scope, Initial mappings, Plan-only requests, and Workflow cov
 
 ## Done when
 
-- [ ] The installed Claude skill and workflows accept and propagate shared run/role selections, retain their resolved concrete model/effort values across dispatches, and resolve the approved advanced Fable settings. Two runs with different selections do not overwrite each other's configuration, and mid-run preference edits do not change an already resolved run.
-- [ ] A plan-only request, including the exact advanced-planner wording, returns the selected task's read-only plan and then stops; subsequent implementation uses its own selected settings and the shared plan revalidation rule.
-- [ ] Implementation, required planning, verification, audits, task-draft challenge, and authorized continuation use the intended selected roles, with one-off choices ending at their specified boundary.
-- [ ] Configured model and effort reach real native dispatch controls or prepared definitions, and missing runtime capability is reported accurately through the existing fallback rather than treated as successful profile selection.
-- [ ] Existing normal role results, rework, escalation, blocker findings, and independent completion behavior remain intact, with updated canonical assets, documentation, and regenerated fixtures.
+- [x] The installed Claude skill and workflows accept and propagate shared run/role selections, retain their resolved concrete model/effort values across dispatches, and resolve the approved advanced Fable settings. Two runs with different selections do not overwrite each other's configuration, and mid-run preference edits do not change an already resolved run.
+- [x] A plan-only request, including the exact advanced-planner wording, returns the selected task's read-only plan and then stops; subsequent implementation uses its own selected settings and the shared plan revalidation rule.
+- [x] Implementation, required planning, verification, audits, task-draft challenge, and authorized continuation use the intended selected roles, with one-off choices ending at their specified boundary.
+- [x] Configured model and effort reach real native dispatch controls or prepared definitions, and missing runtime capability is reported accurately through the existing fallback rather than treated as successful profile selection.
+- [x] Existing normal role results, rework, escalation, blocker findings, and independent completion behavior remain intact, with updated canonical assets, documentation, and regenerated fixtures.
 
 ## Validation
 
 - Extend existing controlled Claude workflows to exercise Fable model/effort selection, a planner-only override with no implementation dispatch, normal work afterward, and two differing run selections.
 - Retain current planner/verifier parsing, rework, audit, loop, and fixture tests; review natural-language phase boundaries without sentence matching.
 - Run integration discovery/parity and the standard area validation without requiring live Fable access or usage credits.
+
+## Result
+
+Added Claude scoped execution profiles and plan-only work with frozen five-role dispatch maps, native model/effort controls, strict deep admission, inheritance support, retained-plan validation, and continuation/parallel propagation.
+
+Validation:
+
+- Independent verification passed from exact snapshot W0e247c66ebc28d13: 8 focused Claude simulations, all 161 tests, deep malformed/inheritance cases, generated parity, fmt, clippy with warnings denied, build, and diff check.

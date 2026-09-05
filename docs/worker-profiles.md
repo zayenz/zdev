@@ -251,12 +251,21 @@ then saved local and global defaults, then `normal`. This calls the existing
 `zdev config profile resolve` command; it does not rewrite configuration or
 reinstall an integration.
 
-The exact request “plan next task with advanced planner” is a Codex-supported
-read-only route. It selects and snapshots one ready task explicitly, resolves
-`advanced` only for that planner step, returns the validated plan and concrete
-planner settings, and stops before implementation or lifecycle and Git work.
-Claude Code, OpenCode, Pi, and Oh My Pi currently report this scoped plan-only
-route as unsupported; their adapter work follows separately.
+The exact request “plan next task with advanced planner” is supported by Codex
+and Claude Code as a read-only route. It selects and snapshots one ready task
+explicitly, resolves `advanced` only for that planner step, returns the
+validated plan and concrete planner settings, and stops before implementation
+or lifecycle and Git work. Claude's native workflow passes the resolved model
+and effort to the planner call. OpenCode, Pi, and Oh My Pi currently report
+this scoped plan-only route as unsupported; their adapter work follows
+separately.
+
+Claude's executable task workflows obtain one admitted dispatch specification
+at the start of a run. That specification contains the concrete five-role map;
+planning, implementation, rework, escalation, and independent verification use
+that frozen map even if a preference file changes later. Coordination helpers
+retain their fixed inexpensive model. A new workflow run resolves again and
+does not rewrite worker configuration or installed files.
 
 ## Implemented seam
 

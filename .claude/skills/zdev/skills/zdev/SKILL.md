@@ -178,6 +178,14 @@ harness's explicit result. Never silently substitute a worker or claim that a
 worker selection changed the coordinating conversation's model. An unknown or
 unsupported profile is a blocker before dispatch.
 
+Claude's executable workflows pass both concrete fields to the native
+`agent()` call. When those workflows are unavailable, the ordinary Agent
+fallback may use an installed prepared role definition only when its model and
+effort match the resolved row exactly. If the fallback cannot express the
+requested effort or has no exact prepared definition, report that capability
+limit and the refresh command instead of substituting another row or claiming
+selection succeeded.
+
 ## Goal and loop
 
 Inside active zdev, “goal” and “loop” are synonyms: continue one named area one

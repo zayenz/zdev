@@ -355,9 +355,9 @@ enum ProfileCommand {
         #[arg(long = "run-profile")]
         run_profile: Option<String>,
     },
-    /// Produce a read-only Codex worker dispatch sequence for one logical step
+    /// Produce a read-only worker dispatch sequence for one logical step
     DispatchSpec {
-        /// Worker harness; currently only codex is supported
+        /// Worker harness: codex or claude
         #[arg(long)]
         harness: String,
         /// Logical route: plan-next-task or implement
@@ -908,7 +908,7 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                     run_profile,
                     role_profiles,
                     retained_plan,
-                } => codex_dispatch_spec(
+                } => dispatch_spec(
                     &root,
                     CodexDispatchSpecInput {
                         route: *route,
@@ -1369,7 +1369,7 @@ fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevEr
     Ok(untracked)
 }
 
-fn codex_dispatch_spec(
+fn dispatch_spec(
     root: &Path,
     input: CodexDispatchSpecInput<'_>,
 ) -> Result<CommandOutput, ZdevError> {
@@ -1384,7 +1384,7 @@ fn codex_dispatch_spec(
         role_profiles,
         retained_plan,
     } = input;
-    if harness != "codex" {
+    if !matches!(harness, "codex" | "claude") {
         return Err(ZdevError::new(format!(
             "Dispatch specifications are not supported for harness {harness}"
         )));
@@ -1398,9 +1398,7 @@ fn codex_dispatch_spec(
             role,
             "routine-implementer" | "implementer" | "advanced-implementer" | "planner" | "verifier"
         ) {
-            return Err(ZdevError::new(format!(
-                "Unknown Codex dispatch role {role}"
-            )));
+            return Err(ZdevError::new(format!("Unknown dispatch role {role}")));
         }
         if profile.is_empty()
             || overrides
@@ -1453,7 +1451,7 @@ fn codex_dispatch_spec(
 
     let resolve = |role: &str, default_one_off: Option<&str>| -> Result<Value, ZdevError> {
         let one_off = overrides.get(role).map(String::as_str).or(default_one_off);
-        Ok(config::profile_resolve(Some(root), "codex", role, one_off, run_profile)?.value)
+        Ok(config::profile_resolve(Some(root), harness, role, one_off, run_profile)?.value)
     };
     let dispatch = |role: &str, resolved: Value, next_phase: &str| {
         json!({
@@ -1467,6 +1465,21 @@ fn codex_dispatch_spec(
         })
     };
 
+    // Resolve every role once at admission.  The concrete map is the immutable
+    // run handoff used by native adapters, including later rework/escalation.
+    let mut profiles = serde_json::Map::new();
+    for role in [
+        "routine-implementer",
+        "implementer",
+        "advanced-implementer",
+        "planner",
+        "verifier",
+    ] {
+        let plan_only_default =
+            (route == CodexDispatchRoute::PlanNextTask && role == "planner").then_some("advanced");
+        profiles.insert(role.to_owned(), resolve(role, plan_only_default)?);
+    }
+
     let (dispatches, stop) = match route {
         CodexDispatchRoute::PlanNextTask => {
             if retained_plan != RetainedPlan::None || plan_snapshot.is_some() {
@@ -1477,7 +1490,7 @@ fn codex_dispatch_spec(
             (
                 vec![dispatch(
                     "planner",
-                    resolve("planner", Some("advanced"))?,
+                    profiles["planner"].clone(),
                     "plan-only-stop",
                 )],
                 "plan-only",
@@ -1525,18 +1538,18 @@ fn codex_dispatch_spec(
             if complexity == "advanced" && retained_plan != RetainedPlan::Applicable {
                 sequence.push(dispatch(
                     "planner",
-                    resolve("planner", None)?,
+                    profiles["planner"].clone(),
                     "implementation",
                 ));
             }
             sequence.push(dispatch(
                 implementation_role,
-                resolve(implementation_role, None)?,
+                profiles[implementation_role].clone(),
                 "verification",
             ));
             sequence.push(dispatch(
                 "verifier",
-                resolve("verifier", None)?,
+                profiles["verifier"].clone(),
                 "completion",
             ));
             (sequence, "completion")
@@ -1544,12 +1557,14 @@ fn codex_dispatch_spec(
     };
     let value = json!({
         "schema_version": SCHEMA_VERSION,
-        "kind": "codex-dispatch-spec",
+        "kind": "dispatch-spec",
+        "harness": harness,
         "route": match route { CodexDispatchRoute::PlanNextTask => "plan-next-task", CodexDispatchRoute::Implement => "implement" },
         "area": area,
         "task_id": task,
         "snapshot": snapshot,
         "dispatches": dispatches,
+        "profiles": profiles,
         "stop": stop,
     });
     Ok(CommandOutput::new(

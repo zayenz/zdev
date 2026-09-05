@@ -7077,8 +7077,10 @@ fn claude_task_workflows_extract_one_valid_structured_envelope() {
     let implement = include_str!("../templates/zdev/claude/workflows/zdev-implement.js");
     let verify = include_str!("../templates/zdev/claude/workflows/zdev-verify.js");
 
-    let parser_start = implement
-        .find("const decodeJsonObject")
+    let parser_start = ["const decodeJsonObject", "const hasDuplicateObjectKeys"]
+        .into_iter()
+        .filter_map(|marker| implement.find(marker))
+        .min()
         .expect("parser start");
     let parser_end = implement
         .find("const workerResultKeys")
@@ -7110,8 +7112,10 @@ if (parseStoredContext(closed, area, {{ taskId: 'general-001', head, complexity:
     );
 
     for workflow in [implement, verify] {
-        let worker_start = workflow
-            .find("const decodeJsonObject")
+        let worker_start = ["const decodeJsonObject", "const hasDuplicateObjectKeys"]
+            .into_iter()
+            .filter_map(|marker| workflow.find(marker))
+            .min()
             .expect("worker parser start");
         let worker_end = ["\nconst derivedSplitFrom", "\n\nif (!/^[a-z0-9]"]
             .into_iter()
@@ -7196,6 +7200,14 @@ const snapshot = 'W0123456789abcdef'
 const stored = JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: task,
   complexity: 'standard', stale_advisory: false, head, snapshot, path: '.git/zdev/work-context/work/' + snapshot + '.json' }})
 const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot, equal }})
+const verifierProfiles = Object.fromEntries(['routine-implementer', 'implementer', 'advanced-implementer', 'planner', 'verifier']
+  .map(role => [role, {{ schema_version: 1, profile: 'advanced', harness: 'claude', role,
+    value: {{ model: 'claude-fable-5-1', effort: role === 'advanced-implementer' || role === 'planner' ? 'xhigh' : 'high' }}, origin: {{}}, fallback: null }}]))
+const dispatch = JSON.stringify({{ schema_version: 1, kind: 'dispatch-spec', harness: 'claude',
+  route: 'implement', area, task_id: task, snapshot, dispatches: [
+    {{ role: 'implementer', profile: 'advanced', model: 'claude-fable-5-1', reasoning_effort: 'high', task_id: task, snapshot, next_phase: 'verification' }},
+    {{ role: 'verifier', profile: 'advanced', model: 'claude-fable-5-1', reasoning_effort: 'high', task_id: task, snapshot, next_phase: 'completion' }},
+  ], profiles: verifierProfiles, stop: 'completion' }})
 const worker = (verdict, findings = [], escalation = 'none') => JSON.stringify({{
   verdict,
   summary: verdict === 'pass' ? 'Checked task and validation.' : 'Correction required.',
@@ -7207,13 +7219,16 @@ const exercise = async (response, equal = true, invocation = {{ area, task_id: t
     prompts.push({{ prompt, options }})
     if (options.agentType) return response
     if (options.label === 'zdev ' + task + ': capture verification snapshot') return storedResponse
+    if (options.label === 'zdev ' + task + ': freeze verifier profile') return dispatch
     if (options.label === 'zdev ' + task + ': confirm verifier left snapshot unchanged') return comparedResponse
     throw new Error('unexpected coordination call: ' + options.label)
   }})
   return {{ result, prompts }}
 }}
 const valid = await exercise(worker('pass'))
-if (valid.prompts.length !== 3) throw new Error('explicit verify did not use three Claude calls')
+if (valid.prompts.length !== 4) throw new Error('explicit verify did not use four Claude calls')
+const nativeVerifier = valid.prompts.find(call => call.options.agentType)
+if (nativeVerifier.options.model !== 'claude-fable-5-1' || nativeVerifier.options.effort !== 'high') throw new Error('verifier lacked exact native profile')
 for (const call of valid.prompts.filter(call => !call.options.agentType)) {{
   if (call.options.model !== 'haiku') throw new Error('deterministic verification coordination did not use Haiku')
 }}
@@ -7326,6 +7341,25 @@ const verificationContext = (complexity, overrides = {{}}) => {{
   return compactContext(complexity, verificationSnapshot, overrides)
 }}
 const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal }})
+const dispatchSpec = (complexity, planOnly = false) => JSON.stringify({{
+  schema_version: 1, kind: 'dispatch-spec', harness: 'claude', route: planOnly ? 'plan-next-task' : 'implement', area,
+  task_id: taskId, snapshot: baselineSnapshot, stop: planOnly ? 'plan-only' : 'completion',
+  dispatches: planOnly
+    ? [{{ role: 'planner', profile: 'advanced', model: 'claude-fable-5-1', reasoning_effort: 'xhigh', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'plan-only-stop' }}]
+    : [...(complexity === 'advanced' ? [{{ role: 'planner', profile: 'normal', model: 'claude-opus-5', reasoning_effort: 'high', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'implementation' }}] : []),
+      {{ role: complexity === 'routine' ? 'routine-implementer' : complexity === 'advanced' ? 'advanced-implementer' : 'implementer', profile: 'normal', model: complexity === 'routine' ? 'haiku' : 'claude-opus-5', reasoning_effort: complexity === 'advanced' ? 'high' : complexity === 'routine' ? 'low' : 'low', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'verification' }},
+      {{ role: 'verifier', profile: 'normal', model: 'claude-opus-5', reasoning_effort: 'low', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'completion' }}],
+  profiles: Object.fromEntries([
+    ['routine-implementer', 'haiku', 'low'],
+    ['implementer', 'claude-opus-5', 'low'],
+    ['advanced-implementer', 'claude-opus-5', 'high'],
+    ['planner', 'claude-opus-5', 'high'],
+    ['verifier', 'claude-opus-5', 'low'],
+  ].map(([role, model, effort]) => [role, {{ schema_version: 1,
+    profile: planOnly && role === 'planner' ? 'advanced' : 'normal', role, harness: 'claude',
+    value: planOnly && role === 'planner' ? {{ model: 'claude-fable-5-1', effort: 'xhigh' }} : {{ model, effort }},
+    origin: {{}}, fallback: null }}])),
+}})
 const passEvidence = [
   'work_context_snapshot: W0123456789abcdef',
 ]
@@ -7356,6 +7390,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     }}
     if (options.label.includes('complete and commit')) return completion
     if (options.label === 'zdev work: select ready task') return storedContext(complexity)
+    if (options.label.includes('freeze worker profiles')) return dispatchSpec(complexity, invocation.plan_only === true)
     if (options.label.includes('capture verification snapshot')) return verificationContext(complexity, verificationOverrides)
     if (options.label.includes('confirm verifier')) return comparison(compareEquals.length ? compareEquals.shift() : true)
     if (options.label.includes('compare implementation blocker progress')) return comparison(true)
@@ -7374,6 +7409,10 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   const verifierPrompts = calls.filter(call => call.options.agentType === 'zdev:zdev-verifier').map(call => call.prompt)
   for (const call of calls.filter(call => call.options.agentType)) {{
     if (call.prompt.includes('workflow contract')) throw new Error(name + ': full workflow contract was injected')
+  }}
+  for (const call of calls.filter(call => call.options.agentType)) {{
+    if (typeof call.options.model !== 'string' || typeof call.options.effort !== 'string')
+      throw new Error(name + ': worker lacked native model/effort: ' + call.options.label)
   }}
   const plannerCalls = calls.filter(call => call.options.agentType === 'zdev:zdev-planner')
   if (plannerCalls.length > 1) throw new Error(name + ': planner dispatched more than once')
@@ -7416,9 +7455,31 @@ const routinePass = await exercise(
   [worker('implementer', 'ready', 'none', ['routine locator']), worker('verifier', 'pass', 'none', passEvidence)],
   ['zdev:zdev-routine-implementer', 'zdev:zdev-verifier'],
 )
-if (routinePass.calls.length !== 6) throw new Error('ordinary PASS did not use six Claude calls')
+if (routinePass.calls.length !== 7) throw new Error('ordinary PASS did not use seven Claude calls')
 if (routinePass.calls.some(call => call.options.label === 'zdev pre-verification refresh')) throw new Error('redundant pre-verification refresh retained')
 if (!routinePass.verifierPrompts[0].includes('routine locator')) throw new Error('initial verifier lost implementation locator')
+const planOnlyCalls = []
+const planOnlyResult = await run({{ area, plan_only: true }}, async (prompt, options) => {{
+  planOnlyCalls.push({{ prompt, options }})
+  if (options.label === 'zdev work: select ready task') return storedContext('standard')
+  if (options.label.includes('freeze worker profiles')) return dispatchSpec('standard', true)
+  if (options.agentType === 'zdev:zdev-planner') return structuredPlanner('plan', semanticPlan())
+  throw new Error('plan-only unexpected call: ' + options.label)
+}})
+if (planOnlyCalls.length !== 3 || planOnlyCalls.filter(call => call.options.agentType).length !== 1)
+  throw new Error('plan-only did not stop after one fresh planner')
+const planOnly = JSON.parse(planOnlyResult)
+if (planOnly.task_id !== taskId || planOnly.model !== 'claude-fable-5-1' || planOnly.effort !== 'xhigh'
+  || planOnly.verdict !== 'plan') throw new Error('plan-only lost result or exact Fable controls')
+let malformedProfileWorkers = 0
+const malformedProfileResult = await run({{ area }}, async (_prompt, options) => {{
+  if (options.label === 'zdev work: select ready task') return storedContext('standard')
+  if (options.label.includes('freeze worker profiles')) return JSON.stringify({{ kind: 'dispatch-spec', profiles: {{}} }})
+  if (options.agentType) malformedProfileWorkers += 1
+  throw new Error('malformed profile reached another call')
+}})
+if (malformedProfileWorkers !== 0 || !malformedProfileResult.includes('Failed stage: profile selection'))
+  throw new Error('malformed profile map reached a worker')
 await exercise(
   'standard pass',
   'standard',
@@ -7491,7 +7552,7 @@ const ordinaryRework = await exercise(
   ],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
 )
-if (ordinaryRework.calls.length !== 11) throw new Error('one REWORK did not use eleven Claude calls')
+if (ordinaryRework.calls.length !== 12) throw new Error('one REWORK did not use twelve Claude calls')
 if (ordinaryRework.calls.some(call => call.options.label === 'zdev post-rework verification refresh')) throw new Error('redundant post-rework verification refresh retained')
 if (!ordinaryRework.verifierPrompts[0].includes('initial locator')) throw new Error('first verifier lost initial locator')
 if (!ordinaryRework.verifierPrompts[1].includes('rework locator') || ordinaryRework.verifierPrompts[1].includes('initial locator')) throw new Error('second verifier did not receive only latest locator')
@@ -7893,6 +7954,23 @@ const empty = contextHead => JSON.stringify({{
   path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})
 const passEvidence = _contextHead => ['work_context_snapshot: W0123456789abcdef']
+const dispatchSpec = context => {{
+  const current = JSON.parse(context)
+  const profiles = Object.fromEntries([
+    ['routine-implementer', 'haiku', 'low'], ['implementer', 'claude-opus-5', 'low'],
+    ['advanced-implementer', 'claude-opus-5', 'high'], ['planner', 'claude-opus-5', 'high'],
+    ['verifier', 'claude-opus-5', 'low'],
+  ].map(([role, model, effort]) => [role, {{ schema_version: 1, profile: 'normal', role, harness: 'claude', value: {{ model, effort }}, origin: {{}}, fallback: null }}]))
+  const role = current.complexity === 'routine' ? 'routine-implementer'
+    : current.complexity === 'advanced' ? 'advanced-implementer' : 'implementer'
+  const dispatch = (role, next_phase) => ({{ role, profile: profiles[role].profile,
+    model: profiles[role].value.model, reasoning_effort: profiles[role].value.effort,
+    task_id: current.task_id, snapshot: current.snapshot, next_phase }})
+  return JSON.stringify({{ schema_version: 1, kind: 'dispatch-spec', harness: 'claude', route: 'implement',
+    area, task_id: current.task_id, snapshot: current.snapshot, profiles,
+    dispatches: [...(current.complexity === 'advanced' ? [dispatch('planner', 'implementation')] : []),
+      dispatch(role, 'verification'), dispatch('verifier', 'completion')], stop: 'completion' }})
+}}
 const completionPass = task =>
   'Completion finished.\nPASS zdev-implement ' + area + ' ' + task
   + '\n\nArea: ' + area + '\nTask: ' + task
@@ -7928,6 +8006,8 @@ const exercise = async (name, contexts, workers, completions, expectedPrefix, de
     if (options.label.includes('confirm verifier')) {{
       return JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal: true }})
     }}
+    if (options.label.includes('freeze loop worker profiles')) return dispatchSpec(lastContext)
+    if (options.label.includes('freeze worker profiles')) return dispatchSpec(lastContext)
     if (options.agentType) {{
       if (workers.length === 0) throw new Error(name + ': unexpected worker')
       return workers.shift()
@@ -7961,6 +8041,8 @@ const twoTask = await exercise(
 )
 if (!twoTask.result.includes('Tasks completed: work-001, work-002')) throw new Error(twoTask.result)
 if (!twoTask.result.includes('Lifecycle: closed\nQueue: empty')) throw new Error(twoTask.result)
+if (twoTask.calls.filter(call => call.label.includes('freeze loop worker profiles')).length !== 1)
+  throw new Error('loop did not freeze one profile map across both tasks')
 for (const call of twoTask.calls.filter(call => call.type === null
   && !call.label.includes('complete and commit'))) {{
   if (call.model !== 'haiku') throw new Error('loop deterministic coordination did not use Haiku: ' + call.label)
@@ -7969,6 +8051,15 @@ for (const call of twoTask.calls.filter(call => call.type === null
 const noWork = await exercise('closed no-work', [closed], [], [], 'PASS', [], 'work')
 if (noWork.calls.length !== 1 || noWork.calls[0].label !== 'zdev work: select next task') throw new Error(JSON.stringify(noWork.calls))
 await exercise('closed no-work array args', [closed], [], [], 'PASS', [], ['work'])
+let malformedLoopWorkers = 0
+const malformedLoop = await run({{ area }}, async (_prompt, options) => {{
+  if (options.label === 'zdev work: select next task') return ready('work-001')
+  if (options.label.includes('freeze loop worker profiles')) return JSON.stringify({{ kind: 'dispatch-spec', profiles: {{}} }})
+  if (options.agentType) malformedLoopWorkers += 1
+  throw new Error('malformed loop profile reached another call')
+}})
+if (malformedLoopWorkers !== 0 || !malformedLoop.includes('Failed stage: profile selection'))
+  throw new Error('malformed loop profile map reached a worker')
 
 const focused = await exercise(
   'fuzzy focus selection',
@@ -7983,6 +8074,8 @@ const focused = await exercise(
     JSON.stringify({{ task_id: null, ready: [], reason: 'frontier empty' }}),
   ],
 )
+if (focused.calls.filter(call => call.label.includes('freeze loop worker profiles')).length !== 1)
+  throw new Error('later independent loop did not resolve a fresh profile map')
 const selectorPrompt = focused.calls.find(call => call.label.includes('choose from ready frontier'))?.prompt ?? ''
 if (!selectorPrompt.includes('zdev task show work <task-id>') || !selectorPrompt.includes('If any ready task has afk true') || !focused.result.includes('Focus: focus on database cleanup')) throw new Error(focused.result)
 
@@ -8208,14 +8301,36 @@ async function run(args, agent, pipeline) {{
 {source}
 }}
 const publicResult = 'PASS zdev-audit\n\nBoundary: src\nInspected: src\nOmitted: none\nChecked evidence: cargo test'
+const profile = JSON.stringify({{ schema_version: 1, profile: 'advanced', harness: 'claude', role: 'verifier',
+  value: {{ model: 'claude-fable-5-1', effort: 'high' }}, origin: {{}}, fallback: null }})
 const defaultCalls = []
 const defaultResult = await run(
   'src',
-  async (_prompt, options) => {{ defaultCalls.push(options.label); return publicResult }},
+  async (_prompt, options) => {{ defaultCalls.push(options.label); return options.label.includes('freeze verifier') ? profile : publicResult }},
   async () => {{ throw new Error('default audit used pipeline') }},
 )
 if (defaultResult !== publicResult) throw new Error('default result changed')
-if (JSON.stringify(defaultCalls) !== JSON.stringify(['audit checking verifier'])) throw new Error(`default calls: ${{JSON.stringify(defaultCalls)}}`)
+if (JSON.stringify(defaultCalls) !== JSON.stringify(['audit: freeze verifier profile', 'audit checking verifier'])) throw new Error(`default calls: ${{JSON.stringify(defaultCalls)}}`)
+for (const [value, expectedModel] of [[{{ inherit: true }}, null], [{{ model: 'claude-fable-5-1', effort: 'inherit' }}, 'claude-fable-5-1']]) {{
+  const inheritedProfile = JSON.stringify({{ schema_version: 1, profile: 'saved', harness: 'claude', role: 'verifier',
+    value, origin: {{}}, fallback: null }})
+  let workerOptions = null
+  const inherited = await run('src', async (_prompt, options) => {{
+    if (options.label.includes('freeze verifier')) return inheritedProfile
+    workerOptions = options
+    return publicResult
+  }}, async () => {{ throw new Error('inherited audit used pipeline') }})
+  if (inherited !== publicResult || (workerOptions.model ?? null) !== expectedModel
+    || Object.hasOwn(workerOptions, 'effort')) throw new Error('inherit profile did not omit native controls exactly')
+}}
+let duplicateProfileWorkers = 0
+const duplicateProfile = await run('src', async (_prompt, options) => {{
+  if (options.label.includes('freeze verifier')) return '{{"schema_version":1,"profile":"saved","harness":"claude","role":"verifier","value":{{"model":"claude-fable-5-1","effort":"high","effort":"low"}},"origin":{{}},"fallback":null}}'
+  duplicateProfileWorkers += 1
+  return publicResult
+}}, async () => {{ throw new Error('duplicate profile used pipeline') }})
+if (duplicateProfileWorkers !== 0 || !duplicateProfile.includes('Failed stage: profile selection'))
+  throw new Error('nested duplicate profile reached audit worker')
 
 const boundedCalls = []
 const boundedPrompts = []
@@ -8224,12 +8339,13 @@ const boundedResult = await run(
   async (prompt, options) => {{
     boundedCalls.push(options.label)
     boundedPrompts.push(prompt)
+    if (options.label.includes('freeze verifier')) return profile
     return options.label === 'audit evidence vetter' ? publicResult : `candidate from ${{options.label}}`
   }},
   async (scopes, dispatch) => Promise.all(scopes.map(dispatch)),
 )
 if (boundedResult !== publicResult) throw new Error('bounded result changed')
-if (boundedCalls.length !== 5 || boundedCalls.filter(label => label === 'audit evidence vetter').length !== 1) throw new Error(`bounded calls: ${{JSON.stringify(boundedCalls)}}`)
+if (boundedCalls.length !== 6 || boundedCalls.filter(label => label === 'audit evidence vetter').length !== 1) throw new Error(`bounded calls: ${{JSON.stringify(boundedCalls)}}`)
 const vetterPrompt = boundedPrompts.at(-1) ?? ''
 for (const lens of ['api', 'tests', 'safety', 'usability']) {{
   if (!vetterPrompt.includes('Lens: ' + lens)) throw new Error('unlabeled lens: ' + lens)
@@ -8238,7 +8354,7 @@ if (!vetterPrompt.includes('repository guidance')) throw new Error('repository g
 
 const incompleteResult = await run(
   {{ boundary: 'src', lenses: ['api', 'tests'] }},
-  async () => 'candidate',
+  async (_prompt, options) => options.label.includes('freeze verifier') ? profile : 'candidate',
   async (scopes, dispatch) => [await dispatch(scopes[0])],
 )
 if (!incompleteResult.startsWith('BLOCKER zdev-audit\n') || !incompleteResult.includes('every requested lens must return a non-empty result')) throw new Error(incompleteResult)
@@ -8864,6 +8980,23 @@ const baseline = '1'.repeat(40)
 const assignment = (task_id, index) => ({{ task_id, worktree: '/tmp/' + task_id,
   branch: 'zdev/' + task_id, baseline, snapshot: 'W' + String(index).repeat(16),
   complexity: 'standard', task_path: '.zdev/work/tasks/' + task_id + '.md' }})
+const parallelProfiles = Object.fromEntries([
+  ['routine-implementer', 'haiku', 'low'], ['implementer', 'claude-opus-5', 'low'],
+  ['advanced-implementer', 'claude-opus-5', 'high'], ['planner', 'claude-opus-5', 'high'],
+  ['verifier', 'claude-opus-5', 'low'],
+].map(([role, model, effort]) => [role, {{ schema_version: 1, profile: 'normal', harness: 'claude', role,
+  value: {{ model, effort }}, origin: {{}}, fallback: null }}]))
+const parallelDispatch = first => {{
+  const role = first.complexity === 'routine' ? 'routine-implementer'
+    : first.complexity === 'advanced' ? 'advanced-implementer' : 'implementer'
+  const dispatch = (role, next_phase) => ({{ role, profile: parallelProfiles[role].profile,
+    model: parallelProfiles[role].value.model, reasoning_effort: parallelProfiles[role].value.effort,
+    task_id: first.task_id, snapshot: first.snapshot, next_phase }})
+  return {{ schema_version: 1, kind: 'dispatch-spec', harness: 'claude', route: 'implement',
+    area: 'work', task_id: first.task_id, snapshot: first.snapshot,
+    dispatches: [...(first.complexity === 'advanced' ? [dispatch('planner', 'implementation')] : []),
+      dispatch(role, 'verification'), dispatch('verifier', 'completion')], profiles: parallelProfiles, stop: 'completion' }}
+}}
 let duplicateAdmissionWorkers = 0
 const duplicateAdmission = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
   destination_branch: 'main', worker_limit: 2, cleanup: false, consent: true }}, async (_prompt, options) => {{
@@ -8872,6 +9005,16 @@ const duplicateAdmission = await run({{ area: 'work', task_ids: ['work-001', 'wo
   throw new Error('duplicate admission reached source worker')
 }})
 if (!duplicateAdmission.startsWith('BLOCKER zdev-parallel work') || duplicateAdmissionWorkers !== 0) throw new Error('duplicate admission accepted')
+let malformedProfileWorkers = 0
+const malformedProfile = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
+  destination_branch: 'main', worker_limit: 2, cleanup: false, consent: true }}, async (_prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main', destination_root: '/repo', assignments: [assignment('work-001', 1), assignment('work-002', 2)] }}
+  if (options.label.includes('freeze parallel worker profiles')) return {{ kind: 'dispatch-spec', profiles: {{}} }}
+  if (options.agentType) malformedProfileWorkers += 1
+  throw new Error('malformed parallel profile reached another call')
+}})
+if (malformedProfileWorkers !== 0 || !malformedProfile.includes('profile resolution failed before worker dispatch'))
+  throw new Error('malformed parallel profile map reached a worker')
 let activeWorkers = 0
 let maximumWorkers = 0
 let activeGate = 0
@@ -8882,6 +9025,7 @@ let integratedWhileWorkerActive = false
 const agent = async (prompt, options) => {{
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
     destination_root: '/repo', assignments: ids.map(assignment) }}
+  if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch(assignment('work-001', 0))
   const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
   if (options.agentType && options.agentType.includes('implementer')) {{
     activeWorkers += 1
@@ -8921,6 +9065,7 @@ const stopped = await run({{ area: 'work', task_ids: ids, destination_root: '/re
   destination_branch: 'main', worker_limit: 2, cleanup: true, consent: true }}, async (prompt, options) => {{
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
     destination_root: '/repo', assignments: ids.map(assignment) }}
+  if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch(assignment('work-001', 0))
   const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
   if (options.agentType && options.agentType.includes('implementer')) {{
     if (task === 'work-001') throw new Error('cancelled')
@@ -8953,6 +9098,7 @@ for (const [name, plannerResult, expected] of plannerCases) {{
     destination_branch: 'main', worker_limit: 1, cleanup: false, consent: true }}, async (prompt, options) => {{
     if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main', destination_root: '/repo',
       assignments: [{{ ...assignment('work-001', 1), complexity: 'advanced' }}, {{ ...assignment('work-002', 2), complexity: 'standard' }}] }}
+    if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch({{ ...assignment('work-001', 1), complexity: 'advanced' }})
     if (options.agentType === 'zdev:zdev-planner') return plannerResult
     if (options.agentType && options.agentType.includes('implementer')) {{ advancedImplementers += 1; throw new Error('planner failure reached mutation') }}
     throw new Error('unexpected planner call ' + options.label)
@@ -8967,6 +9113,7 @@ await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root:
   worker_limit: 1, cleanup: false, consent: true }}, async (prompt, options) => {{
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main', destination_root: '/repo',
     assignments: [{{ ...assignment('work-001', 1), complexity: 'advanced' }}, assignment('work-002', 2)] }}
+  if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch({{ ...assignment('work-001', 1), complexity: 'advanced' }})
   if (options.agentType === 'zdev:zdev-planner') return {{ verdict: 'plan', summary: 'ok',
     plan: {{ approach: 'edit', paths: ['/repo/src/lib.rs'], validation: ['cargo test'] }}, findings: [] }}
   if (options.agentType && options.agentType.includes('implementer')) {{ absolutePlannerReachedImplementer = true; throw new Error('stop after accepted absolute plan') }}
@@ -8982,6 +9129,7 @@ for (const mode of boundaryModes) {{
     destination_branch: 'main', worker_limit: 1, cleanup: false, consent: true }}, async (prompt, options) => {{
     if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main', destination_root: '/repo',
       assignments: [assignment('work-001', 1), assignment('work-002', 2)] }}
+    if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch(assignment('work-001', 1))
     if (options.agentType && options.agentType.includes('implementer')) return mode === 'implementer duplicate'
       ? '{{"schema_version":1,"kind":"implementer","area":"work","task_id":"work-001","verdict":"ready","summary":"ok","summary":"duplicate","evidence":[],"findings":[],"escalation":"none"}}'
       : {{ schema_version: 1, kind: 'implementer', area: 'work', task_id: 'work-001', verdict: 'ready', summary: 'ok', evidence: [], findings: [], escalation: 'none' }}
@@ -9019,6 +9167,7 @@ const recoveredResult = await run({{ area: 'work', task_ids: ['work-001', 'work-
     if (!recoveredFirst || !prompt.includes('verified; completion pending')) throw new Error('recovery context or ordering lost')
     return {{ area: 'work', destination_branch: 'main', destination_root: '/repo', assignments: [assignment('work-002', 2)] }}
   }}
+  if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch(assignment('work-002', 2))
   const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
   if (options.agentType && options.agentType.includes('implementer')) {{ recoveredImplemented.push(task); return {{ schema_version: 1,
     kind: 'implementer', area: 'work', task_id: task, verdict: 'ready', summary: 'ok', evidence: [], findings: [], escalation: 'none' }} }}
@@ -12512,6 +12661,82 @@ fn codex_run_freezes_concrete_profiles_and_one_off_role_choices_expire() {
         &environment,
     );
     assert_eq!(expired["dispatches"][0]["profile"], "normal");
+}
+
+#[test]
+fn claude_dispatch_spec_freezes_fable_and_custom_role_profiles_without_writes() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    import_one_task(root, "work");
+    let context = json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    let snapshot = context["snapshot"].as_str().expect("snapshot");
+    let before = fs::read(root.join(".zdev/config.toml")).expect("config");
+    let spec = json_output(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "claude",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            snapshot,
+            "--run-profile",
+            "advanced",
+        ],
+    );
+    assert_eq!(spec["kind"], "dispatch-spec");
+    assert_eq!(spec["harness"], "claude");
+    assert_eq!(
+        spec["profiles"]["implementer"]["value"]["model"],
+        "claude-fable-5-1"
+    );
+    assert_eq!(spec["profiles"]["implementer"]["value"]["effort"], "high");
+    assert_eq!(
+        spec["profiles"]["advanced-implementer"]["value"]["effort"],
+        "xhigh"
+    );
+    assert_eq!(spec["profiles"]["verifier"]["value"]["effort"], "high");
+    assert_eq!(
+        fs::read(root.join(".zdev/config.toml")).expect("unchanged config"),
+        before
+    );
+
+    let plan = json_output(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "plan-next-task",
+            "--harness",
+            "claude",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            snapshot,
+            "--role-profile",
+            "planner=advanced",
+        ],
+    );
+    assert_eq!(plan["dispatches"].as_array().unwrap().len(), 1);
+    assert_eq!(plan["dispatches"][0]["model"], "claude-fable-5-1");
+    assert_eq!(plan["dispatches"][0]["reasoning_effort"], "xhigh");
+    assert_eq!(plan["stop"], "plan-only");
 }
 
 #[test]

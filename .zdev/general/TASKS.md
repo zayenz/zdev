@@ -2,9 +2,9 @@
 
 # Tasks: general
 
-- Total: 10
-- Ready: 4
-- Blocked: 0
+- Total: 16
+- Ready: 5
+- Blocked: 5
 - Done: 6
 
 | ID | Task | State | Blocked by |
@@ -19,3 +19,9 @@
 | [general-008](tasks/008-let-coordination-resolve-routine-technical-scope-adjustments.md) | Let coordination resolve routine technical scope adjustments | ready | — |
 | [general-009](tasks/009-resolve-actionable-claude-blockers-and-preserve-their-detail.md) | Resolve actionable Claude blockers and preserve their details | ready | — |
 | [general-010](tasks/010-integrate-plain-prose-and-agent-focused-task-writing.md) | Integrate plain prose and agent-focused task writing | ready | — |
+| [general-011](tasks/011-implement-and-complete-one-task-through-an-explicitly-chosen.md) | Implement and complete one task through an explicitly chosen worktree | ready | — |
+| [general-012](tasks/012-run-an-approved-parallel-task-batch-in-codex.md) | Run an approved parallel task batch in Codex | blocked | general-011 |
+| [general-013](tasks/013-support-the-shared-parallel-task-route-in-claude-code.md) | Support the shared parallel task route in Claude Code | blocked | general-012 |
+| [general-014](tasks/014-support-the-shared-parallel-task-route-in-pi.md) | Support the shared parallel task route in Pi | blocked | general-012 |
+| [general-015](tasks/015-support-the-shared-parallel-task-route-in-opencode.md) | Support the shared parallel task route in OpenCode | blocked | general-012 |
+| [general-016](tasks/016-support-the-shared-parallel-task-route-in-oh-my-pi.md) | Support the shared parallel task route in Oh My Pi | blocked | general-012 |

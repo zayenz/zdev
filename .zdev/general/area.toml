@@ -2,6 +2,5 @@ schema_version = 1
 tag = "general"
 title = "General work"
 objective = "Keep concrete one-off improvements as reviewed tasks."
-branch = "general"
+mode = "trunk"
 lifecycle = "open"
-base_commit = "362b08d121180f936b27c70e1ca216581b836eaf"

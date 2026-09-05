@@ -107,6 +107,8 @@ const OPENCODE_VERIFY_COMMAND: &str =
     include_str!("../templates/zdev/opencode/commands/zdev-verify.md");
 const OPENCODE_AUDIT_COMMAND: &str =
     include_str!("../templates/zdev/opencode/commands/zdev-audit.md");
+const OPENCODE_PARALLEL_COMMAND: &str =
+    include_str!("../templates/zdev/opencode/commands/zdev-parallel.md");
 const PI_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/pi-skill.md");
 const PI_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-implement.md");
 const PI_VERIFY_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-verify.md");
@@ -342,6 +344,10 @@ impl Harness {
                     IntegrationFile {
                         path: "commands/zdev-audit.md".to_owned(),
                         content: OPENCODE_AUDIT_COMMAND.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "commands/zdev-parallel.md".to_owned(),
+                        content: OPENCODE_PARALLEL_COMMAND.to_owned(),
                     },
                     IntegrationFile {
                         path: "commands/zdev-loop.md".to_owned(),

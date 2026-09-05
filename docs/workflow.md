@@ -245,8 +245,10 @@ final zdev commit remain destination-only.
 An explicit **Parallel** interaction may overlap one finite, user-approved
 batch of compatible ready tasks in separate assigned worktrees. The user also
 chooses the destination, total delegated-role limit, and cleanup preference.
-Codex, Claude Code, and Pi support this route; OpenCode and Oh My Pi currently
-explain that parallel execution is unsupported and offer sequential Implement.
+Codex, Claude Code, and Pi support this route. OpenCode checks its visible Task
+surface before mutation, then offers sequential Implement because current
+foreground batches do not return coordinator control per completed child.
+Oh My Pi also offers sequential Implement.
 Parallel workers may overlap, but destination integration,
 independent verification, task completion, and zdev commits remain serial.
 

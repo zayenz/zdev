@@ -6,7 +6,7 @@ goal, loop, or ordinary Implement request does not select it.
 
 ## Unsupported adapter
 
-This installed harness adapter does not yet support zdev's parallel execution
-contract. Do not dispatch concurrent task implementations or create batch
-worktrees. Explain that this adapter's dependent parallel task has not landed
+This installed harness adapter does not support zdev's parallel execution
+contract with its current native worker controls. Do not dispatch concurrent
+task implementations or create batch worktrees. Explain the missing control
 and offer ordinary sequential **Implement** for the requested tasks.

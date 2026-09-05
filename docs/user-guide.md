@@ -494,6 +494,9 @@ OpenCode installs one skill plus agents and route commands under `.opencode`.
 Asking zdev to loop or set a goal completes at most one task and returns `CONTINUE` only
 after a verified commit when ready work remains. OpenCode discovers project
 skills when started from a subdirectory in the worktree.
+Its explicit parallel command checks the current Task surface before mutation.
+Foreground batches do not return coordinator control per completed child, so
+the command creates no task worktrees and offers sequential implementation.
 
 ### Pi
 

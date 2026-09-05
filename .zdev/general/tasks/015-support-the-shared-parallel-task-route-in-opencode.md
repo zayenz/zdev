@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-015"
 key = "run-parallel-tasks-in-opencode"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,14 +27,22 @@ Read Harness adaptation, User choices, Admission and isolation, Stops and recove
 
 ## Done when
 
-- [ ] The installed OpenCode command and root skill discover and route an explicit parallel request through the shared approval and readiness checks.
-- [ ] Two independent implementations can run concurrently against distinct source trees, with explicit task identity and the agreed role limit.
-- [ ] Coordination receives and attributes each result, performs serial integrated verification and completion, and preserves sibling work through task-local failure or interruption.
-- [ ] The documented recovery path revalidates retained work, while unavailable runtime support gives a clear sequential option before mutation.
-- [ ] Canonical commands, role handoffs, registration, user guidance, and regenerated fixtures agree with the supported native calls.
+- [x] The installed OpenCode command and root skill discover and route an explicit parallel request through the shared approval and readiness checks.
+- [x] Two independent implementations can run concurrently against distinct source trees, with explicit task identity and the agreed role limit.
+- [x] Coordination receives and attributes each result, performs serial integrated verification and completion, and preserves sibling work through task-local failure or interruption.
+- [x] The documented recovery path revalidates retained work, while unavailable runtime support gives a clear sequential option before mutation.
+- [x] Canonical commands, role handoffs, registration, user guidance, and regenerated fixtures agree with the supported native calls.
 
 ## Validation
 
 - Review actual tool schemas and rendered payloads for directory routing, simultaneous dispatch, result identity, consent, and cancellation; use a generic controlled-worker smoke scenario for the complete route.
 - Add focused tests for any executable adapter logic introduced; otherwise use existing handoff/discovery/parity checks and scenario review rather than prose-locking tests.
 - Regenerate affected integrations and run standard area validation.
+
+## Result
+
+Added a discoverable OpenCode parallel route that honestly detects the current foreground Task limitation before mutation and offers sequential zdev implementation, with aligned registration, docs, and fixtures.
+
+Validation:
+
+- Independent verification passed from exact snapshot W7dc7a0fd2a533728: current Task semantics reviewed, focused discovery/unsupported/parity checks, all 157 tests, fmt, clippy with warnings denied, build, and diff check.

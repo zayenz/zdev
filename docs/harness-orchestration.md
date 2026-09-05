@@ -150,15 +150,16 @@ form additional skills or change the root activation name.
 | --- | --- | --- |
 | Codex | One `zdev/SKILL.md`; audit, task, verification, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and an honest bounded fallback only after clear inspection when creation is unavailable. |
 | Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects a concise scoped role and passes a stored work-context locator. The detailed derived-work contract is loaded only when a split is needed. |
-| OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; commands use the native task tool and compact file/snapshot locators. The documented directory is plural `commands/`. |
+| OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-parallel.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; one-task commands use the native task tool and compact file/snapshot locators. The parallel command stops before mutation because foreground batches do not return coordinator control per completed child. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-parallel.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` keeps single configured roles and adds bounded, task-keyed planner and source-implementer batches with explicit working directories. Calls carry compact locators rather than the rendered workflow. |
 | Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | Concise named agents are invoked through native `task`; they receive compact locators, while paired continuation prompts use OMP's native goal when clear. |
 
 Every installation also contains one rendered `references/parallel.md` route.
 Codex maps it to live-agent inspection, bounded collaboration dispatch, waits,
 supported interruption, explicit source cwd values, and the configured role
-profiles. OpenCode and Oh My Pi currently render an explicit unsupported result
-with a sequential option until their adapter tasks land. Pi uses a transient
+profiles. OpenCode and Oh My Pi render an explicit unsupported result with a
+sequential option; OpenCode's discoverable command checks the current Task
+surface before mutation. Pi uses a transient
 session-local handle to return one completed source result at a time, then
 requires serial destination verification before coordination continues the run.
 The shared route owns admission, isolation, serial integration, recovery, and

@@ -273,6 +273,12 @@ It may use the packaged commands internally for a complete task cycle,
 verification, audit, or bounded area continuation. “Goal” and “loop” select the
 same continuation route.
 
+An explicit parallel request loads `references/parallel.md` and uses the
+packaged `zdev-parallel` command. Before mutation it checks the visible native
+Task surface for per-result coordinator control and supported cancellation.
+The current foreground batch lacks those controls, so the command creates no
+worktrees, dispatches no workers, and offers ordinary sequential implementation.
+
 OpenCode has no required native continuation surface. For an active-zdev goal
 or loop request, use the packaged continuation command. It completes at most one task using
 the ordinary route, returns canonical `CONTINUE zdev-loop <area>` only after a

@@ -10267,6 +10267,7 @@ fn opencode_skill_uses_native_shared_root_assets_without_replacing_user_config()
         "commands/zdev-implement.md",
         "commands/zdev-loop.md",
         "commands/zdev-goal.md",
+        "commands/zdev-parallel.md",
         "commands/zdev-verify.md",
         "commands/zdev-audit.md",
     ] {
@@ -10804,6 +10805,7 @@ fn harness_destinations_respect_scope_and_config_home_variables() {
         &[
             "skills/zdev-opencode/SKILL.md",
             "commands/zdev-implement.md",
+            "commands/zdev-parallel.md",
             "commands/zdev-verify.md",
         ],
     );

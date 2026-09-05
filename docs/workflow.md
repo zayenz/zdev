@@ -234,6 +234,14 @@ consent. It reuses choices already stated for the work. Discussion and read-only
 orientation begin in the current checkout; an unrequested branch creation,
 branch switch, or worktree creation waits for the user's choice.
 
+An explicitly chosen assigned-worktree implementation keeps this admitted
+checkout as the destination. It stores context for the exact task, gives the
+worker an ordinary linked worktree at that baseline, and transports only an
+inspected source commit back through a no-commit three-way Git operation.
+Destination drift, deletion, binary data, and executable modes use Git's normal
+merge semantics. Verification snapshots, completion records, staging, and the
+final zdev commit remain destination-only.
+
 After each interaction, zdev reports its result and relevant next actions. A
 single user message may explicitly order several interactions. For example,
 approving the exact task bundle and asking for implementation requests import

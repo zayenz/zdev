@@ -21,6 +21,10 @@ areas; do not infer project-wide selection from an omitted area.
    rebase when the task needs newer base changes or is approaching an
    integration boundary. Reuse an already stated branch or worktree choice;
    otherwise ask before switching branches or creating a worktree to continue.
+   When the user explicitly chooses an assigned source worktree, follow
+   **Optional assigned source worktree** in the installed task-workflows
+   contract. Store and refresh destination context with `--task <task-id>` and
+   keep every authoritative record and lifecycle operation in that destination.
 2. Read the area brief first. Inspect the selected task's routing frontmatter;
    when it names a slice, read that slice brief next, then read the complete
    task file, repository instructions, and the smallest relevant source and

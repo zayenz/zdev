@@ -123,6 +123,50 @@ pre-verifier admission without a preceding duplicate ordinary collection.
 Before rework implementation, retain the ordinary refresh and require an
 explainable exact Git delta.
 
+## Optional assigned source worktree
+
+Ordinary one-task work stays in the admitted checkout. Use a separate source
+worktree only when the user has explicitly chosen or already authorized its
+creation. The authoritative checkout remains the destination: it alone owns
+admission, task records, snapshots used for verification, lifecycle changes,
+exact staging, and the final `zdev commit`. Do not create another scheduler,
+lifecycle, or record copy for this variant.
+
+Before dispatch, admit the exact task in the destination with `work-context
+<area> --task <task-id> --store --format json`. Record the absolute destination
+root, brief, task, repository-instruction, and stored-snapshot paths. Create an
+ordinary Git source branch and linked worktree from the admitted HEAD, then
+record its absolute root, branch, and baseline commit. A personal record may be
+absent from that linked checkout; workers always read the authoritative record
+paths in the destination. Give every source worker the source root as its cwd
+and instruct it to edit and validate only there. It must not use source `.zdev`,
+change lifecycle, complete the task, stage coordination records, or commit.
+
+After a ready result, inspect the full source delta from its baseline, including
+untracked files. Reject unrelated changes and every `.zdev` change. In the
+source worktree, stage only the accepted implementation paths, inspect the
+complete staged diff, and create one ordinary Git source commit as durable
+transport. Refresh the destination with `work-context <area> --task <task-id>`
+and require the same ready task and safe attributable destination state. Apply
+the source commit there with `git cherry-pick --no-commit <source-commit>` so additions,
+deletions, binary bytes, executable modes, and independent destination changes
+are preserved. Do not flatten the candidate into copied file contents. Leave
+conflicts in place and report both roots, branch, commit, and destination state.
+
+On a clean integration, capture a fresh destination snapshot with the same
+explicit `--task <task-id>`. Run the existing independent verification,
+snapshot comparison, completion, exact staging, and one final `zdev commit`
+entirely in the destination. Route rework to the assigned source cwd; each
+accepted correction becomes another ordinary source commit and passes through
+the same refresh and no-commit integration gate. Never mark the source task
+done or publish source task records.
+
+Keep the assigned worktree and branch when work is unfinished, integration
+conflicts, verification fails, or completion is done but uncommitted. Remove
+only a run-owned worktree whose worker has stopped and whose accepted commits
+are integrated and included in the successful final destination commit. Never
+remove a pre-existing or ambiguous worktree.
+
 Safe attributable state is resumable. When an interrupted selected task has an
 explainable unstaged delta, continue from it. When a complete independently
 verified task is waiting only for lifecycle, staging, or commit, finish that

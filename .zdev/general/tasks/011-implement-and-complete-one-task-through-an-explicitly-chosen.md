@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-011"
 key = "implement-one-task-in-an-assigned-worktree"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,15 +27,25 @@ Read Admission and isolation, Integration and completion, Stops and recovery, an
 
 ## Done when
 
-- [ ] The Codex one-task route can admit an explicit ready task in the authoritative checkout, assign a separate source worktree and baseline, and give a fresh worker the correct source, instruction, record, and snapshot locations. Coordinator refresh, snapshot capture, and integrated verification retain this task with --task <id> rather than selecting the queue default.
-- [ ] The worker edits and validates only its assigned source checkout; coordination attributes its full delta and transports additions, deletions, binary content, and modes without publishing copied .zdev records or unrelated work.
-- [ ] Coordination reconciles the candidate with the current destination, independently verifies the integrated task through existing snapshot gates, and publishes exactly one completion commit on the destination.
-- [ ] Trunk and isolated areas, and personal and tracked record policies, retain correct task identity and branch ownership through this path.
-- [ ] Failure before the completion commit preserves attributable work and reports its location, including recovery when task completion was written but its commit failed. Cleanup excludes unfinished work, active workers, and pre-existing user worktrees.
-- [ ] Canonical guidance, relevant user documentation, and regenerated Codex integration describe and expose the complete opt-in one-task path without changing sequential defaults.
+- [x] The Codex one-task route can admit an explicit ready task in the authoritative checkout, assign a separate source worktree and baseline, and give a fresh worker the correct source, instruction, record, and snapshot locations. Coordinator refresh, snapshot capture, and integrated verification retain this task with --task <id> rather than selecting the queue default.
+- [x] The worker edits and validates only its assigned source checkout; coordination attributes its full delta and transports additions, deletions, binary content, and modes without publishing copied .zdev records or unrelated work.
+- [x] Coordination reconciles the candidate with the current destination, independently verifies the integrated task through existing snapshot gates, and publishes exactly one completion commit on the destination.
+- [x] Trunk and isolated areas, and personal and tracked record policies, retain correct task identity and branch ownership through this path.
+- [x] Failure before the completion commit preserves attributable work and reports its location, including recovery when task completion was written but its commit failed. Cleanup excludes unfinished work, active workers, and pre-existing user worktrees.
+- [x] Canonical guidance, relevant user documentation, and regenerated Codex integration describe and expose the complete opt-in one-task path without changing sequential defaults.
 
 ## Validation
 
 - Exercise a generic temporary repository end to end, including personal records, a binary addition, and an independent destination change before integration. Check the resulting source commit and authoritative task index.
 - Add focused regressions for executable isolation or transport behavior introduced here; use scenario review for instruction-only routing and avoid tests that freeze prose.
 - Regenerate affected integrations, run existing work-context/branch/record and fixture checks, and run the standard validation in the area brief.
+
+## Result
+
+Defined and validated an opt-in assigned-worktree one-task path that keeps authoritative zdev state and final completion in the destination checkout.
+
+Validation:
+
+- Temporary-repository E2E passed for explicit non-default task admission, personal records, source commit transport, destination drift, snapshot comparison, authoritative completion, and exactly one final zdev commit.
+- Unix transport coverage passed for additions, deletion, binary bytes, and executable modes; structural routing and generated-fixture parity checks passed.
+- cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check all passed.

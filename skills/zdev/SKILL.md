@@ -254,6 +254,17 @@ verify it. The coordinating agent owns zdev state, user decisions, task
 completion, and commits. Give each agent the rendered repository guidance and
 applicable `AGENTS.md` instructions.
 
+For an explicitly chosen assigned source worktree, the shared task-workflows
+contract owns isolation and Git transport. Codex collaboration agents share the
+parent directory by default, so every source implementer or rework payload must
+name the absolute assigned source root and require all file and command tools to
+use it as cwd. Keep the authoritative root, record paths, and destination
+snapshot paths absolute and distinct. Confirm the agent can access its assigned
+root; do not broaden permissions or fall back to concurrent destination edits.
+The coordinating Codex session creates and inspects source commits, integrates
+them in the destination, and dispatches the verifier against the integrated
+destination snapshot.
+
 Spawn each role with `fork_turns="none"`. Use a compact filesystem-backed
 message containing its role and exact area, task, or boundary identity; the
 exact installed route-contract path; applicable repository-instruction paths;

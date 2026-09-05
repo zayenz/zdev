@@ -245,6 +245,14 @@ creation. For non-trivial work, the normal next step is:
 Use zdev to discuss the scheduling brief before we create tasks.
 ```
 
+Implementation also stays in the current checkout by default. You can
+explicitly choose a separate worktree for one task. Zdev then keeps the area
+checkout authoritative and uses an ordinary source branch and commit to carry
+the worker's inspected changes back. The worker edits and validates only its
+assigned worktree; independent verification, task records, completion, and the
+single final zdev commit stay in the area checkout. Conflicts and unfinished
+work preserve both locations for recovery.
+
 **Discuss the brief** reads the brief and relevant indexed sources, then
 identifies choices that could materially change behavior, scope, task splitting,
 or validation. It resolves repository facts directly and works breadth first

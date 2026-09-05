@@ -69,3 +69,22 @@ Recover derived work from current filesystem state:
 
 Changed or unsafe state stays preserved for ordinary recovery. A later selected
 task may produce a fresh proposal under fresh gates.
+
+## Assigned source worktree recovery
+
+For an assigned-worktree task, orient in both recorded roots. Preserve the
+source worktree, source branch, baseline, and every accepted source commit until
+the destination has a successful final zdev commit. If the source has an
+uncommitted attributable delta, resume there and create the ordinary transport
+commit only after full inspection. If integration stopped, preserve the
+destination's no-commit operation and conflicts for ordinary Git recovery; do
+not complete the task or discard either side. Refresh destination admission
+with the explicit task ID before retrying integration.
+
+If verification requested rework, resume in the recorded source cwd and
+transport a new inspected source commit through the same destination gate. If
+`zdev task done` succeeded but staging or the final commit failed, recover and
+finish that destination checkpoint under the existing completion rules; never
+dispatch duplicate source work or mark the task done in the source checkout.
+Cleanup remains limited to a run-owned, stopped, fully integrated worktree
+after the final destination commit.

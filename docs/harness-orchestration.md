@@ -236,6 +236,14 @@ checks; and makes no intentional edits. A validation command that writes files
 is reported as `REWORK` and attributed before work continues. Coordination owns
 snapshot collection, comparison, advisory attachment, and public identity.
 
+The opt-in assigned-worktree path uses the same ownership contract.
+Coordination records absolute authoritative and source roots, pins admission
+with `--task`, and uses an ordinary source commit plus no-commit three-way
+integration as durable transport. Harness adapters provide dispatch and cwd
+handling; they do not own another scheduler, lifecycle, record copy, merge
+policy, or completion path. Codex states the source cwd explicitly because its
+collaboration surface shares the parent directory.
+
 Implementation role selection follows the task's authored complexity.
 `routine` uses `routine-implementer`; `standard` and omitted complexity use
 `implementer`; and `advanced` first obtains one fresh read-only plan from

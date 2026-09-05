@@ -8160,6 +8160,291 @@ fn non_claude_worker_handoffs_are_compact_and_wrapper_tolerant() {
 }
 
 #[test]
+fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
+    let contract = include_str!("../templates/zdev/task-workflows.md");
+    let implementation = include_str!("../templates/zdev/references/implement.md");
+    let recovery = include_str!("../templates/zdev/references/recovery.md");
+    let installed = include_str!("../skills/zdev/references/task-workflows.md");
+    let codex = include_str!("../skills/zdev/SKILL.md");
+
+    assert_eq!(
+        contract
+            .matches("## Optional assigned source worktree")
+            .count(),
+        1
+    );
+    assert_eq!(installed, contract);
+    assert!(implementation.contains("Optional assigned source worktree"));
+    assert_eq!(
+        recovery
+            .matches("## Assigned source worktree recovery")
+            .count(),
+        1
+    );
+    assert!(codex.contains("## Codex orchestration"));
+    assert!(codex.contains("For an explicitly chosen assigned source worktree"));
+}
+
+#[cfg(unix)]
+#[test]
+fn ordinary_source_commit_preserves_git_delta_during_no_commit_integration() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = repository();
+    let destination = repository.path();
+    fs::write(destination.join("delete.txt"), "remove me\n").expect("deleted fixture");
+    fs::write(destination.join("script.sh"), "#!/bin/sh\necho old\n").expect("script fixture");
+    fs::write(destination.join("destination.txt"), "base\n").expect("destination fixture");
+    commit_all(destination, "baseline");
+
+    let source_parent = tempfile::tempdir().expect("source parent");
+    let source = source_parent.path().join("assigned");
+    let source_text = source.to_str().expect("source path");
+    git(
+        destination,
+        &["worktree", "add", "-q", "-b", "assigned-task", source_text],
+    );
+    fs::remove_file(source.join("delete.txt")).expect("delete source file");
+    fs::write(source.join("binary.bin"), [0_u8, 255, 1, 254]).expect("binary source file");
+    fs::write(source.join("script.sh"), "#!/bin/sh\necho assigned\n").expect("update script");
+    let mut permissions = fs::metadata(source.join("script.sh"))
+        .expect("script metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(source.join("script.sh"), permissions).expect("executable script");
+    commit_all(&source, "assigned source transport");
+    let transport = git(&source, &["rev-parse", "HEAD"]);
+
+    fs::write(
+        destination.join("destination.txt"),
+        "destination advanced\n",
+    )
+    .expect("destination advance");
+    commit_all(destination, "destination advance");
+    git(destination, &["cherry-pick", "--no-commit", &transport]);
+
+    assert!(!destination.join("delete.txt").exists());
+    assert_eq!(
+        fs::read(destination.join("binary.bin")).expect("integrated binary"),
+        [0, 255, 1, 254]
+    );
+    assert_eq!(
+        fs::read_to_string(destination.join("destination.txt")).unwrap(),
+        "destination advanced\n"
+    );
+    assert_eq!(
+        fs::metadata(destination.join("script.sh"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o111,
+        0o111
+    );
+    assert!(git(destination, &["diff", "--cached", "--name-status"]).contains("D\tdelete.txt"));
+    assert_eq!(git(&source, &["status", "--short"]), "");
+}
+
+#[test]
+fn personal_task_completes_from_an_explicit_assigned_worktree() {
+    let repository = repository();
+    let destination = repository.path();
+    commit_file(destination, "product.txt", "baseline\n", "baseline");
+    let baseline = git(destination, &["rev-parse", "HEAD"]);
+    json_output(destination, &["init", "--record", "personal"]);
+    json_output(
+        destination,
+        &[
+            "area",
+            "create",
+            "assigned",
+            "--title",
+            "Assigned work",
+            "--objective",
+            "Complete one explicitly selected task.",
+            "--trunk",
+        ],
+    );
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "assigned",
+        "tasks": [
+            {
+                "key": "default",
+                "title": "Default task",
+                "outcome": "The default task remains open.",
+                "done_when": ["The default task is complete."],
+                "validation": ["Inspect the default result."],
+                "blocked_by": []
+            },
+            {
+                "key": "chosen",
+                "title": "Chosen task",
+                "outcome": "The chosen task is integrated from its assigned worktree.",
+                "done_when": ["The chosen task is complete."],
+                "validation": ["Exercise the assigned-worktree path."],
+                "blocked_by": []
+            }
+        ]
+    }))
+    .expect("task bundle");
+    json_output_with_stdin(
+        destination,
+        &["tasks", "import", "assigned", "--from", "-"],
+        &bundle,
+    );
+    assert_eq!(
+        json_output(destination, &["next", "assigned"])["task"]["id"],
+        "assigned-001"
+    );
+    let authoritative_status = git(destination, &["status", "--short"]);
+    assert!(authoritative_status.contains("?? .zdev/"));
+
+    let admitted = json_output(
+        destination,
+        &[
+            "work-context",
+            "assigned",
+            "--task",
+            "assigned-002",
+            "--store",
+        ],
+    );
+    assert_eq!(admitted["task_id"], "assigned-002");
+    assert_eq!(admitted["head"], baseline);
+    let admitted_snapshot = admitted["snapshot"].as_str().expect("admission snapshot");
+    assert_eq!(
+        json_output(
+            destination,
+            &["work-context", "assigned", "--compare", admitted_snapshot]
+        )["equal"],
+        true
+    );
+
+    let source_parent = tempfile::tempdir().expect("source parent");
+    let source = source_parent.path().join("assigned-source");
+    git(
+        destination,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "assigned-source",
+            source.to_str().expect("source path"),
+            &baseline,
+        ],
+    );
+    assert!(
+        !source.join(".zdev").exists(),
+        "personal records stay authoritative"
+    );
+    fs::write(source.join("product.txt"), "implemented in source\n")
+        .expect("source implementation");
+    assert_eq!(
+        git(destination, &["status", "--short"]),
+        authoritative_status
+    );
+    assert_eq!(git(&source, &["diff", "--name-only"]), "product.txt");
+    commit_all(&source, "assigned source transport");
+    let source_commit = git(&source, &["rev-parse", "HEAD"]);
+    assert_eq!(git(&source, &["rev-parse", "HEAD^"]), baseline);
+    assert!(!git(&source, &["show", "-s", "--format=%B", "HEAD"]).contains("Zdev-Change-Id"));
+
+    fs::write(destination.join("destination.txt"), "independent drift\n")
+        .expect("destination drift");
+    git(destination, &["add", "destination.txt"]);
+    git(
+        destination,
+        &["commit", "-q", "-m", "independent destination drift"],
+    );
+    assert!(git(destination, &["ls-files", ".zdev"]).is_empty());
+    assert_eq!(
+        json_output(
+            destination,
+            &["work-context", "assigned", "--compare", admitted_snapshot]
+        )["equal"],
+        false
+    );
+    let refreshed = json_output(
+        destination,
+        &["work-context", "assigned", "--task", "assigned-002"],
+    );
+    assert_eq!(refreshed["task_id"], "assigned-002");
+    git(destination, &["cherry-pick", "--no-commit", &source_commit]);
+    assert_eq!(
+        fs::read_to_string(destination.join("product.txt")).unwrap(),
+        "implemented in source\n"
+    );
+    assert_eq!(
+        fs::read_to_string(destination.join("destination.txt")).unwrap(),
+        "independent drift\n"
+    );
+
+    let verification = json_output(
+        destination,
+        &[
+            "work-context",
+            "assigned",
+            "--task",
+            "assigned-002",
+            "--store",
+        ],
+    );
+    assert_eq!(verification["task_id"], "assigned-002");
+    let verification_snapshot = verification["snapshot"]
+        .as_str()
+        .expect("verification snapshot");
+    assert_eq!(
+        json_output(
+            destination,
+            &[
+                "work-context",
+                "assigned",
+                "--compare",
+                verification_snapshot
+            ]
+        )["equal"],
+        true
+    );
+
+    json_output(
+        destination,
+        &[
+            "task",
+            "done",
+            "assigned",
+            "assigned-002",
+            "--summary",
+            "Integrated and independently verified.",
+            "--validation",
+            "Assigned-worktree scenario passed.",
+        ],
+    );
+    assert_eq!(
+        git(destination, &["diff", "--cached", "--name-only"]),
+        "product.txt"
+    );
+    assert!(git(destination, &["ls-files", ".zdev"]).is_empty());
+    let completion = json_output(destination, &["commit", "-m", "complete chosen task"]);
+    assert_eq!(completion["status"], "committed");
+    assert_eq!(
+        git(destination, &["log", "--format=%B"])
+            .matches("Zdev-Change-Id:")
+            .count(),
+        1
+    );
+    let index = fs::read_to_string(destination.join(".zdev/assigned/TASKS.md"))
+        .expect("authoritative personal task index");
+    assert!(index.contains("- Done: 1"));
+    assert!(index.contains("assigned-001"));
+    assert!(index.contains("assigned-002"));
+    assert_eq!(
+        json_output(destination, &["next", "assigned"])["task"]["id"],
+        "assigned-001"
+    );
+}
+
+#[test]
 fn worker_roles_state_their_semantic_result_contracts() {
     for prompt in [
         include_str!("../templates/zdev/claude/agents/zdev-routine-implementer.md"),

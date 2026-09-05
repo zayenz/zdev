@@ -6973,7 +6973,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (completionPrompt.includes('"git_status":') || completionPrompt.includes('"git_diff":')) throw new Error(name + ': completion received raw Git evidence')
     if (!completionPrompt.includes('zdev work-context work --compare W0123456789abcdef --format json')) throw new Error(name + ': completion lost compact comparison')
   }}
-  return {{ verifierPrompts, completionPrompt, calls }}
+  return {{ result, verifierPrompts, completionPrompt, calls }}
 }}
 const routinePass = await exercise(
   'routine pass',
@@ -7177,7 +7177,30 @@ await exercise(
   {{ area }},
   [],
   {{}},
-  [JSON.stringify({{ action: 'continue', reason: 'The remaining file is directly in scope.' }})],
+  [
+    JSON.stringify({{ action: 'continue', reason: 'The remaining file is directly in scope.' }}),
+    JSON.stringify({{ action: 'stop', reason: 'The same unresolved obstacle has no actionable next step.' }}),
+  ],
+)
+await exercise(
+  'unchanged blocker with new investigation evidence continues',
+  'standard',
+  [
+    worker('implementer', 'blocker', 'none', [], ['the failing command needs diagnosis']),
+    worker('implementer', 'blocker', 'none', ['diagnosis identified src/lib.rs as the concrete fix']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'pass', 'none', passEvidence),
+  ],
+  ['zdev:zdev-implementer', 'zdev:zdev-implementer', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'PASS',
+  null,
+  {{ area }},
+  [],
+  {{}},
+  [
+    JSON.stringify({{ action: 'continue', reason: 'Diagnosis is directly in scope.' }}),
+    JSON.stringify({{ action: 'continue', reason: 'New evidence identifies the concrete source change.' }}),
+  ],
 )
 await exercise(
   'invalid verifier envelope',
@@ -7186,6 +7209,14 @@ await exercise(
   ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
   'BLOCKER',
 )
+const verifierBlocker = await exercise(
+  'verifier blocker preserves findings',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'blocker', 'none', [], ['production credential is required'])],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+)
+if (!verifierBlocker.result.includes('Findings: production credential is required')) throw new Error('terminal verifier findings were dropped')
 await exercise(
   'intervening commit before verifier',
   'standard',

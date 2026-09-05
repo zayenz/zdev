@@ -3,9 +3,9 @@
 # Tasks: general
 
 - Total: 20
-- Ready: 4
+- Ready: 3
 - Blocked: 8
-- Done: 8
+- Done: 9
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@
 | [general-006](tasks/006-constrain-omp-planner-output.md) | Constrain OMP planner output | done | general-005 |
 | [general-007](tasks/007-ask-before-changing-workflow-phase-or-git-workspace.md) | Ask before changing workflow phase or Git workspace | done | — |
 | [general-008](tasks/008-let-coordination-resolve-routine-technical-scope-adjustments.md) | Let coordination resolve routine technical scope adjustments | done | — |
-| [general-009](tasks/009-resolve-actionable-claude-blockers-and-preserve-their-detail.md) | Resolve actionable Claude blockers and preserve their details | ready | — |
+| [general-009](tasks/009-resolve-actionable-claude-blockers-and-preserve-their-detail.md) | Resolve actionable Claude blockers and preserve their details | done | — |
 | [general-010](tasks/010-integrate-plain-prose-and-agent-focused-task-writing.md) | Integrate plain prose and agent-focused task writing | ready | — |
 | [general-011](tasks/011-implement-and-complete-one-task-through-an-explicitly-chosen.md) | Implement and complete one task through an explicitly chosen worktree | ready | — |
 | [general-012](tasks/012-run-an-approved-parallel-task-batch-in-codex.md) | Run an approved parallel task batch in Codex | blocked | general-011 |

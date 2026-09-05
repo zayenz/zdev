@@ -531,9 +531,9 @@ const compareSnapshot = async (snapshot, label) => parseComparison((await agent(
   `Act only as deterministic progress coordination. Run zdev work-context ${area} --compare ${snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
   { label, model: 'haiku' },
 ))?.trim(), area, snapshot)
-const classifyImplementerBlocker = async (result, current, madeProgress) => {
+const classifyImplementerBlocker = async (result, current, madeProgress, priorResult) => {
   const raw = await agent(
-    `${repositoryGuidance}\n\nClassify an implementer blocker for task ${taskId} in area ${area}. Load current snapshot ${current.baselineSnapshot} with zdev work-context ${area} --show ${current.baselineSnapshot} --format json and inspect the authoritative task and attributable diff. Return action continue when directly actionable task work remains, including partial implementation, an underestimated file count, or another necessary in-scope path. Return action stop only for unavailable external state, unsafe or ambiguous ownership, a user-owned product or scope decision, or another concrete impasse. ${madeProgress === null ? 'This is the first ordinary blocker.' : `The prior replacement ${madeProgress ? 'made attributable progress' : 'made no attributable progress'}; no progress requires stop.`}\n\nWorker result: ${JSON.stringify(result)}`,
+    `${repositoryGuidance}\n\nClassify an implementer blocker for task ${taskId} in area ${area}. Load current snapshot ${current.baselineSnapshot} with zdev work-context ${area} --show ${current.baselineSnapshot} --format json and inspect the authoritative task and attributable diff. Return action continue when directly actionable task work remains, including partial implementation, an underestimated file count, another necessary in-scope path, or new investigation or validation evidence that establishes a concrete next step. Return action stop only for unavailable external state, unsafe or ambiguous ownership, a user-owned product or scope decision, or another concrete impasse. ${madeProgress === null ? 'This is the first ordinary blocker.' : `The replacement ${madeProgress ? 'made attributable checkout progress' : 'left the checkout unchanged'}. Compare the prior and current blocker results. When the checkout is unchanged, stop if the same obstacle remains unresolved without a concrete new next step; continue if new evidence makes remaining task work directly actionable.`}\n\n${priorResult ? `Prior worker result: ${JSON.stringify(priorResult)}\n` : ''}Current worker result: ${JSON.stringify(result)}`,
     { label: `zdev ${taskId}: classify implementer blocker`, model: 'haiku', schema: blockerDispositionSchema },
   )
   return parseBlockerDisposition(typeof raw === 'string' ? raw.trim() : raw)
@@ -552,6 +552,7 @@ const resolveImplementerResult = async (initial, initialContext, phase) => {
   let result = initial
   let context = initialContext
   let priorBlockerSnapshot = null
+  let priorBlockerResult = null
   while (result.verdict === 'blocker') {
     const split = await routeDerivedSplit(result, context)
     if (split) return { terminal: split }
@@ -591,11 +592,8 @@ const resolveImplementerResult = async (initial, initialContext, phase) => {
         return { terminal: blocker(area, taskId, phase, 'could not compare progress after an implementer blocker.', 'lifecycle and commit were not changed.', staleAdvisory) }
       }
       madeProgress = !comparison.equal
-      if (!madeProgress) {
-        return { terminal: blocker(area, taskId, phase, 'a replacement implementer returned another blocker without making attributable progress.', `Evidence: ${result.evidence.join('; ') || 'none.'} Findings: ${result.findings.join('; ') || 'none.'}`, staleAdvisory) }
-      }
     }
-    const disposition = await classifyImplementerBlocker(result, refreshed, madeProgress)
+    const disposition = await classifyImplementerBlocker(result, refreshed, madeProgress, priorBlockerResult)
     if (!disposition) {
       return { terminal: blocker(area, taskId, phase, 'coordinator returned an invalid blocker classification.', 'lifecycle and commit were not changed.', staleAdvisory) }
     }
@@ -603,6 +601,7 @@ const resolveImplementerResult = async (initial, initialContext, phase) => {
       return { terminal: blocker(area, taskId, phase, disposition.reason, `Evidence: ${result.evidence.join('; ') || 'none.'} Findings: ${result.findings.join('; ') || 'none.'}`, staleAdvisory) }
     }
     priorBlockerSnapshot = refreshed.baselineSnapshot
+    priorBlockerResult = result
     context = refreshed
     const retryRaw = (await agent(
       `${workerContract}\n\nContinue task ${taskId} in area ${area} from current snapshot ${refreshed.baselineSnapshot}. Load it with zdev work-context ${area} --show ${refreshed.baselineSnapshot} --format json. The coordinator classified the prior blocker as directly actionable: ${disposition.reason}. Complete the remaining task work, including every directly necessary in-scope path, and run validation. Return the implementer envelope from your role prompt. If a genuine new impasse remains, report it precisely.\n\nPrior worker result: ${JSON.stringify(result)}`,
@@ -690,7 +689,7 @@ while (verdict.result.verdict === 'rework') {
   }
 }
 if (verdict.result.verdict !== 'pass') {
-  return blocker(area, taskId, 'verification', verdict.result.summary, verdict.result.evidence.join('; ') || 'lifecycle and commit were not changed.', staleAdvisory)
+  return blocker(area, taskId, 'verification', verdict.result.summary, `Evidence: ${verdict.result.evidence.join('; ') || 'none.'} Findings: ${verdict.result.findings.join('; ') || 'none.'}`, staleAdvisory)
 }
 
 const advisory = staleAdvisory ? advisoryText : null

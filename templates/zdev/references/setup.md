@@ -24,6 +24,11 @@ or **pull-request**:
 Apply the selected Git visibility rule, then check harness integrations before
 initialization.
 
+Setup begins in the current checkout. Reuse any branch or worktree choice the
+user already made for this setup. Otherwise ask before creating or switching a
+branch or creating a worktree; selecting record ownership or integration scope
+does not imply that Git choice.
+
 ## Check harness integrations
 
 Record ownership is separate from integration scope. Run

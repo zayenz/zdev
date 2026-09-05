@@ -38,6 +38,30 @@ the last interaction, report the result and wait. If an approved artifact
 changes, show the revision and ask for approval again. Ask which interaction
 comes first only when the requested order is unclear.
 
+## Ask only for undecided choices
+
+Use one focused question when its answer determines the next step. Batch only
+independent questions, give a recommended answer and its concrete trade-off,
+and follow the available tool's restrictions. Use plain text when the tool
+cannot request the needed input or approval. An unanswered question is not
+consent, and a choice already stated for this work does not need confirmation.
+
+Stock Pi has no structured question tool. If an installed tool such as `ask_user` or `ask_question` is available, use it for one focused question and batch only independent questions when its schema permits. Otherwise ask in plain text, with the recommended answer and trade-off stated clearly.
+
+Begin discussion and other read-only orientation in the current checkout.
+Reuse a branch or worktree choice the user already made for this work.
+Otherwise ask before creating or switching branches, creating a worktree, or
+making another user-owned choice. Complete useful read-only work first when it
+can make the question concrete. Existing branch-safety checks still govern task
+and lifecycle mutations.
+
+Keep interaction boundaries explicit. Exploration presents the resulting brief
+for discussion unless the user also requested task creation. An explicit,
+sufficiently specified task request may proceed to the exact task-bundle review.
+Import an approved bundle, but begin implementation only when the user's request
+also authorizes implementation; reuse that authorization when it is already
+clear.
+
 ## Development model
 
 An area moves from a brief to approved tasks, implementation, independent

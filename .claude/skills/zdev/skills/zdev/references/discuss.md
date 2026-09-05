@@ -28,8 +28,6 @@ grilling skill.
    answer and its concrete trade-off; include alternatives only when they are
    viable. Test answers against specific scenarios, edges, or contradictions.
 
-Use Claude Code's `AskUserQuestion` tool with multiple questions in one call. Give each question concrete options, mark the recommended answer in its wording or description, and reserve plain text for free-form explanation.
-
 After each round, update the relevant decisions, boundaries, terms, open
 questions, testing, or validation in `brief.md`. Record conclusions, not the
 conversation. Preserve useful text and remove settled questions.

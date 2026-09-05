@@ -28,8 +28,6 @@ grilling skill.
    answer and its concrete trade-off; include alternatives only when they are
    viable. Test answers against specific scenarios, edges, or contradictions.
 
-Use Codex's `request_user_input` tool with two or three questions in one call when it is available. Put the recommended option first for each question and explain its impact. If the tool is unavailable, present the same round as a concise numbered list.
-
 After each round, update the relevant decisions, boundaries, terms, open
 questions, testing, or validation in `brief.md`. Record conclusions, not the
 conversation. Preserve useful text and remove settled questions.

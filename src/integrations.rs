@@ -177,19 +177,19 @@ impl Harness {
     fn question_tool_guidance(self) -> &'static str {
         match self {
             Self::Codex => {
-                "Use Codex's `request_user_input` tool with two or three questions in one call when it is available. Put the recommended option first for each question and explain its impact. If the tool is unavailable, present the same round as a concise numbered list."
+                "Use Codex's `request_user_input` tool when it is available. It supports one to three questions per call: ask one focused question by default and batch only independent questions. Put the recommended option first for each question and explain its impact. Use plain text when the tool is unavailable or cannot request the needed input or approval."
             }
             Self::Claude => {
-                "Use Claude Code's `AskUserQuestion` tool with multiple questions in one call. Give each question concrete options, mark the recommended answer in its wording or description, and reserve plain text for free-form explanation."
+                "Use Claude Code's `AskUserQuestion` tool when it can request the needed input. Ask one focused question by default and put independent questions in one call only when batching helps. Give each question concrete options, mark the recommended answer in its wording or description, and use plain text for free-form input or approvals the tool cannot request."
             }
             Self::Opencode => {
-                "Use OpenCode's `question` tool with multiple questions in one call. Give each question concrete options, put the recommended answer first, and reserve plain text for free-form explanation."
+                "Use OpenCode's `question` tool when it can request the needed input. Ask one focused question by default and put independent questions in one call only when batching helps. Give each question concrete options, put the recommended answer first, and use plain text for free-form input or approvals the tool cannot request."
             }
             Self::Pi => {
-                "Stock Pi has no structured question tool. If an installed tool such as `ask_user` or `ask_question` is available, use it and batch questions when its schema permits; otherwise present the round as a concise numbered list with the recommended answer under each question."
+                "Stock Pi has no structured question tool. If an installed tool such as `ask_user` or `ask_question` is available, use it for one focused question and batch only independent questions when its schema permits. Otherwise ask in plain text, with the recommended answer and trade-off stated clearly."
             }
             Self::Omp => {
-                "Use Oh My Pi's `ask` tool with its `questions` array so one call presents the whole round. Give each question concrete options and descriptions, put the recommended answer first, and reserve plain text for free-form explanation."
+                "Use Oh My Pi's `ask` tool when it can request the needed input. Ask one focused question by default and use its `questions` array for independent questions only when batching helps. Give each question concrete options and descriptions, put the recommended answer first, and use plain text for free-form input or approvals the tool cannot request."
             }
         }
     }

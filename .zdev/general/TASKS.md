@@ -3,9 +3,9 @@
 # Tasks: general
 
 - Total: 20
-- Ready: 6
+- Ready: 5
 - Blocked: 8
-- Done: 6
+- Done: 7
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -15,7 +15,7 @@
 | [general-004](tasks/004-constrain-claude-planner-output-at-dispatch.md) | Constrain Claude planner output at dispatch | done | — |
 | [general-005](tasks/005-simplify-planner-handoff-across-harnesses.md) | Simplify planner handoff across harnesses | done | general-004 |
 | [general-006](tasks/006-constrain-omp-planner-output.md) | Constrain OMP planner output | done | general-005 |
-| [general-007](tasks/007-ask-before-changing-workflow-phase-or-git-workspace.md) | Ask before changing workflow phase or Git workspace | ready | — |
+| [general-007](tasks/007-ask-before-changing-workflow-phase-or-git-workspace.md) | Ask before changing workflow phase or Git workspace | done | — |
 | [general-008](tasks/008-let-coordination-resolve-routine-technical-scope-adjustments.md) | Let coordination resolve routine technical scope adjustments | ready | — |
 | [general-009](tasks/009-resolve-actionable-claude-blockers-and-preserve-their-detail.md) | Resolve actionable Claude blockers and preserve their details | ready | — |
 | [general-010](tasks/010-integrate-plain-prose-and-agent-focused-task-writing.md) | Integrate plain prose and agent-focused task writing | ready | — |

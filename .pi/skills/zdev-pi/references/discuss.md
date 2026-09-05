@@ -28,8 +28,6 @@ grilling skill.
    answer and its concrete trade-off; include alternatives only when they are
    viable. Test answers against specific scenarios, edges, or contradictions.
 
-Stock Pi has no structured question tool. If an installed tool such as `ask_user` or `ask_question` is available, use it and batch questions when its schema permits; otherwise present the round as a concise numbered list with the recommended answer under each question.
-
 After each round, update the relevant decisions, boundaries, terms, open
 questions, testing, or validation in `brief.md`. Record conclusions, not the
 conversation. Preserve useful text and remove settled questions.

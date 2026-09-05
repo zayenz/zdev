@@ -1,5 +1,11 @@
 # Recover interrupted zdev work
 
+Orient from the current checkout first. Reuse a branch or worktree choice
+already made for this recovery. If recovery requires switching branches or
+creating a worktree and the user has not requested that Git change, explain the
+concrete recovery choice and ask before making it. An unanswered question does
+not authorize the mutation.
+
 ## Rebase recovery
 
 Use `zdev area rebase <area>` for ordinary trunk updates and parent-area updates.

@@ -28,8 +28,6 @@ grilling skill.
    answer and its concrete trade-off; include alternatives only when they are
    viable. Test answers against specific scenarios, edges, or contradictions.
 
-Use Oh My Pi's `ask` tool with its `questions` array so one call presents the whole round. Give each question concrete options and descriptions, put the recommended answer first, and reserve plain text for free-form explanation.
-
 After each round, update the relevant decisions, boundaries, terms, open
 questions, testing, or validation in `brief.md`. Record conclusions, not the
 conversation. Preserve useful text and remove settled questions.

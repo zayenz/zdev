@@ -171,8 +171,9 @@ selection reports the slice brief to read after the authoritative area brief.
 ### Keep one-off work in a general area
 
 If you often have small, unrelated improvements, keep them in an ordinary area
-with the conventional tag `general`. Create its isolated branch yourself, then
-create the area with the existing command:
+with the conventional tag `general`. First choose where it should live. For an
+isolated area, create or switch to its branch, then bind the area to the branch
+already checked out with the existing command:
 
 ```sh
 git switch -c general
@@ -232,9 +233,13 @@ Start by asking the harness to use zdev to explore the objective:
 Use zdev to explore the scheduling objective and build up its brief.
 ```
 
-**Explore an objective** inspects the repository, compares useful paths, and
-builds or revises `brief.md`. `wayfind` and `shape` are aliases after zdev is
-active. For non-trivial work, the normal next step is:
+**Explore an objective** starts in the current checkout, inspects the
+repository, compares useful paths, and builds or revises `brief.md`. Before an
+unrequested branch switch, branch creation, or worktree creation, the harness
+asks which workspace to use and reuses any choice you already made. `wayfind`
+and `shape` are aliases after zdev is active. Exploration presents the resulting
+brief for discussion; it creates tasks only when you also requested task
+creation. For non-trivial work, the normal next step is:
 
 ```text
 Use zdev to discuss the scheduling brief before we create tasks.
@@ -245,8 +250,9 @@ identifies choices that could materially change behavior, scope, task splitting,
 or validation. It resolves repository facts directly and works breadth first
 across the highest-impact choices. Each round asks up to three independent
 questions, using the harness's structured question tool when available. It asks
-one question when that answer determines what to ask next or when you need to
-explain freely. Discussion tests settled decisions against concrete scenarios,
+one focused question by default and batches only independent questions. An
+unanswered question is not consent. Discussion tests settled decisions against
+concrete scenarios,
 updates the brief after each round, and stops when no unresolved choice could
 materially change the work. `grill` is an alias.
 

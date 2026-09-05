@@ -19,7 +19,8 @@ areas; do not infer project-wide selection from an omitted area.
    needs freshness or rebase ceremony. If the command reports unsafe
    state, return to the root **Recover** route. Recommend the explicit managed
    rebase when the task needs newer base changes or is approaching an
-   integration boundary.
+   integration boundary. Reuse an already stated branch or worktree choice;
+   otherwise ask before switching branches or creating a worktree to continue.
 2. Read the area brief first. Inspect the selected task's routing frontmatter;
    when it names a slice, read that slice brief next, then read the complete
    task file, repository instructions, and the smallest relevant source and

@@ -10,11 +10,16 @@ does not create tasks or a second lifecycle.
 
 ## Do
 
-1. For a new objective, initialize zdev on project trunk when needed. Use the
-   default isolated mode after creating or switching to the area's branch, or
-   use `--trunk` only when the user explicitly wants a personal/project area on
-   configured trunk. For an existing area, preserve its recorded mode and
-   resolved branch.
+1. Begin in the current checkout: inspect the repository and discuss the
+   objective before choosing a Git workspace. For a new objective, initialize
+   zdev on project trunk when needed. Reuse a branch or worktree choice already
+   made for this work. Otherwise, before creating or switching branches or
+   creating a worktree, recommend the choice that fits the current repository
+   state and ask the user. Use the default isolated area after its branch is
+   selected, or use `--trunk` only when the user explicitly wants a
+   personal/project area on configured trunk. For an existing area, preserve
+   its recorded mode and resolved branch; ask before switching to it when that
+   switch was not already requested.
 2. Read the conversation, current brief, repository instructions, relevant
    source and tests, domain documentation, and applicable ADRs.
 3. Resolve repository facts directly. Ask the user only about choices that
@@ -65,11 +70,13 @@ and cost.
 
 ## Stop
 
-Run `zdev check <area> --format json`. Summarize the objective, boundaries,
+Run `zdev check <area> --format json`. Present the resulting brief for
+discussion and summarize the objective, boundaries,
 testing level, settled decisions, and remaining material questions. Recommend
 one next interaction when the result points clearly to it, then stop unless the
-user already requested more work. A sharp brief may proceed directly to
-**Create tasks**; **Discuss the brief** remains optional.
+user already requested more work. Continue to **Create tasks** only when the
+user explicitly requested task creation; a sharp brief alone does not request
+drafting. **Discuss the brief** remains optional.
 
 General one-off work does not require a separate Explore or Investigate pass
 when the standing brief applies and discussion or the request already settles

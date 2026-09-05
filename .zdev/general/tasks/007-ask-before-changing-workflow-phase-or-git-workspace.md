@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-007"
 key = "ask-before-workflow-and-git-transitions"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -27,13 +27,23 @@ Read Discussion and task transitions and Git choices and questions in the [settl
 
 ## Done when
 
-- [ ] Rendered instructions across all five harnesses apply the question policy to setup, shaping, discussion, area selection, task approval, prototypes, recovery, and implementation decisions.
-- [ ] Scenario review shows that an exploration request presents a brief for discussion; an explicit task request can proceed to drafting; and import proceeds to implementation only with authorization covering that work.
-- [ ] Scenario review shows that an undecided branch or worktree choice prompts the user before mutation, while a previously stated choice is reused.
-- [ ] Canonical sources, relevant user guidance, and regenerated integrations agree without retaining a conflicting Discuss-only question policy.
+- [x] Rendered instructions across all five harnesses apply the question policy to setup, shaping, discussion, area selection, task approval, prototypes, recovery, and implementation decisions.
+- [x] Scenario review shows that an exploration request presents a brief for discussion; an explicit task request can proceed to drafting; and import proceeds to implementation only with authorization covering that work.
+- [x] Scenario review shows that an undecided branch or worktree choice prompts the user before mutation, while a previously stated choice is reused.
+- [x] Canonical sources, relevant user guidance, and regenerated integrations agree without retaining a conflicting Discuss-only question policy.
 
 ## Validation
 
 - Regenerate the five checked-in harness integrations from canonical templates and run the existing rendering, discovery, and fixture-parity checks.
 - Review the stated scenarios against the rendered instructions; avoid new tests that freeze incidental sentences.
 - Run the standard validation in the area brief.
+
+## Result
+
+Unified question, authorization, workflow-boundary, and Git-workspace guidance across canonical sources and all five generated harness integrations.
+
+Validation:
+
+- Generated fixture parity and harness discovery checks passed.
+- Scenario review covered exploration, explicit task drafting, approved-import implementation, prior authorization reuse, and undecided branch/worktree choices.
+- cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check all passed.

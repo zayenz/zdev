@@ -174,7 +174,9 @@ agent-ready implementation work enters the task queue.
 
 Use `general` as a conventional standing area when small, unrelated
 improvements do not justify a new area each time. It has no special lifecycle
-rules. Create or switch to its isolated branch, then use the existing command:
+rules. Choose its workspace first. For an isolated area, create or switch to
+the desired branch, then bind the area to the branch already checked out with
+the existing command:
 
 ```sh
 zdev area create general \
@@ -197,10 +199,12 @@ Use `zdev area reopen <area>` before importing or reopening tasks. Both
 mutations use the area's ordinary task-work branch-safety gate.
 
 Discussion may proceed directly to exact task-bundle review when the request
-settles the product and testing choices. This route skips unnecessary research
-or a new full brief. It still requires explicit bundle approval, safe branch
-state, proportionate testing, independent verification, recorded completion,
-and a commit. Zdev never creates or switches the `general` branch.
+explicitly asks for task creation and settles the product and testing choices.
+This route skips unnecessary research or a new full brief. It still requires
+explicit bundle approval, safe branch state, proportionate testing, independent
+verification, recorded completion, and a commit. Zdev never creates or switches
+the `general` branch. The harness asks before making that Git change unless the
+user already chose it.
 
 Creating tasks stores a valid candidate before independent challenge. A fresh
 reviewer reads the returned Markdown path, and concrete revisions replace the
@@ -222,6 +226,13 @@ active, the harness selects one direct interaction:
   breadth-first rounds, and updates settled synthesis (`grill` is an alias).
 - **Improve**, **Investigate**, **Create tasks**, **Implement**, and **Verify**
   remain separate actions.
+
+Every interaction uses the same question policy. The harness asks one focused
+question when the answer determines the next step, batches only independent
+questions, recommends an answer with its trade-off, and treats no answer as no
+consent. It reuses choices already stated for the work. Discussion and read-only
+orientation begin in the current checkout; an unrequested branch creation,
+branch switch, or worktree creation waits for the user's choice.
 
 After each interaction, zdev reports its result and relevant next actions. A
 single user message may explicitly order several interactions. For example,

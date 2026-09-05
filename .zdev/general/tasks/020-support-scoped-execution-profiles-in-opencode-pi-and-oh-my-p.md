@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-020"
 key = "select-scoped-execution-profiles-in-portable-adapters"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,14 +27,22 @@ Read Named settings, Plan-only requests, Workflow coverage, and Testing and boun
 
 ## Done when
 
-- [ ] All three installed integrations discover the shared plan-only and scoped-profile behavior and pass the intended concrete model and native effort settings to the selected worker roles.
-- [ ] Each adapter demonstrates 'plan next task with advanced planner' using a configured advanced mapping, with explicit task identity and no source edits, implementation, verification, task creation, or Git workspace changes.
-- [ ] Run-level and one-off selections retain their intended scope through required planning, implementation, verification, audits, task-draft challenge, and authorized continuation; an omitted planner uses the documented fallback.
-- [ ] Pi child invocations and OpenCode/OMP native dispatch retain the run's resolved concrete model/effort values, including across mid-run preference edits, and keep differently selected runs independent without rewriting shared installation. Undefined profiles or inexpressible settings report a useful error before dispatch.
-- [ ] Normal behavior and worker result contracts stay compatible, and canonical adapter sources, user guidance, registration, and regenerated fixtures accurately describe these three adapters and the support already landed in the other harnesses.
+- [x] All three installed integrations discover the shared plan-only and scoped-profile behavior and pass the intended concrete model and native effort settings to the selected worker roles.
+- [x] Each adapter demonstrates 'plan next task with advanced planner' using a configured advanced mapping, with explicit task identity and no source edits, implementation, verification, task creation, or Git workspace changes.
+- [x] Run-level and one-off selections retain their intended scope through required planning, implementation, verification, audits, task-draft challenge, and authorized continuation; an omitted planner uses the documented fallback.
+- [x] Pi child invocations and OpenCode/OMP native dispatch retain the run's resolved concrete model/effort values, including across mid-run preference edits, and keep differently selected runs independent without rewriting shared installation. Undefined profiles or inexpressible settings report a useful error before dispatch.
+- [x] Normal behavior and worker result contracts stay compatible, and canonical adapter sources, user guidance, registration, and regenerated fixtures accurately describe these three adapters and the support already landed in the other harnesses.
 
 ## Validation
 
 - Use controlled Pi child invocation to check selected model/thinking arguments and backward-compatible ordinary calls; reuse native handoff checks for OpenCode and OMP's model/effort representations.
 - Review one-off planning, return to normal, custom high-effort profile, missing harness mapping, and two differing run choices for each rendered adapter. Add executable regressions only for concrete adapter logic introduced.
 - Regenerate affected fixtures and run existing installation, profile, discovery/parity checks and the standard area validation without live model calls.
+
+## Result
+
+Added scoped execution profiles and plan-only work for OpenCode, Pi, and Oh My Pi using strict frozen dispatch specs, Pi native child overrides, deterministic prepared agents, and accurate capability fallbacks.
+
+Validation:
+
+- Independent verification passed from exact snapshot Wb3d6b0ca14928fcf: portable/Pi/prepared-agent cases, all 168 tests, generated parity, fmt, clippy with warnings denied, build, and diff check.

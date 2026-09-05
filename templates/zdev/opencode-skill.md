@@ -29,6 +29,13 @@ result from the preceding role. Let the worker read those files instead of
 copying their contents or the full contract into the prompt. An implementer
 loads the derived-work section only if it actually needs a split.
 
+Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+OpenCode and freeze all five resolved role rows. Select only a rendered agent
+whose profile-qualified metadata exactly matches the applicable frozen row;
+report an unavailable definition before dispatch. Keep those definitions and
+the frozen rows unchanged through planning, repair, verification, audit,
+challenge, continuation, and recovery. Use `zdev-plan` for a plan-only request.
+
 When an implementer will author human-facing prose, include the shared `Write
 human-facing prose plainly` section in its compact payload. Other workers do not
 need that editorial guidance.

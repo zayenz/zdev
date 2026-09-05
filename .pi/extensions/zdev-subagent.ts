@@ -30,7 +30,10 @@ type BatchItem = {
   role: WorkerRole;
   prompt: string;
   cwd: string;
+  selection?: WorkerSelection;
 };
+
+type WorkerSelection = { role: WorkerRole; profile: string; model?: string; effort?: string };
 
 type BatchResult = {
   task_id: string;
@@ -74,9 +77,14 @@ const batchItemType = Type.Object({
   role: batchRoleType,
   prompt: Type.String({ minLength: 1 }),
   cwd: Type.String({ minLength: 1, description: "Normalized absolute assigned source worktree path." }),
+  selection: Type.Optional(Type.Object({
+    role: batchRoleType, profile: Type.String({ minLength: 1 }),
+    model: Type.Optional(Type.String({ minLength: 1 })),
+    effort: Type.Optional(Type.String({ minLength: 1 })),
+  }, { additionalProperties: false })),
 });
 
-function childArgs(role: WorkerRole, prompt: string): string[] {
+function childArgs(role: WorkerRole, prompt: string, selection?: WorkerSelection): string[] {
   const tools =
     role === "verifier" || role === "planner"
       ? "read,bash,grep,find,ls"
@@ -92,7 +100,8 @@ function childArgs(role: WorkerRole, prompt: string): string[] {
     "--append-system-prompt",
     rolePrompts[role],
   ];
-  const profile = workerProfiles[role];
+  if (selection && selection.role !== role) throw new Error("Worker selection role must match the dispatched role.");
+  const profile = selection ?? workerProfiles[role];
   if (profile.model) args.push("--model", profile.model);
   if (profile.effort) args.push("--thinking", profile.effort);
   args.push(prompt);
@@ -110,7 +119,7 @@ export default function (pi: ExtensionAPI) {
   const launch = (run: BatchRun, item: BatchItem) => {
     const child = (async () => {
       try {
-        const result = await pi.exec("pi", childArgs(item.role, item.prompt), {
+        const result = await pi.exec("pi", childArgs(item.role, item.prompt, item.selection), {
           cwd: item.cwd,
           signal: run.controller.signal,
         });
@@ -166,6 +175,11 @@ export default function (pi: ExtensionAPI) {
             description:
               "Installed route-contract path plus compact file paths, snapshot IDs, prior-role result, and boundary.",
           }),
+          selection: Type.Optional(Type.Object({
+            role: roleType, profile: Type.String({ minLength: 1 }),
+            model: Type.Optional(Type.String({ minLength: 1 })),
+            effort: Type.Optional(Type.String({ minLength: 1 })),
+          }, { additionalProperties: false })),
         },
         { additionalProperties: false },
       ),
@@ -189,7 +203,7 @@ export default function (pi: ExtensionAPI) {
     ]),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if ("role" in params) {
-        const child = await pi.exec("pi", childArgs(params.role, params.prompt), {
+        const child = await pi.exec("pi", childArgs(params.role, params.prompt, params.selection), {
           cwd: ctx.cwd,
           signal,
         });

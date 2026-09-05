@@ -31,6 +31,14 @@ selected profile with `hub` when possible; one valid standard-work escalation
 starts an advanced replacement without replanning. The coordinator retains
 task completion and commits.
 
+Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+OMP and freeze all five resolved role rows. Select only a rendered task agent
+whose profile-qualified model and thinking metadata exactly match the frozen
+row; report an unavailable definition before dispatch. Preserve that selection
+through planning, hub repair or replacement, verification, audit, challenge,
+continuation, recovery, and supported parallel work. Use `zdev-plan` for
+plan-only work.
+
 An explicitly approved Parallel route uses the packaged `zdev-parallel`
 prompt. It checks the live Task and Hub schemas before mutation, creates and
 owns the assigned zdev worktrees, and omits native Task isolation. It dispatches

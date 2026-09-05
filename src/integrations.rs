@@ -10,7 +10,9 @@ use serde_json::{Value, json};
 
 #[cfg(test)]
 use super::config::built_in_worker_profiles;
-use super::config::{ResolvedWorkers, WorkerHarness, resolve_worker_profiles};
+use super::config::{
+    ResolvedWorkers, WorkerHarness, resolve_configured_worker_profiles, resolve_worker_profiles,
+};
 use super::project::{read_config, write_config};
 use super::{CommandOutput, SCHEMA_VERSION, ZdevError, relative, resolve_root, write_atomic};
 
@@ -113,11 +115,14 @@ const OPENCODE_AUDIT_COMMAND: &str =
     include_str!("../templates/zdev/opencode/commands/zdev-audit.md");
 const OPENCODE_PARALLEL_COMMAND: &str =
     include_str!("../templates/zdev/opencode/commands/zdev-parallel.md");
+const OPENCODE_PLAN_COMMAND: &str =
+    include_str!("../templates/zdev/opencode/commands/zdev-plan.md");
 const PI_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/pi-skill.md");
 const PI_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-implement.md");
 const PI_VERIFY_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-verify.md");
 const PI_AUDIT_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-audit.md");
 const PI_PARALLEL_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-parallel.md");
+const PI_PLAN_PROMPT: &str = include_str!("../templates/zdev/pi/prompts/zdev-plan.md");
 const PI_SUBAGENT_EXTENSION: &str =
     include_str!("../templates/zdev/pi/extensions/zdev-subagent.ts");
 const OMP_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/omp-skill.md");
@@ -139,6 +144,7 @@ const OMP_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/z
 const OMP_VERIFY_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-verify.md");
 const OMP_LOOP_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-loop.md");
 const OMP_PARALLEL_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-parallel.md");
+const OMP_PLAN_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-plan.md");
 const CODEX_LEGACY_FILES: &[&str] = &[
     "zdev-audit/SKILL.md",
     "zdev-audit/agents/openai.yaml",
@@ -218,6 +224,7 @@ impl Harness {
         self,
         guidance: Option<(&str, &str)>,
         workers: ResolvedWorkers,
+        configured_workers: Vec<(String, ResolvedWorkers)>,
         destination: &Path,
         scope: &str,
     ) -> Result<SkillIntegration, ZdevError> {
@@ -361,6 +368,10 @@ impl Harness {
                         content: OPENCODE_PARALLEL_COMMAND.to_owned(),
                     },
                     IntegrationFile {
+                        path: "commands/zdev-plan.md".to_owned(),
+                        content: OPENCODE_PLAN_COMMAND.to_owned(),
+                    },
+                    IntegrationFile {
                         path: "commands/zdev-loop.md".to_owned(),
                         content: BOUNDED_AREA_LOOP_TEMPLATE.to_owned(),
                     },
@@ -398,6 +409,10 @@ impl Harness {
                     IntegrationFile {
                         path: "prompts/zdev-parallel.md".to_owned(),
                         content: PI_PARALLEL_PROMPT.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-plan.md".to_owned(),
+                        content: PI_PLAN_PROMPT.to_owned(),
                     },
                     IntegrationFile {
                         path: "prompts/zdev-loop.md".to_owned(),
@@ -475,6 +490,10 @@ impl Harness {
                         content: OMP_PARALLEL_PROMPT.to_owned(),
                     },
                     IntegrationFile {
+                        path: "prompts/zdev-plan.md".to_owned(),
+                        content: OMP_PLAN_PROMPT.to_owned(),
+                    },
+                    IntegrationFile {
                         path: "prompts/zdev-loop.md".to_owned(),
                         content: native_loop_artifact(OMP_LOOP_PROMPT)?,
                     },
@@ -484,6 +503,9 @@ impl Harness {
                     },
                 ]);
             }
+        }
+        if matches!(self, Self::Opencode | Self::Omp) {
+            add_profile_agents(self, &mut files, configured_workers)?;
         }
         let contract_suffix = match self {
             Self::Codex => "zdev/references/task-workflows.md",
@@ -522,6 +544,54 @@ impl Harness {
             workers,
         })
     }
+}
+
+fn add_profile_agents(
+    harness: Harness,
+    files: &mut Vec<IntegrationFile>,
+    profiles: Vec<(String, ResolvedWorkers)>,
+) -> Result<(), ZdevError> {
+    let templates: &[(&str, &str)] = match harness {
+        Harness::Opencode => &[
+            ("routine-implementer", OPENCODE_ROUTINE_IMPLEMENTER),
+            ("implementer", OPENCODE_IMPLEMENTER),
+            ("advanced-implementer", OPENCODE_ADVANCED_IMPLEMENTER),
+            ("planner", OPENCODE_PLANNER),
+            ("verifier", OPENCODE_VERIFIER),
+        ],
+        Harness::Omp => &[
+            ("routine-implementer", OMP_ROUTINE_IMPLEMENTER),
+            ("implementer", OMP_IMPLEMENTER),
+            ("advanced-implementer", OMP_ADVANCED_IMPLEMENTER),
+            ("planner", OMP_PLANNER),
+            ("verifier", OMP_VERIFIER),
+        ],
+        _ => return Ok(()),
+    };
+    for (profile, workers) in profiles {
+        for (role, source) in templates {
+            let native_name = format!("zdev-{profile}-{role}");
+            let source = source.replacen(
+                &format!("name: zdev-{role}"),
+                &format!("name: {native_name}"),
+                1,
+            );
+            let content = render_template(
+                &format!("agents/{native_name}.md"),
+                &source,
+                ("", "", "", "", "", false),
+                "",
+                "",
+                env!("CARGO_PKG_VERSION"),
+                &workers,
+            )?;
+            files.push(IntegrationFile {
+                path: format!("agents/{native_name}.md"),
+                content,
+            });
+        }
+    }
+    Ok(())
 }
 
 fn canonicalize_with_missing_suffix(path: &Path) -> PathBuf {
@@ -971,6 +1041,8 @@ pub(super) fn run_skill_command(
         })?;
     }
     let workers = resolve_worker_profiles(project_root.as_deref(), harness.worker_harness())?;
+    let configured_workers =
+        resolve_configured_worker_profiles(project_root.as_deref(), harness.worker_harness())?;
     let destination =
         resolve_integration_destination(harness, scope, requested, project_root.as_deref())?;
     let warnings = integration_warnings(harness, scope, requested);
@@ -997,6 +1069,7 @@ pub(super) fn run_skill_command(
             let integration = harness.integration(
                 guidance_view,
                 workers,
+                configured_workers.clone(),
                 &destination.path,
                 destination.scope,
             )?;
@@ -1032,6 +1105,7 @@ pub(super) fn run_skill_command(
                 harness.integration(
                     guidance_view,
                     workers,
+                    configured_workers,
                     &destination.path,
                     destination.scope,
                 )?,

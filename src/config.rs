@@ -1505,6 +1505,42 @@ pub(super) fn resolve_worker_profiles(
     })
 }
 
+pub(super) fn resolve_configured_worker_profiles(
+    project_root: Option<&Path>,
+    harness: WorkerHarness,
+) -> Result<Vec<(String, ResolvedWorkers)>, ZdevError> {
+    let global = read_worker_document(&global_worker_path()?)?;
+    let local = project_root
+        .map(|root| read_worker_document(&root.join(".zdev/workers.toml")))
+        .transpose()?
+        .flatten();
+    let mut names = std::collections::BTreeSet::new();
+    for file in [global.as_ref(), local.as_ref()].into_iter().flatten() {
+        names.extend(file.profiles.iter().filter_map(|(name, profile)| {
+            (!profile.harness(harness).is_empty()).then_some(name.clone())
+        }));
+    }
+    names
+        .into_iter()
+        .map(|name| {
+            let resolve = |role| {
+                resolve_named_role(project_root, harness, role, Some(&name), None)
+                    .map(|(_, value, _)| value)
+            };
+            Ok((
+                name.clone(),
+                ResolvedWorkers {
+                    routine_implementer: resolve(WorkerRole::RoutineImplementer)?,
+                    implementer: resolve(WorkerRole::Implementer)?,
+                    verifier: resolve(WorkerRole::Verifier)?,
+                    advanced_implementer: resolve(WorkerRole::AdvancedImplementer)?,
+                    planner: resolve(WorkerRole::Planner)?,
+                },
+            ))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 pub(super) fn built_in_worker_profiles(harness: WorkerHarness) -> ResolvedWorkers {
     let profiles = built_in_profiles(harness);

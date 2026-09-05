@@ -179,6 +179,14 @@ harness's explicit result. Never silently substitute a worker or claim that a
 worker selection changed the coordinating conversation's model. An unknown or
 unsupported profile is a blocker before dispatch.
 
+Claude's executable workflows pass both concrete fields to the native
+`agent()` call. When those workflows are unavailable, the ordinary Agent
+fallback may use an installed prepared role definition only when its model and
+effort match the resolved row exactly. If the fallback cannot express the
+requested effort or has no exact prepared definition, report that capability
+limit and the refresh command instead of substituting another row or claiming
+selection succeeded.
+
 ## Goal and loop
 
 Inside active zdev, “goal” and “loop” are synonyms: continue one named area one
@@ -302,6 +310,13 @@ guidance, and relevant source; the applicable snapshot IDs; and the short
 result from the preceding role. Let the worker read those files instead of
 copying their contents or the full contract into the prompt. An implementer
 loads the derived-work section only if it actually needs a split.
+
+Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+OpenCode and freeze all five resolved role rows. Select only a rendered agent
+whose profile-qualified metadata exactly matches the applicable frozen row;
+report an unavailable definition before dispatch. Keep those definitions and
+the frozen rows unchanged through planning, repair, verification, audit,
+challenge, continuation, and recovery. Use `zdev-plan` for a plan-only request.
 
 When an implementer will author human-facing prose, include the shared `Write
 human-facing prose plainly` section in its compact payload. Other workers do not

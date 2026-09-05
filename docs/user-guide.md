@@ -491,6 +491,7 @@ implementer and verifier agents, and packaged workflows used by the skill.
 ### OpenCode
 
 OpenCode installs one skill plus agents and route commands under `.opencode`.
+`/zdev-plan <area> [planner-profile]` plans the explicit next task read-only.
 Asking zdev to loop or set a goal completes at most one task and returns `CONTINUE` only
 after a verified commit when ready work remains. OpenCode discovers project
 skills when started from a subdirectory in the worktree.
@@ -502,7 +503,9 @@ the command creates no task worktrees and offers sequential implementation.
 
 Pi installs a skill, prompt templates, and the `zdev_subagent` extension under
 `.pi`. The extension starts a fresh child Pi process for each implementation or
-verification handoff. Its explicit parallel prompt can bound initial planner
+verification handoff and accepts a frozen role/profile/model/effort selection
+for each single or batch item. `/zdev-plan <area> [planner-profile]` stops after
+one read-only planner. Its explicit parallel prompt can bound initial planner
 and source-implementer children across assigned worktrees. A session-local run
 returns one result at a time; Pi integrates and verifies it before explicitly
 continuing queued work, then completes and commits each result serially. Goal
@@ -513,6 +516,7 @@ and loop are the same bounded one-task continuation route. A user installation g
 
 Oh My Pi is separate from plain Pi. It installs a skill and constrained native
 task agents under `.omp` and uses OMP's built-in `task` and `hub` facilities.
+`/zdev-plan <area> [planner-profile]` invokes one blocking read-only planner.
 The root skill's goal and loop route uses OMP's native goal when clear and falls
 back to one verified task when creation is
 unavailable after that clear inspection.

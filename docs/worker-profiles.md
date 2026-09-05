@@ -256,9 +256,10 @@ and Claude Code as a read-only route. It selects and snapshots one ready task
 explicitly, resolves `advanced` only for that planner step, returns the
 validated plan and concrete planner settings, and stops before implementation
 or lifecycle and Git work. Claude's native workflow passes the resolved model
-and effort to the planner call. OpenCode, Pi, and Oh My Pi currently report
-this scoped plan-only route as unsupported; their adapter work follows
-separately.
+and effort to the planner call. OpenCode, Pi, and Oh My Pi use the same frozen
+dispatch specification. Pi passes each concrete selection to its child
+process; OpenCode and Oh My Pi select a matching installed profile-qualified
+native agent. Their `zdev-plan` entrypoints stop after one read-only planner.
 
 Claude's executable task workflows obtain one admitted dispatch specification
 at the start of a run. That specification contains the concrete five-role map;

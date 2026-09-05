@@ -1384,7 +1384,7 @@ fn dispatch_spec(
         role_profiles,
         retained_plan,
     } = input;
-    if !matches!(harness, "codex" | "claude") {
+    if !matches!(harness, "codex" | "claude" | "opencode" | "pi" | "omp") {
         return Err(ZdevError::new(format!(
             "Dispatch specifications are not supported for harness {harness}"
         )));

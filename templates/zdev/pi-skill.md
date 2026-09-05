@@ -25,6 +25,13 @@ guidance, and source file paths, applicable snapshot IDs, and the short result
 from the preceding role. The child reads those files from the shared checkout;
 do not copy the rendered contract into its prompt.
 
+Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+Pi and freeze all five resolved role rows. Pass each applicable frozen
+role/profile/model/effort tuple to `zdev_subagent`; omission is reserved for
+legacy callers and keeps the installed normal row. Retain the tuples through
+planning, fresh-child repair, verification, audit, challenge, continuation,
+recovery, and supported parallel batches. Use `zdev-plan` for plan-only work.
+
 For an explicitly approved Parallel route, use the packaged `zdev-parallel`
 prompt. Its bounded `zdev_subagent` batch form is only for planners and initial
 source implementers in assigned worktrees. Its session-local start, continue,

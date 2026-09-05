@@ -2,9 +2,8 @@
 
 This route is selected by the exact request “plan next task with advanced
 planner.” It is read-only planning even when the selected task is routine or
-standard. Codex and Claude Code support this route now. OpenCode, Pi, and Oh My
-Pi must report that scoped plan-only dispatch is not yet supported by their
-current adapter; they must not approximate it with implementation.
+standard. Codex and Claude Code use their native scoped worker controls.
+OpenCode, Pi, and Oh My Pi use their installed `zdev-plan` command or prompt.
 
 Use normal area selection. If an area was named, run `zdev work-context <area>
 --store --format json`. If the user explicitly chose a ready task, add `--task
@@ -27,6 +26,18 @@ task-workflow contract. Validate its four-field semantic result and construct
 the public planner envelope exactly as required by that contract. Return the
 selected area and task, the plan's approach, paths, validation, findings, the
 snapshot baseline, and the concrete planner profile, model, and effort.
+
+Use the adapter's exact dispatch controls. Pi passes the frozen
+role/profile/model/effort selection to `zdev_subagent`, which supplies native
+`--model` and `--thinking` arguments. OpenCode selects the prepared
+`zdev-<profile>-planner` agent, and Oh My Pi selects the prepared blocking agent
+with that name; `normal` uses each adapter's ordinary `zdev-planner`. Require
+the selected native definition's model and effort metadata to match the frozen
+dispatch exactly. If the profile is undefined for that harness, its setting is
+not expressible by the native adapter, or the installed prepared definition is
+missing or stale, report the concrete problem before dispatch. Do not rewrite
+the integration during the run or substitute another profile, model, effort,
+or worker.
 
 Stop after returning the plan. Do not start an implementer or verifier, mutate
 source or `.zdev`, complete a task, draft or import tasks, stage or commit,

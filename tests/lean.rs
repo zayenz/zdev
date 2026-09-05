@@ -8795,8 +8795,8 @@ fn pi_subagent_preserves_single_calls_and_runs_attributed_bounded_batches() {
         )
         .replace("new Map<string, BatchRun>()", "new Map()")
         .replace(
-            "function childArgs(role: WorkerRole, prompt: string): string[]",
-            "function childArgs(role, prompt)",
+            "function childArgs(role: WorkerRole, prompt: string, selection?: WorkerSelection): string[]",
+            "function childArgs(role, prompt, selection)",
         )
         .replace(
             "const items = params.items as BatchItem[];",
@@ -8888,6 +8888,11 @@ const singleSignal = new AbortController()
 const single = await tool.execute('single', {{ role: 'verifier', prompt: 'one' }}, singleSignal.signal, undefined, {{ cwd: '/parent' }})
 if (single.content[0].text !== 'result-one' || starts[0].cwd !== '/parent') throw new Error('legacy single call changed')
 if (!starts[0].args.includes('read,bash,grep,find,ls')) throw new Error('single role tools changed')
+await tool.execute('selected', {{ role: 'planner', prompt: 'selected', selection: {{ role: 'planner', profile: 'custom-high', model: 'provider/model', effort: 'high' }} }}, singleSignal.signal, undefined, {{ cwd: '/parent' }})
+if (starts[1].args.slice(-5).join(',') !== '--model,provider/model,--thinking,high,selected') throw new Error('frozen selection arguments changed')
+let mismatched = false
+try {{ await tool.execute('mismatch', {{ role: 'planner', prompt: 'bad', selection: {{ role: 'verifier', profile: 'custom-high' }} }}, singleSignal.signal, undefined, {{ cwd: '/parent' }}) }} catch (error) {{ mismatched = String(error).includes('must match') }}
+if (!mismatched) throw new Error('mismatched frozen role was dispatched')
 
 mode = 'batch'
 starts.length = 0
@@ -10978,6 +10983,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "prompts/zdev-implement.md",
             "prompts/zdev-loop.md",
             "prompts/zdev-parallel.md",
+            "prompts/zdev-plan.md",
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev-pi/SKILL.md",
@@ -11118,6 +11124,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "prompts/zdev-implement.md",
             "prompts/zdev-loop.md",
             "prompts/zdev-parallel.md",
+            "prompts/zdev-plan.md",
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev/SKILL.md",
@@ -12737,6 +12744,94 @@ fn claude_dispatch_spec_freezes_fable_and_custom_role_profiles_without_writes() 
     assert_eq!(plan["dispatches"][0]["model"], "claude-fable-5-1");
     assert_eq!(plan["dispatches"][0]["reasoning_effort"], "xhigh");
     assert_eq!(plan["stop"], "plan-only");
+}
+
+#[test]
+fn portable_dispatch_specs_freeze_custom_profiles_before_dispatch() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    import_one_task(root, "work");
+    for harness in ["opencode", "pi", "omp"] {
+        json_output(
+            root,
+            &[
+                "config",
+                "profile",
+                "set",
+                "custom-high",
+                harness,
+                "planner",
+                "openai/provider-model",
+                "high",
+            ],
+        );
+        let context = json_output(
+            root,
+            &["work-context", "work", "--task", "work-001", "--store"],
+        );
+        let snapshot = context["snapshot"].as_str().unwrap();
+        let spec = json_output(
+            root,
+            &[
+                "config",
+                "profile",
+                "dispatch-spec",
+                "plan-next-task",
+                "--harness",
+                harness,
+                "--area",
+                "work",
+                "--task",
+                "work-001",
+                "--snapshot",
+                snapshot,
+                "--role-profile",
+                "planner=custom-high",
+            ],
+        );
+        assert_eq!(spec["harness"], harness);
+        assert_eq!(spec["dispatches"][0]["profile"], "custom-high");
+        assert_eq!(spec["dispatches"][0]["model"], "openai/provider-model");
+        assert_eq!(spec["dispatches"][0]["reasoning_effort"], "high");
+        assert_eq!(spec["stop"], "plan-only");
+    }
+}
+
+#[test]
+fn portable_native_installs_prepare_exact_custom_planner_metadata() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    for (harness, effort_key) in [
+        ("opencode", "reasoningEffort: \"high\""),
+        ("omp", "thinking-level: \"high\""),
+    ] {
+        json_output(
+            root,
+            &[
+                "config",
+                "profile",
+                "set",
+                "custom-high",
+                harness,
+                "planner",
+                "openai/provider-model",
+                "high",
+            ],
+        );
+        let destination = root.join(format!(".{harness}"));
+        json_output(root, &["skill", "install", harness, "--scope", "project"]);
+        let planner = fs::read_to_string(destination.join("agents/zdev-custom-high-planner.md"))
+            .expect("prepared planner");
+        assert!(planner.contains("openai/provider-model"));
+        assert!(planner.contains(effort_key));
+    }
 }
 
 #[test]

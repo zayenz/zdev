@@ -8219,7 +8219,7 @@ fn parallel_route_is_shared_and_supported_harnesses_report_execution_support() {
                 .expect("parallel reference");
 
         assert!(skill.contains("references/parallel.md"));
-        if matches!(harness, "codex" | "claude" | "pi") {
+        if matches!(harness, "codex" | "claude" | "pi" | "omp") {
             assert!(parallel.contains("## Native harness support"));
             assert!(parallel.contains("in-memory set of dispatched task IDs"));
             assert!(parallel.contains("configured implementation\nprofile"));
@@ -10513,6 +10513,9 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         [
             "agents/zdev-advanced-implementer.md",
             "agents/zdev-implementer.md",
+            "agents/zdev-parallel-advanced-implementer.md",
+            "agents/zdev-parallel-implementer.md",
+            "agents/zdev-parallel-routine-implementer.md",
             "agents/zdev-planner.md",
             "agents/zdev-routine-implementer.md",
             "agents/zdev-verifier.md",
@@ -10520,6 +10523,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "prompts/zdev-goal.md",
             "prompts/zdev-implement.md",
             "prompts/zdev-loop.md",
+            "prompts/zdev-parallel.md",
             "prompts/zdev-verify.md",
             "settings.json",
             "skills/zdev/SKILL.md",
@@ -10618,6 +10622,80 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
         )["status"],
         "ok"
     );
+}
+
+#[test]
+fn omp_parallel_roles_are_background_profile_twins_and_prompt_uses_owned_worktrees() {
+    let repository = repository();
+    let root = repository.path();
+    let destination = root.join("omp-parallel");
+    let config_home = root.join("omp-parallel-config");
+    fs::create_dir_all(config_home.join("zdev")).expect("worker config directory");
+    fs::write(
+        config_home.join("zdev/workers.toml"),
+        "schema_version = 1\n\n[omp.routine-implementer]\nmodel = \"routine/model\"\neffort = \"low\"\n\n[omp.implementer]\nmodel = \"standard/model\"\neffort = \"medium\"\n\n[omp.advanced-implementer]\nmodel = \"advanced/model\"\neffort = \"high\"\n",
+    )
+    .expect("worker config");
+    json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "omp",
+            "--to",
+            destination.to_str().expect("destination"),
+        ],
+        &[("XDG_CONFIG_HOME", config_home.as_path())],
+    );
+
+    for (ordinary, parallel, model, effort) in [
+        (
+            "zdev-routine-implementer.md",
+            "zdev-parallel-routine-implementer.md",
+            "routine/model",
+            "low",
+        ),
+        (
+            "zdev-implementer.md",
+            "zdev-parallel-implementer.md",
+            "standard/model",
+            "medium",
+        ),
+        (
+            "zdev-advanced-implementer.md",
+            "zdev-parallel-advanced-implementer.md",
+            "advanced/model",
+            "high",
+        ),
+    ] {
+        let ordinary =
+            fs::read_to_string(destination.join("agents").join(ordinary)).expect("ordinary role");
+        let parallel =
+            fs::read_to_string(destination.join("agents").join(parallel)).expect("parallel role");
+        assert!(ordinary.contains("blocking: true"));
+        assert!(parallel.contains("blocking: false"));
+        for field in [
+            format!("model: \"{model}\""),
+            format!("thinking-level: \"{effort}\""),
+        ] {
+            assert!(ordinary.contains(&field));
+            assert!(parallel.contains(&field));
+        }
+    }
+    for role in ["zdev-planner.md", "zdev-verifier.md"] {
+        assert!(
+            fs::read_to_string(destination.join("agents").join(role))
+                .expect("blocking coordination role")
+                .contains("blocking: true")
+        );
+    }
+
+    let prompt =
+        fs::read_to_string(destination.join("prompts/zdev-parallel.md")).expect("parallel prompt");
+    assert!(prompt.contains("{context,tasks:[...]}"));
+    assert!(prompt.contains("job listing, waiting, and cancellation"));
+    assert!(prompt.contains("Never send `isolated`"));
+    assert!(!prompt.contains("isolated: true"));
 }
 
 #[test]

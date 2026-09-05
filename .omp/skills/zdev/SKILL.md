@@ -266,6 +266,14 @@ selected profile with `hub` when possible; one valid standard-work escalation
 starts an advanced replacement without replanning. The coordinator retains
 task completion and commits.
 
+An explicitly approved Parallel route uses the packaged `zdev-parallel`
+prompt. It checks the live Task and Hub schemas before mutation, creates and
+owns the assigned zdev worktrees, and omits native Task isolation. It dispatches
+the separate non-blocking parallel implementer roles, retains native job and
+task identity, and serializes integration, blocking verification, completion,
+and commits. If background job control or explicit path access is unavailable,
+it offers ordinary sequential Implement before creating worktrees.
+
 Each agent starts with its short role definition. Give it the installed
 route-contract path and a compact task payload: file paths for the brief, task,
 guidance, and relevant source; the applicable snapshot IDs; and the short

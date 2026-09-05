@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-016"
 key = "run-parallel-tasks-in-omp"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,14 +27,22 @@ Read Harness adaptation, User choices, Integration and completion, Stops and rec
 
 ## Done when
 
-- [ ] The installed Oh My Pi integration discovers the parallel route and uses the actual available task schema to run independent assigned implementations concurrently within the agreed limit.
-- [ ] Background or batch results retain task identity and are accepted individually for shared serial integration, independent verification, and completion.
-- [ ] Native isolation, merge, cleanup, and revival behavior cannot bypass the coordinator's ownership or preservation gates.
-- [ ] Task-local blockers, shared decisions, cancellation, and explicit resume follow the shared contract and preserve findings and unfinished source changes.
-- [ ] Canonical prompts and agent handoffs, registration, documentation, and regenerated fixtures describe the feature and its runtime capability checks accurately.
+- [x] The installed Oh My Pi integration discovers the parallel route and uses the actual available task schema to run independent assigned implementations concurrently within the agreed limit.
+- [x] Background or batch results retain task identity and are accepted individually for shared serial integration, independent verification, and completion.
+- [x] Native isolation, merge, cleanup, and revival behavior cannot bypass the coordinator's ownership or preservation gates.
+- [x] Task-local blockers, shared decisions, cancellation, and explicit resume follow the shared contract and preserve findings and unfinished source changes.
+- [x] Canonical prompts and agent handoffs, registration, documentation, and regenerated fixtures describe the feature and its runtime capability checks accurately.
 
 ## Validation
 
 - Use controlled native-result cases and rendered scenario review for asynchronous identity, conditional task shapes, isolated-worker non-revival, and cleanup/merge ownership.
 - Add focused executable coverage only where adapter logic changes; retain existing structured-output, escalation, handoff, discovery, and fixture checks.
 - Regenerate affected integrations and run standard area validation.
+
+## Result
+
+Added Oh My Pi parallel support with live Task/Hub preflight, separate non-blocking configured implementers, coordinator-owned worktrees, task-attributed background arrivals, serial verification, cancellation settlement, and safe recovery.
+
+Validation:
+
+- Independent verification passed from exact snapshot W0c06cd740865bb8b: current OMP schemas and isolation behavior reviewed, focused install/profile/parity checks, all 158 tests, fmt, clippy with warnings denied, build, and diff check.

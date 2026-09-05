@@ -122,12 +122,19 @@ const OMP_ROUTINE_IMPLEMENTER: &str =
     include_str!("../templates/zdev/omp/agents/zdev-routine-implementer.md");
 const OMP_ADVANCED_IMPLEMENTER: &str =
     include_str!("../templates/zdev/omp/agents/zdev-advanced-implementer.md");
+const OMP_PARALLEL_ROUTINE_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/omp/agents/zdev-parallel-routine-implementer.md");
+const OMP_PARALLEL_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/omp/agents/zdev-parallel-implementer.md");
+const OMP_PARALLEL_ADVANCED_IMPLEMENTER: &str =
+    include_str!("../templates/zdev/omp/agents/zdev-parallel-advanced-implementer.md");
 const OMP_PLANNER: &str = include_str!("../templates/zdev/omp/agents/zdev-planner.md");
 const OMP_VERIFIER: &str = include_str!("../templates/zdev/omp/agents/zdev-verifier.md");
 const OMP_AUDIT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-audit.md");
 const OMP_IMPLEMENT_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-implement.md");
 const OMP_VERIFY_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-verify.md");
 const OMP_LOOP_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-loop.md");
+const OMP_PARALLEL_PROMPT: &str = include_str!("../templates/zdev/omp/prompts/zdev-parallel.md");
 const CODEX_LEGACY_FILES: &[&str] = &[
     "zdev-audit/SKILL.md",
     "zdev-audit/agents/openai.yaml",
@@ -436,6 +443,18 @@ impl Harness {
                         content: OMP_PLANNER.to_owned(),
                     },
                     IntegrationFile {
+                        path: "agents/zdev-parallel-routine-implementer.md".to_owned(),
+                        content: OMP_PARALLEL_ROUTINE_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "agents/zdev-parallel-implementer.md".to_owned(),
+                        content: OMP_PARALLEL_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "agents/zdev-parallel-advanced-implementer.md".to_owned(),
+                        content: OMP_PARALLEL_ADVANCED_IMPLEMENTER.to_owned(),
+                    },
+                    IntegrationFile {
                         path: "prompts/zdev-audit.md".to_owned(),
                         content: OMP_AUDIT_PROMPT.to_owned(),
                     },
@@ -446,6 +465,10 @@ impl Harness {
                     IntegrationFile {
                         path: "prompts/zdev-verify.md".to_owned(),
                         content: OMP_VERIFY_PROMPT.to_owned(),
+                    },
+                    IntegrationFile {
+                        path: "prompts/zdev-parallel.md".to_owned(),
+                        content: OMP_PARALLEL_PROMPT.to_owned(),
                     },
                     IntegrationFile {
                         path: "prompts/zdev-loop.md".to_owned(),
@@ -670,7 +693,10 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
+            matches!(
+                harness,
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+            ),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -691,7 +717,10 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
+            matches!(
+                harness,
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+            ),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -707,7 +736,10 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
+            matches!(
+                harness,
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+            ),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -723,7 +755,10 @@ fn realize_templates(
             "",
             "",
             &task_workflows_contract_path_json,
-            matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
+            matches!(
+                harness,
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+            ),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -752,7 +787,10 @@ fn realize_templates(
                 &task_workflow_contract,
                 &verify_workflow_contract,
                 &task_workflows_contract_path_json,
-                matches!(harness, Harness::Codex | Harness::Claude | Harness::Pi),
+                matches!(
+                    harness,
+                    Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+                ),
             ),
             &repository_guidance,
             &question_tool_guidance,

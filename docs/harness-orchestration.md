@@ -152,14 +152,17 @@ form additional skills or change the root activation name.
 | Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects a concise scoped role and passes a stored work-context locator. The detailed derived-work contract is loaded only when a split is needed. |
 | OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-parallel.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; one-task commands use the native task tool and compact file/snapshot locators. The parallel command stops before mutation because foreground batches do not return coordinator control per completed child. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-parallel.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` keeps single configured roles and adds bounded, task-keyed planner and source-implementer batches with explicit working directories. Calls carry compact locators rather than the rendered workflow. |
-| Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | Concise named agents are invoked through native `task`; they receive compact locators, while paired continuation prompts use OMP's native goal when clear. |
+| Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-parallel.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | Concise blocking agents handle ordinary one-task work. Separate non-blocking routine, standard, and advanced implementers run assigned source worktrees for parallel batches; the coordinator uses blocking planners and verifiers and retains integration, completion, and commits. |
 
 Every installation also contains one rendered `references/parallel.md` route.
 Codex maps it to live-agent inspection, bounded collaboration dispatch, waits,
 supported interruption, explicit source cwd values, and the configured role
-profiles. OpenCode and Oh My Pi render an explicit unsupported result with a
-sequential option; OpenCode's discoverable command checks the current Task
-surface before mutation. Pi uses a transient
+profiles. OpenCode renders an explicit unsupported result with a sequential
+option and its discoverable command checks the current Task surface before
+mutation. Oh My Pi's prompt checks its live conditional Task schema, background
+job controls, agent discovery, and explicit path access before creating zdev
+worktrees; it omits native isolation so automatic merge and cleanup cannot
+bypass coordinator gates. Pi uses a transient
 session-local handle to return one completed source result at a time, then
 requires serial destination verification before coordination continues the run.
 The shared route owns admission, isolation, serial integration, recovery, and

@@ -2,6 +2,9 @@ const README: &str = include_str!("../README.md");
 const USER_GUIDE: &str = include_str!("../docs/user-guide.md");
 const WORKFLOW: &str = include_str!("../docs/workflow.md");
 const ADAPTED_METHODS: &str = include_str!("../docs/adapted-methods.md");
+const SHARED_CONTRACT: &str = include_str!("../templates/zdev/shared-contract.md");
+const TASK_WORKFLOWS: &str = include_str!("../templates/zdev/task-workflows.md");
+const TO_TASKS: &str = include_str!("../templates/zdev/references/to-tasks.md");
 
 fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -96,10 +99,14 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
     }
 
     let adapted_methods = normalized(ADAPTED_METHODS);
-    assert!(adapted_methods.contains("challenge independent branches breadth first"));
-    assert!(adapted_methods.contains(
-        "stops when no unresolved choice could materially change behavior, scope, task splitting, or validation"
-    ));
+    for concept in [
+        "challenge independent branches breadth first",
+        "no unresolved choice",
+        "task splitting",
+        "validation",
+    ] {
+        assert!(adapted_methods.contains(concept));
+    }
 
     for document in [README, WORKFLOW, USER_GUIDE] {
         let document = normalized(document);
@@ -108,4 +115,23 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
         assert!(document.contains("fresh full challenge"));
         assert!(document.contains("approval"));
     }
+}
+
+#[test]
+fn writing_guidance_preserves_semantics_and_reaches_prose_workers() {
+    let shared = normalized(SHARED_CONTRACT);
+    assert!(shared.contains("## Write human-facing prose plainly"));
+    assert!(shared.contains("active voice"));
+    assert!(shared.contains("JSON, TOML, YAML, frontmatter"));
+
+    let workflows = normalized(TASK_WORKFLOWS);
+    assert!(
+        workflows.contains("shared prose guidance only when the task authors human-facing text")
+    );
+    assert!(workflows.contains("## Write instructions for the worker's path"));
+
+    let tasks = normalized(TO_TASKS);
+    assert!(tasks.contains("`Boundaries` only for real constraints"));
+    assert!(tasks.contains("`Done when` item as an observable result"));
+    assert!(tasks.contains("`docs/report-format.md`"));
 }

@@ -207,12 +207,13 @@ report it without installing or rewriting the integration automatically.
 ## Write human-facing prose plainly
 
 When composing or revising human-facing prose written for zdev, preserve the
-meaning and match the intended tone. Prefer specific facts and plain words.
-Remove puffery, promotional claims, vague attribution, canned chatbot phrases,
-excessive hedging, forced parallel structure, synonym cycling, and decorative
-formatting. Keep a natural sentence rhythm, repeat stable repository terms, and
-use emphasis only when it helps. Reread the draft for formulaic AI phrasing and
-fix any remaining tells.
+meaning and match the intended tone. Name the actor and the concrete action.
+Prefer specific facts, plain words, active voice, and sentences a reader does
+not need to backtrack through. Remove puffery, promotional claims, vague
+attribution, canned chatbot phrases, filler, excessive hedging, forced parallel
+structure, and synonym cycling. Vary sentence length where it helps readability,
+but keep repository terms stable instead of inventing synonyms. Reread the
+finished draft and replace any remaining generic or formulaic phrasing.
 
 This editorial pass does not apply to user quotations or source text. Never use
 it to rewrite code, commands, paths, literals, JSON, TOML, YAML, frontmatter,
@@ -220,8 +221,8 @@ generated records, or approved task content. Semantic accuracy, repository
 terminology, explicit user instructions, and the area, slice, and task contracts
 take priority over style preferences.
 
-This guidance adapts Lauren Tan's MIT-licensed Poteto Noodle `unslop` method at
-commit `82d2921c52370f23f29086de81ccfb600939c037`.
+This guidance adapts Lauren Tan's MIT-licensed Cursor pstack `unslop` method at
+commit `93b00b89ef425a9c1bac0d0b317dfc49c930ac99`.
 
 ## State and reporting
 
@@ -250,6 +251,10 @@ standard-work escalation uses an advanced replacement without replanning.
 Include rendered repository guidance in every prompt. If named agents are
 unavailable, use ordinary Claude Code subagents with the same profiles and
 boundaries.
+
+When an implementer will author human-facing prose, include the shared `Write
+human-facing prose plainly` section in its prompt. Other workers do not need
+that editorial guidance.
 
 The root zdev skill selects the route and loads its contract from `references/`.
 When packaged workflows are available, it uses them internally for a full task

@@ -89,6 +89,28 @@ Another file, by itself, is not scope expansion. A new product or compatibility
 decision, a cross-area outcome, an explicit boundary violation, destructive or
 external action without authority, or overlap with user-owned work is.
 
+## Write instructions for the worker's path
+
+Keep ordered actions in the route that performs them. Keep an exact contract in
+one authoritative section and tell the worker when to read it. Put reference
+material used by only one branch beside that branch or behind a specific
+pointer; do not make every worker load it. Remove stale restatements and lines
+that do not change what the worker does.
+
+For example, the implementer payload always names the brief, task, repository
+guidance, and work-context snapshot. It names the derived-work section only
+when a split is needed, and it includes the shared prose guidance only when the
+task authors human-facing text. The verifier snapshot rules remain with the
+verifier handoff below instead of being repeated in implementer instructions.
+
+When that prose branch applies, preserve meaning and tone. Name actors and
+concrete actions. Use plain active language, readable sentence rhythm, and
+stable repository terms. Cut puffery, vague attribution, chatbot filler,
+hedging, and synonym cycling. After drafting, reread the prose and replace
+generic or formulaic phrasing. Apply these edits only to human-facing prose;
+preserve exact commands, paths, literals, schemas, quotations, generated
+records, technical meaning, and approved content.
+
 During an authorized active task, a worker may report that an incidental
 planner-written restriction prevents necessary direct work. Coordination checks
 the proposed helper or path against the agreed outcome, acceptance criteria,

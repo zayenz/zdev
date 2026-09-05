@@ -37,6 +37,10 @@ guidance, and relevant source; the applicable snapshot IDs; and the short
 result from the preceding role. Let the agent read those files instead of
 copying their contents or the rendered contract into the prompt.
 
+When an implementer will author human-facing prose, include the shared `Write
+human-facing prose plainly` section in its compact payload. Other agents do not
+need that editorial guidance.
+
 For an active-zdev goal or loop request, use the packaged continuation prompt. It calls the
 model-facing `goal` tool with `op: "get"` before repository work, never drops,
 replaces, or layers over an unfinished goal, and calls `op: "create"` with the

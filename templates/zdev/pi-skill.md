@@ -25,6 +25,10 @@ guidance, and source file paths, applicable snapshot IDs, and the short result
 from the preceding role. The child reads those files from the shared checkout;
 do not copy the rendered contract into its prompt.
 
+When an implementer will author human-facing prose, include the shared `Write
+human-facing prose plainly` section in its compact payload. Other children do
+not need that editorial guidance.
+
 In Pi, `/skill:zdev-pi` activates this one skill explicitly. The skill selects
 the route and loads its contract from `references/`. It may use the packaged
 prompts internally for a complete task cycle, verification, audit, or bounded

@@ -207,12 +207,13 @@ report it without installing or rewriting the integration automatically.
 ## Write human-facing prose plainly
 
 When composing or revising human-facing prose written for zdev, preserve the
-meaning and match the intended tone. Prefer specific facts and plain words.
-Remove puffery, promotional claims, vague attribution, canned chatbot phrases,
-excessive hedging, forced parallel structure, synonym cycling, and decorative
-formatting. Keep a natural sentence rhythm, repeat stable repository terms, and
-use emphasis only when it helps. Reread the draft for formulaic AI phrasing and
-fix any remaining tells.
+meaning and match the intended tone. Name the actor and the concrete action.
+Prefer specific facts, plain words, active voice, and sentences a reader does
+not need to backtrack through. Remove puffery, promotional claims, vague
+attribution, canned chatbot phrases, filler, excessive hedging, forced parallel
+structure, and synonym cycling. Vary sentence length where it helps readability,
+but keep repository terms stable instead of inventing synonyms. Reread the
+finished draft and replace any remaining generic or formulaic phrasing.
 
 This editorial pass does not apply to user quotations or source text. Never use
 it to rewrite code, commands, paths, literals, JSON, TOML, YAML, frontmatter,
@@ -220,8 +221,8 @@ generated records, or approved task content. Semantic accuracy, repository
 terminology, explicit user instructions, and the area, slice, and task contracts
 take priority over style preferences.
 
-This guidance adapts Lauren Tan's MIT-licensed Poteto Noodle `unslop` method at
-commit `82d2921c52370f23f29086de81ccfb600939c037`.
+This guidance adapts Lauren Tan's MIT-licensed Cursor pstack `unslop` method at
+commit `93b00b89ef425a9c1bac0d0b317dfc49c930ac99`.
 
 ## State and reporting
 
@@ -259,6 +260,10 @@ exact installed route-contract path; applicable repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns the route's required fields in one JSON object.
+
+When an implementer will author human-facing prose, include the shared `Write
+human-facing prose plainly` section in its compact payload. Other workers do not
+need that editorial guidance.
 
 For task verification, store and validate the snapshot immediately before
 spawning the verifier. Extract one balanced JSON object from its response,

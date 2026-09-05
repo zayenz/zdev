@@ -18,6 +18,10 @@ Include rendered repository guidance in every prompt. If named agents are
 unavailable, use ordinary Claude Code subagents with the same profiles and
 boundaries.
 
+When an implementer will author human-facing prose, include the shared `Write
+human-facing prose plainly` section in its prompt. Other workers do not need
+that editorial guidance.
+
 The root zdev skill selects the route and loads its contract from `references/`.
 When packaged workflows are available, it uses them internally for a full task
 cycle, explicit verification, audit, or continuing area work. “Goal” and

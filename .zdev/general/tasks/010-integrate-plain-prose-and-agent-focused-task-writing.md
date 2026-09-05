@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-010"
 key = "integrate-human-and-agent-writing-guidance"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -27,14 +27,24 @@ Read Writing and Testing and validation in the [settled workflow brief](../../..
 
 ## Done when
 
-- [ ] Human-facing prose guidance calls for concrete language, clear actors, readable sentences, stable terms, and a final editorial pass without applying stylistic edits to machine syntax.
-- [ ] Task drafting gives Context the reason and relevant evidence, Boundaries genuine constraints, and Done when observable acceptance; exact requirements are defined once with explicit reading instructions.
-- [ ] Fresh workers receive or can reliably reach applicable writing guidance when authoring prose, without loading unrelated reference material by default.
-- [ ] Affected workflow instructions group ordered actions and relevant reference material coherently, and remove duplicated meanings without weakening behavior.
-- [ ] Representative draft-task and workflow examples demonstrate the guidance. Existing documentation assertions are loosened where they freeze incidental wording while meaningful command and contract checks remain.
+- [x] Human-facing prose guidance calls for concrete language, clear actors, readable sentences, stable terms, and a final editorial pass without applying stylistic edits to machine syntax.
+- [x] Task drafting gives Context the reason and relevant evidence, Boundaries genuine constraints, and Done when observable acceptance; exact requirements are defined once with explicit reading instructions.
+- [x] Fresh workers receive or can reliably reach applicable writing guidance when authoring prose, without loading unrelated reference material by default.
+- [x] Affected workflow instructions group ordered actions and relevant reference material coherently, and remove duplicated meanings without weakening behavior.
+- [x] Representative draft-task and workflow examples demonstrate the guidance. Existing documentation assertions are loosened where they freeze incidental wording while meaningful command and contract checks remain.
 
 ## Validation
 
 - Review representative authored prose, one task draft, and fresh-worker handoffs against both source methods; use the existing review rather than another required stage.
 - Regenerate affected integrations and run existing documentation, rendering, and fixture-parity checks.
 - Run the standard validation in the area brief.
+
+## Result
+
+Integrated concrete human-facing prose guidance and agent-focused task-writing structure into canonical zdev instructions and all generated harness integrations.
+
+Validation:
+
+- Reviewed representative prose, task drafting, and fresh-worker handoffs against both upstream methods; attribution and license notes are correct.
+- Focused documentation-contract and generated-fixture parity checks passed.
+- cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check all passed.

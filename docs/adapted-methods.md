@@ -9,7 +9,7 @@ mapping preserves their judgment while zdev tasks provide the durable record.
 | Source method | Zdev adaptation |
 | --- | --- |
 | Matt Pocock's grilling and domain-modeling skills | `discuss.md`: identify high-impact decisions, challenge independent branches breadth first, and keep settled synthesis in `brief.md`. |
-| Matt Pocock's `to-issues` and `to-tickets` | `to-tasks.md`: create reviewed tracer-bullet task files with real blocking edges. |
+| Matt Pocock's `to-issues`, `to-tickets`, and `writing-for-agents` | `to-tasks.md` and workflow contracts: create reviewed tracer-bullet tasks with useful context, real constraints, observable completion, and branch-specific reading pointers. |
 | Matt Pocock's wayfinder | `shape-work.md`: directly explore an objective and compare plausible paths while building the area brief. |
 | Matt Pocock's planning and specification skills | `shape-work.md`, `discuss.md`, and the task format: shared decisions live in the brief; each task is its own implementation specification. |
 | Matt Pocock's TDD and implementation skills | `implement.md`: test behavior at a stable seam, then enter independent verification. |
@@ -17,7 +17,7 @@ mapping preserves their judgment while zdev tasks provide the durable record.
 | Matt Pocock's code-review and codebase-design skills | `improve.md` and `verify.md`: demand evidence, vet findings, and inspect task boundaries. |
 | Explicit multi-agent review | `improve.md`: use ephemeral focused reviewers and report vetted candidate work with visible next choices. |
 | shadcn's Improve skill | `improve.md`: reconnoitre, audit, vet, prioritize, and report findings without creating tasks. |
-| Poteto Noodle's `unslop` skill | Shared zdev guidance: edit zdev-authored human-facing prose for plain language, specificity, natural rhythm, and fewer formulaic AI patterns. |
+| Cursor pstack's `unslop` skill by Lauren Tan | Shared zdev guidance: preserve meaning and tone while editing zdev-authored prose for concrete active language, readable rhythm, stable terms, and fewer formulaic AI patterns. |
 
 ## Poteto Noodle skill audit
 
@@ -62,7 +62,7 @@ useful to a coding harness. It does not belong in zdev's general workflow.
 | [`testing`](https://github.com/poteto/noodle/blob/82d2921c52370f23f29086de81ccfb600939c037/.agents/skills/testing/SKILL.md) | Skip | Reproduction and behavioral regression tests already fit zdev `investigate` and `implement`. Mandatory TDD, separate failing-test commits, Noodle fixtures, and fixed commands conflict with each area's proportionate testing decision. |
 | [`todo`](https://github.com/poteto/noodle/blob/82d2921c52370f23f29086de81ccfb600939c037/.agents/skills/todo/SKILL.md) | Skip | `brain/todos.md` is a second backlog and lifecycle. Zdev tasks already provide stable IDs, dependencies, status, summaries, and commits. |
 | [`ts-best-practices`](https://github.com/poteto/noodle/blob/82d2921c52370f23f29086de81ccfb600939c037/.agents/skills/ts-best-practices/SKILL.md) | Skip | TypeScript narrowing and modeling rules are domain policy. Zdev should use repository guidance rather than impose them on every task. |
-| [`unslop`](https://github.com/poteto/noodle/blob/82d2921c52370f23f29086de81ccfb600939c037/.agents/skills/unslop/SKILL.md) | Adapt | This decision predates the audit. Shared zdev guidance already paraphrases its portable preference for plain, specific prose, natural rhythm, restrained formatting, and a final check for formulaic writing. Zdev does not install or invoke the upstream skill. |
+| [`unslop`](https://github.com/poteto/noodle/blob/82d2921c52370f23f29086de81ccfb600939c037/.agents/skills/unslop/SKILL.md) | Adapt | This earlier source informed the initial editorial guidance. The maintained adaptation now follows Lauren Tan's Cursor pstack version, which adds stronger checks for concrete facts, active voice, stable terms, filler, and dense sentences. Zdev does not install or invoke either upstream skill. |
 | [`worktree`](https://github.com/poteto/noodle/blob/82d2921c52370f23f29086de81ccfb600939c037/.agents/skills/worktree/SKILL.md) | Skip | CWD-safe `git -C` use and explicit isolation are sound, but the method requires `noodle worktree`, ephemeral branches, automatic rebasing, merging, cleanup, dependency installation, and shared brain state. Zdev binds an area to a persistent branch and keeps rebasing explicit; it must not switch, merge, or clean worktrees automatically. |
 
 The result is 0 adopted skills, 1 existing adaptation, and 28 skips. No new
@@ -83,6 +83,10 @@ still requires an explicit request.
 
 The method mapping uses these pinned source revisions:
 
+- Cursor pstack's `unslop` skill at
+  [`93b00b89ef425a9c1bac0d0b317dfc49c930ac99`](https://github.com/cursor/plugins/blob/93b00b89ef425a9c1bac0d0b317dfc49c930ac99/pstack/skills/unslop/SKILL.md).
+- Matt Pocock's `writing-for-agents` skill at
+  [`3cca18b368ae95cdbdebbff572ccafa662551015`](https://github.com/mattpocock/skills/blob/3cca18b368ae95cdbdebbff572ccafa662551015/skills/productivity/writing-for-agents/SKILL.md).
 - Matt Pocock's skills at
   [`d574778f94cf620fcc8ce741584093bc650a61d3`](https://github.com/mattpocock/skills/tree/d574778f94cf620fcc8ce741584093bc650a61d3)
   (v1.1.0), with the frontier-grilling update at
@@ -104,19 +108,24 @@ Each adaptation is a self-contained zdev reference. It reports relevant next
 actions but does not call an upstream skill or silently invoke another zdev
 method.
 
-The Noodle adaptation keeps the upstream method's preference for plain,
-specific prose, natural rhythm, restrained formatting, and a final check for
-formulaic AI writing. Zdev's workflow, terminology, scope rules, exclusions,
-and precedence for user instructions and approved area, slice, and task
-contracts remain original zdev guidance. The adaptation is documentation, not
-a runtime rewriting step or a separately installed skill. Upstream changes are
-adopted only after a manual review against a newly pinned revision.
+The pstack adaptation preserves meaning and intended tone while preferring
+concrete facts, plain active language, readable sentences, stable terms, and a
+final check for formulaic writing. The writing-for-agents adaptation keeps task
+context, genuine boundaries, observable acceptance, and branch-specific
+references together without copying an exact contract into several places.
+Zdev's workflow, terminology, scope rules, exclusions, and precedence for user
+instructions and approved area, slice, and task contracts remain original zdev
+guidance. These adaptations are documentation, not runtime rewriting steps or
+separately installed skills. Upstream changes require a manual review against a
+newly pinned revision.
 
 ## Licensing and attribution
 
 The source materials actually adapted by zdev are MIT-licensed. The [Matt Pocock source
-license](https://github.com/mattpocock/skills/blob/d574778f94cf620fcc8ce741584093bc650a61d3/LICENSE)
-credits Matt Pocock. The [Improve license
+license](https://github.com/mattpocock/skills/blob/3cca18b368ae95cdbdebbff572ccafa662551015/LICENSE)
+credits Matt Pocock. Cursor pstack's [MIT
+license](https://github.com/cursor/plugins/blob/93b00b89ef425a9c1bac0d0b317dfc49c930ac99/pstack/LICENSE)
+credits Lauren Tan. The [Improve license
 statement](https://github.com/shadcn/improve/blob/03369ee6d7cafbfcecc4346539b05b3dc0a603bb/README.md#license)
 identifies shadcn's skill as MIT © shadcn.
 Poteto Noodle's root

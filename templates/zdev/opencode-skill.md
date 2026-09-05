@@ -29,6 +29,10 @@ result from the preceding role. Let the worker read those files instead of
 copying their contents or the full contract into the prompt. An implementer
 loads the derived-work section only if it actually needs a split.
 
+When an implementer will author human-facing prose, include the shared `Write
+human-facing prose plainly` section in its compact payload. Other workers do not
+need that editorial guidance.
+
 The root zdev skill selects the route and loads its contract from `references/`.
 It may use the packaged commands internally for a complete task cycle,
 verification, audit, or bounded area continuation. “Goal” and “loop” select the

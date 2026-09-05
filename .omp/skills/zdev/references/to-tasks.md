@@ -41,14 +41,38 @@ branch state, independent implementation verification, completion evidence,
 and a commit.
 
 For each newly drafted implementation task, write concise `Context` that tells
-a fresh implementer why the slice exists, how it connects to current repository
-behavior, which settled constraints apply, and where the relevant source and
-test seams are. Select and connect the facts needed for this slice; keep shared
-material authoritative in `brief.md` and point to it rather than copying it. Do
-not use word counts or prose length as a quality check. Treat named files and
-seams as useful starting points, not a predicted exhaustive change list. Use a
-file restriction only when changing other files would genuinely violate the
-approved design.
+a fresh implementer why the work exists, what current behavior or evidence
+matters, which settled decisions apply, and where to begin reading source and
+tests. Keep shared facts authoritative in `brief.md` and point to them instead
+of copying them. Write `Boundaries` only for real constraints on the outcome or
+implementation; do not repeat the proposed approach. Write every `Done when`
+item as an observable result that a verifier can distinguish from incomplete
+work. Define an exact command, schema, or contract in one authoritative place
+and tell the worker explicitly when to read it.
+
+For example, a useful task says:
+
+```markdown
+## Context
+
+`src/report.rs` currently omits skipped records, so operators cannot reconcile
+the summary with the input. The report format in `docs/report-format.md` is the
+authoritative contract. Read its "Skipped records" section before editing.
+
+## Boundaries
+
+- Keep the existing JSON field names and exit codes.
+
+## Done when
+
+- [ ] The rendered report lists every skipped record with its recorded reason.
+- [ ] Existing consumers can parse the report without changes.
+```
+
+Do not use word counts or prose length as a quality check. Treat named files
+and seams as useful starting points, not a predicted exhaustive change list.
+Use a file restriction only when changing other files would genuinely violate
+the approved design.
 
 Keep task files focused on task-specific outcomes. When an area has a
 `background/` corpus, link only the documents relevant to that task instead of

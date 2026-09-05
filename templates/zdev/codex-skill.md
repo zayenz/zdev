@@ -27,6 +27,10 @@ authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns the route's required fields in one JSON object.
 
+When an implementer will author human-facing prose, include the shared `Write
+human-facing prose plainly` section in its compact payload. Other workers do not
+need that editorial guidance.
+
 For task verification, store and validate the snapshot immediately before
 spawning the verifier. Extract one balanced JSON object from its response,
 tolerating brief prose or a Markdown fence, validate the four semantic fields,

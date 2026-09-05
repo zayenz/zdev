@@ -253,6 +253,15 @@ assigned worktree; independent verification, task records, completion, and the
 single final zdev commit stay in the area checkout. Conflicts and unfinished
 work preserve both locations for recovery.
 
+In Codex, you can explicitly request a **parallel batch** of at least two named
+ready tasks. Before it starts, choose the finite task list, destination branch,
+permission to create task worktrees and branches, a total worker-role limit,
+and cleanup preference. Zdev checks likely source overlap, shared interfaces,
+validation resources, repository instructions, and visible competing work.
+Compatible implementations may overlap in separate trees; integration and
+verification still happen one task and one commit at a time. The other shipped
+harness adapters currently offer sequential Implement for this request.
+
 **Discuss the brief** reads the brief and relevant indexed sources, then
 identifies choices that could materially change behavior, scope, task splitting,
 or validation. It resolves repository facts directly and works breadth first

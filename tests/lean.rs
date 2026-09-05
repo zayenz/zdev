@@ -6585,6 +6585,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/references/implement.md",
             "zdev/references/improve.md",
             "zdev/references/investigate.md",
+            "zdev/references/parallel.md",
             "zdev/references/recovery.md",
             "zdev/references/setup.md",
             "zdev/references/shape-work.md",
@@ -6613,6 +6614,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
+            "skills/zdev/references/parallel.md",
             "skills/zdev/references/recovery.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
@@ -8185,6 +8187,50 @@ fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
     assert!(codex.contains("For an explicitly chosen assigned source worktree"));
 }
 
+#[test]
+fn parallel_route_is_shared_and_only_codex_reports_execution_support() {
+    let repository = repository();
+    let root = repository.path();
+
+    for harness in ["codex", "claude", "opencode", "pi", "omp"] {
+        let destination = root.join(format!("parallel-{harness}"));
+        json_output(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().expect("destination"),
+            ],
+        );
+        let skill_root = match harness {
+            "codex" => "zdev",
+            "claude" | "omp" => "skills/zdev",
+            "opencode" => "skills/zdev-opencode",
+            "pi" => "skills/zdev-pi",
+            _ => unreachable!(),
+        };
+        let skill = fs::read_to_string(destination.join(skill_root).join("SKILL.md"))
+            .expect("installed skill");
+        let parallel =
+            fs::read_to_string(destination.join(skill_root).join("references/parallel.md"))
+                .expect("parallel reference");
+
+        assert!(skill.contains("references/parallel.md"));
+        if harness == "codex" {
+            assert!(parallel.contains("## Codex support"));
+            assert!(parallel.contains("in-memory set of dispatched task IDs"));
+            assert!(parallel.contains("configured implementation\nprofile"));
+            assert!(!parallel.contains("## Unsupported adapter"));
+        } else {
+            assert!(parallel.contains("## Unsupported adapter"));
+            assert!(parallel.contains("ordinary sequential **Implement**"));
+            assert!(!parallel.contains("## Codex support"));
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn ordinary_source_commit_preserves_git_delta_during_no_commit_integration() {
@@ -8441,6 +8487,180 @@ fn personal_task_completes_from_an_explicit_assigned_worktree() {
     assert_eq!(
         json_output(destination, &["next", "assigned"])["task"]["id"],
         "assigned-001"
+    );
+}
+
+#[test]
+fn parallel_sources_overlap_then_complete_out_of_order_serially() {
+    use std::sync::{Arc, Barrier};
+
+    let repository = repository();
+    let destination = repository.path();
+    commit_file(destination, "first.txt", "baseline\n", "baseline first");
+    commit_file(destination, "second.txt", "baseline\n", "baseline second");
+    let baseline = git(destination, &["rev-parse", "HEAD"]);
+    json_output(destination, &["init", "--record", "personal"]);
+    json_output(
+        destination,
+        &[
+            "area",
+            "create",
+            "parallel",
+            "--title",
+            "Parallel work",
+            "--objective",
+            "Complete two independent tasks.",
+            "--trunk",
+        ],
+    );
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "parallel",
+        "tasks": [
+            {"key":"first","title":"First","outcome":"First changes.","done_when":["First is done."],"validation":["Check first."],"blocked_by":[]},
+            {"key":"second","title":"Second","outcome":"Second changes.","done_when":["Second is done."],"validation":["Check second."],"blocked_by":[]}
+        ]
+    }))
+    .expect("task bundle");
+    json_output_with_stdin(
+        destination,
+        &["tasks", "import", "parallel", "--from", "-"],
+        &bundle,
+    );
+    for task in ["parallel-001", "parallel-002"] {
+        assert_eq!(
+            json_output(
+                destination,
+                &["work-context", "parallel", "--task", task, "--store"]
+            )["task_id"],
+            task
+        );
+    }
+
+    let sources = tempfile::tempdir().expect("source parent");
+    let first = sources.path().join("first");
+    let second = sources.path().join("second");
+    git(
+        destination,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "parallel-first",
+            first.to_str().expect("first source"),
+            &baseline,
+        ],
+    );
+    git(
+        destination,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "parallel-second",
+            second.to_str().expect("second source"),
+            &baseline,
+        ],
+    );
+
+    let barrier = Arc::new(Barrier::new(2));
+    let first_worker = {
+        let barrier = Arc::clone(&barrier);
+        let first = first.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            fs::write(first.join("first.txt"), "first complete\n").expect("first write");
+            barrier.wait();
+            commit_all(&first, "first transport");
+            git(&first, &["rev-parse", "HEAD"])
+        })
+    };
+    let second_worker = {
+        let barrier = Arc::clone(&barrier);
+        let second = second.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            fs::write(second.join("second.txt"), "second complete\n").expect("second write");
+            barrier.wait();
+            commit_all(&second, "second transport");
+            git(&second, &["rev-parse", "HEAD"])
+        })
+    };
+    let first_commit = first_worker.join().expect("first worker");
+    let second_commit = second_worker.join().expect("second worker");
+
+    git(destination, &["cherry-pick", "--no-commit", &second_commit]);
+    let second_snapshot = json_output(
+        destination,
+        &[
+            "work-context",
+            "parallel",
+            "--task",
+            "parallel-002",
+            "--store",
+        ],
+    );
+    assert_eq!(second_snapshot["task_id"], "parallel-002");
+    json_output(
+        destination,
+        &[
+            "task",
+            "done",
+            "parallel",
+            "parallel-002",
+            "--summary",
+            "Second integrated and verified.",
+            "--validation",
+            "Second snapshot passed.",
+        ],
+    );
+    json_output(destination, &["commit", "-m", "complete second"]);
+    assert_eq!(
+        json_output(destination, &["next", "parallel"])["task"]["id"],
+        "parallel-001"
+    );
+
+    let refreshed = json_output(
+        destination,
+        &["work-context", "parallel", "--task", "parallel-001"],
+    );
+    assert_eq!(refreshed["task_id"], "parallel-001");
+    assert_ne!(refreshed["head"], baseline);
+    git(destination, &["cherry-pick", "--no-commit", &first_commit]);
+    let first_snapshot = json_output(
+        destination,
+        &[
+            "work-context",
+            "parallel",
+            "--task",
+            "parallel-001",
+            "--store",
+        ],
+    );
+    assert_eq!(first_snapshot["task_id"], "parallel-001");
+    json_output(
+        destination,
+        &[
+            "task",
+            "done",
+            "parallel",
+            "parallel-001",
+            "--summary",
+            "First reconciled, integrated, and verified.",
+            "--validation",
+            "First snapshot passed after destination drift.",
+        ],
+    );
+    json_output(destination, &["commit", "-m", "complete first"]);
+    assert_eq!(
+        fs::read_to_string(destination.join("first.txt")).expect("first result"),
+        "first complete\n"
+    );
+    assert_eq!(
+        fs::read_to_string(destination.join("second.txt")).expect("second result"),
+        "second complete\n"
     );
 }
 
@@ -9791,6 +10011,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev-pi/references/implement.md",
             "skills/zdev-pi/references/improve.md",
             "skills/zdev-pi/references/investigate.md",
+            "skills/zdev-pi/references/parallel.md",
             "skills/zdev-pi/references/recovery.md",
             "skills/zdev-pi/references/setup.md",
             "skills/zdev-pi/references/shape-work.md",
@@ -9924,6 +10145,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
+            "skills/zdev/references/parallel.md",
             "skills/zdev/references/recovery.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",

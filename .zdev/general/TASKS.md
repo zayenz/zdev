@@ -3,9 +3,9 @@
 # Tasks: general
 
 - Total: 20
-- Ready: 2
-- Blocked: 7
-- Done: 11
+- Ready: 5
+- Blocked: 3
+- Done: 12
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -20,11 +20,11 @@
 | [general-009](tasks/009-resolve-actionable-claude-blockers-and-preserve-their-detail.md) | Resolve actionable Claude blockers and preserve their details | done | — |
 | [general-010](tasks/010-integrate-plain-prose-and-agent-focused-task-writing.md) | Integrate plain prose and agent-focused task writing | done | — |
 | [general-011](tasks/011-implement-and-complete-one-task-through-an-explicitly-chosen.md) | Implement and complete one task through an explicitly chosen worktree | done | — |
-| [general-012](tasks/012-run-an-approved-parallel-task-batch-in-codex.md) | Run an approved parallel task batch in Codex | ready | general-011 |
-| [general-013](tasks/013-support-the-shared-parallel-task-route-in-claude-code.md) | Support the shared parallel task route in Claude Code | blocked | general-012 |
-| [general-014](tasks/014-support-the-shared-parallel-task-route-in-pi.md) | Support the shared parallel task route in Pi | blocked | general-012 |
-| [general-015](tasks/015-support-the-shared-parallel-task-route-in-opencode.md) | Support the shared parallel task route in OpenCode | blocked | general-012 |
-| [general-016](tasks/016-support-the-shared-parallel-task-route-in-oh-my-pi.md) | Support the shared parallel task route in Oh My Pi | blocked | general-012 |
+| [general-012](tasks/012-run-an-approved-parallel-task-batch-in-codex.md) | Run an approved parallel task batch in Codex | done | general-011 |
+| [general-013](tasks/013-support-the-shared-parallel-task-route-in-claude-code.md) | Support the shared parallel task route in Claude Code | ready | general-012 |
+| [general-014](tasks/014-support-the-shared-parallel-task-route-in-pi.md) | Support the shared parallel task route in Pi | ready | general-012 |
+| [general-015](tasks/015-support-the-shared-parallel-task-route-in-opencode.md) | Support the shared parallel task route in OpenCode | ready | general-012 |
+| [general-016](tasks/016-support-the-shared-parallel-task-route-in-oh-my-pi.md) | Support the shared parallel task route in Oh My Pi | ready | general-012 |
 | [general-017](tasks/017-configure-and-inspect-named-execution-profiles.md) | Configure and inspect named execution profiles | ready | — |
 | [general-018](tasks/018-select-scoped-profiles-and-plan-one-task-without-implementin.md) | Select scoped profiles and plan one task without implementing it in Codex | blocked | general-017 |
 | [general-019](tasks/019-support-scoped-execution-profiles-and-plan-only-work-in-clau.md) | Support scoped execution profiles and plan-only work in Claude Code | blocked | general-018 |

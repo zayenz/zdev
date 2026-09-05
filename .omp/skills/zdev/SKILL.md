@@ -20,6 +20,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Investigate** — answer one named checkable uncertainty through research, diagnosis, or a prototype | [references/investigate.md](skill://zdev/references/investigate.md) |
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](skill://zdev/references/to-tasks.md) and [references/task-format.md](skill://zdev/references/task-format.md) |
 | **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | [references/task-workflows.md](skill://zdev/references/task-workflows.md), [references/implement.md](skill://zdev/references/implement.md), and [references/verify.md](skill://zdev/references/verify.md) |
+| **Parallel** — run one finite approved batch of compatible tasks; aliases: “parallel tasks,” “parallel batch” | [references/parallel.md](skill://zdev/references/parallel.md) and [references/task-workflows.md](skill://zdev/references/task-workflows.md) |
 | **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](skill://zdev/references/verify-workflow.md) and [references/verify.md](skill://zdev/references/verify.md) |
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](skill://zdev/references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](skill://zdev/references/recovery.md) |

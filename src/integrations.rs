@@ -55,6 +55,10 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
         include_str!("../templates/zdev/references/recovery.md"),
     ),
     (
+        "references/parallel.md",
+        include_str!("../templates/zdev/references/parallel.md"),
+    ),
+    (
         "references/verify.md",
         include_str!("../templates/zdev/references/verify.md"),
     ),
@@ -558,7 +562,7 @@ fn template_environment() -> Environment<'static> {
 fn render_template(
     name: &str,
     source: &str,
-    contracts: (&str, &str, &str, &str, &str),
+    contracts: (&str, &str, &str, &str, &str, bool),
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
@@ -598,6 +602,7 @@ fn render_template(
             advanced_implementer_has_effort => workers.advanced_implementer.has_effort(),
             advanced_implementer_model => workers.advanced_implementer.model_literal(),
             advanced_implementer_effort => workers.advanced_implementer.effort_literal(),
+            parallel_supported => contracts.5,
         })
         .map_err(|error| {
             ZdevError::new(format!(
@@ -642,7 +647,14 @@ fn realize_templates(
     let audit_contract = render_template(
         "audit.md",
         AUDIT_CONTRACT_TEMPLATE,
-        ("", "", "", "", &task_workflows_contract_path_json),
+        (
+            "",
+            "",
+            "",
+            "",
+            &task_workflows_contract_path_json,
+            harness == Harness::Codex,
+        ),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -656,7 +668,14 @@ fn realize_templates(
     let shared_contract = render_template(
         "shared-contract.md",
         &shared_contract_source,
-        ("", "", "", "", &task_workflows_contract_path_json),
+        (
+            "",
+            "",
+            "",
+            "",
+            &task_workflows_contract_path_json,
+            harness == Harness::Codex,
+        ),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -665,7 +684,14 @@ fn realize_templates(
     let task_workflow_contract = render_template(
         "task-workflows.md",
         TASK_WORKFLOW_CONTRACT_TEMPLATE,
-        ("", "", "", "", &task_workflows_contract_path_json),
+        (
+            "",
+            "",
+            "",
+            "",
+            &task_workflows_contract_path_json,
+            harness == Harness::Codex,
+        ),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -674,7 +700,14 @@ fn realize_templates(
     let verify_workflow_contract = render_template(
         "verify-workflow.md",
         VERIFY_WORKFLOW_CONTRACT_TEMPLATE,
-        ("", "", "", "", &task_workflows_contract_path_json),
+        (
+            "",
+            "",
+            "",
+            "",
+            &task_workflows_contract_path_json,
+            harness == Harness::Codex,
+        ),
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -702,6 +735,7 @@ fn realize_templates(
                 &task_workflow_contract,
                 &verify_workflow_contract,
                 &task_workflows_contract_path_json,
+                harness == Harness::Codex,
             ),
             &repository_guidance,
             &question_tool_guidance,
@@ -1721,7 +1755,7 @@ mod tests {
             let error = render_template(
                 name,
                 source,
-                ("", "", "", "", "\"/tmp/task-workflows.md\""),
+                ("", "", "", "", "\"/tmp/task-workflows.md\"", false),
                 "",
                 "",
                 "",

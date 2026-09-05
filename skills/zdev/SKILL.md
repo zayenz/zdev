@@ -20,6 +20,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Investigate** — answer one named checkable uncertainty through research, diagnosis, or a prototype | [references/investigate.md](references/investigate.md) |
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](references/to-tasks.md) and [references/task-format.md](references/task-format.md) |
 | **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | [references/task-workflows.md](references/task-workflows.md), [references/implement.md](references/implement.md), and [references/verify.md](references/verify.md) |
+| **Parallel** — run one finite approved batch of compatible tasks; aliases: “parallel tasks,” “parallel batch” | [references/parallel.md](references/parallel.md) and [references/task-workflows.md](references/task-workflows.md) |
 | **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](references/verify-workflow.md) and [references/verify.md](references/verify.md) |
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
@@ -245,6 +246,7 @@ what remains; mention commands only when they help the user continue or recover.
 
 The root `$zdev` skill selects the route and loads its contract from
 `references/`. Treat “goal” and “loop” as the same native continuation route.
+Codex supports the explicit **Parallel** route in `references/parallel.md`.
 The exact installed task-workflows contract path for this installation is
 "/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.

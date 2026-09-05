@@ -154,6 +154,14 @@ form additional skills or change the root activation name.
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` exposes concise `planner`, `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer` roles with their resolved model and thinking controls. Calls carry compact locators rather than the rendered workflow. |
 | Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | Concise named agents are invoked through native `task`; they receive compact locators, while paired continuation prompts use OMP's native goal when clear. |
 
+Every installation also contains one rendered `references/parallel.md` route.
+Codex maps it to live-agent inspection, bounded collaboration dispatch, waits,
+supported interruption, explicit source cwd values, and the configured role
+profiles. Claude Code, OpenCode, Pi, and Oh My Pi currently render an explicit
+unsupported result with a sequential option until their adapter tasks land.
+The shared route owns admission, isolation, serial integration, recovery, and
+cleanup rules; no adapter adds a persistent scheduler or batch record.
+
 These are renderable files, not a new runtime. Install and check must render the
 same bytes through the existing integration renderer. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).

@@ -88,3 +88,18 @@ finish that destination checkpoint under the existing completion rules; never
 dispatch duplicate source work or mark the task done in the source checkout.
 Cleanup remains limited to a run-owned, stopped, fully integrated worktree
 after the final destination commit.
+
+## Parallel batch recovery
+
+Resume a parallel batch only on an explicit request. Reconstruct it from the
+current authoritative task records, destination history, retained source
+worktrees and branches, their recorded baselines and commits, and the previous
+run summary. Do not depend on prior agent IDs. Exclude tasks whose completion
+has committed. If a task is done but its final commit failed, finish that
+verified destination checkpoint before admission or dispatch. Rerun the
+parallel admission checks for every remaining task and available role slot.
+
+Keep unfinished or ambiguous source trees. Report each task with its worktree,
+branch, baseline, accepted commits, and last result. Cleanup may remove only a
+run-owned source tree whose worker has stopped and whose task has a successful
+destination commit, and only when the batch authorization included cleanup.

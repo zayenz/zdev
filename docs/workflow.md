@@ -242,6 +242,14 @@ Destination drift, deletion, binary data, and executable modes use Git's normal
 merge semantics. Verification snapshots, completion records, staging, and the
 final zdev commit remain destination-only.
 
+An explicit **Parallel** interaction may overlap one finite, user-approved
+batch of compatible ready tasks in separate assigned worktrees. The user also
+chooses the destination, total delegated-role limit, and cleanup preference.
+Codex supports this route; the Claude Code, OpenCode, Pi, and Oh My Pi adapters
+currently explain that parallel execution is unsupported and offer sequential
+Implement. Parallel workers may overlap, but destination integration,
+independent verification, task completion, and zdev commits remain serial.
+
 After each interaction, zdev reports its result and relevant next actions. A
 single user message may explicitly order several interactions. For example,
 approving the exact task bundle and asking for implementation requests import

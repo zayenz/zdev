@@ -11,6 +11,7 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 
 The root `$zdev` skill selects the route and loads its contract from
 `references/`. Treat “goal” and “loop” as the same native continuation route.
+Codex supports the explicit **Parallel** route in `references/parallel.md`.
 The exact installed task-workflows contract path for this installation is
 {{ task_workflows_contract_path_json }}. Decode that JSON string and include the
 resulting path in every worker payload.

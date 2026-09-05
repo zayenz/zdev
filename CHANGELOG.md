@@ -2,7 +2,25 @@
 
 This file records notable changes to zdev.
 
-## Unreleased
+## [1.3.0] - 2026-09-06
+
+### Added
+
+- An approved parallel-task route coordinates isolated worktrees, serial
+  integration, independent verification, and one durable commit per task. The
+  route is available in Codex, Claude Code, Pi, OpenCode, and Oh My Pi, with
+  harness-specific fallbacks where native orchestration is unavailable.
+- Named execution profiles configure planner, implementer, and verifier model
+  settings. Profiles can be selected globally, per harness, or for one command,
+  and `zdev plan` exposes the same scoped routing for plan-only work.
+
+### Changed
+
+- Workflow and Git transitions that change the shape of the work now require
+  explicit approval, while directly necessary technical adjustments can remain
+  within an accepted task's scope.
+- Task-writing and worker guidance use plainer, agent-focused language and keep
+  actionable blocker context available for recovery.
 
 ### Fixed
 
@@ -11,6 +29,12 @@ This file records notable changes to zdev.
 - Work-context snapshots detect content changes in existing untracked files,
   so validation cannot silently change a new implementation file while its
   snapshot still compares equal.
+
+### Compatibility
+
+- Existing records, tasks, and worker configuration remain valid. Reinstall
+  integrations with `zdev skill install <harness> --force` to receive the new
+  parallel, planning, profile-routing, and recovery workflows.
 
 ## [1.2.3] - 2026-08-31
 
@@ -217,6 +241,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.3.0]: https://github.com/zayenz/zdev/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/zayenz/zdev/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/zayenz/zdev/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/zayenz/zdev/compare/v1.2.0...v1.2.1

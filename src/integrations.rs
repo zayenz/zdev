@@ -168,6 +168,8 @@ pub(super) enum Harness {
     Opencode,
     Pi,
     Omp,
+    #[value(name = "agy")]
+    Agy,
 }
 impl Harness {
     fn worker_harness(self) -> WorkerHarness {
@@ -177,6 +179,7 @@ impl Harness {
             Self::Opencode => WorkerHarness::Opencode,
             Self::Pi => WorkerHarness::Pi,
             Self::Omp => WorkerHarness::Omp,
+            Self::Agy => WorkerHarness::Agy,
         }
     }
 
@@ -187,6 +190,7 @@ impl Harness {
             Self::Opencode => "opencode",
             Self::Pi => "pi",
             Self::Omp => "omp",
+            Self::Agy => "agy",
         }
     }
 
@@ -197,6 +201,7 @@ impl Harness {
             Self::Opencode => "OpenCode",
             Self::Pi => "Pi",
             Self::Omp => "Oh My Pi",
+            Self::Agy => "Google Antigravity",
         }
     }
 
@@ -216,6 +221,9 @@ impl Harness {
             }
             Self::Omp => {
                 "Use Oh My Pi's `ask` tool when it can request the needed input. Ask one focused question by default and use its `questions` array for independent questions only when batching helps. Give each question concrete options and descriptions, put the recommended answer first, and use plain text for free-form input or approvals the tool cannot request."
+            }
+            Self::Agy => {
+                "Use Antigravity's native input facilities when available. Ask one focused question by default and use structured options only when the harness supports them. Use plain text for free-form input or approvals the harness cannot request."
             }
         }
     }
@@ -503,8 +511,33 @@ impl Harness {
                     },
                 ]);
             }
+            Self::Agy => {
+                files.push(IntegrationFile {
+                    path: "skills/zdev/SKILL.md".to_owned(),
+                    content: agy_text(OMP_SKILL_TEMPLATE),
+                });
+                files.extend(SHARED_REFERENCE_FILES.iter().map(|(path, content)| {
+                    IntegrationFile {
+                        path: format!("skills/zdev/{path}"),
+                        content: (*content).to_owned(),
+                    }
+                }));
+                add_route_references(&mut files, "skills/zdev", NATIVE_AREA_LOOP_TEMPLATE);
+                for (role, source) in [
+                    ("routine-implementer", OMP_ROUTINE_IMPLEMENTER),
+                    ("implementer", OMP_IMPLEMENTER),
+                    ("verifier", OMP_VERIFIER),
+                    ("advanced-implementer", OMP_ADVANCED_IMPLEMENTER),
+                    ("planner", OMP_PLANNER),
+                ] {
+                    files.push(IntegrationFile {
+                        path: format!("agents/zdev-{role}/agent.md"),
+                        content: source.to_owned(),
+                    });
+                }
+            }
         }
-        if matches!(self, Self::Opencode | Self::Omp) {
+        if matches!(self, Self::Opencode | Self::Omp | Self::Agy) {
             add_profile_agents(self, &mut files, configured_workers)?;
         }
         let contract_suffix = match self {
@@ -513,6 +546,7 @@ impl Harness {
             Self::Opencode => "skills/zdev-opencode/references/task-workflows.md",
             Self::Pi => "skills/zdev-pi/references/task-workflows.md",
             Self::Omp => "skills/zdev/references/task-workflows.md",
+            Self::Agy => "skills/zdev/references/task-workflows.md",
         };
         let task_workflows_contract_path = if self == Self::Claude && scope == "project" {
             PathBuf::from(".claude/skills/zdev").join(contract_suffix)
@@ -529,7 +563,10 @@ impl Harness {
         Ok(SkillIntegration {
             harness: self,
             version: env!("CARGO_PKG_VERSION"),
-            layout: if matches!(self, Self::Codex | Self::Opencode | Self::Pi | Self::Omp) {
+            layout: if matches!(
+                self,
+                Self::Codex | Self::Opencode | Self::Pi | Self::Omp | Self::Agy
+            ) {
                 IntegrationLayout::SharedRoot
             } else {
                 IntegrationLayout::ExactTree
@@ -546,6 +583,90 @@ impl Harness {
     }
 }
 
+fn agy_text(source: &str) -> String {
+    source
+        .replace("Zdev for Oh My Pi", "Zdev for Google Antigravity")
+        .replace("Oh My Pi", "Google Antigravity")
+        .replace("OMP", "Antigravity")
+        .replace("hub", "invoke_subagent")
+        .replace(
+            "An explicitly approved Parallel route uses the packaged `zdev-parallel`\nprompt.",
+            "An explicitly approved Parallel route uses the installed parallel reference and Antigravity's `invoke_subagent` facility.",
+        )
+        .replace(
+            "For an active-zdev goal or loop request, use the packaged continuation prompt.",
+            "For an active-zdev goal or loop request, use the installed Skill and keep durable goal state in `.zdev`.",
+        )
+        .replace(
+            "It calls the\nmodel-facing `goal` tool with `op: \"get\"` before repository work, never drops,\nreplaces, or layers over an unfinished goal, and calls `op: \"create\"` with the\nshared condition only when native goal state is clear.",
+            "Antigravity has no native zdev goal tool; continue from fresh zdev work-context evidence and never invent native goal state.",
+        )
+        .replace(
+            "Native unavailability falls back to at most one verified committed task\nand returns canonical `CONTINUE zdev-loop <area>` only when fresh ready work\nremains.",
+            "After each verified commit, refresh zdev state before continuing.",
+        )
+        .replace(
+            "Oh My Pi's `ask` tool",
+            "Antigravity's native input facilities",
+        )
+}
+
+fn agy_content(source: &str) -> String {
+    let mut effort = None;
+    let mut model = None;
+    let mut rendered = source
+        .lines()
+        .flat_map(|line| {
+            if let Some(value) = line.strip_prefix("thinking-level: ") {
+                effort = Some(value.trim_matches('"').to_owned());
+                Vec::new()
+            } else if line.starts_with("blocking: ") {
+                Vec::new()
+            } else if line.starts_with("tools: ") {
+                vec![
+                    "tools:".to_owned(),
+                    "  - view_file".to_owned(),
+                    "  - grep_search".to_owned(),
+                    "  - run_command".to_owned(),
+                    "  - replace_file_content".to_owned(),
+                ]
+            } else if line.starts_with("model: ") {
+                model = line
+                    .strip_prefix("model: ")
+                    .map(|value| value.trim_matches('"').to_owned());
+                vec!["model: flash".to_owned()]
+            } else {
+                vec![line.to_owned()]
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if let Some(effort) = effort
+        && let Some(index) = rendered.find("\n---\n")
+    {
+        rendered.insert_str(
+            index + "\n---\n".len(),
+            &format!("\nZdev effort level: {effort}\n"),
+        );
+    }
+    if let Some(model) = model
+        && let Some(index) = rendered.find("\n---\n")
+    {
+        rendered.insert_str(
+            index + "\n---\n".len(),
+            &format!("\nZdev profile model: {model}\n"),
+        );
+    }
+    if !rendered.contains("mainAgent: false") {
+        rendered = rendered.replacen(
+            "\n---\n",
+            "\nsubagent: true\nmainAgent: false\ncommandExecutionPolicy: sandbox\n---\n",
+            1,
+        );
+    }
+    agy_text(&rendered)
+}
+
 fn add_profile_agents(
     harness: Harness,
     files: &mut Vec<IntegrationFile>,
@@ -559,7 +680,7 @@ fn add_profile_agents(
             ("planner", OPENCODE_PLANNER),
             ("verifier", OPENCODE_VERIFIER),
         ],
-        Harness::Omp => &[
+        Harness::Omp | Harness::Agy => &[
             ("routine-implementer", OMP_ROUTINE_IMPLEMENTER),
             ("implementer", OMP_IMPLEMENTER),
             ("advanced-implementer", OMP_ADVANCED_IMPLEMENTER),
@@ -576,8 +697,13 @@ fn add_profile_agents(
                 &format!("name: {native_name}"),
                 1,
             );
+            let agent_path = if harness == Harness::Agy {
+                format!("agents/{native_name}/agent.md")
+            } else {
+                format!("agents/{native_name}.md")
+            };
             let content = render_template(
-                &format!("agents/{native_name}.md"),
+                &agent_path,
                 &source,
                 ("", "", "", "", "", false),
                 "",
@@ -586,8 +712,12 @@ fn add_profile_agents(
                 &workers,
             )?;
             files.push(IntegrationFile {
-                path: format!("agents/{native_name}.md"),
-                content,
+                path: agent_path,
+                content: if harness == Harness::Agy {
+                    agy_content(&content)
+                } else {
+                    content
+                },
             });
         }
     }
@@ -773,7 +903,7 @@ fn realize_templates(
             &task_workflows_contract_path_json,
             matches!(
                 harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
         ),
         &repository_guidance,
@@ -797,7 +927,7 @@ fn realize_templates(
             &task_workflows_contract_path_json,
             matches!(
                 harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
         ),
         &repository_guidance,
@@ -816,7 +946,7 @@ fn realize_templates(
             &task_workflows_contract_path_json,
             matches!(
                 harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
         ),
         &repository_guidance,
@@ -835,7 +965,7 @@ fn realize_templates(
             &task_workflows_contract_path_json,
             matches!(
                 harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
         ),
         &repository_guidance,
@@ -856,7 +986,7 @@ fn realize_templates(
         let question_tool_guidance =
             prepare_template_value(&file.path, harness.question_tool_guidance())?;
         let version = prepare_template_value(&file.path, version)?;
-        file.content = render_template(
+        let rendered = render_template(
             &file.path,
             &file.content,
             (
@@ -867,7 +997,7 @@ fn realize_templates(
                 &task_workflows_contract_path_json,
                 matches!(
                     harness,
-                    Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp
+                    Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
                 ),
             ),
             &repository_guidance,
@@ -875,6 +1005,13 @@ fn realize_templates(
             &version,
             workers,
         )?;
+        file.content = if harness == Harness::Agy && file.path.starts_with("agents/") {
+            agy_content(&rendered)
+        } else if harness == Harness::Agy {
+            agy_text(&rendered)
+        } else {
+            rendered
+        };
         if is_json {
             serde_json::from_str::<Value>(&file.content).map_err(|error| {
                 ZdevError::new(format!(
@@ -911,7 +1048,7 @@ pub(super) enum SkillCommand {
     /// writes harness-native files into this repository; use --guidance to
     /// choose the repository instructions embedded in those files.
     /// Harness values are codex (Codex), claude (Claude Code), opencode
-    /// (OpenCode), pi (Pi), and omp (Oh My Pi).
+    /// (OpenCode), pi (Pi), omp (Oh My Pi), and agy (Google Antigravity).
     Install {
         /// Coding harness to integrate with zdev
         harness: Harness,
@@ -1164,6 +1301,7 @@ fn resolve_integration_destination(
                 Harness::Opencode => root.join(".opencode"),
                 Harness::Pi => root.join(".pi"),
                 Harness::Omp => root.join(".omp"),
+                Harness::Agy => root.join(".agents"),
             }
         }
         InstallationScope::User => {
@@ -1175,6 +1313,7 @@ fn resolve_integration_destination(
                     .map(|value| PathBuf::from(value).join("opencode").into_os_string()),
                 Harness::Pi => env::var_os("PI_CODING_AGENT_DIR"),
                 Harness::Omp => env::var_os("PI_CODING_AGENT_DIR"),
+                Harness::Agy => env::var_os("ANTIGRAVITY_CONFIG_DIR"),
             }
             .filter(|value| !value.is_empty());
             let config_home = if let Some(configured) = configured {
@@ -1190,6 +1329,7 @@ fn resolve_integration_destination(
                             Harness::Opencode => "XDG_CONFIG_HOME",
                             Harness::Pi => "PI_CODING_AGENT_DIR",
                             Harness::Omp => "PI_CODING_AGENT_DIR",
+                            Harness::Agy => "ANTIGRAVITY_CONFIG_DIR",
                         };
                         ZdevError::new(format!(
                             "Cannot locate the {} home; set {variable} or pass --to",
@@ -1202,12 +1342,14 @@ fn resolve_integration_destination(
                     Harness::Opencode => ".config/opencode",
                     Harness::Pi => ".pi/agent",
                     Harness::Omp => ".omp/agent",
+                    Harness::Agy => ".gemini/config",
                 })
             };
             match harness {
                 Harness::Codex => config_home.join("skills"),
                 Harness::Claude => config_home.join("skills/zdev"),
                 Harness::Opencode | Harness::Pi | Harness::Omp => config_home,
+                Harness::Agy => config_home,
             }
         }
     };

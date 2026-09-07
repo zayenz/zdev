@@ -190,7 +190,7 @@ enum Command {
     },
     /// Install or check a coding-harness integration
     ///
-    /// Integrations teach Codex, Claude Code, OpenCode, Pi, or Oh My Pi how to
+    /// Integrations teach Codex, Claude Code, OpenCode, Pi, Oh My Pi, or Google Antigravity how to
     /// use zdev. User-scoped integrations are shared across repositories;
     /// project-scoped integrations live in the current repository.
     Skill {
@@ -294,14 +294,14 @@ enum ProfileCommand {
     Show {
         /// Profile name; custom names use lowercase letters, digits, and hyphens
         name: String,
-        /// Harness: codex, claude, opencode, pi, or omp
+        /// Harness: codex, claude, opencode, pi, omp, or agy
         harness: String,
     },
     /// Create or replace one atomic model-and-effort role row
     Set {
         /// Custom profile name; normal is configured with the existing worker keys
         name: String,
-        /// Harness: codex, claude, opencode, pi, or omp
+        /// Harness: codex, claude, opencode, pi, omp, or agy
         harness: String,
         /// Role: routine-implementer, implementer, verifier, advanced-implementer, or planner
         role: String,
@@ -316,7 +316,7 @@ enum ProfileCommand {
     Unset {
         /// Custom profile name
         name: String,
-        /// Harness: codex, claude, opencode, pi, or omp
+        /// Harness: codex, claude, opencode, pi, omp, or agy
         harness: String,
         /// Role: routine-implementer, implementer, verifier, advanced-implementer, or planner
         role: String,
@@ -344,7 +344,7 @@ enum ProfileCommand {
     /// global default, then normal. Missing named roles fall back to normal;
     /// planner first falls back to the same profile's advanced implementer.
     Resolve {
-        /// Harness: codex, claude, opencode, pi, or omp
+        /// Harness: codex, claude, opencode, pi, omp, or agy
         harness: String,
         /// Role: routine-implementer, implementer, verifier, advanced-implementer, or planner
         role: String,
@@ -1384,7 +1384,10 @@ fn dispatch_spec(
         role_profiles,
         retained_plan,
     } = input;
-    if !matches!(harness, "codex" | "claude" | "opencode" | "pi" | "omp") {
+    if !matches!(
+        harness,
+        "codex" | "claude" | "opencode" | "pi" | "omp" | "agy"
+    ) {
         return Err(ZdevError::new(format!(
             "Dispatch specifications are not supported for harness {harness}"
         )));

@@ -36,7 +36,7 @@ Check the user-scoped integration for your harness:
 zdev skill check codex --scope user
 ```
 
-Replace `codex` with `claude`, `opencode`, `pi`, or `omp`. Status `ok` means the
+Replace `codex` with `claude`, `opencode`, `pi`, `omp`, or `agy`. Status `ok` means the
 integration is current. For `missing` or `conflict`, install or refresh it:
 
 ```sh
@@ -82,9 +82,9 @@ initialized:
 zdev skill install codex --scope project --guidance auto
 ```
 
-Replace `codex` with `claude`, `opencode`, `pi`, or `omp`. Project installation
+Replace `codex` with `claude`, `opencode`, `pi`, `omp`, or `agy`. Project installation
 puts harness-native files under `.codex`, `.claude`, `.opencode`, `.pi`, or
-`.omp`. The `--guidance auto` option uses a root `AGENTS.md` or creates
+`.omp` or `.agents`. The `--guidance auto` option uses a root `AGENTS.md` or creates
 `.zdev/guidance.md`; you can instead pass `agents`, `zdev`, or a
 repository-relative Markdown path. Edit that source, then refresh and check the
 integration:
@@ -529,6 +529,16 @@ OMP 17.2.15 may find the skill but miss user task agents when
 `PI_CODING_AGENT_DIR` relocates the user root. The install and check commands
 warn about this. Unset the variable or use a project install under `.omp` until
 upstream discovery is fixed.
+
+### Google Antigravity
+
+Google Antigravity (`agy`) installs the zdev Skill under `.agents/skills/zdev`
+and its role subagents under `.agents/agents/zdev-*/agent.md`. The Skill is the
+workflow entrypoint; zdev keeps durable goal state in `.zdev`, while
+Antigravity's `invoke_subagent` dispatches the planner, implementer, and
+verifier agents. Antigravity workflows are a legacy surface being migrated to
+Skills. User installations use `~/.gemini/config`, or
+`$ANTIGRAVITY_CONFIG_DIR` when set.
 
 ## Get help
 

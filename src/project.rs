@@ -206,7 +206,7 @@ pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOut
     };
     Ok(CommandOutput::new(
         format!(
-            "Initialized zdev for {name}.\nCreated .zdev/config.toml. {trunk}{record_text}\nCheck the integration you use:\n  zdev skill check <codex|claude|opencode|pi|omp> --scope user\n\nThen create or switch to a feature branch and run:\n  zdev area create <tag> --title <title> --objective <objective>"
+            "Initialized zdev for {name}.\nCreated .zdev/config.toml. {trunk}{record_text}\nCheck the integration you use:\n  zdev skill check <codex|claude|opencode|pi|omp|agy> --scope user\n\nThen create or switch to a feature branch and run:\n  zdev area create <tag> --title <title> --objective <objective>"
         ),
         json!({
             "schema_version": SCHEMA_VERSION,

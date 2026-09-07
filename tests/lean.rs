@@ -2898,9 +2898,9 @@ fn initialization_text_explains_what_changed_and_what_to_do_next() {
     let text = String::from_utf8_lossy(&output.stdout);
     assert!(text.contains("Created .zdev/config.toml. Recorded"));
     assert!(text.contains("as the project trunk"));
-    assert!(text.contains("zdev skill check <codex|claude|opencode|pi|omp> --scope user"));
+    assert!(text.contains("zdev skill check <codex|claude|opencode|pi|omp|agy> --scope user"));
     assert!(text.contains("zdev area create <tag> --title <title> --objective <objective>"));
-    assert!(!text.contains("zdev skill install <codex|claude|opencode|pi|omp>"));
+    assert!(!text.contains("zdev skill install <codex|claude|opencode|pi|omp|agy>"));
     assert!(!text.contains("Harness setup:"));
 }
 
@@ -6500,7 +6500,11 @@ fn every_help_page_explains_its_command_and_inputs() {
         ),
         (
             &["config", "profile", "show", "--help"],
-            &["<NAME>", "<HARNESS>", "codex, claude, opencode, pi, or omp"],
+            &[
+                "<NAME>",
+                "<HARNESS>",
+                "codex, claude, opencode, pi, omp, or agy",
+            ],
         ),
         (
             &["config", "profile", "set", "--help"],
@@ -8741,7 +8745,7 @@ fn parallel_route_is_shared_and_supported_harnesses_report_execution_support() {
     let repository = repository();
     let root = repository.path();
 
-    for harness in ["codex", "claude", "opencode", "pi", "omp"] {
+    for harness in ["codex", "claude", "opencode", "pi", "omp", "agy"] {
         let destination = root.join(format!("parallel-{harness}"));
         json_output(
             root,
@@ -8755,7 +8759,7 @@ fn parallel_route_is_shared_and_supported_harnesses_report_execution_support() {
         );
         let skill_root = match harness {
             "codex" => "zdev",
-            "claude" | "omp" => "skills/zdev",
+            "claude" | "omp" | "agy" => "skills/zdev",
             "opencode" => "skills/zdev-opencode",
             "pi" => "skills/zdev-pi",
             _ => unreachable!(),
@@ -8767,7 +8771,7 @@ fn parallel_route_is_shared_and_supported_harnesses_report_execution_support() {
                 .expect("parallel reference");
 
         assert!(skill.contains("references/parallel.md"));
-        if matches!(harness, "codex" | "claude" | "pi" | "omp") {
+        if matches!(harness, "codex" | "claude" | "pi" | "omp" | "agy") {
             assert!(parallel.contains("## Native harness support"));
             assert!(parallel.contains("in-memory set of dispatched task IDs"));
             assert!(parallel.contains("configured implementation\nprofile"));
@@ -10117,15 +10121,20 @@ worker.omp.advanced-implementer = {{ model = \"openai/gpt-5.6-sol\", effort = \"
 worker.omp.planner = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [default]\n"
     )
     .replace("\nshadows", "\n  shadows");
-    assert_eq!(
-        String::from_utf8(shown.stdout).expect("human output"),
-        expected
-    );
+    let shown_text = String::from_utf8(shown.stdout).expect("human output");
+    assert!(shown_text.contains("worker.agy.implementer"));
+    let without_agy = shown_text
+        .lines()
+        .filter(|line| !line.starts_with("worker.agy."))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    assert_eq!(without_agy, expected);
 
     let effective = json_output_with_env(root, &["config", "show"], &environment);
     assert_eq!(effective["scope"], "effective");
     let values = effective["values"].as_array().expect("effective values");
-    assert_eq!(values.len(), 30);
+    assert_eq!(values.len(), 35);
     assert_eq!(
         values
             .iter()
@@ -10162,6 +10171,11 @@ worker.omp.planner = {{ model = \"openai/gpt-5.6-sol\", effort = \"high\" }}  [d
             "worker.omp.verifier",
             "worker.omp.advanced-implementer",
             "worker.omp.planner",
+            "worker.agy.routine-implementer",
+            "worker.agy.implementer",
+            "worker.agy.verifier",
+            "worker.agy.advanced-implementer",
+            "worker.agy.planner",
         ]
     );
     assert_eq!(values[2]["value"], Value::Null);
@@ -11733,7 +11747,7 @@ fn project_skill_install_always_inlines_guidance_while_user_install_does_not() {
     let guidance = "# Repository instructions\n\nRun `just ci-project-only`. Keep `{{trusted_fragment}}` and \"quoted text\" literal.\n";
     fs::write(root.join("AGENTS.md"), guidance).expect("repository guidance");
 
-    for harness in ["codex", "claude", "opencode", "pi", "omp"] {
+    for harness in ["codex", "claude", "opencode", "pi", "omp", "agy"] {
         let project = json_output(root, &["skill", "install", harness, "--scope", "project"]);
         assert_eq!(project["guidance"]["source"], "AGENTS.md");
         assert_eq!(project["guidance"]["status"], "ok");

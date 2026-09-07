@@ -40,6 +40,7 @@ pub(super) enum WorkerHarness {
     Opencode,
     Pi,
     Omp,
+    Agy,
 }
 
 impl WorkerHarness {
@@ -50,6 +51,7 @@ impl WorkerHarness {
             Self::Opencode => "opencode",
             Self::Pi => "pi",
             Self::Omp => "omp",
+            Self::Agy => "agy",
         }
     }
 
@@ -60,8 +62,9 @@ impl WorkerHarness {
             "opencode" => Ok(Self::Opencode),
             "pi" => Ok(Self::Pi),
             "omp" => Ok(Self::Omp),
+            "agy" => Ok(Self::Agy),
             _ => Err(ZdevError::new(format!(
-                "Unknown worker harness {value}; expected codex, claude, opencode, pi, or omp"
+                "Unknown worker harness {value}; expected codex, claude, opencode, pi, omp, or agy"
             ))),
         }
     }
@@ -219,6 +222,8 @@ struct WorkerFile {
     pi: HarnessProfiles,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     omp: HarnessProfiles,
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
+    agy: HarnessProfiles,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     profiles: BTreeMap<String, NamedProfile>,
 }
@@ -236,6 +241,8 @@ struct NamedProfile {
     pi: HarnessProfiles,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     omp: HarnessProfiles,
+    #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
+    agy: HarnessProfiles,
 }
 
 impl NamedProfile {
@@ -246,6 +253,7 @@ impl NamedProfile {
             WorkerHarness::Opencode => &self.opencode,
             WorkerHarness::Pi => &self.pi,
             WorkerHarness::Omp => &self.omp,
+            WorkerHarness::Agy => &self.agy,
         }
     }
     fn harness_mut(&mut self, harness: WorkerHarness) -> &mut HarnessProfiles {
@@ -255,6 +263,7 @@ impl NamedProfile {
             WorkerHarness::Opencode => &mut self.opencode,
             WorkerHarness::Pi => &mut self.pi,
             WorkerHarness::Omp => &mut self.omp,
+            WorkerHarness::Agy => &mut self.agy,
         }
     }
     fn is_empty(&self) -> bool {
@@ -263,6 +272,7 @@ impl NamedProfile {
             && self.opencode.is_empty()
             && self.pi.is_empty()
             && self.omp.is_empty()
+            && self.agy.is_empty()
     }
 }
 
@@ -276,6 +286,7 @@ impl Default for WorkerFile {
             opencode: HarnessProfiles::default(),
             pi: HarnessProfiles::default(),
             omp: HarnessProfiles::default(),
+            agy: HarnessProfiles::default(),
             profiles: BTreeMap::new(),
         }
     }
@@ -289,6 +300,7 @@ impl WorkerFile {
             WorkerHarness::Opencode => &mut self.opencode,
             WorkerHarness::Pi => &mut self.pi,
             WorkerHarness::Omp => &mut self.omp,
+            WorkerHarness::Agy => &mut self.agy,
         }
     }
 
@@ -314,6 +326,7 @@ struct WorkerLayer {
     opencode: RoleProfiles,
     pi: RoleProfiles,
     omp: RoleProfiles,
+    agy: RoleProfiles,
 }
 
 #[derive(Default)]
@@ -345,6 +358,7 @@ impl WorkerLayer {
             WorkerHarness::Opencode => &self.opencode,
             WorkerHarness::Pi => &self.pi,
             WorkerHarness::Omp => &self.omp,
+            WorkerHarness::Agy => &self.agy,
         }
     }
 
@@ -439,7 +453,7 @@ struct WorkerKey {
     role: WorkerRole,
 }
 
-const WORKER_KEYS: [WorkerKey; 25] = [
+const WORKER_KEYS: [WorkerKey; 30] = [
     WorkerKey {
         name: "worker.codex.routine-implementer",
         harness: WorkerHarness::Codex,
@@ -563,6 +577,31 @@ const WORKER_KEYS: [WorkerKey; 25] = [
     WorkerKey {
         name: "worker.omp.planner",
         harness: WorkerHarness::Omp,
+        role: WorkerRole::Planner,
+    },
+    WorkerKey {
+        name: "worker.agy.routine-implementer",
+        harness: WorkerHarness::Agy,
+        role: WorkerRole::RoutineImplementer,
+    },
+    WorkerKey {
+        name: "worker.agy.implementer",
+        harness: WorkerHarness::Agy,
+        role: WorkerRole::Implementer,
+    },
+    WorkerKey {
+        name: "worker.agy.verifier",
+        harness: WorkerHarness::Agy,
+        role: WorkerRole::Verifier,
+    },
+    WorkerKey {
+        name: "worker.agy.advanced-implementer",
+        harness: WorkerHarness::Agy,
+        role: WorkerRole::AdvancedImplementer,
+    },
+    WorkerKey {
+        name: "worker.agy.planner",
+        harness: WorkerHarness::Agy,
         role: WorkerRole::Planner,
     },
 ];
@@ -1002,7 +1041,7 @@ fn with_all_integration_refresh(
     scope: ConfigWriteScope,
 ) -> CommandOutput {
     let command = format!(
-        "zdev skill install <codex|claude|opencode|pi|omp> --scope {} --force",
+        "zdev skill install <codex|claude|opencode|pi|omp|agy> --scope {} --force",
         match scope {
             ConfigWriteScope::Local => "project",
             ConfigWriteScope::Global => "user",
@@ -1148,7 +1187,7 @@ fn read_values(root: Option<&Path>, scope: ConfigReadScope) -> Result<Vec<Config
         .transpose()?
         .flatten();
 
-    let mut values = Vec::with_capacity(25);
+    let mut values = Vec::with_capacity(30);
     if let Some(project) = project.as_ref() {
         append_project_values(&mut values, project, scope);
     }
@@ -1669,6 +1708,7 @@ fn validate_worker_file(path: &Path, file: &WorkerFile) -> Result<WorkerLayer, Z
             (WorkerHarness::Opencode, &profile.opencode),
             (WorkerHarness::Pi, &profile.pi),
             (WorkerHarness::Omp, &profile.omp),
+            (WorkerHarness::Agy, &profile.agy),
         ] {
             validate_roles(path, harness, rows)?;
         }
@@ -1679,6 +1719,7 @@ fn validate_worker_file(path: &Path, file: &WorkerFile) -> Result<WorkerLayer, Z
         opencode: validate_roles(path, WorkerHarness::Opencode, &file.opencode)?,
         pi: validate_roles(path, WorkerHarness::Pi, &file.pi)?,
         omp: validate_roles(path, WorkerHarness::Omp, &file.omp)?,
+        agy: validate_roles(path, WorkerHarness::Agy, &file.agy)?,
     })
 }
 
@@ -1806,6 +1847,13 @@ fn built_in_profiles(harness: WorkerHarness) -> RoleProfiles {
             verifier: Some(profile("anthropic/claude-opus-5", Some(Effort::Low))),
             advanced_implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::High))),
             planner: None,
+        },
+        WorkerHarness::Agy => RoleProfiles {
+            routine_implementer: Some(profile("gemini-3.8-flash", Some(Effort::Low))),
+            implementer: Some(profile("gemini-3.8-flash", Some(Effort::Medium))),
+            verifier: Some(profile("gemini-3.8-flash", Some(Effort::Medium))),
+            advanced_implementer: Some(profile("gemini-3.8-flash", Some(Effort::High))),
+            planner: Some(profile("gemini-3.8-flash", Some(Effort::High))),
         },
     }
 }

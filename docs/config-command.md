@@ -66,6 +66,11 @@ or `pull-request` record policy still determines whether `.zdev` is shared.
 | `worker.omp.implementer` | worker profile | global and local | Set or unset. |
 | `worker.omp.verifier` | worker profile | global and local | Set or unset. |
 | `worker.omp.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.agy.routine-implementer` | worker profile | global and local | Set or unset. |
+| `worker.agy.implementer` | worker profile | global and local | Set or unset. |
+| `worker.agy.verifier` | worker profile | global and local | Set or unset. |
+| `worker.agy.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.agy.planner` | worker profile | global and local | Set or unset. |
 
 A worker profile is one atomic value. It is either `inherit`, or a non-empty
 model plus one effort from `inherit`, `low`, `medium`, `high`, `xhigh`, or

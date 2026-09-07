@@ -49,11 +49,13 @@ $binary --root "$project" skill install claude --scope project
 $binary --root "$project" skill install opencode --scope project
 $binary --root "$project" skill install pi --scope project
 $binary --root "$project" skill install omp --scope project
+$binary --root "$project" skill install agy --scope project
 $binary --root "$project" skill check codex --scope project
 $binary --root "$project" skill check claude --scope project
 $binary --root "$project" skill check opencode --scope project
 $binary --root "$project" skill check pi --scope project
 $binary --root "$project" skill check omp --scope project
+$binary --root "$project" skill check agy --scope project
 
 $binary --root "$project" area create smoke \
     --title "Release smoke" \
@@ -86,7 +88,7 @@ $binary --root "$project" task done smoke smoke-001 \
     --summary "The standalone binary completed the lean task loop." \
     --validation "Release smoke test passed."
 
-git -C "$project" add .zdev .codex .claude .opencode .pi .omp
+git -C "$project" add .zdev .codex .claude .opencode .pi .omp .agents
 commit_output=$($binary --root "$project" commit -m "test: complete release smoke")
 printf '%s\n' "$commit_output" | grep -Eq '^Committed [0-9a-f]+ \(Z[0-9a-f]{64}\): test: complete release smoke$' ||
     fail "commit output did not report its commit and stable change ID"

@@ -2,6 +2,29 @@
 
 This file records notable changes to zdev.
 
+## [1.4.0] - 2026-09-07
+
+### Added
+
+- Google Antigravity (`agy`) is now a supported harness integration, with
+  workspace and user-scoped Skills and custom subagents under Antigravity's
+  native `.agents` and `~/.gemini/config` layouts.
+- Antigravity worker profiles use Gemini 3.8 Flash with role-specific zdev
+  effort levels: low for routine work, medium for implementation and
+  verification, and high for planning and advanced implementation.
+
+### Changed
+
+- Antigravity subagents are explicitly sandboxed and marked as subagent-only;
+  they cannot be selected as the primary agent.
+- Antigravity coordinates zdev workflows through the installed Skill and
+  `invoke_subagent`; durable goal state remains in `.zdev`.
+
+### Compatibility
+
+- Existing records and integrations remain valid. Install or refresh the new
+  integration with `zdev skill install agy --force`.
+
 ## [1.3.0] - 2026-09-06
 
 ### Added
@@ -242,6 +265,7 @@ This file records notable changes to zdev.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
 [1.3.0]: https://github.com/zayenz/zdev/compare/v1.2.3...v1.3.0
+[1.4.0]: https://github.com/zayenz/zdev/compare/v1.3.0...v1.4.0
 [1.2.3]: https://github.com/zayenz/zdev/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/zayenz/zdev/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/zayenz/zdev/compare/v1.2.0...v1.2.1

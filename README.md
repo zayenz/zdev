@@ -183,7 +183,7 @@ Check or install a user-scoped skill for the harness you use:
 ```sh
 zdev skill check codex --scope user
 zdev skill install codex
-# or: claude, opencode, pi, omp
+# or: claude, opencode, pi, omp, agy
 ```
 
 User-scoped skills work across repositories. To install one in the current
@@ -194,8 +194,8 @@ zdev skill install codex --scope project --guidance auto
 ```
 
 Project installations put harness-native files under `.codex`, `.claude`,
-`.opencode`, `.pi`, or `.omp`. The supported harnesses are Codex, Claude Code,
-OpenCode, Pi, and Oh My Pi.
+`.opencode`, `.pi`, `.omp`, or `.agents`. The supported harnesses are Codex,
+Claude Code, OpenCode, Pi, Oh My Pi, and Google Antigravity (`agy`).
 
 Once installed, ask the harness to use zdev explicitly. The usual workflow is:
 

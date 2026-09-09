@@ -250,11 +250,15 @@ report it without installing or rewriting the integration automatically.
 When composing or revising human-facing prose written for zdev, preserve the
 meaning and match the intended tone. Name the actor and the concrete action.
 Prefer specific facts, plain words, active voice, and sentences a reader does
-not need to backtrack through. Remove puffery, promotional claims, vague
-attribution, canned chatbot phrases, filler, excessive hedging, forced parallel
-structure, and synonym cycling. Vary sentence length where it helps readability,
-but keep repository terms stable instead of inventing synonyms. Reread the
-finished draft and replace any remaining generic or formulaic phrasing.
+not need to backtrack through. Split dense sentences and cut adverbs that hide
+an unmeasured claim. Remove puffery, promotional claims, vague attribution,
+canned chatbot phrases, filler, excessive hedging, forced parallel structure,
+abstract metaphor jargon, and synonym cycling. Vary sentence length where it
+helps readability, but keep repository terms stable instead of inventing
+synonyms. Replace generic claims with the zdev-specific mechanism, instruction,
+fact, or number. If a sentence could describe any project unchanged, cut it.
+Reread the finished draft and replace any remaining generic or formulaic
+phrasing.
 
 This editorial pass does not apply to user quotations or source text. Never use
 it to rewrite code, commands, paths, literals, JSON, TOML, YAML, frontmatter,
@@ -264,6 +268,23 @@ take priority over style preferences.
 
 This guidance adapts Lauren Tan's MIT-licensed Cursor pstack `unslop` method at
 commit `93b00b89ef425a9c1bac0d0b317dfc49c930ac99`.
+
+## Write durable records for agents
+
+Write briefs, slice briefs, and tasks for the agent branch that will consume
+them. Keep each shared meaning in one authoritative place, and keep a concept's
+definition, rules, and caveats together. A pointer names both the material and
+the condition for reading it. Inline context every branch needs and point to
+branch-specific detail only where that branch uses it. Treat source,
+configuration, and command help as authoritative for facts an agent can inspect
+cheaply instead of copying those facts into a record. State the behavior the
+agent should perform. Each completion condition must be checkable, and together
+the conditions must cover the promised outcome. Remove exposition and stale
+restatements that do not change an agent's action or decision.
+
+This section governs durable zdev records. Transient worker payloads follow the
+separate task-workflow contract because those workers do not load every planning
+route.
 
 ## State and reporting
 

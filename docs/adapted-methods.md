@@ -9,7 +9,7 @@ mapping preserves their judgment while zdev tasks provide the durable record.
 | Source method | Zdev adaptation |
 | --- | --- |
 | Matt Pocock's grilling and domain-modeling skills | `discuss.md`: identify high-impact decisions, challenge independent branches breadth first, and keep settled synthesis in `brief.md`. |
-| Matt Pocock's `to-issues`, `to-tickets`, and `writing-for-agents` | `to-tasks.md` and workflow contracts: create reviewed tracer-bullet tasks with useful context, real constraints, observable completion, and branch-specific reading pointers. |
+| Matt Pocock's `to-issues`, `to-tickets`, and `writing-for-agents` | `shape-work.md`, `to-tasks.md`, and workflow contracts: keep agent-readable briefs, tasks, context pointers, and worker instructions focused on their branch, authoritative context, and checkable completion. |
 | Matt Pocock's wayfinder | `shape-work.md`: directly explore an objective and compare plausible paths while building the area brief. |
 | Matt Pocock's planning and specification skills | `shape-work.md`, `discuss.md`, and the task format: shared decisions live in the brief; each task is its own implementation specification. |
 | Matt Pocock's TDD and implementation skills | `implement.md`: test behavior at a stable seam, then enter independent verification. |
@@ -110,9 +110,10 @@ method.
 
 The pstack adaptation preserves meaning and intended tone while preferring
 concrete facts, plain active language, readable sentences, stable terms, and a
-final check for formulaic writing. The writing-for-agents adaptation keeps task
-context, genuine boundaries, observable acceptance, and branch-specific
-references together without copying an exact contract into several places.
+final check for formulaic writing. The writing-for-agents adaptation keeps
+shared brief decisions, task context, genuine boundaries, checkable acceptance,
+and branch-specific references together without copying an exact contract into
+several places.
 Zdev's workflow, terminology, scope rules, exclusions, and precedence for user
 instructions and approved area, slice, and task contracts remain original zdev
 guidance. These adaptations are documentation, not runtime rewriting steps or

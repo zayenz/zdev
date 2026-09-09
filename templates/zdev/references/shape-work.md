@@ -46,6 +46,11 @@ repository's convention. Unless the user already requested those changes,
 show their scope and wait for confirmation before writing outside `.zdev`. Link
 approved project records from the brief instead of copying them.
 
+Apply the shared durable-record guidance for agents. The brief contains shared
+decisions and the reasons a later planner, implementer, or verifier cannot
+recover cheaply from the repository. Put branch-specific detail in a named
+repository document or indexed background file and state when to read it.
+
 For the conventional `general` area, preserve a standing brief instead of
 turning each one-off request into a new area objective. Put shared engineering
 boundaries, testing, and validation in that brief. Keep one-off outcomes and

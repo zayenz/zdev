@@ -18,13 +18,14 @@ Another file, by itself, is not scope expansion. A new product or compatibility
 decision, a cross-area outcome, an explicit boundary violation, destructive or
 external action without authority, or overlap with user-owned work is.
 
-## Write instructions for the worker's path
+## Write transient instructions for the worker's path
 
-Keep ordered actions in the route that performs them. Keep an exact contract in
-one authoritative section and tell the worker when to read it. Put reference
-material used by only one branch beside that branch or behind a specific
-pointer; do not make every worker load it. Remove stale restatements and lines
-that do not change what the worker does.
+Transient payloads include only the instructions and context needed by that
+worker branch. Keep ordered actions in the route that performs them. Point to an
+exact contract instead of restating it, and tell the worker when to read it.
+Keep branch-only reference material beside that branch. Name the required
+behavior and completion condition. Remove facts the worker can inspect cheaply
+and lines that do not change what the worker does.
 
 For example, the implementer payload always names the brief, task, repository
 guidance, and work-context snapshot. It names the derived-work section only

@@ -4,6 +4,7 @@ const WORKFLOW: &str = include_str!("../docs/workflow.md");
 const ADAPTED_METHODS: &str = include_str!("../docs/adapted-methods.md");
 const SHARED_CONTRACT: &str = include_str!("../templates/zdev/shared-contract.md");
 const TASK_WORKFLOWS: &str = include_str!("../templates/zdev/task-workflows.md");
+const SHAPE_WORK: &str = include_str!("../templates/zdev/references/shape-work.md");
 const TO_TASKS: &str = include_str!("../templates/zdev/references/to-tasks.md");
 
 fn normalized(text: &str) -> String {
@@ -119,19 +120,32 @@ fn user_docs_describe_observable_actions_without_chat_roles() {
 
 #[test]
 fn writing_guidance_preserves_semantics_and_reaches_prose_workers() {
+    let readme = normalized(README);
+    assert!(readme.contains("Cursor pstack's `unslop` skill"));
+    assert!(readme.contains("`writing-for-agents`"));
+
     let shared = normalized(SHARED_CONTRACT);
     assert!(shared.contains("## Write human-facing prose plainly"));
     assert!(shared.contains("active voice"));
+    assert!(shared.contains("If a sentence could describe any project unchanged, cut it"));
     assert!(shared.contains("JSON, TOML, YAML, frontmatter"));
+    assert!(shared.contains("## Write durable records for agents"));
+    assert!(shared.contains("Each completion condition must be checkable"));
 
     let workflows = normalized(TASK_WORKFLOWS);
     assert!(
         workflows.contains("shared prose guidance only when the task authors human-facing text")
     );
-    assert!(workflows.contains("## Write instructions for the worker's path"));
+    assert!(workflows.contains("## Write transient instructions for the worker's path"));
+    assert!(workflows.contains("Transient payloads include only"));
+
+    let briefs = normalized(SHAPE_WORK);
+    assert!(briefs.contains("Apply the shared durable-record guidance for agents"));
+    assert!(briefs.contains("cannot recover cheaply from the repository"));
 
     let tasks = normalized(TO_TASKS);
+    assert!(tasks.contains("Apply the shared durable-record guidance for agents"));
     assert!(tasks.contains("`Boundaries` only for real constraints"));
-    assert!(tasks.contains("`Done when` item as an observable result"));
+    assert!(tasks.contains("Use `Done when` for observable completion"));
     assert!(tasks.contains("`docs/report-format.md`"));
 }

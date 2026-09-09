@@ -236,13 +236,22 @@ fresh standard verifier.
 
 ## Adapted skills
 
-The zdev skill adapts methods from two upstream skill projects:
+The zdev skill adapts methods from three upstream skill projects:
 
 - [Matt Pocock's skills](https://github.com/mattpocock/skills/tree/d574778f94cf620fcc8ce741584093bc650a61d3)
   cover discussion, exploration, task decomposition, implementation, research,
-  diagnosis, review, and codebase design. The source is released under the
+  diagnosis, review, and codebase design. His
+  [`writing-for-agents`](https://github.com/mattpocock/skills/blob/3cca18b368ae95cdbdebbff572ccafa662551015/skills/productivity/writing-for-agents/SKILL.md)
+  guidance also shapes how zdev writes briefs, tasks, context pointers, and
+  worker instructions. The source is released under the
   [MIT license](https://github.com/mattpocock/skills/blob/d574778f94cf620fcc8ce741584093bc650a61d3/LICENSE),
   © Matt Pocock.
+- [Cursor pstack's `unslop` skill](https://github.com/cursor/plugins/blob/93b00b89ef425a9c1bac0d0b317dfc49c930ac99/pstack/skills/unslop/SKILL.md)
+  by Lauren Tan is built into zdev's shared guidance for human-facing prose. It
+  favors concrete facts, plain active language, stable terms, and a final pass
+  for generic or formulaic writing. The source is released under the
+  [MIT license](https://github.com/cursor/plugins/blob/93b00b89ef425a9c1bac0d0b317dfc49c930ac99/pstack/LICENSE),
+  © Lauren Tan.
 - [shadcn's Improve skill](https://github.com/shadcn/improve/tree/03369ee6d7cafbfcecc4346539b05b3dc0a603bb)
   informs the read-only codebase survey, audit, vetting, and prioritization
   steps. Its [license statement](https://github.com/shadcn/improve/blob/03369ee6d7cafbfcecc4346539b05b3dc0a603bb/README.md#license)

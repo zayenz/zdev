@@ -2,6 +2,27 @@
 
 This file records notable changes to zdev.
 
+## [1.5.0] - 2026-09-09
+
+### Changed
+
+- Shared prose guidance now incorporates Cursor pstack's `unslop` method. Zdev
+  asks every supported harness to preserve meaning while using concrete facts,
+  plain active language, readable sentences, and stable repository terms.
+- Briefs, slice briefs, tasks, and worker instructions now incorporate Matt
+  Pocock's `writing-for-agents` method. Durable records keep shared meaning in
+  one place, use branch-specific reading pointers, avoid restating facts an
+  agent can inspect cheaply, and define checkable completion conditions.
+- Durable planning records and transient worker payloads have separate writing
+  rules, removing repeated instructions while preserving the context each
+  worker actually loads.
+
+### Compatibility
+
+- Existing records, tasks, and worker configuration remain valid. Reinstall
+  integrations with `zdev skill install <harness> --force` to receive the new
+  writing guidance.
+
 ## [1.4.0] - 2026-09-07
 
 ### Added
@@ -264,8 +285,9 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
-[1.3.0]: https://github.com/zayenz/zdev/compare/v1.2.3...v1.3.0
+[1.5.0]: https://github.com/zayenz/zdev/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/zayenz/zdev/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/zayenz/zdev/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/zayenz/zdev/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/zayenz/zdev/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/zayenz/zdev/compare/v1.2.0...v1.2.1

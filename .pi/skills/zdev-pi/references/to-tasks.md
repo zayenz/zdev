@@ -44,11 +44,12 @@ For each newly drafted implementation task, write concise `Context` that tells
 a fresh implementer why the work exists, what current behavior or evidence
 matters, which settled decisions apply, and where to begin reading source and
 tests. Keep shared facts authoritative in `brief.md` and point to them instead
-of copying them. Write `Boundaries` only for real constraints on the outcome or
-implementation; do not repeat the proposed approach. Write every `Done when`
-item as an observable result that a verifier can distinguish from incomplete
-work. Define an exact command, schema, or contract in one authoritative place
-and tell the worker explicitly when to read it.
+of copying them. Apply the shared durable-record guidance for agents. Write
+`Boundaries` only for real constraints on the outcome or implementation; do not
+repeat the proposed approach. Use `Done when` for observable completion and
+`Validation` for the evidence that proves it. Define an exact command, schema,
+or contract in one authoritative place and tell the worker explicitly when to
+read it.
 
 For example, a useful task says:
 

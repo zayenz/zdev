@@ -36,8 +36,9 @@ Check the user-scoped integration for your harness:
 zdev skill check codex --scope user
 ```
 
-Replace `codex` with `claude`, `opencode`, `pi`, `omp`, or `agy`. Status `ok` means the
-integration is current. For `missing` or `conflict`, install or refresh it:
+Replace `codex` with `claude`, `opencode`, `pi`, `omp`, or `agy`. Status `ok`
+means the integration is current. For `missing` or `conflict`, install or
+refresh it:
 
 ```sh
 zdev skill install codex
@@ -48,9 +49,9 @@ initialized in the current project.
 
 ## 3. Initialize a repository
 
-On the trunk branch, choose one zdev planning-record policy:
+On the trunk branch, choose how to store the zdev planning record:
 
-- Choose **personal** for a parallel record used only in this clone. Add the
+- Choose **personal** to keep the record in this clone. Add the
   exact entry `/.zdev/` to `.git/info/exclude`; it stays local and will not
   travel to another clone or collaborator.
 - Choose **project** when `.zdev` should be portable, reviewed, and shared. Leave
@@ -69,11 +70,10 @@ zdev init --record personal # or: project, pull-request
 Zdev records the current branch as trunk. If you need to correct it, run
 `zdev config trunk <branch>`.
 
-Inspect the fixed project and worker registry with `zdev config show` or
-`zdev config get <key>`. Use typed `config set` and `config unset` mutations;
-worker changes report the exact integration refresh command instead of
-rewriting installed files automatically. Run `zdev config --help` for the
-supported keys, scopes, and value grammar.
+Inspect settings with `zdev config show` or `zdev config get <key>`. Change
+them with `config set` and `config unset`. Worker changes report the command
+to refresh the integration; they do not rewrite installed files. Run
+`zdev config --help` for supported keys, scopes, and values.
 
 If you prefer a checked-in integration, install it now that the repository is
 initialized:
@@ -82,26 +82,25 @@ initialized:
 zdev skill install codex --scope project --guidance auto
 ```
 
-Replace `codex` with `claude`, `opencode`, `pi`, `omp`, or `agy`. Project installation
-puts harness-native files under `.codex`, `.claude`, `.opencode`, `.pi`, or
-`.omp` or `.agents`. The `--guidance auto` option uses a root `AGENTS.md` or creates
-`.zdev/guidance.md`; you can instead pass `agents`, `zdev`, or a
-repository-relative Markdown path. Edit that source, then refresh and check the
-integration:
+Replace `codex` with `claude`, `opencode`, `pi`, `omp`, or `agy`. Project
+installation puts harness-native files under `.codex`, `.claude`, `.opencode`,
+`.pi`, `.omp`, or `.agents`. The `--guidance auto` option uses a root
+`AGENTS.md` or creates `.zdev/guidance.md`; you can instead pass `agents`,
+`zdev`, or a repository-relative Markdown path. Edit that source, then refresh
+and check the integration:
 
 ```sh
 zdev skill install codex --scope project --force
 zdev skill check codex --scope project
 ```
 
-For a pull-request record, run `zdev cleanup squash` on the clean feature branch
-immediately before squash merge. It deletes only tracked `.zdev` files and makes
-one plain Git commit without a `Zdev-Change-Id`. It refuses missing or different
-record policies, configured trunk, detached HEAD, in-progress Git operations,
-local changes, and branches with no tracked `.zdev` files.
-This prepares only the final tree. A normal merge or rebase that retains the
-feature commits also retains `.zdev` in reachable history; `cleanup squash` does
-not implement history-preserving cleanup.
+For a pull-request record, run `zdev cleanup squash` on the clean feature
+branch immediately before squash merge. It deletes only tracked `.zdev` files
+and makes one plain Git commit without a `Zdev-Change-Id`. It requires a
+pull-request record, an attached feature branch, no Git operation in progress,
+and tracked `.zdev` files to remove. This prepares the final tree for squash
+merge. A normal merge or rebase that retains the feature commits also retains
+`.zdev` in reachable history.
 
 ## 4. Create an area
 
@@ -115,8 +114,8 @@ zdev area create scheduling \
   --objective "Add a tested scheduling API."
 ```
 
-For a personal or project record, use `--trunk` when the area should explicitly
-share configured project trunk with other trunk areas:
+For a personal or project record, use `--trunk` to work on the configured trunk
+branch, which other trunk areas may also use:
 
 ```sh
 git switch main
@@ -173,7 +172,7 @@ selection reports the slice brief to read after the authoritative area brief.
 If you often have small, unrelated improvements, keep them in an ordinary area
 with the conventional tag `general`. First choose where it should live. For an
 isolated area, create or switch to its branch, then bind the area to the branch
-already checked out with the existing command:
+already checked out with:
 
 ```sh
 git switch -c general
@@ -182,13 +181,14 @@ zdev area create general \
   --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
 
-For a personal/project record that deliberately shares configured trunk, omit
+For a personal or project record that shares configured trunk, omit
 the new branch and add `--trunk` to the area command.
 
 Maintain a short standing `brief.md` with the shared engineering boundaries,
 testing level, and validation commands. Each one-off task still needs its own
-useful outcome, context, boundaries, done proof, and validation. Most remain
-unsliced; add a slice only when several related tasks need one shared objective.
+clear outcome, context, boundaries, completion conditions, and validation.
+Most remain unsliced; add a slice only when several related tasks need one
+shared objective.
 
 For example:
 
@@ -224,7 +224,7 @@ commit the accepted changes. Zdev does not create or switch the branch for you.
 
 Zdev is the top-level trigger for its harness workflow. Mention `zdev`,
 `$zdev`, or the existing `.zdev` area when asking for help. Generic requests such as
-“explore this idea” or “review this repository” do not recruit zdev by
+“explore this idea” or “review this repository” do not activate zdev by
 themselves.
 
 Start by asking the harness to use zdev to explore the objective:
@@ -264,15 +264,15 @@ Code, and Pi support this route. OpenCode and Oh My Pi currently offer
 sequential Implement for this request.
 
 **Discuss the brief** reads the brief and relevant indexed sources, then
-identifies choices that could materially change behavior, scope, task splitting,
-or validation. It resolves repository facts directly and works breadth first
-across the highest-impact choices. Each round asks up to three independent
-questions, using the harness's structured question tool when available. It asks
-one focused question by default and batches only independent questions. An
-unanswered question is not consent. Discussion tests settled decisions against
-concrete scenarios,
-updates the brief after each round, and stops when no unresolved choice could
-materially change the work. `grill` is an alias.
+identifies choices that could materially change behavior, scope, task
+splitting, or validation. It resolves repository facts directly and works
+breadth first across the highest-impact choices. Each round asks up to three
+independent questions, using the harness's structured question tool when
+available. It asks one focused question by default and batches only
+independent questions. An unanswered question is not consent. Discussion tests
+settled decisions against concrete scenarios, updates the brief after each
+round, and stops when no unresolved choice could materially change the work.
+`grill` is an alias.
 
 Other active zdev intents route directly to **Improve**, **Investigate**,
 **Create tasks**, **Implement**, or **Verify**. After each interaction, zdev
@@ -284,17 +284,15 @@ only to the artifact shown and does not imply another action.
 
 ## 6. Import reviewed tasks
 
-Your harness sends the proposed Task Bundle JSON to zdev for deterministic
-rendering:
+Your harness sends the proposed task bundle to zdev to render for review:
 
 ```sh
 zdev tasks review scheduling --from - --format json
 ```
 
-Zdev stores the canonical bundle, an internal fingerprint, and an actual
-Markdown review file under repository-local Git administrative state. Its small
-JSON result names that file and an opaque review identity. For non-trivial
-work, a fresh reviewer reads that exact Markdown file. If it suggests concrete
+Zdev stores the bundle and its Markdown review file in local Git
+administrative storage. The JSON result gives the harness a review ID and the
+file path. For non-trivial work, a fresh reviewer reads that Markdown file. If it suggests concrete
 revisions, the harness replaces the stored candidate. A focused correction is
 checked by the same reviewer against the prior findings and the complete
 revised document. A material change to scope, boundaries, dependencies, task
@@ -306,10 +304,9 @@ final challenged document for explicit approval with:
 zdev tasks review scheduling --show
 ```
 
-You approve the Markdown once. The harness retains the review identity
-automatically; you never read, copy, compare, or diagnose it or the internal
-fingerprint. It then imports the exact current artifact with `zdev tasks import
-scheduling --reviewed <review-id>`.
+You approve the Markdown once. The harness carries the review ID and imports
+that exact version with
+`zdev tasks import scheduling --reviewed <review-id>`.
 
 Zdev rejects content that differs from the reviewed bundle. If it changed, the
 harness replaces the stored review, shows the new Markdown, and asks for
@@ -325,14 +322,14 @@ records keep using ordinary import. A manual direct import can use `zdev tasks
 import scheduling --from - --commit --format json`. Use ordinary import under
 any policy when you explicitly want the additions left uncommitted.
 
-An initial managed commit includes the config, area metadata, brief, referenced
-slice briefs, new task files, and regenerated `TASKS.md`. If later approved work modified the owning area's
-tracked `brief.md`, leave it unstaged. The committed import validates and
-includes the brief with the new task files and regenerated `TASKS.md`; no
-separate brief commit is needed. Unrelated staged and unstaged changes are
-preserved. The JSON result includes task IDs, paths, the commit hash, and the
-stable change ID. It also includes the complete ready frontier in stable task
-order.
+An initial managed commit includes the config, area metadata, brief,
+referenced slice briefs, new task files, and regenerated `TASKS.md`. If later
+approved work changes the area's tracked `brief.md`, leave it unstaged. The
+committed import validates and includes the brief with the new task files and
+regenerated `TASKS.md`; no separate brief commit is needed. Unrelated staged
+and unstaged changes are preserved. The JSON result includes task IDs, paths,
+the commit hash, and the stable change ID. It also includes the complete ready
+frontier in stable task order.
 
 ## 7. Run the task loop
 
@@ -357,8 +354,7 @@ files also invalidate a snapshot comparison.
 For an untracked nested Git repository, it records HEAD and the repository's
 tracked and untracked changes, excluding ignored files.
 
-When that complete JSON would be expensive to carry between workers, use its
-optional filesystem transport:
+To pass a compact reference between workers, store the context:
 
 ```sh
 zdev work-context scheduling --store --format json
@@ -366,12 +362,11 @@ zdev work-context scheduling --show <snapshot-id> --format json
 zdev work-context scheduling --compare <snapshot-id> --format json
 ```
 
-Store returns a compact reference and writes the exact ordinary JSON under
-repository-local Git administrative state. Show emits those bytes exactly.
-Compare collects a new ordinary work-context and returns only whether it is
-equal. Always compare or collect fresh state at a new decision boundary: the
-stored file is an immutable handoff, not permission to act on later. Snapshots
-remain available so an active workflow can keep loading its original baseline.
+`--store` saves the JSON in local Git administrative storage and returns a
+compact reference. `--show` reproduces the saved bytes. `--compare` collects
+fresh context and reports whether it matches. Before each decision, compare
+the snapshot or collect fresh state. Snapshots remain available throughout
+the workflow.
 Older open snapshots without untracked content evidence remain readable but
 compare unequal to fresh state; capture a new snapshot before verification.
 
@@ -421,7 +416,7 @@ zdev area close scheduling
 zdev area reopen scheduling
 ```
 
-Task bundles may author `complexity` as `routine`, `standard`, or `advanced`;
+Task bundles may set `complexity` to `routine`, `standard`, or `advanced`;
 omission means `standard`. The harness never infers routine work. Advanced work
 gets one read-only plan before its first edit, while every route keeps a fresh
 independent standard verifier.
@@ -492,10 +487,10 @@ implementer and verifier agents, and packaged workflows used by the skill.
 
 OpenCode installs one skill plus agents and route commands under `.opencode`.
 `/zdev-plan <area> [planner-profile]` plans the explicit next task read-only.
-Asking zdev to loop or set a goal completes at most one task and returns `CONTINUE` only
-after a verified commit when ready work remains. OpenCode discovers project
-skills when started from a subdirectory in the worktree.
-Its explicit parallel command checks the current Task surface before mutation.
+Asking zdev to loop or set a goal completes at most one task and returns
+`CONTINUE` only after a verified commit when ready work remains. OpenCode
+discovers project skills when started from a subdirectory in the worktree. Its
+explicit parallel command checks the current Task surface before mutation.
 Foreground batches do not return coordinator control per completed child, so
 the command creates no task worktrees and offers sequential implementation.
 
@@ -509,7 +504,7 @@ one read-only planner. Its explicit parallel prompt can bound initial planner
 and source-implementer children across assigned worktrees. A session-local run
 returns one result at a time; Pi integrates and verifies it before explicitly
 continuing queued work, then completes and commits each result serially. Goal
-and loop are the same bounded one-task continuation route. A user installation goes to
+and loop are the same bounded one-task continuation route. User installations use
 `$PI_CODING_AGENT_DIR`, or `~/.pi/agent` when the variable is unset.
 
 ### Oh My Pi
@@ -517,11 +512,9 @@ and loop are the same bounded one-task continuation route. A user installation g
 Oh My Pi is separate from plain Pi. It installs a skill and constrained native
 task agents under `.omp` and uses OMP's built-in `task` and `hub` facilities.
 `/zdev-plan <area> [planner-profile]` invokes one blocking read-only planner.
-The root skill's goal and loop route uses OMP's native goal when clear and falls
-back to one verified task when creation is
-unavailable after that clear inspection.
-A fallback requires a successful clear-goal inspection; ambiguous native goal
-state blocks.
+The root skill's goal and loop route first checks for an unfinished OMP goal.
+If none exists, it uses a native goal when available or falls back to one
+verified task. An ambiguous goal state blocks the workflow.
 A user installation goes to `$PI_CODING_AGENT_DIR`, or `~/.omp/agent` when the
 variable is unset.
 
@@ -540,11 +533,7 @@ verifier agents. Antigravity workflows are a legacy surface being migrated to
 Skills. User installations use `~/.gemini/config`, or
 `$ANTIGRAVITY_CONFIG_DIR` when set.
 
-## Get help
-
-Run `zdev --help` or `zdev <command> --help`. The [task format](task-format.md)
-documents every task field.
-# Scoped worker choices
+## Scoped worker choices
 
 Choose a named profile for one zdev interaction or an authorized multi-task
 run without saving it as the default. Zdev resolves concrete role settings at
@@ -556,3 +545,8 @@ In Codex, “plan next task with advanced planner” selects and snapshots the n
 ready task, returns a read-only plan with the selected planner model and effort,
 and stops. A later implementation request rechecks that exact task and reuses
 the plan only while its task requirements and baseline remain applicable.
+
+## Get help
+
+Run `zdev --help` or `zdev <command> --help`. The [task format](task-format.md)
+documents every task field.

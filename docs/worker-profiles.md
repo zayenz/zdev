@@ -1,18 +1,15 @@
 # Worker profiles
 
-> **Status: current behavior and dated defaults.** Zdev resolves and renders
-> all worker roles below. The model evidence remains a dated decision record,
-> not a permanent ranking.
-
-This note records a design decision, not a permanent model ranking. Model
-availability, aliases, and harness controls change. The evidence and suggested
-defaults below were checked on 2026-08-20.
+Zdev resolves worker models and effort settings from repository preferences,
+user preferences, and built-in defaults. This reference explains the roles and
+overrides. The model comparison records evidence checked on 2026-08-20; it is
+not a permanent ranking.
 
 ## Roles
 
 Zdev exposes five worker roles. `implementer` and `verifier` are the standard
-defaults; the other two are explicit implementation tiers rather than a role
-matrix.
+defaults. Routine and advanced implementers provide explicit implementation
+tiers, and the planner prepares advanced work.
 
 - `routine-implementer` handles authored routine tasks: tightly specified,
   low-risk mechanical work. It may edit only the selected task's exact
@@ -80,17 +77,20 @@ methodology record](https://epoch.ai/benchmarks/frontiercode) (accessed
 Artificial Analysis Intelligence Index v4.1.1 combines agentic work, coding,
 science, reasoning, and knowledge evaluations; it is not a software-maintainer
 review score. Its current leaderboard places Claude Opus 5 and GPT-5.6 Sol in
-the top group, and its GPT-5.6 report says Sol led its Coding Agent Index in the
-Codex harness. These results support considering both models, but the aggregate
-rank cannot select a zdev worker independently of role and harness.
-[Intelligence Index methodology](https://artificialanalysis.ai/methodology/intelligence-benchmarking),
-[v4.1.1 release](https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-1-1),
-and [GPT-5.6 report](https://artificialanalysis.ai/articles/gpt-5-6-has-landed)
-(accessed 2026-08-20).
+the top group, and its GPT-5.6 report says Sol led its Coding Agent Index in
+the Codex harness. These results support considering both models, but the
+aggregate rank cannot select a zdev worker independently of role and harness.
+[Intelligence Index
+methodology](https://artificialanalysis.ai/methodology/intelligence-benchmarking),
+[v4.1.1
+release](https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-1-1),
+and [GPT-5.6
+report](https://artificialanalysis.ai/articles/gpt-5-6-has-landed) (accessed
+2026-08-20).
 
-Confidence is moderate. The sources agree that the recommended models are
-frontier-capable, and DeepSWE and FrontierCode exercise work close to zdev's
-implementation contract. Confidence does not extend to a precise ordering:
+DeepSWE and FrontierCode exercise work close to zdev's implementation
+workflow, so they provide useful evidence for these defaults. They do not
+establish a precise ordering:
 benchmark tasks, prompts, graders, effort settings, and harnesses differ, and
 the current releases have not all been compared under one zdev workflow.
 
@@ -117,7 +117,7 @@ the current releases have not all been compared under one zdev workflow.
   configuration](https://opencode.ai/docs/agents/) (accessed 2026-08-20).
 - Pi accepts `--model provider/id` and `--thinking`, with levels from `off`
   through `max`. Its model metadata can omit, hide, or clamp unsupported
-  levels. Zdev's Pi extension exposes all four worker profiles and passes each
+  levels. Zdev's Pi extension exposes the worker profiles and passes each
   resolved model and thinking level to the isolated child process. [Pi CLI model options](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md)
   and [Pi model controls](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md)
   (accessed 2026-08-20).
@@ -185,14 +185,14 @@ model = "anthropic/claude-opus-5"
 effort = "inherit"
 ```
 
-Each optional table is named `<harness>.<role>`, using the five harness names
-`codex`, `claude`, `opencode`, `pi`, and `omp` and the five roles above. A table
-must contain either `inherit = true`, or both a non-empty `model` and an
-`effort`. Effort is one of `inherit`, `low`, `medium`, `high`, `xhigh`, or
-`max`. `inherit` as a whole table omits both controls; `effort = "inherit"`
-sets the model but omits an effort control.
+Each optional table is named `<harness>.<role>`, using the harness names
+`codex`, `claude`, `opencode`, `pi`, `omp`, and `agy` and the five roles
+above. A table must contain either `inherit = true`, or both a non-empty
+`model` and an `effort`. Effort is one of `inherit`, `low`, `medium`, `high`,
+`xhigh`, or `max`. `inherit` as a whole table omits both controls; `effort =
+"inherit"` sets the model but omits an effort control.
 
-The file remains at schema version 1 because all four role tables are optional.
+The file remains at schema version 1 because the role tables are optional.
 Existing files that contain only `implementer` and `verifier` keep their exact
 whole-profile behavior.
 
@@ -209,8 +209,8 @@ Named profiles use strict tables such as
 `[profiles.advanced-max.codex.implementer]`. Local named rows override global
 rows. A missing named role uses effective `normal`; a missing `planner` first
 uses that named profile's `advanced-implementer`. The built-in named mappings
-are Codex `advanced` and `simple`, and Claude `advanced`, as documented in the
-execution-profiles brief. Other harnesses require user-defined named rows.
+are Codex `advanced` and `simple`, and Claude `advanced`, as described by
+`zdev config profile list`. Other harnesses require user-defined named rows.
 
 Use `zdev config profile list`, `show NAME HARNESS`, and `resolve HARNESS ROLE`
 to inspect them. `set NAME HARNESS ROLE MODEL EFFORT` (or `inherit`) and
@@ -222,8 +222,8 @@ fallback in JSON.
 
 Harness-native policy still applies after generation. For example, a Claude
 Code environment override or an Oh My Pi settings override can supersede agent
-frontmatter. Zdev should state that limitation; it should not claim an
-effective runtime model that it cannot observe.
+frontmatter. Zdev reports the settings it supplies, but cannot observe the effective
+runtime model.
 
 The parser rejects an unsupported schema version, unknown harness, role, key,
 or effort; an empty model; `inherit` combined with `model` or `effort`; and a
@@ -267,37 +267,3 @@ planning, implementation, rework, escalation, and independent verification use
 that frozen map even if a preference file changes later. Coordination helpers
 retain their fixed inexpensive model. A new workflow run resolves again and
 does not rewrite worker configuration or installed files.
-
-## Implemented seam
-
-The implementation stays inside integration generation:
-
-1. Use the strict parser for the optional local and global worker files. Resolve
-   four complete role profiles for the requested harness before
-   rendering.
-2. Pass those resolved values into the existing canonical integration
-   templates. Claude Code, OpenCode, and Oh My Pi write native agent metadata;
-   Pi adds model and thinking arguments in its existing subagent extension;
-   Codex supplies explicit model and effort when spawning each role.
-3. Make install and check call the same resolver and renderer. Parse and render
-   every artifact before replacing any destination, preserving the existing
-   all-or-nothing publication rule.
-
-No evaluator, benchmark runner, task corpus, telemetry, leaderboard sync,
-automatic model selection, cost database, or new worker lifecycle belongs in
-this change.
-
-The implemented contract requires:
-
-- absent configuration produces the five mappings above, including the
-  OpenCode verifier's omitted effort;
-- every harness realizes the requested model and effort through its documented
-  native control, and `inherit` omits both controls;
-- repository overrides win over global profiles and defaults for project-scoped
-  install and check, while user scope uses global profiles before defaults;
-- invalid or explicitly unsupported configuration fails before any destination
-  changes, with a useful location and value;
-- install and check render identical deterministic bytes from the same inputs;
-- focused integration tests cover one default, one override, one inherit or
-  unsupported gap, and one pre-publication failure without building a model
-  catalog or evaluation framework.

@@ -1,14 +1,13 @@
 # Luna as a zdev coordinator
 
-> **Status: retained investigation.** The bounded recommendation remains
-> current: Luna is not a built-in coordinator profile. The work-context command
-> discussed near the end has since shipped.
+> Investigation dated 2026-08-20. Luna is not a built-in coordinator profile.
+> The work-context command discussed below is implemented.
 
 This investigation asks a narrow question: whether `gpt-5.6-luna` can safely
 coordinate zdev's existing implement and verify workflows. It does not rank
 models or change worker recommendations.
 
-The answer is **bounded use, not a zdev default or configurable profile**.
+The evidence supports use only in a bounded session chosen by the user.
 Luna made the expected decision in five fixed, tool-free cases. That is useful
 evidence that the workflow contract is legible to the model, but it says
 nothing about long sessions, tool failures, recovery, or repeated runs. Four
@@ -21,8 +20,8 @@ Evidence and harness documentation were checked on 2026-08-20.
 
 ## Probe-time coordinator duties
 
-The coordinator is not an implementer or verifier profile. Its work divides
-cleanly only in principle; a safe workflow keeps the boundary explicit.
+The coordinator selects tasks, dispatches workers, and owns completion. It
+does not use an implementer or verifier profile.
 
 The table records the 2026-08-20 probe-time baseline, when separate status,
 goal, and Git calls collected work state. Current workflows perform those first
@@ -44,8 +43,8 @@ duties are unchanged.
 | Complete and commit only after a matching independent `PASS` | Mechanical gate | Yes |
 | Summarize progress and the final result | Judgment | No, provided the summary cannot drive state |
 
-The dangerous failure is not poor prose. It is converting ambiguous evidence
-into permission to mutate lifecycle or Git state.
+The main risk is treating ambiguous evidence as permission to change task
+lifecycle or Git state.
 
 ## Model and harness controls
 
@@ -68,15 +67,18 @@ and [latest-model guide](https://developers.openai.com/api/docs/guides/latest-mo
 
 Sources: [Codex models](https://learn.chatgpt.com/docs/models) and
 [configuration](https://learn.chatgpt.com/docs/config-file/config-reference);
-[Claude Code model configuration](https://code.claude.com/docs/en/model-config)
-and [dynamic workflows](https://code.claude.com/docs/en/workflows);
-[OpenCode agents](https://opencode.ai/docs/agents/) and
-[commands](https://opencode.ai/docs/commands/);
-[Pi coding-agent README](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md)
-and [prompt templates](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md);
-[Oh My Pi README](https://github.com/can1357/oh-my-pi/blob/main/README.md)
-and [extension API](https://github.com/can1357/oh-my-pi/blob/main/docs/extensions.md)
-(all accessed 2026-08-20).
+[Claude Code model
+configuration](https://code.claude.com/docs/en/model-config) and [dynamic
+workflows](https://code.claude.com/docs/en/workflows); [OpenCode
+agents](https://opencode.ai/docs/agents/) and
+[commands](https://opencode.ai/docs/commands/); [Pi coding-agent
+README](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md)
+and [prompt
+templates](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md);
+[Oh My Pi README](https://github.com/can1357/oh-my-pi/blob/main/README.md) and
+[extension
+API](https://github.com/can1357/oh-my-pi/blob/main/docs/extensions.md) (all
+accessed 2026-08-20).
 
 ## Bounded prototype
 
@@ -87,9 +89,8 @@ a one-run contract probe, not a benchmark, so there is no pass rate. Normal
 system or developer context supplied by the collaboration interface was not
 measured or excluded.
 
-The following is an exact semantic record of the fixed case input. It was
-reconstructed from the case specification after the run and is not claimed to
-be the byte-for-byte invocation:
+The following reconstructs the fixed input from the case specification. It
+preserves the cases, but is not a byte-for-byte copy of the invocation:
 
 ```text
 You coordinate one zdev task. Choose the expected action from DISPATCH, BLOCK,
@@ -173,9 +174,9 @@ unsafe. An OpenCode-only setting would add configuration and generated
 artifacts before the single probe has shown a practical benefit. There is
 therefore no follow-up implementation task from this investigation.
 
-Deterministic tooling makes a later reassessment narrower. The fail-closed
-work-context operation now documented in
-[Workflow round trips](workflow-round-trips.md) collects complete zdev and
+The work-context command reduces the mechanical work a future probe would
+need to assess. As documented in
+[Work-context snapshots](workflow-round-trips.md), it collects complete zdev and
 Git evidence, preserves command errors, and returns a fixed schema. Exact
 envelope parsing and identity comparison also belong in code. These changes
 remove repeated collection and string handling; they do not classify unknown

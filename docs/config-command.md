@@ -1,13 +1,8 @@
 # Layered zdev configuration
 
-> **Status: current behavior.** The `zdev config` command described here is
-> implemented. Research and external behavior were checked on 2026-08-20;
-> implementation-seam sections preserve the decision record that led to it.
+## What belongs in configuration
 
-## What is configuration
-
-Zdev has three kinds of durable data. They should not be collapsed into one
-generic settings store.
+Zdev separates project settings, work records, and worker preferences:
 
 1. The project record in `.zdev/config.toml` identifies the zdev project and
    controls repository topology and record handling.
@@ -17,19 +12,18 @@ generic settings store.
    can have a useful default across repositories, and a repository can override
    it.
 
-The distinction matters. A global trunk or area branch would let one user's
-machine reinterpret shared task history. A global project name or record policy
-could make cleanup act on the wrong storage contract. Worker selection has no
-such effect on durable work identity, so layering it is useful.
+Project settings stay in the repository because they determine how zdev
+interprets shared work and handles cleanup. Worker preferences can have user
+defaults and repository overrides without changing the task record.
 
 Initialization creates the strict `.zdev/config.toml`. `zdev config trunk` and
 project integration install read, modify, and atomically replace it. Root
 discovery looks only for the file; initialization checks an existing record;
 cleanup, status, checks, task selection, branch operations, and integration
-guidance parse it. No command currently writes `default_area`. Area creation,
-binding, parenting, and managed rebase separately write strict
-`.zdev/<area>/area.toml` records. Worker preferences use the implemented strict
-`.zdev/workers.toml` format described below.
+guidance parse it. `zdev config set project.default-area` writes
+`default_area`. Area creation, binding, parenting, and managed rebase
+separately write strict `.zdev/<area>/area.toml` records. Worker preferences
+use the strict `.zdev/workers.toml` format described below.
 
 ## Supported keys and scopes
 
@@ -50,29 +44,34 @@ or `pull-request` record policy still determines whether `.zdev` is shared.
 | `worker.codex.implementer` | worker profile | global and local | Set or unset. |
 | `worker.codex.verifier` | worker profile | global and local | Set or unset. |
 | `worker.codex.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.codex.planner` | worker profile | global and local | Set or unset. |
 | `worker.claude.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.claude.implementer` | worker profile | global and local | Set or unset. |
 | `worker.claude.verifier` | worker profile | global and local | Set or unset. |
 | `worker.claude.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.claude.planner` | worker profile | global and local | Set or unset. |
 | `worker.opencode.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.opencode.implementer` | worker profile | global and local | Set or unset. |
 | `worker.opencode.verifier` | worker profile | global and local | Set or unset. |
 | `worker.opencode.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.opencode.planner` | worker profile | global and local | Set or unset. |
 | `worker.pi.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.pi.implementer` | worker profile | global and local | Set or unset. |
 | `worker.pi.verifier` | worker profile | global and local | Set or unset. |
 | `worker.pi.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.pi.planner` | worker profile | global and local | Set or unset. |
 | `worker.omp.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.omp.implementer` | worker profile | global and local | Set or unset. |
 | `worker.omp.verifier` | worker profile | global and local | Set or unset. |
 | `worker.omp.advanced-implementer` | worker profile | global and local | Set or unset. |
+| `worker.omp.planner` | worker profile | global and local | Set or unset. |
 | `worker.agy.routine-implementer` | worker profile | global and local | Set or unset. |
 | `worker.agy.implementer` | worker profile | global and local | Set or unset. |
 | `worker.agy.verifier` | worker profile | global and local | Set or unset. |
 | `worker.agy.advanced-implementer` | worker profile | global and local | Set or unset. |
 | `worker.agy.planner` | worker profile | global and local | Set or unset. |
 
-A worker profile is one atomic value. It is either `inherit`, or a non-empty
+A worker profile is set as a whole. It is either `inherit`, or a non-empty
 model plus one effort from `inherit`, `low`, `medium`, `high`, `xhigh`, or
 `max`. Atomic profiles avoid an invalid intermediate file containing a model
 without an effort. `effort = inherit` means set the model but omit the harness
@@ -135,7 +134,7 @@ Worker resolution is whole-profile, in this order:
 2. the matching global profile;
 3. the built-in profile.
 
-An explicit `inherit` is a winning value. It does not fall through to the next
+An explicit `inherit` overrides lower layers. It does not fall through to the next
 layer. Profiles are not merged field by field. This keeps an effort from one
 scope from accidentally attaching to a model from another.
 
@@ -161,12 +160,12 @@ The global and local files have the same schema. A missing worker file is an
 empty layer. Removing its final profile leaves a deterministic file containing
 only `schema_version = 1`; the command does not delete the file. The local
 project file is required for local and effective operations. Schema version 1
-is unchanged: the two added roles are optional tables, so every valid legacy
+is unchanged: the role tables are optional, so every valid legacy
 implementer/verifier file retains the same meaning.
 
 ## Command grammar
 
-The public surface is:
+The commands are:
 
 ```text
 zdev config show [--global | --local]
@@ -231,15 +230,15 @@ result.
 ## Stable output
 
 Key order is the order in the scope table above: project keys first, then
-harnesses in `codex`, `claude`, `opencode`, `pi`, `omp` order, with
-`routine-implementer`, `implementer`, `verifier`, and
-`advanced-implementer` in that order. A scoped view omits keys not stored in that
+harnesses in `codex`, `claude`, `opencode`, `pi`, `omp`, `agy` order, with
+`routine-implementer`, `implementer`, `verifier`, and `advanced-implementer`,
+and `planner` in that order. A scoped view omits keys not stored in that
 scope. Every JSON object uses the lexical key order produced by the current
 `serde_json::Value` map and existing `serde_json::to_string_pretty` renderer;
-arrays retain the registry and precedence order defined here. No preserve-order
-feature or config-specific serializer is needed. Every output ends in one
-newline. Paths use `/` separators; local paths are repository-relative and
-global paths are absolute.
+arrays retain the registry and precedence order defined here. No
+preserve-order feature or config-specific serializer is needed. Every output
+ends in one newline. Paths use `/` separators; local paths are
+repository-relative and global paths are absolute.
 
 Human `show` prints one effective or stored value per line. A lower-precedence
 candidate follows its winner on an indented `shadows` line. Strings use TOML
@@ -247,10 +246,9 @@ quoting, profiles use TOML inline-table notation, and `null` is literal.
 
 ### Effective view shape
 
-The current view contains all four roles for each harness in the registry order
-above. The older standard-role fixture below is retained as a compact rendering
-example; it omits routine and advanced rows. The defaults table above, rather
-than values in this abbreviated fixture, is authoritative.
+The effective view includes every supported key. The following examples show
+selected rows to illustrate values, scope, and precedence. The defaults table
+above records the dated model choices.
 
 Selected human rows have this form:
 
@@ -264,19 +262,6 @@ project.guidance = "auto"  [default]
 worker.codex.implementer = { model = "gpt-5.6-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
   shadows { model = "gpt-5.6-sol", effort = "low" }  [default]
-worker.codex.verifier = { model = "gpt-5.5", effort = "high" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-5.6-sol", effort = "low" }  [default]
-worker.claude.implementer = { model = "claude-opus-5", effort = "low" }  [default]
-worker.claude.verifier = { inherit = true }  [local .zdev/workers.toml]
-  shadows { model = "claude-opus-5", effort = "medium" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "claude-opus-5", effort = "low" }  [default]
-worker.opencode.implementer = { model = "openai/gpt-5.6-sol", effort = "low" }  [default]
-worker.opencode.verifier = { model = "anthropic/claude-opus-5", effort = "inherit" }  [default]
-worker.pi.implementer = { model = "openai/gpt-5.5", effort = "high" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "openai/gpt-5.6-sol", effort = "low" }  [default]
-worker.pi.verifier = { model = "anthropic/claude-opus-5", effort = "low" }  [default]
-worker.omp.implementer = { model = "openai/gpt-5.6-sol", effort = "low" }  [default]
-worker.omp.verifier = { model = "anthropic/claude-opus-5", effort = "low" }  [default]
 ```
 
 The same selected rows have this JSON shape:
@@ -370,156 +355,6 @@ The same selected rows have this JSON shape:
       "value": {
         "effort": "high",
         "model": "gpt-5.6-sol"
-      }
-    },
-    {
-      "key": "worker.codex.verifier",
-      "origin": {
-        "path": "/home/alice/.config/zdev/workers.toml",
-        "scope": "global"
-      },
-      "shadowed": [
-        {
-          "origin": {
-            "path": null,
-            "scope": "default"
-          },
-          "value": {
-            "effort": "low",
-            "model": "gpt-5.6-sol"
-          }
-        }
-      ],
-      "value": {
-        "effort": "high",
-        "model": "gpt-5.5"
-      }
-    },
-    {
-      "key": "worker.claude.implementer",
-      "origin": {
-        "path": null,
-        "scope": "default"
-      },
-      "shadowed": [],
-      "value": {
-        "effort": "low",
-        "model": "claude-opus-5"
-      }
-    },
-    {
-      "key": "worker.claude.verifier",
-      "origin": {
-        "path": ".zdev/workers.toml",
-        "scope": "local"
-      },
-      "shadowed": [
-        {
-          "origin": {
-            "path": "/home/alice/.config/zdev/workers.toml",
-            "scope": "global"
-          },
-          "value": {
-            "effort": "medium",
-            "model": "claude-opus-5"
-          }
-        },
-        {
-          "origin": {
-            "path": null,
-            "scope": "default"
-          },
-          "value": {
-            "effort": "low",
-            "model": "claude-opus-5"
-          }
-        }
-      ],
-      "value": {
-        "inherit": true
-      }
-    },
-    {
-      "key": "worker.opencode.implementer",
-      "origin": {
-        "path": null,
-        "scope": "default"
-      },
-      "shadowed": [],
-      "value": {
-        "effort": "low",
-        "model": "openai/gpt-5.6-sol"
-      }
-    },
-    {
-      "key": "worker.opencode.verifier",
-      "origin": {
-        "path": null,
-        "scope": "default"
-      },
-      "shadowed": [],
-      "value": {
-        "effort": "inherit",
-        "model": "anthropic/claude-opus-5"
-      }
-    },
-    {
-      "key": "worker.pi.implementer",
-      "origin": {
-        "path": "/home/alice/.config/zdev/workers.toml",
-        "scope": "global"
-      },
-      "shadowed": [
-        {
-          "origin": {
-            "path": null,
-            "scope": "default"
-          },
-          "value": {
-            "effort": "low",
-            "model": "openai/gpt-5.6-sol"
-          }
-        }
-      ],
-      "value": {
-        "effort": "high",
-        "model": "openai/gpt-5.5"
-      }
-    },
-    {
-      "key": "worker.pi.verifier",
-      "origin": {
-        "path": null,
-        "scope": "default"
-      },
-      "shadowed": [],
-      "value": {
-        "effort": "low",
-        "model": "anthropic/claude-opus-5"
-      }
-    },
-    {
-      "key": "worker.omp.implementer",
-      "origin": {
-        "path": null,
-        "scope": "default"
-      },
-      "shadowed": [],
-      "value": {
-        "effort": "low",
-        "model": "openai/gpt-5.6-sol"
-      }
-    },
-    {
-      "key": "worker.omp.verifier",
-      "origin": {
-        "path": null,
-        "scope": "default"
-      },
-      "shadowed": [],
-      "value": {
-        "effort": "low",
-        "model": "anthropic/claude-opus-5"
       }
     }
   ]
@@ -685,11 +520,8 @@ The JSON result is:
 
 No supported key is sensitive. Model identifiers, effort names, area tags, and
 repository-relative guidance paths are ordinary configuration. Zdev does not
-read or display provider credentials, tokens, native harness secrets, or
-environment secrets. Credential-like and unknown keys are rejected rather
-than accepted and later redacted. Version 1 therefore has no redaction flag or
-secret-shaped output. Adding a sensitive key would require a separate public
-contract rather than a generic secret store.
+read or display credentials or other harness secrets. It rejects unknown keys,
+including credential-like keys.
 
 ## Validation and failure behavior
 
@@ -742,37 +574,6 @@ Serialization is deterministic and preserves values, not comments or authored
 layout. This matches the current project-config writer. A hand edit remains a
 supported input; the next CLI mutation normalizes that one file.
 
-## Git evidence and deliberate differences
-
-Current Git documents `get`, `set`, and `unset` subcommands; effective reads
-across configuration files; scope-limited reads and writes; origin and scope
-reporting; last-value precedence; repository-local writes by default; and a
-non-zero result when a requested value is absent. It also says one invocation
-changes only one file. These are the useful ideas adopted here. [Official
-`git-config` command, options, files, and scopes](https://git-scm.com/docs/git-config)
-(accessed 2026-08-20).
-
-The installed Git 2.42.0 still exposes the older option grammar. A local probe
-confirmed that `--show-scope --show-origin --get-all` reports both global and
-local candidates in precedence order, plain `--get` returns the local winner,
-and unsetting a missing local key exits 5. The current official documentation
-uses the newer subcommands and describes the same underlying behavior. This is
-versioned design evidence, not a compatibility promise.
-
-Zdev rejects Git's system, worktree, command-line, arbitrary-file, and included
-configuration scopes. It also rejects multivalued keys, regex matching,
-open-ended type coercion, environment-injected values, and a config editor.
-Git needs a broad configuration language for many commands and repository
-layouts; zdev has twenty-five typed keys and two useful preference layers. In
-particular, a zdev worktree scope would make worker choice depend on checkout
-plumbing without improving task identity. Git's optional worktree file exists
-for genuinely worktree-specific Git settings, a distinction zdev does not
-need. [Official `git-worktree` configuration
-documentation](https://git-scm.com/docs/git-worktree) (accessed 2026-08-20).
-
-The command names and concepts are familiar, but the grammar, files, values,
-and exit behavior are zdev's own. Zdev makes no Git-config compatibility claim.
-
 ## Named execution profiles
 
 `zdev config profile` provides typed `list`, `show`, `set`, `unset`,
@@ -795,15 +596,15 @@ for each installed integration at the selected project or user scope.
 
 Existing `.zdev/config.toml` files remain valid without migration. Their field
 names, schema version, strict parsing, and meaning do not change. The current
-`zdev config trunk` command remains available. The new generic commands expose
-and mutate the same typed project fields through the existing reader and
+`zdev config trunk` command remains available. The generic commands read
+and change the same typed project fields through the existing reader and
 writer; they do not move project state into a preference file.
 
-The `.zdev/workers.toml` shape already specified in
-[Worker profiles](worker-profiles.md) becomes the canonical local layer without
-renaming or migration. A repository-local profile still wins exactly as
-documented earlier. The implemented fallback is a global file before the dated
-built-in. User-scoped integration install and check use global then built-in;
+The `.zdev/workers.toml` shape already specified in [Worker
+profiles](worker-profiles.md) is the local layer and needs no migration. A
+repository-local profile still wins exactly as documented earlier. When no
+local row exists, zdev checks the global file, then the built-in default.
+User-scoped integration install and check use global then built-in;
 project-scoped install and check use local, global, then built-in. Explicit
 `inherit` remains authoritative at either scope.
 
@@ -811,55 +612,3 @@ Install and check must use the same resolver and report the zdev origin they
 rendered. Existing repositories with neither worker file continue to render the
 same built-in profiles byte for byte. No command scans or imports harness-native
 configuration.
-
-## Implemented seam and acceptance record
-
-The implementation stays in three places:
-
-1. One configuration module contains the fixed key registry, strict
-   worker-file parser, global-path resolution, whole-profile resolver, stable
-   views, and atomic scoped mutation. Reuse the existing project config types,
-   state lock, validators, and atomic writer rather than creating a general
-   settings framework.
-2. `ConfigCommand` routing includes `show`, `get`, `set`, and
-   `unset`; retain `trunk` as the convenience alias. The command shell renders
-   the fixed human views above and passes ordinary `serde_json::Value` objects
-   to the existing success renderer.
-3. Integration install and check receive the same resolved worker-profile input.
-   The existing renderer remains responsible for adapter capability and
-   all-or-nothing artifact publication.
-
-No migration command, arbitrary TOML API, secret manager, provider credential
-store, environment override system, plugin schema, or harness configuration
-scanner belongs in this work.
-
-The current contract requires:
-
-- the twenty-five keys, scope restrictions, fixed ordering, and exact value grammar
-  above are enforced;
-- effective worker reads resolve local, global, then built-in whole profiles,
-  while scoped reads return only stored values;
-- unscoped `show` returns the complete twenty-five-key effective view described above,
-  including `scope: effective`, local, global, built-in, null/default values,
-  shadowed candidates, fixed array order, and one final newline;
-- scoped `show` and `get` reproduce their byte-level human and JSON contracts;
-  ordinary `serde_json::Value` rendering supplies lexical object-key order;
-- set and unset reproduce their byte-level result contracts, reject read-only
-  and missing keys, and never leave an invalid intermediate profile;
-- missing optional files fall back, while malformed, unknown, unsupported, or
-  unreadable values fail with their source and no state mutation;
-- project config remains schema-compatible, `config trunk` remains compatible,
-  and existing repositories without worker files render the prior built-ins;
-- concurrent writes serialize through the appropriate lock, mutate one file,
-  and either publish the complete validated bytes atomically or preserve the
-  previous file;
-- global path resolution ignores relative or empty candidates, reports only an
-  absolute normalized origin, and creates the parent directory before locking,
-  staging, and publication on the first mutation;
-- project and user integration install and check consume the identical resolved
-  profile and fail before artifact publication on an unsupported explicit
-  value; and
-- focused black-box coverage proves one effective shadowed read, one default,
-  one scoped mutation and fallback, one strict failure with preserved bytes,
-  and the unchanged `config trunk` path. No generic configuration test matrix
-  or provider probe is required.

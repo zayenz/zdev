@@ -1,34 +1,20 @@
 # Deterministic goals across harnesses
 
-> **Status: current behavior.** The `zdev goal` command and installed prompt
-> integration described here are implemented. Harness research was checked on
-> 2026-08-20; harness features can change, but `zdev goal` output is stable.
-
-## What the harnesses provide today
-
-| Harness | Observed capability | zdev integration point |
-| --- | --- | --- |
-| Codex | Codex has a session goal command. `/goal <objective>` sets a goal, `/goal` shows it, and `edit`, `pause`, `resume`, and `clear` manage it. The objective is limited to 4,000 characters. The feature can be disabled, so it is not universally available. Codex also loads reusable `SKILL.md` workflows. [Codex developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli), [goal use case](https://learn.chatgpt.com/use-cases/follow-goals), and [skill documentation](https://learn.chatgpt.com/docs/build-skills) (accessed 2026-08-20). | The installed continuation skills use model-callable `get_goal` and `create_goal`; they do not try to enter interactive composer commands. Ordinary task work uses the complete validated work-context. |
-| Claude Code | `/goal` keeps a session running until a model judges a completion condition satisfied. One goal can be active; setting another replaces it. An active goal is restored on session resume, and conditions are limited to 4,000 characters. The evaluator reads the transcript but does not run tools. Plugin skills are namespaced, invocable workflows. [Claude Code goal documentation](https://code.claude.com/docs/en/goal) and [skill documentation](https://code.claude.com/docs/en/slash-commands) (accessed 2026-08-20). | `/zdev:zdev-loop` and `/zdev:zdev-goal` run the same standalone area workflow; `/zdev:zdev-implement` remains one task. Zdev's workflows do not inspect or apply Claude Code's separate `/goal` command. |
-| OpenCode | The documented extension is a custom command whose Markdown body becomes a prompt. Command templates accept arguments, shell output, and file references. The official command guide documents built-ins such as `/init`, `/undo`, and `/share`, but no native session-goal lifecycle. OpenCode separately persists and resumes sessions. [OpenCode commands](https://opencode.ai/docs/commands/) and [OpenCode CLI sessions](https://dev.opencode.ai/docs/cli) (accessed 2026-08-20). | The packaged `/zdev-implement <area>` command, or the zdev skill directly, runs `zdev work-context <area> --format json`. It cross-validates the nested goal and status projections with HEAD and exact Git evidence, then supplies the complete context to ordinary task work. No goal emulation or extra state is needed. |
-| Pi | Pi prompt templates are Markdown expanded into ordinary prompts and invoked as `/name`; project templates live under `.pi/prompts/`. Skills are loaded on demand and can be invoked as `/skill:<name>`. Sessions are persisted as JSONL and can be resumed, but the documented built-in and extension surfaces do not define a native goal lifecycle. [Pi prompt templates](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md), [Pi skills](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md), and [Pi sessions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sessions.md) (accessed 2026-08-20). | The packaged `/zdev-implement <area>` prompt or zdev skill runs `zdev work-context <area> --format json`. It cross-validates the nested goal and status projections with HEAD and exact Git evidence, then uses the complete context for ordinary task work. |
-| Oh My Pi | Oh My Pi has a persistent goal runtime. Its create operation refuses to overwrite an unfinished session goal; the runtime supports pause, resume, drop, completion, accounting, and autonomous continuation. Interactive `/goal set <objective>` creates a goal, while `/goal show`, `pause`, `resume`, and `drop` manage it. [Oh My Pi goal runtime](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/goals/runtime.ts), [interactive goal command](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/modes/interactive-mode.ts), and [goal continuation prompt](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/prompts/goals/goal-continuation.md) (accessed 2026-08-20). | The installed continuation prompts use the model-facing `goal` tool with `get`, `create`, and same-goal `resume`; they never invoke the interactive composer. Ordinary task work uses the complete validated work-context. |
-
-The absence statements above are deliberately narrow: they say what the
-current official documentation exposes, not what a plugin could build. Skills,
-commands, and prompt templates are enough for the zdev behavior, so zdev does
-not need to emulate a native goal.
+`zdev goal` renders the next ready task from repository records. Harness
+workflows use that result as context; native session goals remain separate.
+This reference defines the command output and records harness research checked
+on 2026-08-20.
 
 ## Zdev meaning of “goal”
 
-A zdev goal is a read-only, deterministic projection of the next ready task in
-an area. It is not a new lifecycle object.
+A zdev goal is a read-only view of the next ready task in an area. The same
+validated records produce the same result.
 
 The common vocabulary is:
 
 - **Area objective**: the durable reason for the area.
-- **Focus task**: the first ready task in the area's existing numeric task
-  order, using the same readiness rule as `zdev next`.
+- **Focus task**: the ready task selected by AFK suitability, priority, then
+  numeric ID, using the same selection rule as `zdev next`.
 - **Slice context**: the focus task's optional slice objective and boundaries.
 - **Outcome**: the behavior or artifact the focus task must produce.
 - **Context**: optional recorded background for that task.
@@ -60,9 +46,9 @@ validates records but never changes files, Git state, or a harness session.
 
 The projection reads only current `.zdev` records:
 
-1. `area.toml`: `tag`, `title`, and `objective`.
+1. `area.toml`: `tag`, `title`, `objective`, and `lifecycle`.
 2. Every task header in the area: `id`, `key`, `status`, `slice`, and
-   `blocked_by`, plus the task title and the `Outcome`, optional `Context`,
+   `blocked_by`, plus complexity, AFK suitability, priority, the task title and the `Outcome`, optional `Context`,
    optional `Boundaries`, `Done when`, and `Validation` sections.
 3. If the selected task names a slice, that slice's `key`, `title`, `Objective`,
    and `Boundaries`.
@@ -71,7 +57,7 @@ The area `branch`, `parent`, and `base_commit` fields describe workspace
 topology rather than intent and are excluded. Free-form area-brief sections are
 also excluded: the area metadata objective is the structured source for this
 projection. The full area brief remains mandatory reading before
-implementation, as it is today. Task result text and done-task details are not
+implementation. Task result text and done-task details are not
 goal inputs.
 
 The command uses the existing record parsers and validators. It must not accept
@@ -90,7 +76,8 @@ derived `queue` is one of:
 A closed area reports `queue: empty` or `queue: exhausted`, according to its
 records, and never selects a task.
 
-Tasks use the current numeric-ID order, with the full ID as the tie-breaker.
+Task selection uses AFK suitability, priority, then numeric ID, with the full
+ID as the tie-breaker.
 Each `blocked_by` array retains its authored order. The associated slice is
 read by key. No filesystem enumeration order, clock, current branch, harness,
 model, or Git status enters the output.
@@ -143,6 +130,7 @@ Make checkout failures safe and understandable.
 Counts: 3 total; 2 open; 1 ready; 1 blocked; 1 done
 
 Task: checkout-002 — Reject duplicate payment submission
+Complexity: standard
 Task source: .zdev/checkout/tasks/002-reject-duplicate-payment.md
 Outcome:
 A repeated submission returns the original payment result without charging again.
@@ -199,6 +187,7 @@ repository-relative and use `/` separators.
     "id": "checkout-002",
     "key": "reject-duplicate-payment",
     "title": "Reject duplicate payment submission",
+    "complexity": "standard",
     "path": ".zdev/checkout/tasks/002-reject-duplicate-payment.md",
     "outcome": "A repeated submission returns the original payment result without charging again.",
     "context": "The provider can retry after losing our first response.",
@@ -347,70 +336,6 @@ No native condition is generated for no-work states. An adapter must report
 the lifecycle and queue and stop rather than inventing work from an area
 objective or an unattached slice.
 
-## Direct goal application (superseded design)
-
-The standalone projection remains current, but harness task work no longer
-uses the call sequence below. One-task implementation and verification use
-`zdev work-context <area> --format json`, which nests this goal with matching
-status and Git evidence. Explicit area continuation uses the installed
-`zdev-loop` route; `zdev-goal` is its exact alias. The earlier direct-application
-design is retained here to explain the native-goal conflict rule.
-
-The portable behavior is an ordinary prompt. Native goal mode is an optional
-execution aid and is used only when the user explicitly asks to set or apply a
-continuing goal.
-
-Every adapter follows the applicable steps in this order. Only Codex and Oh My
-Pi use steps 3 and 5; Claude Code, OpenCode, and Pi proceed from step 2 to the
-ordinary-prompt path in step 4.
-
-1. Run `zdev goal <area> --format json` and check the command result.
-2. Unless lifecycle is `open` and queue is `ready`, report the result and do not start a native
-   goal.
-3. On a harness with native goals, inspect the current native goal before
-   applying any generated context. An active, paused, budget-limited, or
-   otherwise unfinished native goal wins. Do not edit, clear, replace, or layer
-   an ordinary task prompt over it. Report the conflict and ask the user to keep
-   it or explicitly clear/replace it.
-4. If ordinary task work was requested and no native-goal conflict exists,
-   run `zdev goal <area>` and pass that human rendering to the zdev workflow as
-   current context. The adapter does not reproduce the text renderer.
-5. If a native goal was explicitly requested and none exists, apply the exact
-   `native_goal` string. If the feature is absent, disabled, or unavailable in
-   that surface, fall back to the ordinary prompt and say that no native
-   continuation was started.
-
-The harness-specific application is:
-
-- **Codex:** call `get_goal`; if clear and a native goal was requested, call
-  `create_goal` with the exact condition. Unavailable inspection blocks. When
-  native mode is not requested, or inspection proved clear but creation is
-  unavailable, use the zdev skill as an ordinary prompt. Codex's own guidance says goals
-  suit substantial work with a clear stopping condition and validation loop,
-  which is why zdev sends the task-sized condition rather than the whole area
-  backlog.
-- **Claude Code:** use the plugin skill or `/zdev:zdev-implement <area>` with
-  `zdev goal` as ordinary workflow context. The integration neither inspects
-  nor applies Claude Code's separate `/goal` command.
-- **OpenCode:** use the zdev skill or `/zdev-implement <area>` command to run the
-  binary and place the human output in the normal prompt. Do not create a
-  project file or plugin-owned goal to imitate a native feature.
-- **Pi:** use the zdev skill or `/zdev-implement <area>` prompt template to run the
-  binary and place the human output in the normal prompt. The persisted session
-  transcript carries that prompt; no separate goal record is written.
-- **Oh My Pi:** call `goal` with `op: "get"`; if clear and a native goal was requested,
-  call it with `op: "create"` and the exact condition. Use `op: "resume"` only
-  for the same paused goal. Unavailable inspection blocks. When native mode is
-  not requested, or inspection proved clear but creation is unavailable, use the zdev skill with an ordinary
-  prompt. Do not call the runtime's replacement or drop operation implicitly.
-
-Native goal completion never marks a zdev task done and never commits. The
-coordinator still performs current-state validation, independent verification,
-`zdev task done`, and `zdev commit` under the existing workflow. Conversely,
-changing a zdev record does not silently rewrite a session goal. Rerun
-`zdev goal`; replacing an already-applied native goal requires an explicit user
-decision.
-
 ## Failure behavior
 
 Missing repositories or areas, unreadable files, invalid schemas, malformed
@@ -430,39 +355,17 @@ must parse a successful complete JSON document before sending any prompt or
 native-goal command. On command or parse failure it leaves the current session
 goal unchanged and reports the error.
 
-## Implemented projection seam and retained acceptance record
+## Harness capabilities (2026-08-20)
 
-The implementation added one read-only `Goal` CLI variant routed from
-`src/lib.rs` to a small goal
-projection/rendering module. It reuses the existing area, slice, task, Markdown,
-dependency, and ordering logic through narrow internal read views rather than
-parsing the files a second way. The module returns the ordinary `CommandOutput`
-with typed serializable fields and renders the fixed native condition. It needs
-no storage, lifecycle service, model call, Git operation, or harness detector.
+| Harness | Observed capability | zdev integration point |
+| --- | --- | --- |
+| Codex | Codex has a session goal command. `/goal <objective>` sets a goal, `/goal` shows it, and `edit`, `pause`, `resume`, and `clear` manage it. The objective is limited to 4,000 characters. The feature can be disabled, so it is not universally available. Codex also loads reusable `SKILL.md` workflows. [Codex developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli), [goal use case](https://learn.chatgpt.com/use-cases/follow-goals), and [skill documentation](https://learn.chatgpt.com/docs/build-skills) (accessed 2026-08-20). | The installed continuation skills use model-callable `get_goal` and `create_goal`; they do not try to enter interactive composer commands. Ordinary task work uses the complete validated work-context. |
+| Claude Code | `/goal` keeps a session running until a model judges a completion condition satisfied. One goal can be active; setting another replaces it. An active goal is restored on session resume, and conditions are limited to 4,000 characters. The evaluator reads the transcript but does not run tools. Plugin skills are namespaced, invocable workflows. [Claude Code goal documentation](https://code.claude.com/docs/en/goal) and [skill documentation](https://code.claude.com/docs/en/slash-commands) (accessed 2026-08-20). | `/zdev:zdev-loop` and `/zdev:zdev-goal` run the same standalone area workflow; `/zdev:zdev-implement` remains one task. Zdev's workflows do not inspect or apply Claude Code's separate `/goal` command. |
+| OpenCode | The documented extension is a custom command whose Markdown body becomes a prompt. Command templates accept arguments, shell output, and file references. The official command guide documents built-ins such as `/init`, `/undo`, and `/share`, but no native session-goal lifecycle. OpenCode separately persists and resumes sessions. [OpenCode commands](https://opencode.ai/docs/commands/) and [OpenCode CLI sessions](https://dev.opencode.ai/docs/cli) (accessed 2026-08-20). | The packaged `/zdev-implement <area>` command, or the zdev skill directly, runs `zdev work-context <area> --format json`. It cross-validates the nested goal and status projections with HEAD and exact Git evidence, then supplies the complete context to ordinary task work. No goal emulation or extra state is needed. |
+| Pi | Pi prompt templates are Markdown expanded into ordinary prompts and invoked as `/name`; project templates live under `.pi/prompts/`. Skills are loaded on demand and can be invoked as `/skill:<name>`. Sessions are persisted as JSONL and can be resumed, but the documented built-in and extension surfaces do not define a native goal lifecycle. [Pi prompt templates](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md), [Pi skills](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md), and [Pi sessions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sessions.md) (accessed 2026-08-20). | The packaged `/zdev-implement <area>` prompt or zdev skill runs `zdev work-context <area> --format json`. It cross-validates the nested goal and status projections with HEAD and exact Git evidence, then uses the complete context for ordinary task work. |
+| Oh My Pi | Oh My Pi has a persistent goal runtime. Its create operation refuses to overwrite an unfinished session goal; the runtime supports pause, resume, drop, completion, accounting, and autonomous continuation. Interactive `/goal set <objective>` creates a goal, while `/goal show`, `pause`, `resume`, and `drop` manage it. [Oh My Pi goal runtime](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/goals/runtime.ts), [interactive goal command](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/modes/interactive-mode.ts), and [goal continuation prompt](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/src/prompts/goals/goal-continuation.md) (accessed 2026-08-20). | The installed continuation prompts use the model-facing `goal` tool with `get`, `create`, and same-goal `resume`; they never invoke the interactive composer. Ordinary task work uses the complete validated work-context. |
 
-The five canonical integration templates originally applied the adapter order
-above. Current templates instead use work-context for task work and the
-dedicated continuation routes for native or bounded loops. A native goal API
-is not part of the binary seam.
-
-The projection acceptance record requires:
-
-1. `zdev goal <area>` and JSON mode match the fields, ordering, omissions,
-   lifecycle and queue rules, and canonical bytes shown for the reachable
-   projections in
-   this document.
-2. Selection is identical to `zdev next` for the same valid task graph, without
-   enforcing branch-work gates.
-3. Ready goals include the exact structured area, optional slice, and task
-   content plus the bounded native condition; no-work states never invent one.
-4. Repeated runs over unchanged records produce identical bytes.
-5. Invalid input returns the existing text or JSON error contract and leaves
-   files, Git, and session state unchanged.
-6. Each generated harness integration uses ordinary prompts everywhere and the
-   documented native mechanism only when available and explicitly requested.
-7. Each native adapter preserves an unfinished session goal and reports the
-   conflict instead of replacing it.
-8. Focused black-box coverage proves ready output, an unsliced omission, the
-   open-empty, open-exhausted, and closed states, deterministic reruns, and representative
-   non-mutating malformed-dependency failure. Existing full validation remains
-   green.
+The table describes the documented features at the research date. Plugins
+may provide additional capabilities. Skills,
+commands, and prompt templates are enough for the zdev behavior, so zdev does
+not need to emulate a native goal.

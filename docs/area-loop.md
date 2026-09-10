@@ -1,42 +1,14 @@
 # Explicit area continuation across harnesses
 
-> **Status: current behavior.** Shared routing, all paired aliases, native
-> Codex, Claude Code, and Oh My Pi continuation, and bounded OpenCode and Pi
-> fallback are implemented.
-
-This record defines the explicit zdev route that completes approved work one
-task at a time while an area remains open and ready. Research was checked on
-2026-08-20. Observed harness capabilities and current zdev behavior remain
-separate.
-
-## Current harness evidence
-
-The observation points are Codex CLI 0.148.0 ([release and source
-revision](https://github.com/openai/codex/releases/tag/rust-v0.148.0)), Claude
-Code 2.1.237 ([release](https://github.com/anthropics/claude-code/releases/tag/v2.1.237)),
-OpenCode 1.18.19 ([release](https://github.com/anomalyco/opencode/releases/tag/v1.18.19)),
-Pi 0.84.2 ([release](https://github.com/earendil-works/pi/releases/tag/v0.84.2)),
-and Oh My Pi 17.4.0 ([release](https://github.com/can1357/oh-my-pi/releases/tag/v17.4.0)).
-They are evidence points, not proposed minimum versions. All links in this
-record were accessed on 2026-08-20.
-
-| Harness | Observed continuation and installed-command surfaces |
-| --- | --- |
-| Codex | `/goal` creates one session goal and supports show, edit, pause, resume, and clear. Skills have explicit `$name` invocation, and `agents/openai.yaml` can disable implicit invocation. [Developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) and [skills](https://learn.chatgpt.com/docs/build-skills). |
-| Claude Code | Dynamic JavaScript workflows own loops and intermediate values, resume within the same session, and are distributed under a plugin namespace. The workflow runtime provides `agent()` and `pipeline()` but no module loading, direct shell access, or API for the separate user-facing `/goal` command. [Workflows](https://code.claude.com/docs/en/workflows), [goals](https://code.claude.com/docs/en/goal), and [plugin paths](https://code.claude.com/docs/en/plugins-reference#component-path-fields). |
-| OpenCode | Markdown files under `commands/` become slash commands. Sessions can continue or resume, but the documented command and session surfaces do not define a native goal lifecycle. [Commands](https://opencode.ai/docs/commands/), [TUI sessions](https://opencode.ai/docs/tui/), and [CLI sessions](https://dev.opencode.ai/docs/cli). |
-| Pi | Markdown prompt templates become `/name` prompts. Sessions are persisted and resumable, but the documented prompts, skills, sessions, and extension surfaces do not define a native goal lifecycle. [Prompt templates](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/prompt-templates.md), [skills](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/skills.md), and [sessions](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/sessions.md). |
-| Oh My Pi | The goal runtime refuses to overwrite unfinished goals and supports pause, resume, drop, completion, and continuation. Prompt templates become slash commands. [Goal runtime](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/goals/runtime.ts), [continuation prompt](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/prompts/goals/goal-continuation.md), and [prompt loader](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/config/prompt-templates.ts). |
-
-These facts support three native continuations, not a claim that their
-runtimes behave alike. Codex and Oh My Pi use their goal mechanisms. Claude
-uses a plugin JavaScript workflow and does not inspect, set, or depend on
-Claude's separate `/goal`. OpenCode and Pi expose the same public intent but
-honestly stop after one committed task.
+The zdev area loop completes approved work one task and one verified commit
+at a time. It continues while the area is open, work is ready, and the checkout
+is safe. Codex, Claude Code, and Oh My Pi support native continuation; OpenCode
+and Pi stop after one task. The harness research below was checked on
+2026-08-20.
 
 ## Public routes and activation
 
-The canonical route is `zdev-loop`; `zdev-goal` is an exact semantic alias:
+The canonical route is `zdev-loop`; `zdev-goal` is an alias with the same behavior:
 
 ```text
 zdev-loop <area> [focus...]
@@ -47,9 +19,8 @@ Both invocations mean: continue the named area one approved task at a time
 while it is open, ready, and safe. They use the same stop states and emit the
 same canonical `zdev-loop` envelopes. `zdev-goal` is not a one-task mode and
 has no `--native` variant. Everything after the area is optional fuzzy task
-selection guidance, not an exact filter or stored setting. Retaining both names
-avoids an unnecessary naming migration while giving the implementation one
-behavioral contract.
+selection guidance, not an exact filter or stored setting. Both names follow
+the same contract.
 
 Inside an active zdev context, natural-language requests to “goal the
 `<area>` area” and “loop the `<area>` area” are synonyms for that continuing
@@ -76,14 +47,14 @@ Each harness has one zdev skill. These requests select its continuation route:
 Harness-native workflows, commands, and prompts implement the selected route.
 They are adapters inside the installed zdev integration, not separate skills.
 
-## Current guidance
+## Shared workflow rules
 
-Current Claude guidance routes both names to the packaged workflow and does not
+Claude guidance routes both names to the packaged workflow and does not
 inspect or apply Claude Code's separate native goal. Codex and Oh My Pi retain
 their supported native-goal conflict behavior. The continuation design keeps
 that division.
 
-The current task workflow classifies validated closed context before status,
+The task workflow checks for a validated closed area before status,
 Git, and task-work checks. Open work still requires task-work safety and
 complete Git evidence. Continuation preserves those rules.
 
@@ -152,17 +123,17 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Every body includes `Area`, optional `Focus`, `Lifecycle`, and `Queue`; then the existing exact
-`Advisory` once if any iteration observed stale advisory; then
-`Tasks completed`, `Commits`, and `Stop reason`. Tasks and commits include only
-successful one-task pairs. Lifecycle or queue is
-`unknown` when validation failed before it could be read; commits is `none` or
-a comma-separated list of full commit IDs. A direct closed result never has an
-advisory. `CONTINUE` then includes `Next
-task`. `BLOCKER` then includes `Current task` (`none` when no task was
-selected), `Failed stage`, `Reason`, and `Preserved state`. These are
-coordinator envelopes; the exact inner implement and verify envelopes remain
-those in [Harness orchestration](harness-orchestration.md).
+Every body includes `Area`, optional `Focus`, `Lifecycle`, and `Queue`; then
+the existing exact `Advisory` once if any iteration observed stale advisory;
+then `Tasks completed`, `Commits`, and `Stop reason`. Tasks and commits
+include only successful one-task pairs. Lifecycle or queue is `unknown` when
+validation failed before it could be read; commits is `none` or a
+comma-separated list of full commit IDs. A direct closed result never has an
+advisory. `CONTINUE` then includes `Next task`. `BLOCKER` then includes
+`Current task` (`none` when no task was selected), `Failed stage`, `Reason`,
+and `Preserved state`. These are coordinator results; the exact inner
+implement and verify envelopes remain those in [Harness
+orchestration](harness-orchestration.md).
 
 ## Per-harness adapters
 
@@ -236,58 +207,41 @@ partial or unexplained state blocks and uses existing recovery guidance.
 Focus is also not durable state. A restarted loop uses the focus in that
 invocation; it never inherits selection guidance from a prior result or task.
 
-## Required scenario behavior
+## Harness evidence (2026-08-20)
 
-- **Ready to ready:** Codex, Claude, and Oh My Pi refresh after the first
-  verified task commit and continue natively. OpenCode and Pi return
-  `CONTINUE` naming the next task.
-- **Ready to exhausted or empty:** the task commits, fresh context reports no
-  ready work, and the loop returns `PASS` without closing the area.
-- **Closed:** record validation succeeds and returns `PASS` without status,
-  Git evidence, task-work gating, advisory, or a worker.
-- **Unsafe or malformed:** preflight returns `BLOCKER` before a worker and
-  preserves the checkout.
-- **REWORK:** correction and fresh verification stay inside the same one-task
-  iteration.
-- **Failure or user decision:** the loop returns `BLOCKER` and does not
-  collect or dispatch the next task.
-- **Claude resume:** a live or cached completion PASS is followed by a fresh
-  work-context call before another worker.
-- **Active native goal:** Codex and Oh My Pi adapters return `BLOCKER`
-  without replacing, clearing, or layering over that goal. Claude does not use
-  that state.
+The observation points are Codex CLI 0.148.0 ([release and source
+revision](https://github.com/openai/codex/releases/tag/rust-v0.148.0)), Claude
+Code 2.1.237
+([release](https://github.com/anthropics/claude-code/releases/tag/v2.1.237)),
+OpenCode 1.18.19
+([release](https://github.com/anomalyco/opencode/releases/tag/v1.18.19)), Pi
+0.84.2 ([release](https://github.com/earendil-works/pi/releases/tag/v0.84.2)),
+and Oh My Pi 17.4.0
+([release](https://github.com/can1357/oh-my-pi/releases/tag/v17.4.0)). They
+are evidence points, not proposed minimum versions. All links in this record
+were accessed on 2026-08-20.
 
-## Implemented seams and acceptance
+| Harness | Observed continuation and installed-command surfaces |
+| --- | --- |
+| Codex | `/goal` creates one session goal and supports show, edit, pause, resume, and clear. Skills have explicit `$name` invocation, and `agents/openai.yaml` can disable implicit invocation. [Developer commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) and [skills](https://learn.chatgpt.com/docs/build-skills). |
+| Claude Code | Dynamic JavaScript workflows own loops and intermediate values, resume within the same session, and are distributed under a plugin namespace. The workflow runtime provides `agent()` and `pipeline()` but no module loading, direct shell access, or API for the separate user-facing `/goal` command. [Workflows](https://code.claude.com/docs/en/workflows), [goals](https://code.claude.com/docs/en/goal), and [plugin paths](https://code.claude.com/docs/en/plugins-reference#component-path-fields). |
+| OpenCode | Markdown files under `commands/` become slash commands. Sessions can continue or resume, but the documented command and session surfaces do not define a native goal lifecycle. [Commands](https://opencode.ai/docs/commands/), [TUI sessions](https://opencode.ai/docs/tui/), and [CLI sessions](https://dev.opencode.ai/docs/cli). |
+| Pi | Markdown prompt templates become `/name` prompts. Sessions are persisted and resumable, but the documented prompts, skills, sessions, and extension surfaces do not define a native goal lifecycle. [Prompt templates](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/prompt-templates.md), [skills](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/skills.md), and [sessions](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/sessions.md). |
+| Oh My Pi | The goal runtime refuses to overwrite unfinished goals and supports pause, resume, drop, completion, and continuation. Prompt templates become slash commands. [Goal runtime](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/goals/runtime.ts), [continuation prompt](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/prompts/goals/goal-continuation.md), and [prompt loader](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/config/prompt-templates.ts). |
 
-Claude installs `workflows/zdev-loop.js` and `workflows/zdev-goal.js` from
-one canonical loop template. Install-time composition embeds the current
-one-task workflow body once; the two rendered files differ only in
-`meta.name`. Installation and check use the existing all-or-nothing renderer.
-Focused executable fixtures cover two-task continuation, closed no-work,
-REWORK, cached-result freshness, completion failure, and a user-owned decision.
-
-Codex and Oh My Pi install their paired aliases from one native-loop contract.
-They preserve unfinished goals, use the fixed area condition, keep one
-independently verified commit per task, and return bounded `CONTINUE` when
-native continuation is unavailable. They do not change Claude's standalone
-workflow or the bounded OpenCode/Pi behavior.
-
-Across all adapters, closed no-work remains branch-independent, every open
-state keeps the complete task-work and Git gate, stale base remains advisory,
-and no route switches branches, rebases, stores loop state, weakens independent
-verification, or combines task commits.
+The three native continuation mechanisms differ. Codex and Oh My Pi use their
+goal mechanisms. Claude uses a plugin JavaScript workflow and does not
+inspect, set, or depend on Claude's separate `/goal`. OpenCode and Pi expose
+the same public intent but stop after one committed task.
 
 ## Confidence and limitations
 
-Confidence is high in the common one-task and stop contracts because they
-reuse current zdev status, goal, lifecycle, and strict workflow behavior.
-Confidence is high that Claude's workflow runtime can own this loop: its
-[workflow documentation](https://code.claude.com/docs/en/workflows) explicitly
-places loops and intermediate results in JavaScript and documents same-session
-resume. Confidence is also high that it must not depend on `/goal`, because
-the documented workflow API has no such interface or module loading. Codex,
-Claude, and Oh My Pi native integration confidence is otherwise moderate until
-their adapters are exercised on supported live surfaces (accessed 2026-08-20).
+The one-task and stop rules reuse zdev's status, goal, lifecycle, and workflow
+validation. Claude's [workflow
+documentation](https://code.claude.com/docs/en/workflows) places loops and
+intermediate results in JavaScript and documents same-session resume. Its API
+exposes neither `/goal` nor module loading. Native adapter compatibility still
+needs validation in live harness sessions (accessed 2026-08-20).
 
 This research did not execute provider-backed harness sessions. Claude users
 receive a native zdev workflow, but its strict cycle and restart behavior were

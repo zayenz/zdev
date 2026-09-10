@@ -1,38 +1,16 @@
 # Area lifecycle and task-queue state
 
-> **Status: current behavior.** The lifecycle field, queue vocabulary,
-> commands, projections, and workflow gates below are implemented. Baseline
-> and implementation sections are retained as design history.
-
 An area objective and its task queue answer different questions. The area is
 `open` until someone explicitly closes it. The queue is `empty`, `ready`, or
 `exhausted`; task validation rejects a blocked-only graph. Finishing the current
 task bundle therefore exhausts the queue but does not close the objective.
 
-This contract adds one lifecycle bit. It does not add abandonment, execution,
-integration, branch deletion, switching, or rebasing behavior. Task status
-remains `open` or `done`, and slice progress remains derived from tasks.
-
-## Baseline before area lifecycle (retained history)
-
-At commit `2a8c451e48b9bcf22252a6111551f16f3f5fdbe1`, `AreaMetadata` has no
-lifecycle and rejects unknown TOML fields. Goal calls a zero-task area `empty`
-and an all-done area `complete`. Area-specific and project-wide next also use
-`complete` for exhausted queues. Status reports task counts without an area
-state. Task import always creates open tasks, and task reopen can change a done
-task back to open. General areas and parent links are conventions and ordinary
-area metadata, respectively. The installed implement workflow treats goal
-`empty` and `complete` as a successful no-work result. Explicit verify instead
-requires the selected ready task and returns its blocker envelope for no work.
-
-The contract below changes that vocabulary because `complete` currently
-describes a task count while sounding like an objective decision. It preserves
-the existing dependency validation, selection order, branch-safety facts, and
-parent-branch mechanics.
+Area lifecycle is separate from task status and Git operations. Task status
+is `open` or `done`; slice progress is derived from tasks.
 
 ## Durable record
 
-`area.toml` gains one field:
+`area.toml` stores the lifecycle in one field:
 
 ```toml
 lifecycle = "open"
@@ -69,10 +47,10 @@ instead of returning a successful `blocked` projection.
 | `open` | Valid. The objective remains open for a first bundle. | Valid. Selection may return the first ready task. | Invalid task graph; validation fails without output or mutation. | Valid. The objective remains open for another reviewed bundle or an explicit close. |
 | `closed` | Valid. Explicitly closing an empty objective is allowed. | Invalid record combination; close and task creation prevent it, and validation rejects it. | Invalid task graph and invalid closed-area combination. | Valid. The objective is explicitly closed. |
 
-Task counts never change `lifecycle`. The semantic invariant is only that a
-closed area has no open tasks. Closing an empty area records an explicit
-decision that the objective needs no queued implementation; it does not create
-an abandoned task or a third lifecycle value.
+Task counts never change `lifecycle`. A closed area must have no open tasks.
+Closing an empty area records an explicit decision that the objective needs no
+queued implementation; it does not create an abandoned task or a third
+lifecycle value.
 
 ## Commands and mutation gates
 
@@ -90,7 +68,7 @@ the target area's brief, slices, tasks, and generated index, and require
 returns the existing rebase advisory. A wrong branch, detached HEAD, active Git
 operation, missing branch or anchor, invalid ancestry, or nonlinear child
 history blocks the mutation. Ordinary staged, unstaged, or untracked files do
-not block it. Publication replaces only the target `area.toml` atomically.
+not block it. The command atomically replaces only the target `area.toml`.
 
 `area close` accepts `empty` and `exhausted` queues. It rejects every open task,
 whether ready or blocked, before writing:
@@ -259,11 +237,12 @@ Counts: <total> total; <ready> ready; <blocked> blocked; <done> done
 
 Selected JSON keeps the current object and adds top-level `lifecycle` and
 `queue`; the embedded area metadata also contains `lifecycle`. Project-wide
-human output keeps the project header and lists each area as
-`<tag>: <open|closed>, <empty|ready|exhausted>; <branch> -> <relationship> [<diagnostics>]`.
-Each project-wide JSON area summary contains `tag`, `title`, `lifecycle`,
-`queue`, `total`, `ready`, `blocked`, `done`, and the existing `branch_status`.
-Status includes closed areas and diagnoses their branches normally.
+human output keeps the project header and lists each area as `<tag>:
+<open|closed>, <empty|ready|exhausted>; <branch> -> <relationship>
+[<diagnostics>]`. Each project-wide JSON area summary contains `tag`, `title`,
+`lifecycle`, `queue`, `total`, `ready`, `blocked`, `done`, and the existing
+`branch_status`. Status includes closed areas and diagnoses their branches
+normally.
 
 ## Other operations
 
@@ -293,58 +272,3 @@ Status includes closed areas and diagnoses their branches normally.
   `BLOCKER zdev-verify`, never a successful verification. A validated closed
   goal is classified before status, Git, and task-work gates; open states retain
   their complete status, goal, and Git-baseline evidence requirements.
-
-## Implemented seam and retained acceptance record
-
-The implementation added the two-value area lifecycle and made every queue projection
-distinguish exhaustion from explicit closure.
-
-Boundaries: add no state beyond `open` and `closed`; do not alter task or slice
-status; do not integrate, delete, create, switch, or rebase branches; retain the
-existing task ordering, graph validation, branch diagnostics, and atomic-write
-helpers.
-
-Implementation seam:
-
-1. Add a defaulted lifecycle enum to `AreaMetadata` in `project.rs`, plus locked
-   close and reopen operations using the existing area validator, task summary,
-   task-work branch gate, and atomic metadata publisher.
-2. Route the two CLI subcommands in `lib.rs` and add one shared queue classifier
-   over the existing task summary. Use it from status, `goal.rs`, and
-   area-specific and project-wide selection rather than duplicating dependency
-   logic.
-3. Gate task import and task reopen on the area's lifecycle. Exclude closed
-   areas from project-wide selection before Git diagnostics.
-4. Update the canonical shared workflow guidance, harness-specific strict
-   no-work parsers, user documentation, and generated fixtures through the
-   established renderer.
-
-Acceptance criteria:
-
-- Missing `lifecycle` reads as open; new records write it; invalid values fail;
-  close and reopen are atomic, locked, idempotent, and match the command,
-  branch-gate, message, JSON, and advisory contract above.
-- Focused black-box coverage exercises every matrix cell, including empty
-  closure, an open exhausted area, rejection with open tasks, closed-record
-  validation, and backward-compatible records without the field.
-- Goal, next, next-any, and both status modes use only `Lifecycle`/`lifecycle`
-  and `Queue`/`queue` for these concepts. No successful output calls an
-  exhausted open area `complete` or implies that its objective closed.
-- Import and task reopen reject closed areas without mutation. Reopening an
-  area changes no task. General and parent/child cases follow the rules above.
-- Closed areas never produce ready work or start an orchestration worker;
-  project-wide selection excludes them before branch safety analysis.
-- Area-specific next returns a validated closed result without Git or task-work
-  branch checks and omits `branch_status` and `advisory`; close and reopen still
-  require `task_work.safe`.
-- After valid preflight evidence, implement may return successful no-work for
-  open/empty, open/exhausted, and closed goals. Explicit verify returns
-  `BLOCKER zdev-verify` without a worker for those same goals and succeeds only
-  through an open/ready selection.
-- Canonical templates render deterministically, install/check succeeds for all
-  five harnesses, and the lean and full validation suites pass.
-
-This design is based on the repository at
-`2a8c451e48b9bcf22252a6111551f16f3f5fdbe1`. It does not test how third-party
-harnesses display installed entrypoints; it defines the generated artifact
-contract that zdev can validate locally.

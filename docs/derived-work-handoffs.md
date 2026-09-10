@@ -1,16 +1,13 @@
 # Derived work handoffs
 
-> **Status: implemented.** Zdev parses, reviews, atomically applies, and routes
-> derived proposals through the contract below.
-
 Zdev may publish a small follow-up bundle without asking the user to approve
 work they have already approved. This exception applies only to direct work
 inside the current task's area brief, outcome, boundaries, and testing policy.
 It adds no task state, lineage metadata, or worker authority over `.zdev`.
 
-The coordinator owns the decision and the mutation. Each worker result may
-return one transient proposal. It never imports tasks, edits the source task,
-completes work, stages files, or commits.
+The coordinator owns the decision and the mutation. Each worker may return one
+proposal with its result. The worker never imports tasks, edits the source
+task, completes work, stages files, or commits.
 
 ## Transient proposal
 
@@ -130,10 +127,9 @@ all of these statements are true:
 - this worker result contains one proposal object, no nested proposal, and this
   uninterrupted handoff has not applied another proposal.
 
-This is a narrow grant of authority, not a heuristic classifier. The
-coordinator reads the proposal and repository evidence. It never infers safety
-from filenames, a confidence score, or a worker's assertion that work is
-in-scope.
+The coordinator must check the proposal against repository evidence. It never
+infers safety from filenames, a confidence score, or a worker's assertion that
+work is in-scope.
 
 Failure of a mechanical, identity, current-state, graph, or ownership statement
 stops for recovery and fresh context. Only uncertainty about whether otherwise
@@ -186,14 +182,14 @@ allocation to the rendered task:
 ```
 
 The JSON array uses normalized paths in the proposal's order. This ordinary
-task context makes the initial ownership allocation actionable after the transient envelope is gone;
-it adds no TOML field or lineage record. The split transaction commits only the
-task records and leaves the parent's unstaged bytes exactly as they were. Later
-child work treats that delta as pre-existing parent-owned state under the
-ordinary baseline rules. Coordination may extend a child's rendered allocation
-only after checking the retained parent delta and every sibling allocation.
-Legacy children rendered with `Task-owned paths (exact)` remain readable and
-use the same coordination rule.
+task context makes the initial ownership allocation actionable after the
+transient envelope is gone; it adds no TOML field or lineage record. The split
+transaction commits only the task records and leaves the parent's unstaged
+bytes exactly as they were. Later child work treats that delta as pre-existing
+parent-owned state under the ordinary baseline rules. Coordination may extend
+a child's rendered allocation only after checking the retained parent delta
+and every sibling allocation. Legacy children rendered with `Task-owned paths
+(exact)` remain readable and use the same coordination rule.
 
 If a child must change a path already changed by the parent, any path is
 staged, another unstaged path exists, or attribution is uncertain, the split
@@ -202,18 +198,17 @@ alter the index, stash, reset, or assign partial work by guessing.
 
 ## Review, publication, and rollback
 
-The implemented `zdev tasks derive review` command reports mechanical
-eligibility and stores the exact proposal JSON, rendered Markdown, and internal
-metadata in linked-worktree-safe Git administrative state. The coordinator
-still compares the retained handoff context and decides whether the work is
-directly in scope.
-Its compact result identifies the current review and Markdown path without
-returning the proposal, Markdown, or internal fingerprint. `zdev tasks derive
-review <area> --show` presents the actual stored Markdown. The apply behavior
-below is implemented by `zdev tasks derive apply`.
+The `zdev tasks derive review` command reports mechanical eligibility and
+stores the exact proposal JSON, rendered Markdown, and internal metadata in
+linked-worktree-safe Git administrative state. The coordinator still compares
+the retained handoff context and decides whether the work is directly in
+scope. Its compact result identifies the current review and Markdown path
+without returning the proposal, Markdown, or internal fingerprint. `zdev tasks
+derive review <area> --show` presents the actual stored Markdown. Use `zdev
+tasks derive apply` to publish an accepted proposal.
 
-For automatic authority, the coordinator sends the exact proposal directly to
-apply and proceeds without asking a redundant question. Only semantic authority
+When the proposal meets the automatic-approval rules, the coordinator sends
+it directly to apply. Only semantic authority
 uncertainty uses manual review, after the proposal, current state, and ownership
 are otherwise safe and mechanically eligible. `zdev tasks derive review`
 validates and stores the complete envelope and returns an opaque review
@@ -223,18 +218,18 @@ the earlier identity. Manually authored bundles use
 ordinary stored `zdev tasks review` and `tasks import --reviewed`; direct
 `--from` and compatibility `--approval` input remain available.
 
-`zdev tasks derive apply` accepts either the unchanged envelope directly or the
-current stored review through `--reviewed <review-id>`. Automatic use remains
-one direct `--from` operation. Before writing, the command acquires the existing
-state lock, rereads the area, source task, slices, tasks, branch state, Git
-operation, worktree, and index, allocates IDs, renders all files, and validates
-the complete hypothetical graph and index. For a split it also requires an empty index,
-recaptures the complete unstaged path set, requires exact equality with
-`retained_parent_paths`, validates every path and disjoint child assignment,
-and renders the canonical ownership boundary. It runs the same check before
-committing. An invalid proposal, unsafe or drifted state, staged or incomplete
-ownership, or another mechanical failure stops without review or publication;
-the stored review cannot waive any of these gates.
+`zdev tasks derive apply` accepts either the unchanged envelope directly or
+the current stored review through `--reviewed <review-id>`. Automatic use
+remains one direct `--from` operation. Before writing, the command acquires
+the existing state lock, rereads the area, source task, slices, tasks, branch
+state, Git operation, worktree, and index, allocates IDs, renders all files,
+and validates the complete hypothetical graph and index. For a split it also
+requires an empty index, recaptures the complete unstaged path set, requires
+exact equality with `retained_parent_paths`, validates every path and disjoint
+child assignment, and renders the canonical ownership boundary. It runs the
+same check before committing. An invalid proposal, unsafe or drifted state,
+staged or incomplete ownership, or another mechanical failure stops without
+review or publication; the stored review cannot waive any of these gates.
 
 For an investigation follow-up, the coordinator first stages only the verified
 task-owned artifact paths. Because the proposal has no artifact-path allowlist,
@@ -293,9 +288,8 @@ the same field set and order but requires `split_ownership` immediately after
 source task, new child task files, and `TASKS.md`; retained and future source
 paths are not committed by the split.
 
-After success, the coordinator shows that JSON unchanged. The pre-publication
-proposal and post-publication result give the user the same evidence as an
-approval round without adding another confirmation turn.
+After success, the coordinator shows that JSON unchanged. The user can inspect
+both the proposed work and the result without another confirmation turn.
 
 ## Required scenario traces
 
@@ -309,22 +303,3 @@ approval round without adding another confirmation turn.
 | Invalid dependency | Missing, source-task, cyclic, or self dependency fails hypothetical graph validation; write nothing. |
 | Publication or commit failure | Restore every managed byte and the prior index; preserve unrelated work and report rollback failure explicitly if restoration is incomplete. |
 | Nested or repeated handoff proposal | Reject a nested object or second automatic apply from the same worker result; applying consumes that handoff. A later independently selected execution gets one new proposal only after all current gates pass again. |
-
-## Implemented slices
-
-1. **Parse and review derived proposals.** Add the strict envelope parser,
-   mode-specific validation, exact rendering, and optional full-envelope
-   fingerprint. Reuse task-draft validation and add focused black-box cases for
-   malformed envelopes, one-object and 1–5-task limits, duplicate keys, slices,
-   dependencies, and strict split-ownership paths.
-2. **Publish one derived transaction.** Add `tasks derive apply` by composing
-   existing state locking, ID allocation, graph/index rendering, task
-   completion, stable commit, and rollback seams. Cover successful follow-up,
-   clean and retained-delta splits, canonical child ownership boundaries,
-   consumed handoffs, publication failure, and commit failure. Do not add a
-   general transaction framework or durable derivation counter.
-3. **Route the handoff in canonical guidance.** Update investigation and
-   implementation coordination once, regenerate every harness integration, and
-   test only the automatic/manual boundary, per-result consumption and later
-   independent execution rule, exact user evidence, and preservation of the
-   ordinary reviewed-import path.

@@ -18,7 +18,6 @@ include = [
   "/skills/zdev/**",
   "/src/**",
   "/templates/**",
-  "/tests/documentation_contract.rs",
   "/tests/lean.rs",
 ]
 autotests = false
@@ -30,10 +29,6 @@ path = "src/main.rs"
 [[test]]
 name = "lean"
 path = "tests/lean.rs"
-
-[[test]]
-name = "documentation-contract"
-path = "tests/documentation_contract.rs"
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }

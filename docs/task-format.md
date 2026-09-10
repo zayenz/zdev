@@ -1,5 +1,5 @@
 # Task format
 
-The canonical project metadata, area metadata, task, and task-bundle
-contract is bundled with the installed agent skill:
-[task-format.md](../skills/zdev/references/task-format.md).
+The [task-format reference](../skills/zdev/references/task-format.md) defines
+project and area metadata, task files, and task bundles. The same reference is
+bundled with the installed skill.

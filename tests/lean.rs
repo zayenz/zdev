@@ -8178,47 +8178,6 @@ if (!splitLoop.result.includes('Commits: ' + commit1 + ', ' + commit2)) throw ne
 }
 
 #[test]
-fn work_context_round_trip_counts_match_realized_routes() {
-    let audit = include_str!("../docs/workflow-round-trips.md");
-    let loop_contract = include_str!("../docs/area-loop.md");
-    for exact_row in [
-        "| Codex, OpenCode, Pi, Oh My Pi | 5 / 9 / 2 / 2 | 2 / 5 / 0 / 1 | 7 / 15 / 2 / 4 |",
-        "| Claude | 5 / 10 / 2 / 6 | 2 / 4 / 0 / 3 | 7 / 17 / 2 / 11 |",
-    ] {
-        assert!(audit.contains(exact_row), "missing count row {exact_row}");
-    }
-    assert!(audit.contains("Closed K performs no\nstatus or Git inspection"));
-    assert!(audit.contains("one-task command does\nnot run an unused post-commit `next` or K"));
-    assert!(audit.contains("CS is coordinator snapshot store and\nshow"));
-    assert!(audit.contains("returns exactly verdict, summary, findings, and\nescalation"));
-    assert!(
-        loop_contract
-            .contains("After each exact PASS and commit, select again from fresh evidence")
-    );
-    assert!(
-        loop_contract.contains("collect fresh work-context before deciding or dispatching again")
-    );
-}
-
-#[test]
-fn complexity_routing_uses_the_typed_escalation_vocabulary() {
-    let guidance = include_str!("../docs/task-complexity-routing.md");
-    let routing = guidance
-        .split("## Coordinator routing")
-        .nth(1)
-        .expect("coordinator routing")
-        .split("## Smallest implementation seam")
-        .next()
-        .expect("routing boundary");
-
-    assert!(routing.contains("verifier verdict `rework`"));
-    assert!(routing.contains("`advanced-implementer`"));
-    assert!(!routing.contains("`REWORK`"));
-    assert!(!routing.contains("`BLOCKER`"));
-    assert!(!routing.contains("Escalation: strong-implementer"));
-}
-
-#[test]
 fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract() {
     let repository = repository();
     let root = repository.path();

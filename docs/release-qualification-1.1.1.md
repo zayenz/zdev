@@ -2,7 +2,7 @@
 
 Date: 2026-08-24
 
-This record qualifies candidate revision
+These checks cover candidate revision
 `979399f21a9108ac53dad2f1b99d0d56c4cc389b`. The checkout was clean before
 and after the automated gate. No command in this qualification tagged, pushed,
 published, or contacted a repository remote.
@@ -64,6 +64,6 @@ limited to generated project installation and synchronization checks performed
 by the automated release smoke test.
 
 No release archive was built on a release runner, no tag was created, and
-nothing was pushed or published. The coordinator will repeat the clean-tree
-release gate after the documentation commit before treating final main as ready
-to tag.
+nothing was pushed or published. These results apply to the candidate revision
+above. The final release revision needs its own clean-tree check before
+tagging.

@@ -1,46 +1,12 @@
 # Trunk-based area work
 
-> **Status: implemented.** Zdev stores, creates, validates, transitions,
-> reconfigures, selects, and safely runs task work for explicit trunk areas.
-
-This record defines an explicit way to run several areas on the configured
-project trunk while leaving branch-isolated areas as the default.
-
-## Baseline before trunk mode (retained history)
-
-An isolated `area.toml` has one mandatory `branch`; legacy records remain in
-that mode. Relationship validation normally allows only one area to own a
-branch, while explicit trunk records may share configured trunk. An isolated
-area without a parent uses `project.trunk` as
-its effective base and normally records `base_commit` as the boundary between
-base and area commits.
-
-There is one incidental exception. When the stored area branch equals its
-effective-base branch, ordinary task work takes the same-branch shortcut. It
-still requires the branch to be checked out, locally present, inspectable, and
-free of a Git recovery operation, but it does not require an anchor or inspect
-child history. This supports one area on trunk by accident. It does not express
-intent, permit a second such area, or say what happens when trunk changes.
-
-At that baseline, commands did not all use the same gate:
-
-| Operation | Baseline gate |
-| --- | --- |
-| Ordinary `tasks import` | Valid open area, bundle, slices, and complete task graph under the state lock; no branch check. |
-| `tasks import --commit` | Exact checked-out stored branch, no active Git operation, and the committed-import path/index rules. It does not use the anchor/freshness gate. |
-| Named `next`, implementation/verification preflight, task completion, and area close/reopen | `task_work.safe`, including the same-branch shortcut or a safe fresh/stale isolated relationship. |
-| `next --any` | `task_work.structurally_safe`; it may report an off-branch task and names the branch the user must check out. Matching candidates sort first. |
-| `goal` | Branch-independent deterministic projection of one area's next task. |
-| Task reopen | Open area and a valid dependency transition under the state lock; no branch check. |
-| Managed rebase | Exact checked-out branch, base and anchor, linear history, no active Git operation, and a clean worktree. Even a same-branch area reaches the anchor check. |
-| `zdev commit` | Commits the existing index with a stable change ID. It neither stages paths nor infers an area. The coordinator supplies branch, baseline, attribution, verification, and exact-staging checks. |
-
-Those differences remain unless this document states a trunk-specific rule.
-There is no new general clean-worktree rule.
+Use trunk mode to work on several areas on the configured project trunk.
+Areas use isolated branches by default. This reference covers trunk records,
+branch checks, and transitions between the two modes.
 
 ## Durable representation
 
-`area.toml` gains one optional enum:
+`area.toml` accepts an optional mode:
 
 ```toml
 mode = "isolated" # or "trunk"
@@ -54,7 +20,7 @@ The parser continues to deny unknown fields. The mode-dependent schema is:
 | `mode = "trunk"` | forbidden | forbidden | forbidden |
 
 The absent value means `isolated`. Writers omit `mode` for isolated areas, so
-new default records retain today's bytes and vocabulary. Writers emit
+default records keep the legacy format. Writers emit
 `mode = "trunk"` for trunk areas. A trunk area's operating branch is always the
 current `project.trunk`; it is resolved, not copied into the area record.
 
@@ -113,18 +79,18 @@ zdev area bind <area> [<branch> | --trunk]
 positional branch on bind. A repeated flag or extra positional value is a CLI
 error.
 
-Create without either option keeps today's default: create an isolated area on
+Create without either option uses the default: create an isolated area on
 the checked-out branch. `--branch` creates an isolated area on the canonical
 requested branch. `--trunk` creates a trunk area following the configured
 trunk. It requires a configured, locally existing trunk, a record policy that
 supports trunk areas, no active Git operation, and no isolated owner of that
-branch. It does not create or check out the branch. Like today's explicit
+branch. It does not create or check out the branch. Like explicit
 `--branch`, it can record the explicit target while HEAD is detached or on
 another branch; its task-work status is then unsafe until trunk is checked out.
 An inferred isolated branch fails on detached HEAD with the existing
 `No branch is checked out; pass an explicit branch name` error.
 
-Bind without a target keeps today's meaning: bind as isolated to the checked-out
+Bind without a target uses the default: bind as isolated to the checked-out
 branch. A positional branch binds as isolated to that canonical branch.
 `--trunk` changes the area to trunk mode. All bind forms take the state lock,
 reread config and area records under the lock, validate the complete candidate
@@ -147,9 +113,9 @@ Mode changes have these additional checks:
 - Repeating the current binding is a successful `unchanged` result. A failure
   preserves the prior bytes and mode.
 
-An explicit branch makes isolated create/bind usable on detached HEAD, as it is
-today. An omitted branch still fails there. `--trunk` does not infer from HEAD,
-so detached HEAD is not a parse or configuration error; status reports it and
+An explicit branch makes isolated create/bind usable on detached HEAD. An
+omitted branch still fails there. `--trunk` does not infer from HEAD, so
+detached HEAD is not a parse or configuration error; status reports it and
 task work remains blocked. No transition switches, creates, renames, deletes,
 merges, rebases, or pushes a branch.
 
@@ -243,11 +209,11 @@ When at least one explicit trunk area exists, the command:
    the old tip to be an ancestor of the candidate tip; and
 6. atomically replaces only `.zdev/config.toml`.
 
-The ancestry rule accepts the same tip, a second branch name at that tip, and a
-fast-forward descendant. If the old configured branch is missing or its tip or
-ancestry cannot be inspected, reconfiguration fails even with the override. A
-candidate on divergent or older history fails by default. Both failures name every affected trunk area in
-lexical order and leave config unchanged:
+The ancestry rule accepts the same tip, a second branch name at that tip, and
+a fast-forward descendant. If the old configured branch is missing or its tip
+or ancestry cannot be inspected, reconfiguration fails even with the override.
+A candidate on divergent or older history fails by default. Both failures name
+every affected trunk area in lexical order and leave config unchanged:
 
 ```text
 Cannot reconfigure trunk from main to stable for trunk areas docs, quality: main is not an ancestor of stable. Re-run with --allow-divergent only after deciding to move these areas without ancestry continuity
@@ -261,10 +227,10 @@ An actual external rename normally removes the old ref, so the second failure
 applies even when the user knows both names refer to the same former tip. A
 same-tip name change is automatic only while both refs remain inspectable.
 
-`--allow-divergent` is the one user-owned escape. It waives only a resolved
-false old-tip containment result. The old and candidate tips must both remain
-inspectable. Candidate existence, ownership, record policy, active-operation,
-schema, and locking checks still apply. It performs no Git operation. Success reports the decision:
+`--allow-divergent` overrides only a confirmed ancestry failure. The old and
+candidate tips must both remain inspectable. Candidate existence, ownership,
+record policy, active-operation, schema, and locking checks still apply. It
+performs no Git operation. Success reports the decision:
 
 ```text
 Configured project trunk stable (previous: main; affected trunk areas: docs, quality)
@@ -319,8 +285,8 @@ Cannot unset project.trunk while trunk areas exist: docs, quality
 
 The tags are lexical. Reconfigure those areas to isolated first. With no trunk
 areas, set/unset and the convenience command retain their existing behavior,
-including the ability to name a branch not present locally. This avoids
-tightening legacy isolated projects for an unrelated feature.
+including the ability to name a branch not present locally. Existing isolated
+projects therefore keep their configuration behavior.
 
 If the configured branch is later renamed or deleted directly through Git,
 trunk records remain unchanged. Status becomes unsafe and names the missing
@@ -456,8 +422,8 @@ not change. The mode affects only the branch facts used by existing gates:
 | Ordinary import | Unchanged: valid open area, approved bundle when supplied, slices and whole graph, state lock, transactional task/index publication. It remains possible off-branch and does not commit. |
 | Committed import | Requires configured trunk checked out, local and inspectable, with no active Git operation. The existing owning-area preflight and rollback apply. A tracked valid worktree-modified owning `brief.md` may join the task files and `TASKS.md`; staged, deleted, untracked, symlinked, conflicted, or partially staged brief state is rejected. |
 | Named selection and completion | Require trunk `task_work.safe`: configured trunk exists, is checked out, Git state is inspectable, and no operation is active. Completion still atomically writes only the task and `TASKS.md`. |
-| Task reopen | Keeps today's branch-independent rule and atomic task/index write. A closed area and completed dependents still block it. |
-| Area close/reopen | Keep today's `task_work.safe` gate, now evaluated from trunk mode. |
+| Task reopen | Keeps the branch-independent rule and atomic task/index write. A closed area and completed dependents still block it. |
+| Area close/reopen | Require `task_work.safe`, evaluated from trunk mode. |
 | Final commit | Unchanged `zdev commit`: commit exactly the caller-prepared index and add the stable change ID. Mode does not make every change on trunk belong to the selected area. |
 
 Non-overlapping unrelated staged, unstaged, and untracked trunk changes remain
@@ -504,7 +470,7 @@ clean attached non-trunk branch and no active Git operation, removes tracked
 `.zdev` paths, and makes one plain commit. Personal/project projects still
 reject cleanup. Since valid pull-request projects cannot contain explicit
 trunk areas, no mode-specific deletion rule is needed. Legacy isolated areas
-stored on trunk retain today's cleanup refusal.
+stored on trunk still reject cleanup.
 
 ## Scenario matrix
 
@@ -541,57 +507,3 @@ null/boolean changes; mode-transition failures use the exact errors above.
 | Rebase healthy trunk area with dirty unrelated files | no anchor/history relationship | Successful unchanged result; no cleanliness requirement | Read-only |
 | Pull-request project requests trunk mode | unsupported record/mode pair | Create/bind/check rejects and points to isolated work | No mutation |
 | Cleanup on configured trunk or legacy isolated-on-trunk | existing cleanup guard | Reject | No mutation |
-
-## Implemented seams
-
-The implementation remains a mode branch in the existing modules, not a new
-topology framework.
-
-- `src/project.rs`: add `AreaMode`, conditional parsing/validation, resolved
-  branch helpers, mode-aware ownership and effective-base logic, locked
-  create/bind/config transitions, status projection, parent matrix, task-work
-  gate, and trunk rebase no-op. Keep generic Git and atomic-file helpers.
-- `src/config.rs`: funnel both trunk setters and unset through the same
-  candidate-area and ancestry validation while holding the state lock; expose
-  `--allow-divergent` only for local `project.trunk` writes and return the exact
-  evidence object. Preserve worker configuration behavior.
-- `src/tasks.rs`: use the resolved branch/mode in committed import and
-  `next --any`; keep ordinary import, task transactions, task order, and
-  lifecycle formats intact.
-- `src/lib.rs`: expose create/bind trunk mode and the two consistent
-  `--allow-divergent` placements, render mode-aware area/status/next views, and
-  leave goal and `zdev commit` generic.
-- Canonical `skills/zdev/references/{task-format,implement,verify,recovery}.md`,
-  `templates/zdev/{shared-contract,task-workflows.md}`, workflow/user docs, and
-  help text: explain explicit trunk intent, resolved required branch, no rebase
-  advisory/no-op, unchanged attribution, and current work-context collection.
-  Regenerate every checked-in Codex, Claude, OpenCode, Pi, and Oh
-  My Pi integration through `zdev skill install/check`; do not hand-edit
-  generated copies.
-- Focused black-box coverage belongs in `tests/lean.rs`: strict old/new records,
-  create/bind transitions, multiple/mixed ownership and selection,
-  contained/divergent/unavailable ancestry and atomic failure, exact
-  branch-status fields, goal's unchanged branch-independent shape, gate matrix,
-  record policy, and generated integration consistency. Reuse existing import,
-  rollback, stale, lifecycle, and commit tests instead of duplicating them.
-
-## Implementation slices
-
-1. **Added the area mode and project transitions.** This slice implemented the
-   strict v1 representation, resolved branch, create/bind grammar and transitions,
-   ownership/parent validation, record-policy rule, ancestry evidence and
-   override, and atomic trunk set/unset behavior. Cover legacy records and
-   failure preservation.
-2. **Applied trunk mode to status and work gates.** This slice implemented the
-   exact status projection, human rendering, task-work/committed-import branch resolution,
-   deterministic mixed/multiple-area `next --any`, lifecycle gates, and managed
-   rebase no-op. Keep goal branch-independent. Add focused gate and projection
-   tests; retain the existing task/import/commit transactions.
-3. **Updated and regenerated workflow guidance.** This slice revised canonical
-   docs and templates for explicit trunk orientation, attribution, verification, and
-   recovery; regenerate all harness artifacts through the established install
-   path and run integration-consistency tests.
-
-These completed slices left no independent schema, policy, CLI, status,
-lifecycle, or Git ownership choice. Independent verification remained
-mandatory for each task.

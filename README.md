@@ -1,25 +1,23 @@
 # zdev
 
-Zdev is a tool and skill for organizing work in agentic engineering.
+Zdev keeps tasks, decisions, and verified changes in your repository while a
+coding harness does the work.
 
 Coding harnesses can explore a repository, compare designs, implement code,
 and review the result. The awkward part is what has to survive between those
 activities: the decisions, the task order, the work that has been verified, and
 the connection between a task and its Git history.
 
-Zdev keeps that part in the repository. The `zdev` binary manages an
-issue-tracker-like task record in `.zdev`. The zdev skill gives a coding harness
-a workflow for working through that record. The two parts are intended to be
-used together: the skill manages the live work, while the binary keeps its
-durable state.
+The `zdev` binary manages a task record in `.zdev`. The zdev skill guides the harness through planning,
+implementation, and independent verification. The skill coordinates the work;
+the binary records its progress.
 
 Zdev is maintained as a personal tool in public. Releases target macOS and
 Linux on x86-64 and Arm64.
 
 > [!WARNING]
-> The whole zdev project is vibe-coded, in the sense that I have not spent much
-> time looking at the code. I have been using it a lot, and for my use cases it
-> has been useful.
+> The whole zdev project is vibe-coded: I have spent little time reviewing the
+> code myself. I use it a lot, and it has been useful for my work.
 
 ## Install
 
@@ -72,41 +70,15 @@ can produce the same JSON format:
 zdev tasks import scheduling --from path/to/tasks.json
 ```
 
-If a harness wants to show a rendered bundle before importing it, use:
+The harness normally stores a proposed bundle for review, has an independent
+reviewer check non-trivial work, and shows you the final Markdown. Once you
+approve it, the harness imports that exact version. It carries the review ID
+for you. For tracked records, the import can commit the tasks and an approved
+brief update together.
 
-```sh
-zdev tasks review scheduling --from - --format json
-```
-
-Zdev stores the canonical bundle, an internal fingerprint, and an actual
-Markdown review file under repository-local Git administrative state. The
-small JSON result gives the harness an opaque review identity and the Markdown
-path. For non-trivial work, the harness has a fresh reviewer read that exact
-file. Suggested revisions replace the stored candidate. A focused correction
-is checked by the same reviewer against its prior findings and the complete
-revised document; a material change to scope, boundaries, dependencies, task
-splitting, or testing strategy gets a fresh full challenge. Storage and review
-are not approval. Show only the final challenged document on demand:
-
-```sh
-zdev tasks review scheduling --show
-```
-
-After approval, the harness imports that exact current review and may commit it
-in the same operation:
-
-```sh
-zdev tasks import scheduling --reviewed <review-id> --commit --format json
-```
-
-The harness carries the review identity automatically; the user never handles
-it or the internal fingerprint. A replacement review invalidates the old
-identity. Direct `--from` import remains available for compatibility and manual
-use.
-
-If the approved task work modified the area's tracked `brief.md`, leave it
-unstaged. The committed import validates and includes the brief with the new
-tasks and generated index; no separate brief commit is needed.
+See [Import reviewed tasks](docs/user-guide.md#6-import-reviewed-tasks) for the
+review commands and approval rules. Direct `--from` import remains available
+for manual use.
 
 Check the area and select its next ready task:
 
@@ -115,23 +87,14 @@ zdev status scheduling --format json
 zdev next scheduling --format json
 ```
 
-Harness task workflows store that task projection and pass only its compact
-reference between workers:
-
-```sh
-zdev work-context scheduling --store --format json
-zdev work-context scheduling --show <snapshot-id> --format json
-zdev work-context scheduling --compare <snapshot-id> --format json
-```
-
-`--show` reproduces the stored document exactly. `--compare` collects fresh
-state and reports only `equal`; a snapshot is immutable handoff evidence, not
-reusable current state. Snapshots remain available in linked-worktree-local Git
-administrative storage so an active workflow's baseline cannot expire.
+Harness workflows use `zdev work-context` to collect the selected task, branch
+status, and Git changes together. They can store this context for worker
+handoffs and compare it with fresh state before completion. See
+[Work-context snapshots](docs/workflow-round-trips.md) for the snapshot commands.
 
 With only an area, zdev selects ready work by AFK suitability, priority, then
-numeric task ID. A fuzzy loop focus asks the harness to inspect the full ready
-frontier and choose the best-fitting task.
+numeric task ID. If you give the loop a focus, the harness reads all ready
+tasks and chooses the best fit.
 
 Activate the installed zdev skill and ask it to loop or set a goal for an area.
 Both words select the same route. The skill continues one verified commit at a
@@ -219,8 +182,7 @@ of the developer. It gives the harness a common route through the brief, task
 selection, implementation, verification, and completion steps that the binary
 records.
 
-Project topology and harness worker profiles use the fixed typed configuration
-surface:
+Use `zdev config` to inspect project settings and choose worker models:
 
 ```sh
 zdev config show
@@ -229,10 +191,10 @@ zdev config set worker.codex.implementer gpt-5.6-sol low
 zdev config unset worker.codex.implementer
 ```
 
-Task complexity is authored as `routine`, `standard`, or `advanced`; omission
-means `standard`. Routine work uses the bounded routine implementer, advanced
-work gets one read-only plan before its first edit, and every route ends with a
-fresh standard verifier.
+Tasks may declare complexity as `routine`, `standard`, or `advanced`; omission
+means `standard`. Routine work uses the routine implementer. Advanced work gets
+a read-only plan before its first edit. Every route uses a fresh standard
+verifier.
 
 ## Adapted skills
 
@@ -258,9 +220,9 @@ The zdev skill adapts methods from three upstream skill projects:
   identifies it as MIT © shadcn.
 
 The adaptations are self-contained references under `skills/zdev/`; zdev does
-not load the upstream skills at runtime. See the [adapted methods](docs/adapted-methods.md)
-for the source mapping and pinned revisions. Zdev's own code and documentation
-are covered by the [MIT license](LICENSE).
+not load the upstream skills at runtime. See the [adapted
+methods](docs/adapted-methods.md) for the source mapping and pinned revisions.
+Zdev's own code and documentation are covered by the [MIT license](LICENSE).
 
 ## Learn more
 

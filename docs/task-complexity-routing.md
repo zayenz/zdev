@@ -1,22 +1,16 @@
 # Task complexity and worker escalation
 
-> **Status: current behavior.** Zdev persists and projects the three task
-> complexity values and realizes the routing policy below in every installed
-> harness integration.
-
-This record defines a small routing policy for zdev task work. It keeps task
-complexity explicit, keeps routine work bounded, and reserves the advanced
-implementer for planned advanced work or a verifier-requested repair. It adds no
-evaluation system, provider catalog, or automatic complexity classifier.
+A task's declared complexity selects its implementation route. Routine work
+uses a constrained implementer, standard work uses the normal implementer, and
+advanced work starts with a read-only plan. A verifier can also recommend an
+advanced implementer for a repair within the approved scope.
 
 The harness evidence and editable defaults were checked on 2026-08-20 and are
 recorded in [Worker profiles](worker-profiles.md). That document describes the
 current roles and runtime; this record describes the current routing policy
-they realize.
+they follow.
 
-## Decisions
-
-### Task complexity is authored metadata
+## Declaring complexity
 
 A task has one of three complexity values:
 
@@ -43,15 +37,14 @@ must not add `standard` to the canonical bundle used for fingerprinting.
 effective value. The coordinator reads it from the goal nested in a fresh
 work-context result. `TASKS.md` needs no new column.
 
-### Routing builds on the current worker roles
+## Worker roles
 
-Zdev already resolves and renders four whole worker profiles for every harness:
+Implementation and verification use four worker roles:
 `routine-implementer`, `implementer`, `verifier`, and
 `advanced-implementer`. Routine and advanced are explicit implementation
 tiers; `implementer` and `verifier` are the standard defaults. Profile
 precedence, validation, install refresh, and the current built-ins remain as
-documented in [Worker profiles](worker-profiles.md); this design adds no profile
-key or model default.
+documented in [Worker profiles](worker-profiles.md).
 
 The current built-ins use Luna low for routine work, Sol low for standard Codex
 and OpenAI-backed implementation, Opus 5 low for Claude standard work, and Sol
@@ -59,25 +52,25 @@ high for advanced implementation. Verification uses the current Sol or Opus 5
 profile for its harness. Projects may override each whole profile through the
 existing config contract.
 
-Independent verification always uses a fresh `verifier`. There is no planner,
-coordinator, or advanced-verifier profile. The planner below is a
-read-only dispatch of the resolved `advanced-implementer` profile; it does not
-add a durable role or configuration key.
+Independent verification always uses a fresh `verifier`. Advanced planning
+uses the `planner` role, which falls back to the selected profile's
+`advanced-implementer` when no planner row is configured. The coordinator has
+no worker profile.
 
-### Advanced work gets one explicit plan
+## Planning advanced work
 
 Before the first code edit for an `advanced` task, the coordinator starts a
-fresh read-only planner using `advanced-implementer`. The planner receives the
-same work-context, brief, task, and repository guidance as an implementer. It
-returns exactly four semantic fields: `verdict`, `summary`, `plan`, and
-`findings`. A `plan` verdict carries an exact three-field plan object with
-`approach`, `paths`, and `validation`, and no findings; `blocker` carries a
-null plan and concrete findings. The coordinator strictly parses that result
-and constructs the compatible public planner envelope with identity, evidence,
-and `escalation: "none"`. The semantic plan itself is the conversation handoff
-and is passed unchanged to a fresh advanced implementer. It is not a repository
-file or zdev record and cannot add scope, relax validation, or amend the
-approved task.
+fresh read-only planner using the resolved planner profile. The planner
+receives the same work-context, brief, task, and repository guidance as an
+implementer. It returns exactly four semantic fields: `verdict`, `summary`,
+`plan`, and `findings`. A `plan` verdict carries an exact three-field plan
+object with `approach`, `paths`, and `validation`, with optional supporting
+findings; `blocker` carries a null plan and concrete findings. The coordinator
+strictly parses that result and constructs the compatible public planner
+envelope with identity, evidence, and `escalation: "none"`. The semantic plan
+itself is the conversation handoff and is passed unchanged to a fresh advanced
+implementer. It is not a repository file or zdev record and cannot add scope,
+relax validation, or amend the approved task.
 
 Planning is skipped for `routine` and `standard` tasks, explicit `zdev-verify`,
 and a resumed workflow that already holds a valid plan for the same task and
@@ -86,13 +79,13 @@ planning after attributed task edits would not protect the first implementation
 choice. Unexplained or ambiguously owned edits still block under the existing
 baseline rules.
 
-### Escalation is a recommendation, not a verdict
+## Escalating a repair
 
 The current strict verifier object always contains `escalation`. Its value is
-`none`, except that verifier `rework` may request `advanced-implementer`. This
-design routes that request to the current `advanced-implementer` role. An
-unknown value, duplicate key, or advanced escalation with `pass` or `blocker`
-is invalid and therefore blocking under the current fail-closed rule.
+`none`, except that verifier `rework` may request `advanced-implementer`. The
+coordinator routes that request to `advanced-implementer`. An unknown value,
+duplicate key, or advanced escalation with `pass` or `blocker` is invalid and
+therefore blocking under the current fail-closed rule.
 
 The verifier recommends escalation only when its concrete findings show that
 the repair needs broader reasoning within the already approved scope. It does
@@ -100,10 +93,10 @@ not recommend escalation for an unavailable model, transport failure, missing
 evidence, unsafe scope, or a product decision; those are blockers. The
 coordinator may move a standard implementation to `advanced-implementer` once
 per task run. A routine or already advanced route cannot escalate. There is no
-higher tier, downgrade,
-retry count, model search, or automatic change to durable complexity. An
-advanced implementation that receives verifier verdict `rework` returns to an
-advanced implementer and then to a new verifier.
+higher tier or automatic change to the task's recorded complexity. Rework has
+no fixed retry count. An advanced implementation that receives verifier
+verdict `rework` returns to an advanced implementer and then to a new
+verifier.
 
 ## Coordinator routing
 
@@ -143,38 +136,16 @@ The case policy is common:
 | Escalated repair | standard implementer → verifier verdict `rework`, escalation `advanced-implementer` → replacement advanced implementer → fresh verifier |
 | Product decision | planner blocks or a worker returns verdict `blocker` → coordinator asks the user; no completion or commit |
 
-Each harness realizes every row through these native seams:
+Each harness uses its native workers for these routes:
 
 | Harness | Planner | Implementation | Verification and rework |
 | --- | --- | --- | --- |
-| Codex | fresh read-only subagent using the resolved advanced model/effort | fresh subagent using the routine, standard, or advanced profile | fresh verifier each time; follow up only for same-profile repair; escalation spawns a replacement |
-| Claude Code | read-only `zdev-planner` agent rendered from the advanced profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | `zdev-verifier`; workflow resumes only same-profile repair and starts an advanced replacement on escalation |
-| OpenCode | read-only `zdev-planner` subagent rendered from the advanced profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | new verifier task each time; `task_id` resume only for same-profile repair |
-| Pi | read-only `planner` role using the advanced profile | `routine-implementer`, `implementer`, or `advanced-implementer` role | `verifier`; every repair is a fresh process using the selected profile |
-| Oh My Pi | blocking read-only `zdev-planner` task agent rendered from the advanced profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | fresh `zdev-verifier`; `hub` only for same-profile repair, replacement task for escalation |
+| Codex | fresh read-only subagent using the resolved planner model/effort | fresh subagent using the routine, standard, or advanced profile | fresh verifier each time; follow up only for same-profile repair; escalation spawns a replacement |
+| Claude Code | read-only `zdev-planner` agent using the resolved planner profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | `zdev-verifier`; workflow resumes only same-profile repair and starts an advanced replacement on escalation |
+| OpenCode | read-only `zdev-planner` subagent using the resolved planner profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | new verifier task each time; `task_id` resume only for same-profile repair |
+| Pi | read-only `planner` role using the resolved planner profile | `routine-implementer`, `implementer`, or `advanced-implementer` role | `verifier`; every repair is a fresh process using the selected profile |
+| Oh My Pi | blocking read-only `zdev-planner` task agent using the resolved planner profile | `zdev-routine-implementer`, `zdev-implementer`, or `zdev-advanced-implementer` | fresh `zdev-verifier`; `hub` only for same-profile repair, replacement task for escalation |
 
 The product-decision case stops in the coordinating session in all five
 harnesses. Native transport, resumption, background jobs, teams, and fan-out do
 not change the routing contract.
-
-## Implemented seam
-
-- `src/tasks.rs` and `src/goal.rs` currently own the strict three-value task
-  schema, omitted-field compatibility, review fingerprints, and effective task
-  projections. The parsed field stays optional with a `standard` accessor, so
-  old files remain byte-stable through completion and reopen.
-- `src/integrations.rs` and canonical templates: render any read-only planner
-  artifact from the already resolved advanced profile, then add the common
-  routing rules. Install and check continue to share one MiniJinja render path
-  and publish only after all artifacts validate.
-- Harness adapters: select the current routine, standard, verifier, and
-  advanced roles. Planner dispatches reuse the advanced profile with read-only
-  tools; they do not add another configuration key.
-- Tests: cover one legacy omitted-complexity task, one advanced goal, one
-  standard route, one planned route, one ordinary rework, one escalation, and
-  one invalid escalation envelope. Reuse the existing deterministic template
-  and harness-contract tests; do not build a provider matrix or harness
-  simulator.
-
-The implementation adds no evaluation, benchmarking, telemetry, model
-discovery, provider catalog, derived-task authority, or optional verification.

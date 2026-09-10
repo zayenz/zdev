@@ -1,125 +1,9 @@
 # Harness orchestration
 
-> **Status: current behavior.** The workflows and installed artifacts
-> described here are implemented. Harness research was checked on 2026-08-20;
-> implementation-seam sections preserve the decision record that led to them.
-
-## Versions inspected
-
-| Harness | Version and source revision |
-| --- | --- |
-| Codex | CLI 0.148.0 (`rust-v0.148.0`), release source revision [`3ba0f711642a888aec92a611a3f3b2211157ff89`](https://github.com/openai/codex/commit/3ba0f711642a888aec92a611a3f3b2211157ff89), including the native multi-agent handlers. [Release](https://github.com/openai/codex/releases/tag/rust-v0.148.0) (accessed 2026-08-20). |
-| Claude Code | Claude Code 2.1.237, source/changelog revision [`770933ea1ad2fa7b858191e397a65e6644771c64`](https://github.com/anthropics/claude-code/commit/770933ea1ad2fa7b858191e397a65e6644771c64); Claude Agent SDK 0.3.237, revision [`591a180a197a73ce90042a6f97a7c59c100d2c3a`](https://github.com/anthropics/claude-agent-sdk-typescript/commit/591a180a197a73ce90042a6f97a7c59c100d2c3a). [Claude Code release](https://github.com/anthropics/claude-code/releases/tag/v2.1.237) and [SDK release](https://github.com/anthropics/claude-agent-sdk-typescript/releases/tag/v0.3.237) (accessed 2026-08-20). |
-| OpenCode | 1.18.19, release source revision [`2b72179c663cadcb54f54d9f19221b3fb3d11fb6`](https://github.com/anomalyco/opencode/commit/2b72179c663cadcb54f54d9f19221b3fb3d11fb6). [Release](https://github.com/anomalyco/opencode/releases/tag/v1.18.19) (accessed 2026-08-20). |
-| Pi | 0.84.2, release documentation/source revision [`914cf1472e715297caa30db4b9535d534a9eb718`](https://github.com/earendil-works/pi/commit/914cf1472e715297caa30db4b9535d534a9eb718). [Release](https://github.com/earendil-works/pi/releases/tag/v0.84.2) (accessed 2026-08-20). |
-| Oh My Pi | 17.4.0, source revision [`72000acfeb902e21816252699482887f34d1a5a4`](https://github.com/can1357/oh-my-pi/commit/72000acfeb902e21816252699482887f34d1a5a4). [Release](https://github.com/can1357/oh-my-pi/releases/tag/v17.4.0) (accessed 2026-08-20). |
-
-The version numbers above are observation points, not minimum supported
-versions. An implementation should test its actual compatibility floor rather
-than infer one from this research.
-
-## Observed harness capabilities
-
-### Codex
-
-Codex supports reusable skills and native subagents. Skills are invoked with
-`$name`; the main thread can spawn, message, wait for, interrupt, and close
-agent threads. Project or skill instructions may request delegation, and a
-custom agent can set its own model, reasoning effort, instructions, and
-sandbox. The parent runtime still controls live approval and sandbox choices.
-[Codex skills](https://learn.chatgpt.com/docs/build-skills), [subagent
-orchestration](https://learn.chatgpt.com/docs/agent-configuration/subagents),
-and the pinned [multi-agent spawn
-implementation](https://github.com/openai/codex/blob/3ba0f711642a888aec92a611a3f3b2211157ff89/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-(accessed 2026-08-20).
-
-This is enough for a zdev skill to remain the coordinator and use fresh native
-workers. Zdev does not need an SDK process, task queue, or stored session ID.
-
-### Claude Code
-
-Claude Code plugins can package skills, named agents, and JavaScript workflows.
-A workflow script lives in `workflows/` at the plugin root by default; the
-manifest's `workflows` string-or-array field can replace that default path.
-Plugin workflows are distributed and resolved under the plugin namespace, so
-`meta.name = 'release-audit'` in plugin `acme-tools` becomes
-`/acme-tools:release-audit`. The feature request that originally identified the
-distribution gap was closed as completed on 2026-08-17. [Dynamic workflow
-distribution](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin),
-[plugin component paths](https://code.claude.com/docs/en/plugins-reference#component-path-fields),
-and [Claude Code issue
-66032](https://github.com/anthropics/claude-code/issues/66032) (accessed
-2026-08-20).
-
-Dynamic workflows require Claude Code 2.1.154 or later. Their runtime executes
-plain JavaScript with top-level `await`; `meta` supplies identity, `args`
-supplies invocation data, `agent()` starts a subagent, and `pipeline()` maps a
-list to agents. Script variables hold intermediate results, and the runtime
-keeps the orchestration repeatable and resumable within the session. Named
-plugin agents still provide the role prompts, tool constraints, models, and
-effort controls used by the workflow. [Workflow behavior and
-API](https://code.claude.com/docs/en/workflows) and [plugin subagent
-configuration](https://code.claude.com/docs/en/sub-agents) (accessed
-2026-08-20).
-
-The previous zdev `zdev-task.js` and current `zdev-audit.js` files therefore use
-the right native mechanism. The task workflow is renamed and adapted to the
-settled goal, role, and envelope behavior; neither needs replacement with
-skills or an Agent SDK wrapper.
-
-### OpenCode
-
-OpenCode discovers Markdown commands from `commands/`; the file name becomes
-the slash command and its body becomes a prompt. It also discovers named
-Markdown subagents. A primary agent can invoke a subagent through the task tool,
-which creates a child session and returns its text. Supplying the prior
-`task_id` resumes that child; omitting it creates a fresh child. Background
-subagents remain experimental, but zdev's sequential implementation and
-verification cycle does not need them. [Commands](https://opencode.ai/docs/commands/),
-[agents](https://opencode.ai/docs/agents/), and the pinned [task-tool
-implementation](https://github.com/anomalyco/opencode/blob/2b72179c663cadcb54f54d9f19221b3fb3d11fb6/packages/opencode/src/tool/task.ts)
-(accessed 2026-08-20).
-
-The OpenCode SDK can create sessions and send prompts or commands, including
-structured output. Those calls are useful for external applications, but the
-native command and task surfaces already cover zdev's in-session workflow.
-[OpenCode SDK](https://opencode.ai/docs/sdk/) (accessed 2026-08-20).
-
-### Pi
-
-Stock Pi intentionally has no built-in subagent system. It supports skills,
-Markdown prompt templates, and TypeScript extensions that can register tools
-and commands. Its own subagent example starts a separate `pi` process with an
-isolated context and captures JSON output. [Pi README and extension
-model](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/README.md)
-and the pinned [subagent extension
-example](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/examples/extensions/subagent/index.ts)
-(accessed 2026-08-20).
-
-Zdev already follows that pattern with `zdev_subagent`: each call starts a
-no-session child with a restricted tool list. That gives implementation and
-verification fresh contexts, but it cannot resume an implementer for rework.
-A rework pass must start another child with the earlier findings and current
-checkout state.
-
-### Oh My Pi
-
-Oh My Pi has native `task` and `hub` tools. `task` discovers named agents,
-supports blocking or background execution, returns structured result details,
-and can keep a completed non-isolated agent available. `hub` can message a
-finished agent and revive it when necessary. Custom prompt templates under
-`.omp/prompts/` expand as slash commands. [Pinned task
-documentation](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/docs/tools/task.md),
-[hub documentation](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/docs/tools/hub.md),
-[agent discovery](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/docs/task-agent-discovery.md),
-and the pinned [prompt-template
-loader](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/config/prompt-templates.ts)
-(accessed 2026-08-20).
-
-Oh My Pi also offers background jobs, batch fan-out, isolation, process
-supervision, and session artifacts. None is required for the ordinary zdev
-cycle. The adapter should use blocking named workers in the current checkout;
-zdev, not Oh My Pi's job system, remains the workflow owner.
+The harness coordinates each task through implementation, independent
+verification, rework, and a commit. Zdev supplies the records and checks; each
+adapter uses its harness's native workers. The versioned observations below
+were checked on 2026-08-20.
 
 ## Routes and native adapters
 
@@ -148,7 +32,7 @@ form additional skills or change the root activation name.
 
 | Harness | Installed skill and adapters | Native workers |
 | --- | --- | --- |
-| Codex | One `zdev/SKILL.md`; audit, task, verification, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and an honest bounded fallback only after clear inspection when creation is unavailable. |
+| Codex | One `zdev/SKILL.md`; audit, task, verification, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and a one-task fallback only after clear inspection when creation is unavailable. |
 | Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects a concise scoped role and passes a stored work-context locator. The detailed derived-work contract is loaded only when a split is needed. |
 | OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-parallel.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; one-task commands use the native task tool and compact file/snapshot locators. The parallel command stops before mutation because foreground batches do not return coordinator control per completed child. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-parallel.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` keeps single configured roles and adds bounded, task-keyed planner and source-implementer batches with explicit working directories. Calls carry compact locators rather than the rendered workflow. |
@@ -168,8 +52,7 @@ requires serial destination verification before coordination continues the run.
 The shared route owns admission, isolation, serial integration, recovery, and
 cleanup rules; no adapter adds a persistent scheduler or batch record.
 
-These are renderable files, not a new runtime. Install and check must render the
-same bytes through the existing integration renderer. The worker model and
+Install and check render the same files from the same inputs. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 
 Worker prompts contain only their short role, repository guidance, task/file
@@ -208,15 +91,16 @@ coordinator reads every task in the complete ready frontier, chooses the best
 fit, and admits that explicit ID with `work-context --task`. It repeats that
 selection after every commit and never stores the focus in zdev state.
 
-An implement context that is `open` / `empty`, `open` / `exhausted`, or `closed`
-is a successful no-work result. Closed requires no branch or Git evidence;
-open no-work retains the open-work gates. No worker is started, and no state
-changes. A malformed graph, unsafe open branch, changed focus
-task, or other validation error is a blocker. The stored-and-shown verification
+An implement context that is `open` / `empty`, `open` / `exhausted`, or
+`closed` is a successful no-work result. Closed requires no branch or Git
+evidence; open no-work retains the open-work gates. No worker is started, and
+no state changes. A malformed graph, unsafe open branch, changed focus task,
+or other validation error is a blocker. The stored-and-shown verification
 snapshot is also the fresh context admission after implementation and after
 each rework. Before each rework implementation handoff, the coordinator still
-reruns ordinary work-context and requires the same task ID. This makes a stale long-running conversation fail
-closed instead of implementing a newly selected task.
+reruns ordinary work-context and requires the same task ID. If selection
+changes during a long conversation, the workflow stops before implementing the
+wrong task.
 
 `zdev-verify` requires the explicit task ID to equal the current ready focus
 task. Any no-work context is a blocker and starts no worker. Its one
@@ -378,64 +262,129 @@ coordinator enough evidence to complete and commit. The audit workflow keeps
 its review-and-vet pipeline. These are native advantages, not behavior other
 harnesses must reimplement in JavaScript.
 
-## Implemented seams
+## Versions inspected
 
-No shared product decision remains. The implementation stays within the
-existing integration renderer and five harness adapters:
+| Harness | Version and source revision |
+| --- | --- |
+| Codex | CLI 0.148.0 (`rust-v0.148.0`), release source revision [`3ba0f711642a888aec92a611a3f3b2211157ff89`](https://github.com/openai/codex/commit/3ba0f711642a888aec92a611a3f3b2211157ff89), including the native multi-agent handlers. [Release](https://github.com/openai/codex/releases/tag/rust-v0.148.0) (accessed 2026-08-20). |
+| Claude Code | Claude Code 2.1.237, source/changelog revision [`770933ea1ad2fa7b858191e397a65e6644771c64`](https://github.com/anthropics/claude-code/commit/770933ea1ad2fa7b858191e397a65e6644771c64); Claude Agent SDK 0.3.237, revision [`591a180a197a73ce90042a6f97a7c59c100d2c3a`](https://github.com/anthropics/claude-agent-sdk-typescript/commit/591a180a197a73ce90042a6f97a7c59c100d2c3a). [Claude Code release](https://github.com/anthropics/claude-code/releases/tag/v2.1.237) and [SDK release](https://github.com/anthropics/claude-agent-sdk-typescript/releases/tag/v0.3.237) (accessed 2026-08-20). |
+| OpenCode | 1.18.19, release source revision [`2b72179c663cadcb54f54d9f19221b3fb3d11fb6`](https://github.com/anomalyco/opencode/commit/2b72179c663cadcb54f54d9f19221b3fb3d11fb6). [Release](https://github.com/anomalyco/opencode/releases/tag/v1.18.19) (accessed 2026-08-20). |
+| Pi | 0.84.2, release documentation/source revision [`914cf1472e715297caa30db4b9535d534a9eb718`](https://github.com/earendil-works/pi/commit/914cf1472e715297caa30db4b9535d534a9eb718). [Release](https://github.com/earendil-works/pi/releases/tag/v0.84.2) (accessed 2026-08-20). |
+| Oh My Pi | 17.4.0, source revision [`72000acfeb902e21816252699482887f34d1a5a4`](https://github.com/can1357/oh-my-pi/commit/72000acfeb902e21816252699482887f34d1a5a4). [Release](https://github.com/can1357/oh-my-pi/releases/tag/v17.4.0) (accessed 2026-08-20). |
 
-1. Define canonical internal contracts for implementation, verification,
-   audit, and continuation, including goal refresh, ownership, envelopes, and
-   rework rules.
-2. Install one discoverable skill for each harness. Reuse the existing named
-   agents and Pi extension, with the role controls settled in
-   [Worker profiles](worker-profiles.md).
-3. Render harness-native adapters from those contracts. OpenCode uses its
-   documented `commands/` directory; Claude declares its plugin workflow path
-   and retains the canonical JavaScript artifacts.
-4. Keep install and check on the same all-or-nothing rendering path. Parse and
-   render every artifact before replacing any destination.
+The version numbers above are observation points, not minimum supported
+versions. Minimum supported versions need separate compatibility testing.
 
-The current contract requires:
+## Observed harness capabilities
 
-- all five harnesses install exactly one discoverable zdev skill, and
-  install/check agree on the generated integration;
-- Claude's manifest exposes all six plugin-root JavaScript workflows under the
-  `zdev:` namespace. Three canonical sources render implementation,
-  verification, audit, and parallel execution; one shared continuation source renders both
-  `zdev-loop` and its exact `zdev-goal` alias. Each script preserves the common
-  identity, envelope, and lifecycle contract;
-- `zdev-implement` selects the deterministic ready focus, preserves its task ID
-  across every handoff, follows the authored complexity route and bounded
-  escalation rule above, uses a fresh standard verifier for every verdict, and
-  completes and commits only after `PASS`;
-- open empty, open exhausted, and closed areas return an implementation
-  no-work pass without delegation or mutation; explicit verification returns
-  a blocker for those states; invalid or unsafe state fails before a worker starts;
-- every harness accepts and rejects the same result first lines and routes
-  concrete task-owned `REWORK` findings through implementation and fresh
-  verification with no fixed correction count;
-- `zdev-verify` and `zdev-audit` leave the worktree and `.zdev` lifecycle
-  unchanged apart from files written by declared validation, which are
-  reported as rework;
-- a missing native goal falls back to prompt context, while a missing
-  independent-worker facility produces a blocker;
-- focused integration coverage proves rendered artifact discovery, role
-  selection, a pass, a rework cycle, one pre-publication failure, and
-  deterministic install/check output without adding a scheduler or harness
-  simulator.
+### Codex
 
-This change does not add a scheduler, process manager, cross-harness session
-database, benchmark runner, automatic model selection, or durable workflow
-record. Area, slice, task, Git, and commit records remain the only durable zdev
-state.
+Codex supports reusable skills and native subagents. Skills are invoked with
+`$name`; the main thread can spawn, message, wait for, interrupt, and close
+agent threads. Project or skill instructions may request delegation, and a
+custom agent can set its own model, reasoning effort, instructions, and
+sandbox. The parent runtime still controls live approval and sandbox choices.
+[Codex skills](https://learn.chatgpt.com/docs/build-skills), [subagent
+orchestration](https://learn.chatgpt.com/docs/agent-configuration/subagents),
+and the pinned [multi-agent spawn
+implementation](https://github.com/openai/codex/blob/3ba0f711642a888aec92a611a3f3b2211157ff89/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+(accessed 2026-08-20).
+
+This is enough for a zdev skill to remain the coordinator and use fresh native
+workers. Zdev does not need an SDK process, task queue, or stored session ID.
+
+### Claude Code
+
+Claude Code plugins can package skills, named agents, and JavaScript
+workflows. A workflow script lives in `workflows/` at the plugin root by
+default; the manifest's `workflows` string-or-array field can replace that
+default path. Plugin workflows are distributed and resolved under the plugin
+namespace, so `meta.name = 'release-audit'` in plugin `acme-tools` becomes
+`/acme-tools:release-audit`. The feature request that originally identified
+the distribution gap was closed as completed on 2026-08-17. [Dynamic workflow
+distribution](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin),
+[plugin component
+paths](https://code.claude.com/docs/en/plugins-reference#component-path-fields),
+and [Claude Code issue
+66032](https://github.com/anthropics/claude-code/issues/66032) (accessed
+2026-08-20).
+
+Dynamic workflows require Claude Code 2.1.154 or later. Their runtime executes
+plain JavaScript with top-level `await`; `meta` supplies identity, `args`
+supplies invocation data, `agent()` starts a subagent, and `pipeline()` maps a
+list to agents. Script variables hold intermediate results, and the runtime
+keeps the orchestration repeatable and resumable within the session. Named
+plugin agents still provide the role prompts, tool constraints, models, and
+effort controls used by the workflow. [Workflow behavior and
+API](https://code.claude.com/docs/en/workflows) and [plugin subagent
+configuration](https://code.claude.com/docs/en/sub-agents) (accessed
+2026-08-20).
+
+Zdev uses native JavaScript workflows for Claude task work and audits. Named
+agents supply their roles and model settings.
+
+### OpenCode
+
+OpenCode discovers Markdown commands from `commands/`; the file name becomes
+the slash command and its body becomes a prompt. It also discovers named
+Markdown subagents. A primary agent can invoke a subagent through the task
+tool, which creates a child session and returns its text. Supplying the prior
+`task_id` resumes that child; omitting it creates a fresh child. Background
+subagents remain experimental, but zdev's sequential implementation and
+verification cycle does not need them.
+[Commands](https://opencode.ai/docs/commands/),
+[agents](https://opencode.ai/docs/agents/), and the pinned [task-tool
+implementation](https://github.com/anomalyco/opencode/blob/2b72179c663cadcb54f54d9f19221b3fb3d11fb6/packages/opencode/src/tool/task.ts)
+(accessed 2026-08-20).
+
+The OpenCode SDK can create sessions and send prompts or commands, including
+structured output. Those calls are useful for external applications, but the
+native command and task surfaces already cover zdev's in-session workflow.
+[OpenCode SDK](https://opencode.ai/docs/sdk/) (accessed 2026-08-20).
+
+### Pi
+
+Stock Pi intentionally has no built-in subagent system. It supports skills,
+Markdown prompt templates, and TypeScript extensions that can register tools
+and commands. Its own subagent example starts a separate `pi` process with an
+isolated context and captures JSON output. [Pi README and extension
+model](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/README.md)
+and the pinned [subagent extension
+example](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/examples/extensions/subagent/index.ts)
+(accessed 2026-08-20).
+
+Zdev follows that pattern with `zdev_subagent`: each call starts a
+no-session child with a restricted tool list. That gives implementation and
+verification fresh contexts, but it cannot resume an implementer for rework.
+A rework pass must start another child with the earlier findings and current
+checkout state.
+
+### Oh My Pi
+
+Oh My Pi has native `task` and `hub` tools. `task` discovers named agents,
+supports blocking or background execution, returns structured result details,
+and can keep a completed non-isolated agent available. `hub` can message a
+finished agent and revive it when necessary. Custom prompt templates under
+`.omp/prompts/` expand as slash commands. [Pinned task
+documentation](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/docs/tools/task.md),
+[hub
+documentation](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/docs/tools/hub.md),
+[agent
+discovery](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/docs/task-agent-discovery.md),
+and the pinned [prompt-template
+loader](https://github.com/can1357/oh-my-pi/blob/72000acfeb902e21816252699482887f34d1a5a4/packages/coding-agent/src/config/prompt-templates.ts)
+(accessed 2026-08-20).
+
+Oh My Pi also offers background jobs, batch fan-out, isolation, process
+supervision, and session artifacts. None is required for the ordinary zdev
+cycle. The adapter should use blocking named workers in the current checkout;
+zdev, not Oh My Pi's job system, remains the workflow owner.
 
 ## Confidence and limitations
 
-Confidence is high in the common boundary and installed surfaces documented
-above: they follow current official documentation and pinned source where the
-runtime is open. Confidence is moderate for compatibility over time. All five
-harnesses are moving quickly, and several current docs describe experimental
-or recently changed behavior.
+The common workflow and installation rules follow the cited documentation
+and pinned source. Compatibility over time is less certain: several features
+were experimental or recently changed at the research date.
 
 This investigation did not execute the five harnesses against live provider
 accounts. Claude Code's main runtime is distributed as a compiled package, so

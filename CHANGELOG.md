@@ -84,15 +84,15 @@ This file records notable changes to zdev.
 
 ### Fixed
 
-- Task and planner paths are treated as expected implementation seams rather
-  than exhaustive allowlists. Directly necessary, attributable files no longer
-  turn otherwise in-scope work into a blocker.
-- Goal loops distinguish genuine external or safety blockers from partial,
-  directly actionable implementation. Claude Code retries actionable worker
-  blockers and stops repeated attempts when snapshot comparison shows no
-  attributable progress.
+- Task and planner paths describe expected changes rather than exhaustive
+  lists of permitted files. Necessary files with clear task ownership no longer
+  turn work within the approved scope into a blocker.
+- Goal loops distinguish external or safety blockers from unfinished work that
+  can still proceed. Claude Code retries actionable worker blockers and stops
+  repeated attempts when snapshot comparison shows no attributable progress.
 - Task drafting and focused selection keep unattended repository work ahead of
-  physical-device, credential, production-access, and other attended gates.
+  work that requires physical devices, credentials, production access, or
+  other user involvement.
 - Verified, coherent work proceeds through the normal completion and commit
   flow instead of remaining dirty solely because a later attended check exists.
 - Verifiers prefer check or dry-run forms for generators, avoiding dirty
@@ -194,7 +194,7 @@ This file records notable changes to zdev.
   comparison and public-envelope bookkeeping, and Claude Code avoids redundant
   full-context collection around verification.
 - Task-challenge follow-up is proportional to the change instead of requiring a
-  full new verifier for every adjustment.
+  new full review for every adjustment.
 
 ### Fixed
 
@@ -259,7 +259,7 @@ This file records notable changes to zdev.
   instead of repeating it in every worker prompt, while keeping the detailed
   role instruction as a same-call fallback.
 - Safe-but-stale isolated branches remain workable with one advisory; explicit
-  trunk areas do not use freshness or rebase ceremony.
+  trunk areas do not use freshness checks or rebasing.
 
 ### Compatibility
 
@@ -269,8 +269,8 @@ This file records notable changes to zdev.
 - Reinstall integrations with `zdev skill install <harness> --force` to receive
   the 1.1.0 commands, workflows, worker profiles, and strict envelope contract.
 - Claude Code installs now include native plugin workflows. Codex and Oh My Pi
-  use native goal tools when available; OpenCode and Pi report an honest
-  one-task continuation boundary.
+  use native goal tools when available; OpenCode and Pi stop after one task and
+  report whether more work is ready.
 
 ## [1.0.0] - 2026-08-17
 

@@ -2,7 +2,7 @@
 
 Date: 2026-08-23
 
-This record qualifies the prepared source tree. It does not claim provider-wide
+These checks cover the prepared source tree. It does not claim provider-wide
 compatibility or replace the automated release checks. No command published,
 pushed, tagged, or contacted a repository remote.
 
@@ -32,12 +32,12 @@ A clean committed copy of the prepared diff passed:
 scripts/check-release.sh v1.1.0
 ```
 
-That gate ran locked formatting, strict Clippy, all tests, source packaging and
-verification, release installation, the standalone binary round trip,
-five-harness project install/check, release-workflow synchronization, and
-`dist plan --tag=v1.1.0`. Cargo metadata, lockfile, release binary, manifests,
-package ID, and dist plan all reported 1.1.0. Generated-fixture equality passed
-in the locked test suite.
+The release check ran formatting, strict Clippy, the locked test suite, source
+packaging and verification, release installation, the standalone binary round
+trip, five-harness project install/check, release-workflow synchronization,
+and `dist plan --tag=v1.1.0`. Cargo metadata, lockfile, release binary,
+manifests, package ID, and dist plan all reported 1.1.0. Generated-fixture
+equality passed in the locked test suite.
 
 ## Actual harness results
 
@@ -79,8 +79,8 @@ verifier had a concrete REWORK finding. The PASS task owned only `PASS.txt` and
 required the exact bytes `pass\n`. The closed area had no tasks. The audit was
 limited to four briefs, four `TASKS.md` files, and three task records.
 
-The unavailable and blocked cells should be revisited when those authenticated
-harness surfaces are available. They are not silently counted as passes.
+Unavailable and blocked cases need another run with authenticated harnesses.
+They are not counted as passes.
 
 The Codex CLI surface used here did not expose model-callable goal operations,
 and the noninteractive OpenCode surface did not expand custom commands. The

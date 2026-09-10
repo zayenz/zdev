@@ -12,8 +12,8 @@ next task
   → next task
 ```
 
-The harness keeps live execution state. Zdev persists the area brief, task
-files, generated task index, and branch metadata. Git persists accepted source
+The harness coordinates execution. Zdev stores the area brief, task files,
+generated task index, and branch metadata. Git stores accepted source
 history and any rebase in progress.
 
 The [user guide](user-guide.md) contains the complete installation and first-run
@@ -44,7 +44,7 @@ Initialization records trunk when HEAD names a branch; configure it before
 managed work when initialization occurred on detached HEAD. Isolated area
 creation records an owning branch and an initial base anchor when available. A
 trunk area stores no branch or anchor and resolves current configured trunk
-dynamically. Correct an existing binding or choose trunk mode explicitly:
+dynamically.
 
 Before the first initialization, the harness asks whether `.zdev` is a personal,
 project, or pull-request record. Personal state uses the exact clone-local
@@ -54,6 +54,8 @@ removed with `zdev cleanup squash` before squash merge. This record-policy
 decision is separate from the user or project scope of a harness integration.
 Repositories that already have `.zdev` keep their existing treatment without
 another question.
+
+Correct an existing binding or choose trunk mode explicitly:
 
 ```text
 zdev config trunk <trunk-branch>
@@ -107,8 +109,8 @@ on the area's branch with a clean worktree:
 zdev area rebase <area>
 ```
 
-For an explicit trunk area this command is an unchanged result: the area
-already follows configured trunk, so no rebase or freshness ceremony applies.
+For an explicit trunk area, this command returns `unchanged`. The area already
+uses the configured trunk branch.
 
 Zdev uses the stored anchor as the old boundary and the current effective-base
 tip as the new boundary. It never merges, changes branches, rebases another
@@ -175,8 +177,7 @@ agent-ready implementation work enters the task queue.
 Use `general` as a conventional standing area when small, unrelated
 improvements do not justify a new area each time. It has no special lifecycle
 rules. Choose its workspace first. For an isolated area, create or switch to
-the desired branch, then bind the area to the branch already checked out with
-the existing command:
+the desired branch, then bind the area to the branch already checked out with:
 
 ```sh
 zdev area create general \
@@ -189,7 +190,7 @@ add `--trunk` instead of creating a separate branch.
 
 Keep its brief short and reusable: shared engineering boundaries, the agreed
 testing level, and repository validation. Put each one-off outcome, context,
-boundaries, done proof, and validation in its task. Unsliced tasks are the
+boundaries, completion conditions, and validation in its task. Unsliced tasks are the
 default; optional slices help only when several tasks share one narrower
 objective.
 
@@ -222,8 +223,8 @@ active, the harness selects one direct interaction:
 
 - **Explore an objective** builds or revises the area brief
   (`wayfind` and `shape` are aliases).
-- **Discuss the brief** surveys material decision branches, challenges them in
-  breadth-first rounds, and updates settled synthesis (`grill` is an alias).
+- **Discuss the brief** identifies consequential choices, tests them
+  in breadth-first rounds, and records decisions (`grill` is an alias).
 - **Improve**, **Investigate**, **Create tasks**, **Implement**, and **Verify**
   remain separate actions.
 
@@ -282,7 +283,7 @@ Inspect the diff before verification. Unrelated changes remain outside the
 task.
 
 New task-only commits are expected and do not interrupt the selected task. The
-processor considers those tasks after it finishes the selected task and runs
+coordinator considers those tasks after it finishes the selected task and runs
 `zdev next` again. Review any intervening commit that changes an existing task,
 the brief, area metadata, lifecycle state, or source.
 
@@ -329,7 +330,7 @@ after revision.
 
 ## Recovery
 
-The repository contains enough recovery state:
+To resume interrupted work, inspect the task, checkout, and Git history:
 
 - the task says whether work is open or done;
 - the working tree contains unfinished edits;
@@ -342,4 +343,4 @@ If Git has a rebase in progress, use `zdev area rebase <area> --continue` or
 `--abort`. Otherwise rerun `zdev area rebase <area>` to finalize a manually
 completed rebase. Refresh a stale-but-safe link when work needs current base
 changes or approaches integration; ordinary task work can resume without it.
-Zdev has no execution claim, abandonment, or transaction recovery protocol.
+There is no separate zdev execution record to recover.

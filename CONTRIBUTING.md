@@ -6,13 +6,13 @@ guaranteed.
 
 Use ordinary [GitHub issues](https://github.com/zayenz/zdev/issues) for bugs or
 questions. Include the zdev version, operating system, harness, command, and a
-small reproduction when they matter. Never include credentials or private
+small reproduction where relevant. Never include credentials or private
 repository content.
 
 ## Making a change
 
 Keep changes narrow and preserve unrelated work. Run the checks that match the
-change; the normal full set is:
+change; the full set is:
 
 ```sh
 cargo fmt --all -- --check
@@ -31,5 +31,5 @@ fixtures; do not patch generated copies independently. Likewise, edit
 individual task files under `.zdev/<area>/tasks/`, not the generated `TASKS.md`
 index.
 
-Release and packaging changes should also follow the repository's existing
-release scripts and package checks.
+For release and packaging changes, also run the relevant release scripts and
+package checks under `scripts/`.

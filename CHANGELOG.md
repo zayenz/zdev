@@ -2,6 +2,30 @@
 
 This file records notable changes to zdev.
 
+## [1.5.1] - 2026-09-12
+
+### Added
+
+- Areas can select an execution profile independently for each harness. Area
+  profiles take precedence over saved local and global defaults while leaving
+  one-off and run-specific profile choices in control.
+- Installed harness skills can inspect and change area profiles from a plain
+  configuration request when the area and harness are named.
+
+### Fixed
+
+- `zdev config profile show <profile> <harness>` now prints every resolved
+  role, including its model, effort, and any fallback source.
+- Command help now explains profile precedence, derived-task review and apply
+  paths, and the safeguards and recovery steps for squash cleanup. Automated
+  coverage includes every reachable help screen.
+
+### Compatibility
+
+- Existing areas without profile mappings keep their previous defaults.
+  Reinstall integrations with `zdev skill install <harness> --force` to receive
+  the updated configuration route and area-aware profile resolution.
+
 ## [1.5.0] - 2026-09-09
 
 ### Changed
@@ -285,6 +309,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.5.1]: https://github.com/zayenz/zdev/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/zayenz/zdev/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/zayenz/zdev/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/zayenz/zdev/compare/v1.2.3...v1.3.0

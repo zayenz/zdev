@@ -3,9 +3,9 @@
 # Tasks: general
 
 - Total: 22
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 21
+- Done: 22
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -30,4 +30,4 @@
 | [general-019](tasks/019-support-scoped-execution-profiles-and-plan-only-work-in-clau.md) | Support scoped execution profiles and plan-only work in Claude Code | done | general-018 |
 | [general-020](tasks/020-support-scoped-execution-profiles-in-opencode-pi-and-oh-my-p.md) | Support scoped execution profiles in OpenCode, Pi, and Oh My Pi | done | general-018 |
 | [general-021](tasks/021-configure-an-execution-profile-per-area.md) | Configure harness-specific execution profiles per area | done | — |
-| [general-022](tasks/022-show-profile-details-in-human-readable-output.md) | Show profile details in human-readable output | ready | — |
+| [general-022](tasks/022-show-profile-details-in-human-readable-output.md) | Show profile details in human-readable output | done | — |

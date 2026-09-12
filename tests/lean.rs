@@ -56,6 +56,15 @@ fn named_execution_profiles_resolve_precedence_fallbacks_and_preserve_bytes() {
         "gpt-6-astra",
         "high",
     ]);
+    set(&[
+        "config",
+        "profile",
+        "set",
+        "advanced-max",
+        "codex",
+        "routine-implementer",
+        "inherit",
+    ]);
     set(&["config", "profile", "set-default", "advanced-max"]);
 
     let planner = json_output_with_env(
@@ -83,6 +92,46 @@ fn named_execution_profiles_resolve_precedence_fallbacks_and_preserve_bytes() {
         &env,
     );
     assert_eq!(normal["profile"], "normal");
+
+    let normal_show = run_zdev_with_env(
+        root,
+        &["config", "profile", "show", "normal", "codex"],
+        &env,
+    );
+    assert!(normal_show.status.success());
+    let normal_text = String::from_utf8(normal_show.stdout).expect("normal profile text");
+    let normal_roles = [
+        "routine-implementer",
+        "implementer",
+        "advanced-implementer",
+        "planner",
+        "verifier",
+    ];
+    let mut previous = 0;
+    for role in normal_roles {
+        let position = normal_text.find(role).expect("resolved normal role");
+        assert!(position >= previous, "roles must retain semantic order");
+        previous = position;
+    }
+    assert!(normal_text.starts_with("Profile normal for codex\n"));
+    assert!(normal_text.contains("model = \"gpt-5.6-luna\", effort = \"low\""));
+    assert!(normal_text.contains("[default]"));
+
+    let advanced_show = run_zdev_with_env(
+        root,
+        &["config", "profile", "show", "advanced-max", "codex"],
+        &env,
+    );
+    assert!(advanced_show.status.success());
+    let advanced_text = String::from_utf8(advanced_show.stdout).expect("named profile text");
+    assert!(advanced_text.contains("advanced-max routine-implementer = { inherit = true }"));
+    assert!(
+        advanced_text
+            .contains("advanced-max planner = { model = \"gpt-6-astra\", effort = \"max\" }")
+    );
+    assert!(advanced_text.contains("[fallback: advanced-implementer]"));
+    assert!(advanced_text.contains("advanced-max verifier ="));
+    assert!(advanced_text.contains("[fallback: normal]"));
 
     let before = fs::read(root.join(".zdev/workers.toml")).expect("worker bytes");
     let _ = json_output_with_env(root, &["config", "profile", "list"], &env);

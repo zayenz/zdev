@@ -2112,6 +2112,7 @@ pub(super) fn profile_show(
     harness: &str,
 ) -> Result<CommandOutput, ZdevError> {
     let mut rows = serde_json::Map::new();
+    let mut text = vec![format!("Profile {name} for {harness}")];
     for role in [
         WorkerRole::RoutineImplementer,
         WorkerRole::Implementer,
@@ -2127,10 +2128,15 @@ pub(super) fn profile_show(
             None,
             None,
         )?;
+        let fallback = out.value["fallback"].as_str();
+        text.push(match fallback {
+            Some(fallback) => format!("{}  [fallback: {fallback}]", out.text),
+            None => out.text,
+        });
         rows.insert(worker_role_name(role).to_owned(), out.value);
     }
     Ok(CommandOutput::new(
-        format!("Profile {name} for {harness}"),
+        text.join("\n"),
         json!({"schema_version": SCHEMA_VERSION, "profile": name, "harness": harness, "roles": rows}),
     ))
 }

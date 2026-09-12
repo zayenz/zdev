@@ -132,6 +132,183 @@ fn named_execution_profiles_resolve_precedence_fallbacks_and_preserve_bytes() {
 }
 
 #[test]
+fn area_execution_profiles_mutate_per_harness_and_preserve_precedence_and_bytes() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "focused",
+            "--title",
+            "Focused",
+            "--objective",
+            "Use a focused worker profile.",
+        ],
+    );
+    let config_home = root.join("area-profile-home");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "set",
+            "area-choice",
+            "codex",
+            "implementer",
+            "area-model",
+            "medium",
+        ],
+        &environment,
+    );
+    json_output_with_env(
+        root,
+        &["config", "profile", "set-default", "simple"],
+        &environment,
+    );
+    let area_path = root.join(".zdev/focused/area.toml");
+    let legacy = fs::read(&area_path).expect("legacy area bytes");
+    assert_eq!(
+        json_output_with_env(root, &["area", "profile", "focused"], &environment)["profiles"],
+        json!({})
+    );
+    assert_eq!(fs::read(&area_path).expect("unchanged legacy area"), legacy);
+    fs::write(
+        &area_path,
+        [
+            legacy.as_slice(),
+            b"\n[execution_profiles]\nother = \"normal\"\n",
+        ]
+        .concat(),
+    )
+    .expect("invalid strict area metadata");
+    assert!(
+        !run_zdev(root, &["area", "profile", "focused"])
+            .status
+            .success()
+    );
+    fs::write(&area_path, &legacy).expect("restore legacy area metadata");
+
+    let set = json_output_with_env(
+        root,
+        &["area", "profile", "focused", "codex", "area-choice"],
+        &environment,
+    );
+    assert_eq!(set["profile"], "area-choice");
+    let second = json_output_with_env(
+        root,
+        &["area", "profile", "focused", "claude", "normal"],
+        &environment,
+    );
+    assert_eq!(
+        second["profiles"],
+        json!({"claude": "normal", "codex": "area-choice"})
+    );
+    let area = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "resolve",
+            "codex",
+            "implementer",
+            "--area",
+            "focused",
+        ],
+        &environment,
+    );
+    assert_eq!(area["profile"], "area-choice");
+    assert_eq!(
+        area["value"],
+        json!({"model": "area-model", "effort": "medium"})
+    );
+    let run = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "resolve",
+            "codex",
+            "implementer",
+            "--area",
+            "focused",
+            "--run-profile",
+            "advanced",
+        ],
+        &environment,
+    );
+    assert_eq!(run["profile"], "advanced");
+    let role = json_output_with_env(
+        root,
+        &[
+            "config",
+            "profile",
+            "resolve",
+            "codex",
+            "implementer",
+            "--area",
+            "focused",
+            "--run-profile",
+            "advanced",
+            "--profile",
+            "normal",
+        ],
+        &environment,
+    );
+    assert_eq!(role["profile"], "normal");
+
+    let replaced = json_output_with_env(
+        root,
+        &["area", "profile", "focused", "codex", "simple"],
+        &environment,
+    );
+    assert_eq!(replaced["profile"], "simple");
+    assert_eq!(replaced["profiles"]["claude"], "normal");
+    let configured = fs::read(&area_path).expect("configured area bytes");
+    let unknown = run_zdev_with_env(
+        root,
+        &["area", "profile", "focused", "codex", "missing"],
+        &environment,
+    );
+    assert!(!unknown.status.success());
+    assert_eq!(fs::read(&area_path).expect("preserved area"), configured);
+    let undefined = run_zdev_with_env(
+        root,
+        &["area", "profile", "focused", "pi", "advanced"],
+        &environment,
+    );
+    assert!(!undefined.status.success());
+    let invalid_harness = run_zdev_with_env(
+        root,
+        &["area", "profile", "focused", "other", "normal"],
+        &environment,
+    );
+    assert!(!invalid_harness.status.success());
+    assert_eq!(fs::read(&area_path).expect("preserved area"), configured);
+
+    let cleared = json_output_with_env(
+        root,
+        &["area", "profile", "focused", "codex", "--clear"],
+        &environment,
+    );
+    assert_eq!(cleared["profile"], Value::Null);
+    assert_eq!(cleared["profiles"], json!({"claude": "normal"}));
+    json_output_with_env(
+        root,
+        &["area", "profile", "focused", "claude", "--clear"],
+        &environment,
+    );
+    assert_eq!(
+        fs::read(&area_path).expect("legacy serialization restored"),
+        legacy
+    );
+}
+
+#[test]
 fn named_profile_layers_seeds_dispatch_and_default_refresh_are_concrete() {
     let repository = repository();
     let root = repository.path();
@@ -8212,6 +8389,12 @@ fn all_harness_audit_entrypoints_are_discoverable_and_use_the_verifier_contract(
             .filter(|path| path.ends_with("SKILL.md"))
             .collect::<Vec<_>>();
         assert_eq!(skill_files, [format!("{skill_root}/SKILL.md")], "{harness}");
+        let skill = fs::read_to_string(destination.join(skill_root).join("SKILL.md"))
+            .expect("rendered root skill");
+        assert!(
+            skill.contains("profile <area> <harness> <profile>` to set or replace it"),
+            "{harness} root skill omitted area-profile configuration"
+        );
         assert!(
             destination
                 .join(skill_root)
@@ -8274,6 +8457,17 @@ const defaultResult = await run(
 )
 if (defaultResult !== publicResult) throw new Error('default result changed')
 if (JSON.stringify(defaultCalls) !== JSON.stringify(['audit: freeze verifier profile', 'audit checking verifier'])) throw new Error(`default calls: ${{JSON.stringify(defaultCalls)}}`)
+let areaResolvePrompt = ''
+await run(
+  {{ boundary: 'src', area: 'work' }},
+  async (prompt, options) => {{
+    if (options.label.includes('freeze verifier')) {{ areaResolvePrompt = prompt; return profile }}
+    return publicResult
+  }},
+  async () => {{ throw new Error('area audit used pipeline') }},
+)
+if (!areaResolvePrompt.includes('profile resolve claude verifier --area work --format json'))
+  throw new Error('named-area audit omitted its harness-specific profile: ' + areaResolvePrompt)
 for (const [value, expectedModel] of [[{{ inherit: true }}, null], [{{ model: 'claude-fable-5-1', effort: 'inherit' }}, 'claude-fable-5-1']]) {{
   const inheritedProfile = JSON.stringify({{ schema_version: 1, profile: 'saved', harness: 'claude', role: 'verifier',
     value, origin: {{}}, fallback: null }})
@@ -12544,6 +12738,11 @@ fn codex_run_freezes_concrete_profiles_and_one_off_role_choices_expire() {
         &["config", "profile", "set-default", "advanced"],
         &environment,
     );
+    json_output_with_env(
+        root,
+        &["area", "profile", "work", "codex", "simple"],
+        &environment,
+    );
     assert_eq!(frozen["dispatches"][0]["model"], "gpt-5.6-sol");
     assert_eq!(frozen["dispatches"][1]["role"], "verifier");
     assert_eq!(frozen["dispatches"][1]["reasoning_effort"], "low");
@@ -12572,7 +12771,8 @@ fn codex_run_freezes_concrete_profiles_and_one_off_role_choices_expire() {
         ],
         &environment,
     );
-    assert_eq!(later["dispatches"][0]["model"], "gpt-6-astra");
+    assert_eq!(later["dispatches"][0]["profile"], "simple");
+    assert_eq!(later["dispatches"][0]["model"], "gpt-5.6-luna");
 
     let one_off = json_output_with_env(
         root,

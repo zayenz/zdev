@@ -97,8 +97,12 @@ effective value `null` and means unbound. An absent default area has the
 effective value `null` and leaves the existing unambiguous-area selection in
 place. An absent guidance value has the effective value `auto`.
 
-Area `tag`, `title`, `objective`, `branch`, `parent`, and `base_commit` remain
-in `area.toml`. Slice and task identity, dependencies, status, outcomes, and
+Area `tag`, `title`, `objective`, `branch`, `parent`, `base_commit`, and optional
+`execution_profiles` remain in `area.toml`. Use `zdev area profile AREA` to
+show the harness mapping, `zdev area profile AREA HARNESS` to inspect one
+harness, `zdev area profile AREA HARNESS PROFILE` to set or replace it, and
+`zdev area profile AREA HARNESS --clear` to remove it. Changing one harness
+preserves the others. Slice and task identity, dependencies, status, outcomes, and
 validation remain in their Markdown records. None is addressable by `zdev
 config`; their existing domain commands own their validation and transitions.
 `schema_version` is file-format metadata, not a configurable key. Command

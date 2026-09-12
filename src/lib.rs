@@ -354,6 +354,9 @@ enum ProfileCommand {
         /// Profile selected for the interaction or authorized run
         #[arg(long = "run-profile")]
         run_profile: Option<String>,
+        /// Area whose configured profile applies after explicit selections
+        #[arg(long)]
+        area: Option<String>,
     },
     /// Produce a read-only worker dispatch sequence for one logical step
     DispatchSpec {
@@ -451,6 +454,18 @@ enum AreaCommand {
     Reopen {
         /// Area tag to reopen
         area: String,
+    },
+    /// Inspect, set, replace, or clear an area's execution profile
+    Profile {
+        /// Area tag to update or inspect
+        area: String,
+        /// Harness whose profile should be inspected or changed
+        harness: Option<String>,
+        /// Existing named execution profile; omit to inspect
+        profile: Option<String>,
+        /// Clear the configured profile
+        #[arg(long, conflicts_with = "profile")]
+        clear: bool,
     },
     /// Set the branch mode for an existing area
     Bind {
@@ -891,12 +906,14 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                     role,
                     profile,
                     run_profile,
+                    area,
                 } => config::profile_resolve(
                     Some(&root),
                     harness,
                     role,
                     profile.as_deref(),
                     run_profile.as_deref(),
+                    area.as_deref(),
                 ),
                 ProfileCommand::DispatchSpec {
                     route,
@@ -970,6 +987,18 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             } => project::create_area(&root, tag, title, objective, branch.as_deref(), *trunk),
             AreaCommand::Close { area } => project::close_area(&root, area),
             AreaCommand::Reopen { area } => project::reopen_area(&root, area),
+            AreaCommand::Profile {
+                area,
+                harness,
+                profile,
+                clear,
+            } => project::configure_area_profile(
+                &root,
+                area,
+                harness.as_deref(),
+                profile.as_deref(),
+                *clear,
+            ),
             AreaCommand::Bind {
                 area,
                 branch,
@@ -1454,7 +1483,10 @@ fn dispatch_spec(
 
     let resolve = |role: &str, default_one_off: Option<&str>| -> Result<Value, ZdevError> {
         let one_off = overrides.get(role).map(String::as_str).or(default_one_off);
-        Ok(config::profile_resolve(Some(root), harness, role, one_off, run_profile)?.value)
+        Ok(
+            config::profile_resolve(Some(root), harness, role, one_off, run_profile, Some(area))?
+                .value,
+        )
     };
     let dispatch = |role: &str, resolved: Value, next_phase: &str| {
         json!({

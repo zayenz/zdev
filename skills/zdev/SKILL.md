@@ -150,7 +150,8 @@ ordinary advanced planning step is required.
 
 At the start of each interaction or authorized multi-task run, resolve every
 role that the route can use with `zdev config profile resolve <harness> <role>
---run-profile <name> --format json`. Omit `--run-profile` when the user did not
+--area <area> --run-profile <name> --format json`. Pass `--area` whenever the
+work belongs to a named area, and omit `--run-profile` when the user did not
 choose one. Retain the returned profile name and concrete model and effort for
 the whole logical run; pass those concrete values at every later dispatch,
 including rework, escalation, verification, continuation, recovery, and a
@@ -160,7 +161,8 @@ change. A later independent run resolves afresh.
 A one-off role choice adds `--profile <name>` for that role and has precedence
 over the run profile. Its concrete result lasts through retries or replacement
 of that same logical step, then expires. Selection precedence is one-off role,
-run, saved local default, saved global default, then `normal`. Use the resolver
+run, the current harness's area profile, saved local default, saved global
+default, then `normal`. Use the resolver
 for this logic; do not reproduce its fallback rules in a harness workflow or
 rewrite `.zdev/workers.toml` or an installed integration.
 
@@ -248,9 +250,17 @@ goal failure leaves both session goal and zdev state unchanged.
 Use `zdev config show`, `get <key>`, `set <key> <value>`, and `unset <key>` for
 the fixed project and worker registry; use `zdev config trunk` for the
 branch-aware trunk convenience. Read command help when the key, value, or scope
-is unclear. Configuration leaves area, slice, and task records unchanged. A successful worker-profile mutation
+is unclear. Use `zdev area profile <area>` to show the area's harness-profile
+mapping, `zdev area profile <area> <harness>` to inspect one harness, `zdev area
+profile <area> <harness> <profile>` to set or replace it, and `zdev area profile
+<area> <harness> --clear` to clear it. For a natural-language request, identify
+the named area and harness, perform only the requested read or mutation, and
+report the resulting setting plainly. Do not infer a harness the user did not
+name. Configuration leaves slice and task records unchanged. A successful worker-profile mutation
 reports the exact `zdev skill install <harness> ... --force` refresh command;
-report it without installing or rewriting the integration automatically.
+report it without installing or rewriting the integration automatically. An
+area-profile mutation does not reinstall an integration or change the
+coordinator model.
 
 ## Write human-facing prose plainly
 

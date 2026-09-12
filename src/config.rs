@@ -7,7 +7,7 @@ use std::path::{Component, Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::project::{Config, read_config, write_config};
+use super::project::{Config, load_area, read_config, write_config};
 use super::{CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, write_atomic};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1527,12 +1527,12 @@ pub(super) fn resolve_worker_profiles(
         .map(|r| read_worker_document(&r.join(".zdev/workers.toml")))
         .transpose()?
         .flatten();
-    let selected = choose_profile(local.as_ref(), global.as_ref(), None, None);
+    let selected = choose_profile(local.as_ref(), global.as_ref(), None, None, None);
     if selected == "normal" {
         return resolve_normal_worker_profiles(project_root, harness);
     }
     let resolve = |role| {
-        resolve_named_role(project_root, harness, role, Some(&selected), None)
+        resolve_named_role(project_root, harness, role, Some(&selected), None, None)
             .map(|(_, value, _)| value)
     };
     Ok(ResolvedWorkers {
@@ -1563,7 +1563,7 @@ pub(super) fn resolve_configured_worker_profiles(
         .into_iter()
         .map(|name| {
             let resolve = |role| {
-                resolve_named_role(project_root, harness, role, Some(&name), None)
+                resolve_named_role(project_root, harness, role, Some(&name), None, None)
                     .map(|(_, value, _)| value)
             };
             Ok((
@@ -1940,9 +1940,11 @@ fn choose_profile(
     global: Option<&WorkerFile>,
     explicit_role: Option<&str>,
     run: Option<&str>,
+    area: Option<&str>,
 ) -> String {
     explicit_role
         .or(run)
+        .or(area)
         .or_else(|| local.and_then(|f| f.default_profile.as_deref()))
         .or_else(|| global.and_then(|f| f.default_profile.as_deref()))
         .unwrap_or("normal")
@@ -1955,6 +1957,7 @@ fn resolve_named_role(
     role: WorkerRole,
     explicit_role: Option<&str>,
     run: Option<&str>,
+    area: Option<&str>,
 ) -> Result<(String, ResolvedWorkerProfile, Option<&'static str>), ZdevError> {
     let global_path = global_worker_path()?;
     let global = read_worker_document(&global_path)?;
@@ -1964,7 +1967,7 @@ fn resolve_named_role(
         .map(read_worker_document)
         .transpose()?
         .flatten();
-    let name = choose_profile(local.as_ref(), global.as_ref(), explicit_role, run);
+    let name = choose_profile(local.as_ref(), global.as_ref(), explicit_role, run, area);
     if name == "normal" {
         let workers = resolve_normal_worker_profiles(project_root, harness)?;
         let value = match role {
@@ -2031,10 +2034,12 @@ fn resolve_named_role(
             WorkerRole::AdvancedImplementer,
             Some(&name),
             None,
+            None,
         )?;
         return Ok((name, value, Some("advanced-implementer")));
     }
-    let (_, value, _) = resolve_named_role(project_root, harness, role, Some("normal"), None)?;
+    let (_, value, _) =
+        resolve_named_role(project_root, harness, role, Some("normal"), None, None)?;
     Ok((name, value, Some("normal")))
 }
 
@@ -2044,11 +2049,27 @@ pub(super) fn profile_resolve(
     role: &str,
     role_profile: Option<&str>,
     run_profile: Option<&str>,
+    area: Option<&str>,
 ) -> Result<CommandOutput, ZdevError> {
     let harness = WorkerHarness::parse(harness)?;
     let role = WorkerRole::parse(role)?;
-    let (selected, value, fallback) =
-        resolve_named_role(root, harness, role, role_profile, run_profile)?;
+    let area_profile = match (root, area) {
+        (Some(root), Some(area)) => load_area(root, area)?
+            .0
+            .execution_profiles
+            .get(harness.as_str())
+            .cloned(),
+        (None, Some(_)) => return Err(ZdevError::new("--area requires an initialized repository")),
+        (_, None) => None,
+    };
+    let (selected, value, fallback) = resolve_named_role(
+        root,
+        harness,
+        role,
+        role_profile,
+        run_profile,
+        area_profile.as_deref(),
+    )?;
     Ok(CommandOutput::new(
         format!(
             "{} {} = {}  [{}]",
@@ -2098,13 +2119,66 @@ pub(super) fn profile_show(
         WorkerRole::Planner,
         WorkerRole::Verifier,
     ] {
-        let out = profile_resolve(root, harness, worker_role_name(role), Some(name), None)?;
+        let out = profile_resolve(
+            root,
+            harness,
+            worker_role_name(role),
+            Some(name),
+            None,
+            None,
+        )?;
         rows.insert(worker_role_name(role).to_owned(), out.value);
     }
     Ok(CommandOutput::new(
         format!("Profile {name} for {harness}"),
         json!({"schema_version": SCHEMA_VERSION, "profile": name, "harness": harness, "roles": rows}),
     ))
+}
+
+pub(super) fn validate_worker_harness(harness: &str) -> Result<(), ZdevError> {
+    WorkerHarness::parse(harness).map(|_| ())
+}
+
+pub(super) fn validate_area_profile_reference(harness: &str, name: &str) -> Result<(), ZdevError> {
+    WorkerHarness::parse(harness)?;
+    if name == "normal" {
+        Ok(())
+    } else {
+        validate_profile_name(name)
+    }
+}
+
+pub(super) fn validate_named_profile_for_harness(
+    root: Option<&Path>,
+    harness: &str,
+    name: &str,
+) -> Result<(), ZdevError> {
+    let harness = WorkerHarness::parse(harness)?;
+    if name == "normal" || built_in_named(name, harness).is_some() {
+        return Ok(());
+    }
+    validate_profile_name(name)?;
+    let global = read_worker_document(&global_worker_path()?)?;
+    let local = root
+        .map(|root| read_worker_document(&root.join(".zdev/workers.toml")))
+        .transpose()?
+        .flatten();
+    let defined = local
+        .as_ref()
+        .and_then(|file| file.profiles.get(name))
+        .is_some_and(|profile| !profile.harness(harness).is_empty())
+        || global
+            .as_ref()
+            .and_then(|file| file.profiles.get(name))
+            .is_some_and(|profile| !profile.harness(harness).is_empty());
+    if defined {
+        Ok(())
+    } else {
+        Err(ZdevError::new(format!(
+            "Execution profile {name} is undefined for harness {}",
+            harness.as_str()
+        )))
+    }
 }
 
 fn mutate_profile(

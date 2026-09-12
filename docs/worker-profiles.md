@@ -216,8 +216,9 @@ Use `zdev config profile list`, `show NAME HARNESS`, and `resolve HARNESS ROLE`
 to inspect them. `set NAME HARNESS ROLE MODEL EFFORT` (or `inherit`) and
 `unset` edit one atomic row. `set-default NAME` and `unset-default` persist a
 choice only when explicitly requested; `--global` selects user scope. Resolve
-chooses `--profile` for a role before `--run-profile`, then the saved local or
-global default, then `normal`, and reports the concrete value, origin, and
+chooses `--profile` for a role before `--run-profile`, then the profile
+configured for the selected harness by optional `--area`, the saved local or global default, then
+`normal`, and reports the concrete value, origin, and
 fallback in JSON.
 
 Harness-native policy still applies after generation. For example, a Claude
@@ -247,7 +248,8 @@ authorized run starts. It freezes the returned concrete model and effort for
 each role the run can use, so a later preference edit cannot change workers in
 the middle of implementation, verification, continuation, recovery, or a
 parallel batch. Selection uses a one-off role profile first, then a run profile,
-then saved local and global defaults, then `normal`. This calls the existing
+then the area's profile for the current harness, then saved local and global defaults, then
+`normal`. This calls the existing
 `zdev config profile resolve` command; it does not rewrite configuration or
 reinstall an integration.
 

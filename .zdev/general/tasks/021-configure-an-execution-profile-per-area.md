@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-021"
 key = "configure-an-execution-profile-per-area"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -30,12 +30,12 @@ Named execution profiles currently resolve one-off role choice, run choice, save
 
 ## Done when
 
-- [ ] Typed zdev commands can show an area's harness-profile mapping, set or replace one harness's profile, and clear one harness's profile without disturbing other harnesses.
-- [ ] Setting rejects unknown harnesses, unknown profiles, and profiles undefined for the selected harness before changing `area.toml`.
-- [ ] Profile resolution reports the harness-specific area profile and concrete role settings when no explicit role or run selection exists, while preserving the established precedence when either explicit selection is present.
-- [ ] Every supported harness route that dispatches workers for an area uses that harness's area profile consistently, including continuation and parallel workflows, without changing the coordinator model.
-- [ ] The root zdev skill's configuration route explains how an agent handles natural-language requests to inspect, set, replace, or clear per-area harness profiles and reports the resulting setting plainly.
-- [ ] Existing areas and workflows without area profiles retain their current effective settings and serialized metadata.
+- [x] Typed zdev commands can show an area's harness-profile mapping, set or replace one harness's profile, and clear one harness's profile without disturbing other harnesses.
+- [x] Setting rejects unknown harnesses, unknown profiles, and profiles undefined for the selected harness before changing `area.toml`.
+- [x] Profile resolution reports the harness-specific area profile and concrete role settings when no explicit role or run selection exists, while preserving the established precedence when either explicit selection is present.
+- [x] Every supported harness route that dispatches workers for an area uses that harness's area profile consistently, including continuation and parallel workflows, without changing the coordinator model.
+- [x] The root zdev skill's configuration route explains how an agent handles natural-language requests to inspect, set, replace, or clear per-area harness profiles and reports the resulting setting plainly.
+- [x] Existing areas and workflows without area profiles retain their current effective settings and serialized metadata.
 
 ## Validation
 
@@ -44,3 +44,12 @@ Named execution profiles currently resolve one-off role choice, run choice, save
 - Extend controlled dispatch and rendered-integration checks only where area selection changes executable behavior, including the shared natural-language configuration route; do not make live model calls.
 - Regenerate checked-in harness integrations from canonical templates.
 - Run cargo fmt --all -- --check, cargo clippy --locked --all-targets --all-features -- -D warnings, cargo test --locked, cargo build --locked, and git diff --check.
+
+## Result
+
+Added harness-specific area execution profiles and natural-language configuration guidance across supported integrations.
+
+Validation:
+
+- Independent verifier passed per-harness mutation, precedence, dispatch propagation, legacy serialization, and generated integration checks.
+- cargo fmt, clippy with warnings denied, all 162 integration tests and 3 unit tests, cargo build, and git diff --check passed.

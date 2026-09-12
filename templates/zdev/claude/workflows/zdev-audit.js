@@ -19,8 +19,9 @@ const requestedLenses = Array.isArray(input.lenses)
   : []
 const maxLenses = 4
 const runProfile = input.run_profile ?? input.runProfile ?? null
+const area = input.area == null ? null : String(input.area).trim() || null
 const verifierProfile = input.role_profiles?.verifier ?? input.roleProfiles?.verifier ?? null
-const profileFlags = `${verifierProfile ? ` --profile ${String(verifierProfile)}` : ''}${runProfile ? ` --run-profile ${String(runProfile)}` : ''}`
+const profileFlags = `${verifierProfile ? ` --profile ${String(verifierProfile)}` : ''}${runProfile ? ` --run-profile ${String(runProfile)}` : ''}${area ? ` --area ${area}` : ''}`
 const hasDuplicateObjectKeys = raw => {
   if (typeof raw !== 'string') return false
   const stack = []

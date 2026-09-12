@@ -62,6 +62,8 @@ pub(super) struct AreaMetadata {
     pub(super) tag: String,
     pub(super) title: String,
     pub(super) objective: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(super) execution_profiles: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "AreaMode::is_isolated")]
     pub(super) mode: AreaMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -630,6 +632,7 @@ pub(super) fn create_area(
         tag: tag.to_owned(),
         title: title.to_owned(),
         objective: objective.to_owned(),
+        execution_profiles: BTreeMap::new(),
         mode,
         branch,
         lifecycle: AreaLifecycle::Open,
@@ -674,6 +677,11 @@ pub(super) fn load_area(root: &Path, tag: &str) -> Result<(AreaMetadata, PathBuf
         .map_err(|error| ZdevError::new(format!("Invalid {}: {error}", metadata_path.display())))?;
     if metadata.schema_version != SCHEMA_VERSION || metadata.tag != tag {
         return Err(ZdevError::new(format!("Invalid area identity for {tag}")));
+    }
+    for (harness, profile) in &metadata.execution_profiles {
+        super::config::validate_area_profile_reference(harness, profile).map_err(|error| {
+            ZdevError::new(format!("Invalid {}: {error}", metadata_path.display()))
+        })?;
     }
     match metadata.mode {
         AreaMode::Isolated if metadata.branch.is_none() => {
@@ -986,6 +994,71 @@ pub(super) fn validate_slices(root: &Path, area: &str) -> Result<(), ZdevError> 
 fn write_area_metadata(root: &Path, area: &AreaMetadata) -> Result<(), ZdevError> {
     let path = area_path(root, &area.tag)?.join("area.toml");
     write_atomic(&path, toml::to_string_pretty(area).unwrap().as_bytes())
+}
+
+pub(super) fn configure_area_profile(
+    root: &Path,
+    tag: &str,
+    harness: Option<&str>,
+    requested: Option<&str>,
+    clear: bool,
+) -> Result<CommandOutput, ZdevError> {
+    if requested.is_some() && harness.is_none() {
+        return Err(ZdevError::new("Setting an area profile requires a harness"));
+    }
+    if clear && requested.is_some() {
+        return Err(ZdevError::new("Pass a profile name or --clear, not both"));
+    }
+    if clear && harness.is_none() {
+        return Err(ZdevError::new(
+            "Clearing an area profile requires a harness",
+        ));
+    }
+    if requested.is_none() && !clear {
+        let profiles = load_area(root, tag)?.0.execution_profiles;
+        if let Some(harness) = harness {
+            super::config::validate_worker_harness(harness)?;
+            let profile = profiles.get(harness).cloned();
+            return Ok(CommandOutput::new(
+                profile.clone().unwrap_or_else(|| "normal".to_owned()),
+                json!({"schema_version": SCHEMA_VERSION, "area": tag, "harness": harness, "profile": profile}),
+            ));
+        }
+        return Ok(CommandOutput::new(
+            profiles
+                .iter()
+                .map(|(harness, profile)| format!("{harness} = {profile}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            json!({"schema_version": SCHEMA_VERSION, "area": tag, "profiles": profiles}),
+        ));
+    }
+    let harness = harness.expect("set and clear require a harness");
+    if let Some(name) = requested {
+        super::config::validate_named_profile_for_harness(Some(root), harness, name)?;
+    } else {
+        super::config::validate_worker_harness(harness)?;
+    }
+    let _lock = ZdevStateLock::acquire(root)?;
+    let (mut area, _) = load_area(root, tag)?;
+    if let Some(name) = requested {
+        area.execution_profiles
+            .insert(harness.to_owned(), name.to_owned());
+        write_area_metadata(root, &area)?;
+        return Ok(CommandOutput::new(
+            format!("Set {harness} execution profile for {tag} to {name}"),
+            json!({"schema_version": SCHEMA_VERSION, "status": "updated", "area": tag, "harness": harness, "profile": name, "profiles": area.execution_profiles}),
+        ));
+    }
+    if clear {
+        area.execution_profiles.remove(harness);
+        write_area_metadata(root, &area)?;
+        return Ok(CommandOutput::new(
+            format!("Cleared {harness} execution profile for {tag}"),
+            json!({"schema_version": SCHEMA_VERSION, "status": "updated", "area": tag, "harness": harness, "profile": null, "profiles": area.execution_profiles}),
+        ));
+    }
+    unreachable!("inspect, set, and clear cases are exhaustive")
 }
 
 fn set_area_lifecycle(

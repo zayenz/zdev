@@ -29,5 +29,5 @@
 | [general-018](tasks/018-select-scoped-profiles-and-plan-one-task-without-implementin.md) | Select scoped profiles and plan one task without implementing it in Codex | done | general-017 |
 | [general-019](tasks/019-support-scoped-execution-profiles-and-plan-only-work-in-clau.md) | Support scoped execution profiles and plan-only work in Claude Code | done | general-018 |
 | [general-020](tasks/020-support-scoped-execution-profiles-in-opencode-pi-and-oh-my-p.md) | Support scoped execution profiles in OpenCode, Pi, and Oh My Pi | done | general-018 |
-| [general-021](tasks/021-configure-an-execution-profile-per-area.md) | Configure an execution profile per area | ready | — |
+| [general-021](tasks/021-configure-an-execution-profile-per-area.md) | Configure harness-specific execution profiles per area | ready | — |
 | [general-022](tasks/022-show-profile-details-in-human-readable-output.md) | Show profile details in human-readable output | ready | — |

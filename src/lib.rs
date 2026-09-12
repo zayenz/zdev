@@ -340,9 +340,10 @@ enum ProfileCommand {
     },
     /// Resolve one concrete role without changing configuration
     ///
-    /// Selection order is --profile, --run-profile, saved local default, saved
-    /// global default, then normal. Missing named roles fall back to normal;
-    /// planner first falls back to the same profile's advanced implementer.
+    /// Selection order is --profile, --run-profile, the current harness's
+    /// --area profile, saved local default, saved global default, then normal.
+    /// Missing named roles fall back to normal; planner first falls back to the
+    /// same profile's advanced implementer.
     Resolve {
         /// Harness: codex, claude, opencode, pi, omp, or agy
         harness: String,
@@ -419,6 +420,11 @@ struct CodexDispatchSpecInput<'a> {
 #[derive(Debug, Subcommand)]
 enum CleanupCommand {
     /// Delete tracked .zdev files in one plain commit before a squash merge
+    ///
+    /// Requires pull-request record policy, a checked-out non-trunk branch, no
+    /// Git operation in progress, at least one commit, and a clean index and
+    /// worktree. If the cleanup commit fails, the .zdev deletion remains staged
+    /// for inspection and recovery.
     Squash,
 }
 
@@ -538,7 +544,11 @@ enum SliceCommand {
 
 #[derive(Debug, Subcommand)]
 enum TasksCommand {
-    /// Parse and review a transient derived-task proposal
+    /// Review or apply a transient derived-task proposal
+    ///
+    /// Review stores a proposal without applying it. Apply creates a managed
+    /// commit: use direct --from only with coordinator authority, or --reviewed
+    /// after the stored review has received human approval.
     Derive {
         #[command(subcommand)]
         command: DerivedTasksCommand,
@@ -607,6 +617,9 @@ enum TasksCommand {
 #[derive(Debug, Subcommand)]
 enum DerivedTasksCommand {
     /// Store or show a derived proposal for manual review
+    ///
+    /// Use --from when the proposal needs a human decision, then use --show to
+    /// present the stored review. This command never applies the proposal.
     Review {
         /// Area that owns the source task and proposed tasks
         area: String,
@@ -623,6 +636,10 @@ enum DerivedTasksCommand {
         show: bool,
     },
     /// Apply one authorized derived proposal as a managed commit
+    ///
+    /// Use --from only when the coordinator has direct authority for the
+    /// proposal. After human approval of a stored review, use --reviewed.
+    /// Both forms revalidate current state before committing the graph change.
     Apply {
         /// Area that owns the source task and proposed tasks
         area: String,
@@ -642,7 +659,7 @@ enum DerivedTasksCommand {
             conflicts_with_all = ["source", "approval"]
         )]
         reviewed: Option<String>,
-        /// Compatibility fingerprint for a direct --from apply
+        /// Legacy compatibility fingerprint supplied by a direct --from caller
         #[arg(long, value_name = "FINGERPRINT", requires = "source")]
         approval: Option<String>,
     },

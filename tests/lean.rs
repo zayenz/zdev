@@ -6706,7 +6706,13 @@ fn every_help_page_explains_its_command_and_inputs() {
         ),
         (
             &["cleanup", "squash", "--help"],
-            &["Delete tracked .zdev files in one plain commit before a squash merge"],
+            &[
+                "Delete tracked .zdev files in one plain commit before a squash merge",
+                "Requires pull-request record policy",
+                "checked-out non-trunk branch",
+                "clean index and worktree",
+                "deletion remains staged",
+            ],
         ),
         (
             &["config", "--help"],
@@ -6768,8 +6774,20 @@ fn every_help_page_explains_its_command_and_inputs() {
             &[
                 "without changing configuration",
                 "Selection order is --profile",
+                "--area profile",
+                "saved local default",
                 "planner first falls back",
                 "--run-profile",
+            ],
+        ),
+        (
+            &["config", "profile", "dispatch-spec", "--help"],
+            &[
+                "read-only worker dispatch sequence",
+                "plan-next-task",
+                "Stored work-context snapshot identity",
+                "One-off role choice as ROLE=PROFILE",
+                "Retained plan state for implementation",
             ],
         ),
         (
@@ -6824,6 +6842,23 @@ fn every_help_page_explains_its_command_and_inputs() {
             ],
         ),
         (
+            &["area", "close", "--help"],
+            &["task queue is empty or exhausted", "Area tag to close"],
+        ),
+        (
+            &["area", "reopen", "--help"],
+            &["without changing its tasks", "Area tag to reopen"],
+        ),
+        (
+            &["area", "profile", "--help"],
+            &[
+                "Inspect, set, replace, or clear",
+                "Harness whose profile should be inspected or changed",
+                "Existing named execution profile",
+                "--clear",
+            ],
+        ),
+        (
             &["area", "bind", "--help"],
             &["Area tag to update", "Area branch"],
         ),
@@ -6843,7 +6878,66 @@ fn every_help_page_explains_its_command_and_inputs() {
                 "restore its previous branch state",
             ],
         ),
-        (&["tasks", "--help"], &["review", "import", "list", "index"]),
+        (
+            &["slice", "--help"],
+            &[
+                "lightweight briefs within an area",
+                "create",
+                "list",
+                "show",
+            ],
+        ),
+        (
+            &["slice", "create", "--help"],
+            &[
+                "Area tag that owns the slice",
+                "Lowercase identifier used as the slice filename",
+                "Concise description of the slice outcome",
+                "repeat for each boundary",
+            ],
+        ),
+        (
+            &["slice", "list", "--help"],
+            &["every slice brief", "Area tag whose slices to list"],
+        ),
+        (
+            &["slice", "show", "--help"],
+            &[
+                "Show one slice brief",
+                "Area tag that owns the slice",
+                "Slice key",
+            ],
+        ),
+        (
+            &["tasks", "--help"],
+            &["derive", "review", "import", "list", "index"],
+        ),
+        (
+            &["tasks", "derive", "--help"],
+            &[
+                "Review or apply a transient derived-task proposal",
+                "Review stores a proposal without applying it",
+                "direct --from only with coordinator authority",
+                "--reviewed",
+            ],
+        ),
+        (
+            &["tasks", "derive", "review", "--help"],
+            &[
+                "needs a human decision",
+                "present the stored review",
+                "never applies the proposal",
+            ],
+        ),
+        (
+            &["tasks", "derive", "apply", "--help"],
+            &[
+                "direct authority",
+                "After human approval",
+                "revalidate current state",
+                "Legacy compatibility fingerprint",
+            ],
+        ),
         (
             &["tasks", "review", "--help"],
             &[
@@ -6892,6 +6986,22 @@ fn every_help_page_explains_its_command_and_inputs() {
             &[
                 "Show the next ready task",
                 "let zdev select an unambiguous active area",
+            ],
+        ),
+        (
+            &["goal", "--help"],
+            &[
+                "stable read-only projection",
+                "Area tag whose next ready task to project",
+            ],
+        ),
+        (
+            &["work-context", "--help"],
+            &[
+                "validated task-work context",
+                "complete staged, unstaged, and untracked Git evidence",
+                "immutable handoff under Git administrative state",
+                "Compare a stored snapshot with freshly collected context",
             ],
         ),
         (

@@ -2564,7 +2564,10 @@ fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
         .collect()
 }
 
-pub(super) fn list(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+pub(super) fn list(root: &Path, area: Option<&str>) -> Result<CommandOutput, ZdevError> {
+    let Some(area) = area else {
+        return Err(list_area_required(root)?);
+    };
     let tasks = load_tasks(root, area)?;
     let task_views = views(root, &tasks);
     let text = if task_views.is_empty() {
@@ -2592,6 +2595,54 @@ pub(super) fn list(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> 
         text,
         json!({"schema_version": SCHEMA_VERSION, "area": area, "tasks": task_views}),
     ))
+}
+
+fn list_area_required(root: &Path) -> Result<ZdevError, ZdevError> {
+    let mut areas = list_areas(root)?
+        .into_iter()
+        .map(|area| {
+            let open_tasks = load_tasks(root, &area.tag)?
+                .iter()
+                .filter(|task| task.header.status == TaskStatus::Open)
+                .count();
+            Ok((area, open_tasks))
+        })
+        .collect::<Result<Vec<_>, ZdevError>>()?;
+    areas.sort_by(|(left, _), (right, _)| {
+        (left.lifecycle == AreaLifecycle::Closed)
+            .cmp(&(right.lifecycle == AreaLifecycle::Closed))
+            .then_with(|| left.tag.cmp(&right.tag))
+    });
+
+    let guidance = areas
+        .iter()
+        .map(|(area, open_tasks)| {
+            let noun = if *open_tasks == 1 { "task" } else { "tasks" };
+            let closed = if area.lifecycle == AreaLifecycle::Closed {
+                "  closed"
+            } else {
+                ""
+            };
+            format!("{}  {} open {noun}{closed}", area.tag, open_tasks)
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let areas = areas
+        .iter()
+        .map(|(area, open_tasks)| {
+            json!({
+                "area": area.tag,
+                "lifecycle": area.lifecycle.as_str(),
+                "open_tasks": open_tasks,
+            })
+        })
+        .collect::<Vec<_>>();
+    let message = if guidance.is_empty() {
+        "AREA is required; no areas are available".to_owned()
+    } else {
+        format!("AREA is required. Available areas:\n{guidance}")
+    };
+    Ok(ZdevError::with_details(message, json!({"areas": areas})))
 }
 
 fn next_task(tasks: &[Task]) -> Option<&Task> {

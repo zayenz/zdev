@@ -605,7 +605,7 @@ enum TasksCommand {
     /// List every task in an area with its current state
     List {
         /// Area tag whose tasks to list
-        area: String,
+        area: Option<String>,
     },
     /// Regenerate an area's TASKS.md from its individual task files
     Index {
@@ -1094,7 +1094,7 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 *commit,
                 approval.as_deref(),
             ),
-            TasksCommand::List { area } => tasks::list(&root, area),
+            TasksCommand::List { area } => tasks::list(&root, area.as_deref()),
             TasksCommand::Index { area } => tasks::index(&root, area),
         },
         Command::Task { command } => match command {

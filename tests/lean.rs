@@ -908,6 +908,43 @@ fn import_one_task(root: &Path, area: &str) {
 }
 
 #[test]
+fn tasks_list_without_area_shows_open_areas_before_closed_areas() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "z-open", "z-open-branch");
+    create_area(root, "a-closed", "a-closed-branch");
+    import_one_task(root, "z-open");
+    let closed_area_path = root.join(".zdev/a-closed/area.toml");
+    let closed_area = fs::read_to_string(&closed_area_path).expect("closed area metadata");
+    fs::write(
+        closed_area_path,
+        closed_area.replace("lifecycle = \"open\"", "lifecycle = \"closed\""),
+    )
+    .expect("close area fixture");
+
+    let listed = run_zdev(root, &["--format", "json", "tasks", "list"]);
+    assert!(!listed.status.success());
+    let listed_stderr = String::from_utf8(listed.stderr).expect("task area error text");
+    let listed: Value = serde_json::from_str(&listed_stderr).expect("task area error JSON");
+    assert_eq!(
+        listed["details"]["areas"],
+        json!([
+            {"area": "z-open", "lifecycle": "open", "open_tasks": 1},
+            {"area": "a-closed", "lifecycle": "closed", "open_tasks": 0},
+        ]),
+        "{listed_stderr}"
+    );
+
+    let text = run_zdev(root, &["tasks", "list"]);
+    assert!(!text.status.success());
+    assert_eq!(
+        String::from_utf8(text.stderr).expect("task area list text"),
+        "error: AREA is required. Available areas:\nz-open  1 open task\na-closed  0 open tasks  closed\n"
+    );
+}
+
+#[test]
 fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
     let repository = repository();
     let root = repository.path();

@@ -395,7 +395,13 @@ the exact valid form; a mixed valid and malformed marker set is a blocker.
 After the response, coordination runs
 `zdev work-context <area> --compare <snapshot> --format json` and accepts only
 the exact compact schema for the selected area and snapshot. It never accepts
-`pass` unless `equal` is true. A false comparison preserves `rework` only when
+`pass` unless `equal` is true. When the comparison is equal and every finding
+is a valid validation-write marker, coordination normalizes the result to
+`pass`, clears the findings, and keeps the verifier summary. An equal comparison
+proves that validation left the canonical work context unchanged, so there is
+nothing for an implementer to correct. This rule applies only to validation-write
+findings; an equal comparison never erases a semantic finding. A false comparison
+preserves `rework` only when
 the semantic result contains at least one tagged task-owned validation-write
 path and every marker-prefixed finding is valid;
 an ordinary implementation-defect rework plus unequal state is a coordinator

@@ -7634,6 +7634,8 @@ for (const rejectedWorker of [
 }}
 const rework = await exercise(worker('rework', ['validation_write: src/generated.rs']), false)
 if (!rework.result.includes('"verdict":"rework"') || !rework.result.includes('work_context_snapshot: ' + snapshot)) throw new Error(rework.result)
+const invisibleWrite = await exercise(worker('rework', ['validation_write: __pycache__/module.pyc']), true)
+if (!invisibleWrite.result.includes('"verdict":"pass"') || !invisibleWrite.result.includes('"findings":[]')) throw new Error(invisibleWrite.result)
 const ambiguousRework = await exercise(worker('rework', ['src/lib.rs: ordinary implementation defect']), false)
 if (!ambiguousRework.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(ambiguousRework.result)
 const mixedMarkers = await exercise(worker('rework', ['validation_write: src/generated.rs', 'validation_write: ../outside']), false)
@@ -8131,14 +8133,14 @@ await exercise(
   'BLOCKER',
 )
 await exercise(
-  'validation write cannot pass',
+  'snapshot-invisible validation writes pass without rework',
   'standard',
-  [worker('implementer', 'ready'), worker('verifier', 'rework', 'none', [], ['validation_write: src/generated.rs']), worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
-  ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  [worker('implementer', 'ready'), worker('verifier', 'rework', 'none', [], ['validation_write: src/generated.rs'], 'pass result')],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
   'PASS',
   null,
   {{ area }},
-  [false, true],
+  [true],
 )
 await exercise(
   'ordinary defect plus ambiguous mismatch blocks',

@@ -164,6 +164,8 @@ const reportsValidationWrite = result => {
         && path.split('/').every(part => part && part !== '.' && part !== '..')
     })
 }
+const onlyValidationWrites = result => reportsValidationWrite(result)
+  && result.findings.every(item => item.startsWith(validationWritePrefix))
 const parseVerifierResult = raw => {
   const decoded = decodeJsonObject(raw)
   if (!decoded) return null
@@ -293,7 +295,10 @@ const compared = parseComparison(comparedRaw?.trim(), stored.snapshot)
 if (!semantic || !compared || (!compared.equal && !reportsValidationWrite(semantic))) {
   return blocker(area, taskId, 'verifier output or post-validation comparison was invalid, contradictory, or changed ambiguously.', stored.staleAdvisory)
 }
-const result = publicVerifier(semantic, stored.snapshot, advisory)
+const normalized = compared.equal && onlyValidationWrites(semantic)
+  ? { ...semantic, verdict: 'pass', findings: [], escalation: 'none' }
+  : semantic
+const result = publicVerifier(normalized, stored.snapshot, advisory)
 return result
   ? JSON.stringify(result)
   : blocker(area, taskId, 'coordinator could not construct the public verifier envelope.', stored.staleAdvisory)

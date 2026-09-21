@@ -72,7 +72,10 @@ Require the verifier to:
    exact `validation_write: <normalized repository-relative path>` finding per
    written file, or
    `BLOCKER` when ownership or the appropriate action is unclear. Never stash,
-   reset, restore, clean, or silently discard validation writes.
+   reset, restore, clean, or silently discard validation writes. Coordination
+   treats an equal snapshot comparison plus only valid validation-write findings
+   as `PASS`: validation left the canonical work context unchanged, so there is
+   nothing for an implementer to correct.
 
 ## Verdict
 

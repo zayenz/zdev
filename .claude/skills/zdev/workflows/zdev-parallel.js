@@ -372,6 +372,12 @@ const runDestinationGate = async candidate => {
     if (!compared.equal && !(verification.verdict === 'rework' && validWrites)) {
       return preserved(candidate, 'verifier changed the destination without attributable validation writes', verification.findings)
     }
+    if (compared.equal && verification.verdict === 'rework' && validWrites
+      && validationWrites.length === verification.findings.length) {
+      verification.verdict = 'pass'
+      verification.findings = []
+      verification.escalation = 'none'
+    }
     if (verification.verdict === 'blocker') return { task_id: candidate.task_id, status: 'blocked',
       summary: verification.summary, commit: null, findings: verification.findings, preserved: transported.preserved }
     if (verification.verdict === 'rework') {

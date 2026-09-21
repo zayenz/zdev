@@ -447,6 +447,8 @@ const reportsValidationWrite = result => {
         && path.split('/').every(part => part && part !== '.' && part !== '..')
     })
 }
+const onlyValidationWrites = result => reportsValidationWrite(result)
+  && result.findings.every(item => item.startsWith(validationWritePrefix))
 const parseVerifierResult = raw => {
   const decoded = decodeJsonObject(raw)
   if (!decoded) return null
@@ -818,7 +820,10 @@ const verify = async () => {
   const compared = parseComparison(comparedRaw, area, snapshot)
   if (!semantic || !compared) return null
   if (!compared.equal && !reportsValidationWrite(semantic)) return null
-  const result = publicVerifier(semantic, snapshot, currentAdvisory)
+  const normalized = compared.equal && onlyValidationWrites(semantic)
+    ? { ...semantic, verdict: 'pass', findings: [], escalation: 'none' }
+    : semantic
+  const result = publicVerifier(normalized, snapshot, currentAdvisory)
   if (!result) return null
   return {
     raw: JSON.stringify(result),

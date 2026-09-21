@@ -2,6 +2,27 @@
 
 This file records notable changes to zdev.
 
+## [1.6.0] - 2026-09-21
+
+### Changed
+
+- `zdev tasks list` without an area now reports the available areas, their
+  lifecycle, and their open-task counts. Open areas appear before closed areas
+  in both text and JSON output.
+
+### Fixed
+
+- Verification no longer starts a corrective implementation round when its
+  only findings are validation writes and the canonical work context remains
+  unchanged. Semantic findings and retained checkout changes still require
+  correction.
+
+### Compatibility
+
+- Existing records and worker configuration remain valid. Reinstall
+  integrations with `zdev skill install <harness> --force` to receive the
+  updated verification behavior.
+
 ## [1.5.1] - 2026-09-12
 
 ### Added
@@ -309,6 +330,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[1.6.0]: https://github.com/zayenz/zdev/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/zayenz/zdev/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/zayenz/zdev/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/zayenz/zdev/compare/v1.3.0...v1.4.0

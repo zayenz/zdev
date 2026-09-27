@@ -1821,10 +1821,10 @@ fn built_in_profiles(harness: WorkerHarness) -> RoleProfiles {
     };
     match harness {
         WorkerHarness::Codex => RoleProfiles {
-            routine_implementer: Some(profile("gpt-5.6-luna", Some(Effort::Low))),
-            implementer: Some(profile("gpt-5.6-sol", Some(Effort::Low))),
-            verifier: Some(profile("gpt-5.6-sol", Some(Effort::Low))),
-            advanced_implementer: Some(profile("gpt-5.6-sol", Some(Effort::High))),
+            routine_implementer: Some(profile("gpt-6-luna", Some(Effort::Medium))),
+            implementer: Some(profile("gpt-6-sol", Some(Effort::Medium))),
+            verifier: Some(profile("gpt-6-sol", Some(Effort::Medium))),
+            advanced_implementer: Some(profile("gpt-6-sol", Some(Effort::Xhigh))),
             planner: None,
         },
         WorkerHarness::Claude => RoleProfiles {
@@ -1835,17 +1835,17 @@ fn built_in_profiles(harness: WorkerHarness) -> RoleProfiles {
             planner: None,
         },
         WorkerHarness::Opencode => RoleProfiles {
-            routine_implementer: Some(profile("openai/gpt-5.6-luna", Some(Effort::Low))),
-            implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::Low))),
+            routine_implementer: Some(profile("openai/gpt-6-luna", Some(Effort::Medium))),
+            implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Medium))),
             verifier: Some(profile("anthropic/claude-opus-5", None)),
-            advanced_implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::High))),
+            advanced_implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Xhigh))),
             planner: None,
         },
         WorkerHarness::Pi | WorkerHarness::Omp => RoleProfiles {
-            routine_implementer: Some(profile("openai/gpt-5.6-luna", Some(Effort::Low))),
-            implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::Low))),
+            routine_implementer: Some(profile("openai/gpt-6-luna", Some(Effort::Medium))),
+            implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Medium))),
             verifier: Some(profile("anthropic/claude-opus-5", Some(Effort::Low))),
-            advanced_implementer: Some(profile("openai/gpt-5.6-sol", Some(Effort::High))),
+            advanced_implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Xhigh))),
             planner: None,
         },
         WorkerHarness::Agy => RoleProfiles {
@@ -1875,10 +1875,10 @@ fn built_in_named(name: &str, harness: WorkerHarness) -> Option<RoleProfiles> {
             verifier: profile("gpt-6-astra", Effort::High),
         }),
         ("simple", WorkerHarness::Codex) => Some(RoleProfiles {
-            routine_implementer: profile("gpt-5.6-luna", Effort::Low),
-            implementer: profile("gpt-5.6-luna", Effort::Low),
-            advanced_implementer: profile("gpt-5.6-luna", Effort::High),
-            planner: profile("gpt-5.6-luna", Effort::High),
+            routine_implementer: profile("gpt-6-luna", Effort::Medium),
+            implementer: profile("gpt-6-luna", Effort::Medium),
+            advanced_implementer: profile("gpt-6-luna", Effort::Xhigh),
+            planner: profile("gpt-6-luna", Effort::Xhigh),
             verifier: inherit(),
         }),
         ("advanced", WorkerHarness::Claude) => Some(RoleProfiles {

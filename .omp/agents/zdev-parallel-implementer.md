@@ -3,7 +3,7 @@ name: zdev-parallel-implementer
 description: Implement one standard zdev task in an assigned source worktree
 tools: read, grep, bash, edit, write
 blocking: false
-model: "openai/gpt-5.6-sol"
+model: "openai/gpt-6.1-sol"
 thinking-level: "low"
 ---
 

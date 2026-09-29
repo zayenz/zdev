@@ -187,7 +187,7 @@ Use `zdev config` to inspect project settings and choose worker models:
 ```sh
 zdev config show
 zdev config get project.trunk
-zdev config set worker.codex.implementer gpt-6-sol medium
+zdev config set worker.codex.implementer gpt-6.1-sol medium
 zdev config unset worker.codex.implementer
 ```
 

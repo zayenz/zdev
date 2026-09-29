@@ -82,11 +82,11 @@ The built-in worker defaults are the dated suggestions in
 
 | Harness | Routine implementer | Implementer | Verifier | Advanced implementer |
 | --- | --- | --- | --- | --- |
-| Codex | `gpt-5.6-luna low` | `gpt-5.6-sol low` | `gpt-5.6-sol low` | `gpt-5.6-sol high` |
+| Codex | `gpt-5.6-luna low` | `gpt-6.1-sol low` | `gpt-6.1-sol low` | `gpt-6.1-sol high` |
 | Claude | `haiku low` | `claude-opus-5 low` | `claude-opus-5 low` | `claude-opus-5 high` |
-| OpenCode | `openai/gpt-5.6-luna low` | `openai/gpt-5.6-sol low` | `anthropic/claude-opus-5 inherit` | `openai/gpt-5.6-sol high` |
-| Pi | `openai/gpt-5.6-luna low` | `openai/gpt-5.6-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-5.6-sol high` |
-| OMP | `openai/gpt-5.6-luna low` | `openai/gpt-5.6-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-5.6-sol high` |
+| OpenCode | `openai/gpt-5.6-luna low` | `openai/gpt-6.1-sol low` | `anthropic/claude-opus-5 inherit` | `openai/gpt-6.1-sol high` |
+| Pi | `openai/gpt-5.6-luna low` | `openai/gpt-6.1-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol high` |
+| OMP | `openai/gpt-5.6-luna low` | `openai/gpt-6.1-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol high` |
 
 The Oh My Pi adapter renders these two abstract fields into its native combined
 representation. It must validate that the pair is expressible rather than
@@ -153,7 +153,7 @@ Both worker files use this hand-editable TOML schema:
 schema_version = 1
 
 [codex.implementer]
-model = "gpt-5.6-sol"
+model = "gpt-6.1-sol"
 effort = "high"
 
 [codex.verifier]
@@ -205,7 +205,7 @@ A worker key takes either the single value `inherit`, or exactly two values,
 model and effort:
 
 ```text
-zdev config set --global worker.codex.implementer gpt-5.6-sol high
+zdev config set --global worker.codex.implementer gpt-6.1-sol high
 zdev config set worker.codex.verifier inherit
 ```
 
@@ -263,9 +263,9 @@ project.trunk = null  [default]
 project.default-area = "payments"  [local .zdev/config.toml]
   shadows null  [default]
 project.guidance = "auto"  [default]
-worker.codex.implementer = { model = "gpt-5.6-sol", effort = "high" }  [local .zdev/workers.toml]
+worker.codex.implementer = { model = "gpt-6.1-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-5.6-sol", effort = "low" }  [default]
+  shadows { model = "gpt-6.1-sol", effort = "low" }  [default]
 ```
 
 The same selected rows have this JSON shape:
@@ -352,13 +352,13 @@ The same selected rows have this JSON shape:
           },
           "value": {
             "effort": "low",
-            "model": "gpt-5.6-sol"
+            "model": "gpt-6.1-sol"
           }
         }
       ],
       "value": {
         "effort": "high",
-        "model": "gpt-5.6-sol"
+        "model": "gpt-6.1-sol"
       }
     }
   ]
@@ -413,14 +413,14 @@ Its JSON form is exactly:
 }
 ```
 
-Assume the repository locally sets the implementer to `gpt-5.6-sol high` and
+Assume the repository locally sets the implementer to `gpt-6.1-sol high` and
 the global value above is present. `zdev config get worker.codex.implementer`
 is exactly:
 
 ```text
-worker.codex.implementer = { model = "gpt-5.6-sol", effort = "high" }  [local .zdev/workers.toml]
+worker.codex.implementer = { model = "gpt-6.1-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-5.6-sol", effort = "low" }  [default]
+  shadows { model = "gpt-6.1-sol", effort = "low" }  [default]
 ```
 
 Its JSON form is exactly:
@@ -451,13 +451,13 @@ Its JSON form is exactly:
       },
       "value": {
         "effort": "low",
-        "model": "gpt-5.6-sol"
+        "model": "gpt-6.1-sol"
       }
     }
   ],
   "value": {
     "effort": "high",
-    "model": "gpt-5.6-sol"
+    "model": "gpt-6.1-sol"
   }
 }
 ```
@@ -482,7 +482,7 @@ Refresh integration: zdev skill install codex --scope user --force
   "status": "set",
   "value": {
     "effort": "high",
-    "model": "gpt-5.6-sol"
+    "model": "gpt-6.1-sol"
   }
 }
 ```

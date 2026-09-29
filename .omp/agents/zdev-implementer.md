@@ -3,7 +3,7 @@ name: zdev-implementer
 description: Implement one selected zdev task in the current checkout
 tools: read, grep, bash, edit, write
 blocking: true
-model: "openai/gpt-5.6-sol"
+model: "openai/gpt-6.1-sol"
 thinking-level: "low"
 ---
 

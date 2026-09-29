@@ -41,7 +41,7 @@ output:
       items:
         type: string
         minLength: 1
-model: "openai/gpt-5.6-sol"
+model: "openai/gpt-6.1-sol"
 thinking-level: "high"
 ---
 

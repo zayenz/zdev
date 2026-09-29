@@ -1822,9 +1822,9 @@ fn built_in_profiles(harness: WorkerHarness) -> RoleProfiles {
     match harness {
         WorkerHarness::Codex => RoleProfiles {
             routine_implementer: Some(profile("gpt-6-luna", Some(Effort::Medium))),
-            implementer: Some(profile("gpt-6-sol", Some(Effort::Medium))),
-            verifier: Some(profile("gpt-6-sol", Some(Effort::Medium))),
-            advanced_implementer: Some(profile("gpt-6-sol", Some(Effort::Xhigh))),
+            implementer: Some(profile("gpt-6.1-sol", Some(Effort::Medium))),
+            verifier: Some(profile("gpt-6.1-sol", Some(Effort::Medium))),
+            advanced_implementer: Some(profile("gpt-6.1-sol", Some(Effort::Xhigh))),
             planner: None,
         },
         WorkerHarness::Claude => RoleProfiles {
@@ -1836,16 +1836,16 @@ fn built_in_profiles(harness: WorkerHarness) -> RoleProfiles {
         },
         WorkerHarness::Opencode => RoleProfiles {
             routine_implementer: Some(profile("openai/gpt-6-luna", Some(Effort::Medium))),
-            implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Medium))),
+            implementer: Some(profile("openai/gpt-6.1-sol", Some(Effort::Medium))),
             verifier: Some(profile("anthropic/claude-opus-5", None)),
-            advanced_implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Xhigh))),
+            advanced_implementer: Some(profile("openai/gpt-6.1-sol", Some(Effort::Xhigh))),
             planner: None,
         },
         WorkerHarness::Pi | WorkerHarness::Omp => RoleProfiles {
             routine_implementer: Some(profile("openai/gpt-6-luna", Some(Effort::Medium))),
-            implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Medium))),
+            implementer: Some(profile("openai/gpt-6.1-sol", Some(Effort::Medium))),
             verifier: Some(profile("anthropic/claude-opus-5", Some(Effort::Low))),
-            advanced_implementer: Some(profile("openai/gpt-6-sol", Some(Effort::Xhigh))),
+            advanced_implementer: Some(profile("openai/gpt-6.1-sol", Some(Effort::Xhigh))),
             planner: None,
         },
         WorkerHarness::Agy => RoleProfiles {

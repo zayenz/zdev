@@ -98,7 +98,7 @@ the current releases have not all been compared under one zdev workflow.
 
 - Codex supports a spawned agent's explicit model and reasoning effort; these
   override the configured subagent defaults. Its current model guide describes
-  `gpt-5.6-sol` as the flagship for complex coding and exposes high and higher
+  `gpt-6.1-sol` as the flagship for complex coding and exposes high and higher
   effort settings. [Codex configuration
   reference](https://developers.openai.com/codex/config-reference/) and [Codex
   model guide](https://developers.openai.com/codex/models/) (accessed
@@ -140,11 +140,11 @@ benchmark result.
 
 | Harness | Routine implementer | Standard implementer | Standard verifier | Advanced implementer |
 | --- | --- | --- | --- | --- |
-| Codex | `gpt-5.6-luna`, `low` | `gpt-5.6-sol`, `low` | `gpt-5.6-sol`, `low` | `gpt-5.6-sol`, `high` |
+| Codex | `gpt-5.6-luna`, `low` | `gpt-6.1-sol`, `low` | `gpt-6.1-sol`, `low` | `gpt-6.1-sol`, `high` |
 | Claude Code | `haiku`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `high` |
-| OpenCode | `openai/gpt-5.6-luna`, `low` | `openai/gpt-5.6-sol`, `low` | `anthropic/claude-opus-5`, effort inherited | `openai/gpt-5.6-sol`, `high` |
-| Pi | `openai/gpt-5.6-luna`, `low` | `openai/gpt-5.6-sol`, `low` | `anthropic/claude-opus-5`, `low` | `openai/gpt-5.6-sol`, `high` |
-| Oh My Pi | `openai/gpt-5.6-luna:low` | `openai/gpt-5.6-sol:low` | `anthropic/claude-opus-5:low` | `openai/gpt-5.6-sol:high` |
+| OpenCode | `openai/gpt-5.6-luna`, `low` | `openai/gpt-6.1-sol`, `low` | `anthropic/claude-opus-5`, effort inherited | `openai/gpt-6.1-sol`, `high` |
+| Pi | `openai/gpt-5.6-luna`, `low` | `openai/gpt-6.1-sol`, `low` | `anthropic/claude-opus-5`, `low` | `openai/gpt-6.1-sol`, `high` |
+| Oh My Pi | `openai/gpt-5.6-luna:low` | `openai/gpt-6.1-sol:low` | `anthropic/claude-opus-5:low` | `openai/gpt-6.1-sol:high` |
 
 OpenAI documents [Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
 as its cost-sensitive, high-volume model. Claude Code documents the
@@ -170,14 +170,14 @@ rules are in [Layered zdev configuration](config-command.md).
 schema_version = 1
 
 [codex.implementer]
-model = "gpt-5.6-sol"
+model = "gpt-6.1-sol"
 effort = "low"
 
 [codex.verifier]
 inherit = true
 
 [codex.advanced-implementer]
-model = "gpt-5.6-sol"
+model = "gpt-6.1-sol"
 effort = "high"
 
 [opencode.verifier]

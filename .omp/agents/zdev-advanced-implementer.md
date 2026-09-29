@@ -3,7 +3,7 @@ name: zdev-advanced-implementer
 description: Implement one advanced zdev task
 tools: read, grep, bash, edit, write
 blocking: true
-model: "openai/gpt-5.6-sol"
+model: "openai/gpt-6.1-sol"
 thinking-level: "high"
 ---
 

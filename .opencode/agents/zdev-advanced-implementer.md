@@ -4,7 +4,7 @@ mode: subagent
 permission:
   edit: allow
   task: deny
-model: "openai/gpt-5.6-sol"
+model: "openai/gpt-6.1-sol"
 reasoningEffort: "high"
 ---
 

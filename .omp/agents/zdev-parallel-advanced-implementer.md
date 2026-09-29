@@ -3,7 +3,7 @@ name: zdev-parallel-advanced-implementer
 description: Implement one advanced zdev task in an assigned source worktree
 tools: read, grep, bash, edit, write
 blocking: false
-model: "openai/gpt-5.6-sol"
+model: "openai/gpt-6.1-sol"
 thinking-level: "high"
 ---
 

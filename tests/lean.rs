@@ -494,7 +494,7 @@ fn named_profile_layers_seeds_dispatch_and_default_refresh_are_concrete() {
             "xhigh",
         ),
         ("simple", "codex", "planner", "gpt-6-luna", "xhigh"),
-        ("simple", "codex", "verifier", "gpt-6-sol", "medium"),
+        ("simple", "codex", "verifier", "gpt-6.1-sol", "medium"),
         ("advanced", "claude", "routine-implementer", "haiku", "low"),
         (
             "advanced",
@@ -10414,7 +10414,7 @@ fn config_show_and_get_render_effective_and_scoped_layers() {
     .expect("project config");
     fs::write(
         root.join(".zdev/workers.toml"),
-        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.6-sol\"\neffort = \"high\"\n\n[claude.verifier]\ninherit = true\n",
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-6.1-sol\"\neffort = \"high\"\n\n[claude.verifier]\ninherit = true\n",
     )
     .expect("local workers");
     let home = root.join("home");
@@ -10440,13 +10440,13 @@ project.default-area = \"payments\"  [local .zdev/config.toml]\n\
   shadows null  [default]\n\
 project.guidance = \"auto\"  [default]\n\
 worker.codex.routine-implementer = {{ model = \"gpt-6-luna\", effort = \"medium\" }}  [default]\n\
-worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n\
+worker.codex.implementer = {{ model = \"gpt-6.1-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n\
   shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n\
-  shadows {{ model = \"gpt-6-sol\", effort = \"medium\" }}  [default]\n\
+  shadows {{ model = \"gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
 worker.codex.verifier = {{ model = \"gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
-  shadows {{ model = \"gpt-6-sol\", effort = \"medium\" }}  [default]\n\
-worker.codex.advanced-implementer = {{ model = \"gpt-6-sol\", effort = \"xhigh\" }}  [default]\n\
-worker.codex.planner = {{ model = \"gpt-6-sol\", effort = \"xhigh\" }}  [default]\n\
+  shadows {{ model = \"gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
+worker.codex.advanced-implementer = {{ model = \"gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
+worker.codex.planner = {{ model = \"gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.claude.routine-implementer = {{ model = \"haiku\", effort = \"low\" }}  [default]\n\
 worker.claude.implementer = {{ model = \"claude-opus-5\", effort = \"low\" }}  [default]\n\
 worker.claude.verifier = {{ inherit = true }}  [local .zdev/workers.toml]\n\
@@ -10455,21 +10455,21 @@ worker.claude.verifier = {{ inherit = true }}  [local .zdev/workers.toml]\n\
 worker.claude.advanced-implementer = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
 worker.claude.planner = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
 worker.opencode.routine-implementer = {{ model = \"openai/gpt-6-luna\", effort = \"medium\" }}  [default]\n\
-worker.opencode.implementer = {{ model = \"openai/gpt-6-sol\", effort = \"medium\" }}  [default]\n\
+worker.opencode.implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
 worker.opencode.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"inherit\" }}  [default]\n\
-worker.opencode.advanced-implementer = {{ model = \"openai/gpt-6-sol\", effort = \"xhigh\" }}  [default]\n\
-worker.opencode.planner = {{ model = \"openai/gpt-6-sol\", effort = \"xhigh\" }}  [default]\n\
+worker.opencode.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
+worker.opencode.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.pi.routine-implementer = {{ model = \"openai/gpt-6-luna\", effort = \"medium\" }}  [default]\n\
 worker.pi.implementer = {{ model = \"openai/gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
-  shadows {{ model = \"openai/gpt-6-sol\", effort = \"medium\" }}  [default]\n\
+  shadows {{ model = \"openai/gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
 worker.pi.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
-worker.pi.advanced-implementer = {{ model = \"openai/gpt-6-sol\", effort = \"xhigh\" }}  [default]\n\
-worker.pi.planner = {{ model = \"openai/gpt-6-sol\", effort = \"xhigh\" }}  [default]\n\
+worker.pi.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
+worker.pi.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.omp.routine-implementer = {{ model = \"openai/gpt-6-luna\", effort = \"medium\" }}  [default]\n\
-worker.omp.implementer = {{ model = \"openai/gpt-6-sol\", effort = \"medium\" }}  [default]\n\
+worker.omp.implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
 worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
-worker.omp.advanced-implementer = {{ model = \"openai/gpt-6-sol\", effort = \"xhigh\" }}  [default]\n\
-worker.omp.planner = {{ model = \"openai/gpt-6-sol\", effort = \"xhigh\" }}  [default]\n"
+worker.omp.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
+worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n"
     )
     .replace("\nshadows", "\n  shadows");
     let shown_text = String::from_utf8(shown.stdout).expect("human output");
@@ -10548,7 +10548,7 @@ worker.omp.planner = {{ model = \"openai/gpt-6-sol\", effort = \"xhigh\" }}  [de
     assert_eq!(
         String::from_utf8(got.stdout).expect("get output"),
         format!(
-            "worker.codex.implementer = {{ model = \"gpt-5.6-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n  shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n  shadows {{ model = \"gpt-6-sol\", effort = \"medium\" }}  [default]\n"
+            "worker.codex.implementer = {{ model = \"gpt-6.1-sol\", effort = \"high\" }}  [local .zdev/workers.toml]\n  shadows {{ model = \"gpt-5.5\", effort = \"xhigh\" }}  [global {global}]\n  shadows {{ model = \"gpt-6.1-sol\", effort = \"medium\" }}  [default]\n"
         )
     );
     let got_json = json_output_with_env(
@@ -10839,7 +10839,7 @@ fn config_worker_mutations_are_atomic_and_unset_exposes_the_next_layer() {
     assert_eq!(
         String::from_utf8(human_unset.stdout).expect("global unset output"),
         format!(
-            "Unset worker.codex.verifier from global {}.\nEffective value: {{ model = \"gpt-6-sol\", effort = \"medium\" }}  [default]\nRefresh integration: zdev skill install codex --scope user --force\n",
+            "Unset worker.codex.verifier from global {}.\nEffective value: {{ model = \"gpt-6.1-sol\", effort = \"medium\" }}  [default]\nRefresh integration: zdev skill install codex --scope user --force\n",
             global_path.display()
         )
     );
@@ -12941,7 +12941,7 @@ fn codex_run_freezes_concrete_profiles_and_one_off_role_choices_expire() {
         &["area", "profile", "work", "codex", "simple"],
         &environment,
     );
-    assert_eq!(frozen["dispatches"][0]["model"], "gpt-6-sol");
+    assert_eq!(frozen["dispatches"][0]["model"], "gpt-6.1-sol");
     assert_eq!(frozen["dispatches"][1]["role"], "verifier");
     assert_eq!(frozen["dispatches"][1]["reasoning_effort"], "medium");
     let still_frozen = frozen.clone();

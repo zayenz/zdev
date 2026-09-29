@@ -17,10 +17,10 @@ const rolePrompts = {
 
 const workerProfiles = {
   "routine-implementer": { model: "openai/gpt-5.6-luna", effort: "low" },
-  implementer: { model: "openai/gpt-5.6-sol", effort: "low" },
+  implementer: { model: "openai/gpt-6.1-sol", effort: "low" },
   verifier: { model: "anthropic/claude-opus-5", effort: "low" },
-  planner: { model: "openai/gpt-5.6-sol", effort: "high" },
-  "advanced-implementer": { model: "openai/gpt-5.6-sol", effort: "high" },
+  planner: { model: "openai/gpt-6.1-sol", effort: "high" },
+  "advanced-implementer": { model: "openai/gpt-6.1-sol", effort: "high" },
 } as const;
 
 type WorkerRole = keyof typeof rolePrompts;

@@ -39,7 +39,19 @@ message containing its role and exact area, task, or boundary identity; the
 exact installed route-contract path; applicable repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
-returns the route's required fields in one JSON object.
+returns the route's required fields in one JSON object as its final response,
+then ends its turn.
+
+The coordinator owns worker cleanup. Keep each worker's ID, role, task, and
+status in the conversation. After collecting a result, close the worker with
+the runtime's close operation when available; retain an implementer only while
+same-task rework may need it. Release retained workers when the task finishes
+or stops, and superseded workers before spawning replacements. Before retrying
+a capacity failure, inspect existing workers and release completed ones no
+longer needed. On cancellation, interrupt owned active workers and confirm they
+have stopped. Follow the exposed tools: a finished turn or interruption does
+not imply a closed thread, and runtimes without a close operation need only
+confirmed turn completion.
 
 For plan-only and implementation interactions, run `zdev config profile
 dispatch-spec <plan-next-task|implement> --area <area> --task <task-id>

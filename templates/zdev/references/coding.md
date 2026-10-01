@@ -1,213 +1,188 @@
 # Coding guidance
 
-Use this reference to make the assigned change understandable and safe to
-maintain. Someone reading a call should be able to tell what it accomplishes,
-which values it needs, and what it can change. Clear code reduces mistakes when
-the next change arrives.
+Read the sections for your assigned role before starting:
 
-The task determines the scope and testing level. These rules guide decisions
-inside that scope; they grant no additional work, tests, abstractions, approval
-steps, planning workers, or cleanup.
+- Planning: **Design** and **Code standards**.
+- Implementation or repair: **Design**, **Code standards**, and **Completion**.
+- Verification, audit, or improvement review: **Code standards** and **Review**.
 
-- Planners use **Design** and **Code standards**.
-- Implementers also use **Completion**.
-- Verifiers, auditors, and improvement reviewers use **Code standards** and
-  **Review**.
+Apply the rules within the assigned scope and agreed testing level. The active
+route retains its approval requirements and worker selection. Use existing
+plans, handoffs, and result fields.
 
 ## Design
 
-Describe the intended result in `plan.approach`: what will be observable, where
-the behavior belongs, and how completion will be demonstrated. Read the
-repository instructions and relevant existing code before choosing the shape
-of the change.
+1. Read repository instructions and relevant existing code. Put the observable
+   result, the unit that owns the behavior, and the evidence needed for
+   completion in `plan.approach`.
+2. For an operation spanning several calls, sketch the controlling function's
+   signature and call sequence before implementing its collaborators. Specify
+   each called unit's inputs, result, and effects. The sequence must explain the
+   operation without opening those implementations. For a local correction,
+   identify the affected step in the existing function. Reuse an existing
+   function where suitable; a plain function is enough.
+3. Assess proposed boundaries and data types against **Code standards**, even
+   when supplied by a plan. Each collaborator and interface needs a present
+   purpose. Choose useful, working increments that fit the repository's
+   validation approach, including across layers.
 
-For a change spanning several calls, sketch the controlling function's inputs,
-result, and sequence first. Specify what each called unit receives, returns,
-and changes before filling in its implementation. Reading this sequence should
-be enough to understand the operation. An existing function may already provide
-the right home; use a plain function when that suffices.
-
-For a local correction, identifying the affected operation may be all the
-design needed. Use **Code standards** to assess the proposed split and data
-types, including suggestions in an existing plan. Each collaborator and
-interface needs a reason to exist in this change.
-
-Implementation can reveal that the planned contract is unsuitable. Settle its
-replacement before building against it, and update the plan or handoff if
-another worker relies on that contract. Such an adjustment within the task
-does not call for another planner. Arrange the work into useful increments
-that can be validated as the repository expects, including changes that cross
-layers.
+If implementation requires a different contract, settle it before building
+against it. Update the existing plan or handoff before another worker relies
+on the replacement. Adjustments within scope stay with the implementer.
 
 ## Code standards
 
 ### Change size and placement
 
-Keep the edit tied to the requested result. Preserve adjacent code and remove
-unused material left by your own change. When a rewrite is authorized, revisit
-the names and divisions inside the unit being rewritten; adjacent units retain
-their existing scope.
+Each edit must contribute to the requested result. Preserve adjacent code and
+remove leftovers created by the change. An authorized rewrite includes
+reconsidering names and boundaries throughout its unit; adjacent units remain
+outside that rewrite.
 
-New features and configuration need an expressed requirement. Defensive code
-needs a failure that can occur. Share a utility to resolve duplication that
-exists, and introduce an interface only for current variation or a need to test
-the behavior independently.
+Features and configuration need an expressed requirement; defensive code needs
+a reachable failure. Shared utilities resolve actual duplication. Interfaces
+serve current variation or a need to test behavior independently.
 
-Place domain decisions where they can be understood without knowledge of
-storage, rendering, or the framework. Entry points pass requests into that
-logic, and persistence code handles data access. A coordinating function
-assembles the operation from named calls. Its collaborators receive their
-dependencies explicitly, with ownership and lifetime accounted for. An
-interface to infrastructure expresses what the consuming code requires.
+Keep domain decisions independent of storage, rendering, and framework details.
+Entry points pass requests to domain logic; persistence code handles data
+access. Coordination assembles named calls. Supply dependencies explicitly
+and choose their ownership and lifetime. An infrastructure interface expresses
+the consuming code's needs.
 
-Check tool-enforced requirements and adopted standards before borrowing a
-neighboring idiom. Preserve semantics that ecosystem callers depend on; use
-local spelling and layout to settle choices left open by those requirements.
-When making an exception, state the applicable rule or practical constraint.
-An existing defect gives no reason to repeat it or expand the task to fix it.
+Resolve convention choices through tool-enforced requirements, then adopted
+standards, then ecosystem semantics callers depend on. Local spelling and
+layout settle remaining choices. State the rule or practical constraint behind
+an exception. Keep nearby defects outside the change rather than copying or
+repairing them.
 
 ### Calls and values
 
-A function should receive the data its operation needs and return a typed
-result for the next operation. Keep that result as data until the output is
-rendered. Prefer transformations of immutable values to shared bookkeeping.
+A function receives only the data it uses and returns a typed result. Retain
+results as data until rendering. Prefer transformations of immutable values
+to shared bookkeeping.
 
-To decide whether a block belongs in a separate function, try describing its
-single job at the call site. Extract it, even for one caller, if that description
-works as a specific name, the signature and name explain the result and effects,
-and a few typed arguments replace access to the enclosing function's working
-state. If any of those requirements fails, keep the block inline or choose a
-different split. Long or deeply nested code deserves inspection, but neither
-length nor depth decides where to cut.
+Extract a block, even for one caller, when a specific name describes its single
+job, its name and signature predict the result and effects, and a few typed
+arguments suffice without passing the caller's mutable bookkeeping. All of
+these requirements must hold; otherwise keep it inline or choose another
+boundary. Inspect long or deeply nested code for such boundaries rather than
+splitting to meet a size limit.
 
-Some computations belong together to preserve an invariant or avoid repeating
-substantial algorithmic work. Keep them together and briefly document the
-constraint that requires it.
+Keep computations together when separation would break an invariant or repeat
+substantial algorithmic work. Briefly comment the constraint.
 
-Choose types that carry the meaning of the values being passed. Use named
-domain types where they clarify a contract, and declare public return types as
-the language expects. Make optional results and failures explicit. If the
-domain distinguishes a missing entry, a null value, and an empty value, retain
-those distinctions.
+Use named domain types where they clarify meaning or a contract, and explicit
+public return types as the language expects. Represent optional results and
+failures explicitly. Preserve distinctions between missing, null, and empty
+values when the domain depends on them.
 
-### What callers can rely on
+### Caller contracts
 
-Express guarantees through the API and its types wherever practical. All
-implementations, including testing substitutes, must provide them. Calls that
-omit a prerequisite or use outdated state should be impossible or explicitly
-rejected. Supply the next operation with the value it needs, or make inseparable
-operations one call. If callers need separate dependent operations, their
-names and contracts must disclose that dependency.
+Express guarantees through the API and its types where practical; every
+implementation, including test doubles, must honor them. Prevent or explicitly
+reject calls that omit prerequisites or use stale state. Return the value the
+next operation needs, or combine inseparable operations. Offer dependent
+operations separately only when callers need that separation, with the
+dependency explicit in their names and contracts.
 
-Keep reads free of observable mutation and identify writes as such. Using an
-API correctly should require no investigation of hidden changes to state.
-Assign shared mutable state an owner and specify how access is synchronized.
+Reads leave observable state unchanged; writes disclose their mutation. Callers
+must be able to use the API from its declared contract. Assign shared mutable
+state an owner and a synchronization rule.
 
-Check incoming external data at its entry point so internal operations can rely
-on the accepted values. Respond to a particular failure where a useful response
-is available; otherwise pass it to the caller responsible for handling it. Use
-the project's error handling, configuration, and logging facilities.
+Validate external data on entry so internal calls can rely on the accepted
+values. Handle specific failures where a meaningful response is available;
+propagate the rest. Use the project's error handling, configuration, and
+logging facilities.
 
-Ordering is also a contract. Inspect how consumers use a sequence: sort only
-when its order affects behavior. Choose the domain's comparison keys, including
-a unique tie-breaker, and make pagination use that same comparison. An ordering
-test must begin with data arranged differently from its expected output.
+Inspect sequence consumers before sorting. Where order affects behavior,
+specify domain comparison keys and a unique tie-breaker; pagination uses the
+same comparison. An ordering test starts with input arranged differently from
+the expected output. Leave order-insensitive consumers unsorted.
 
 ### Reading the code
 
-Give identifiers accurate meanings and a grammatical form suited to their use.
-Functions start with a specific verb, predicates and boolean values ask a
-question, and types use noun phrases. Flags, counters, and cached values deserve
-the same scrutiny as public names. Match accessors and conversions to the
-expectations callers bring from the language and API.
+Give every identifier accurate meaning and appropriate grammar: specific verbs
+for functions, questions for predicates and booleans, noun phrases for types.
+Include flags, counters, and cached values. Accessors and conversions preserve
+the expectations callers bring from the language and API.
 
-Use as few words as clarity allows across the name's whole scope. Context
-already apparent from the receiver or enclosing code need not be repeated;
-abbreviations should be recognizable in the project or ecosystem. Name different
-implementations for their behavior, and make the names of paired operations
-recognizable as a pair.
+Use the fewest words that remain unambiguous and readable throughout the name's
+scope. Omit context supplied by the receiver or enclosing code. Use recognized
+project or ecosystem abbreviations, distinguish implementations by behavior,
+and give paired operations corresponding names.
 
-Let the ordinary execution path remain visible. Exit early for guard cases,
-give compound conditions names stating the fact under examination, and choose
-straightforward control flow. Name constants for their domain meaning and
-represent alternatives with appropriate types. Keep a declaration close to
-where it is used and a check beside the value it validates. Arrange related
-statements together; where permitted, show the public API before its private
-support.
+Keep the main path visible through early guard exits and direct control flow.
+Name compound conditions for the fact being checked and constants for their
+domain meaning. Express alternatives through types. Place declarations near use
+and checks beside the values they validate. Group related statements and show
+the public API before private support where the language permits.
 
-When understanding a passage needs an explanation, first improve the names or
-structure. Comments supply information the code cannot convey: a necessary
-constraint, an invariant, an exception's justification, or a specification
-behind the behavior. Link the relevant specification. A class or coordinating
-function may need a short statement of purpose beyond its name. Repair defects
-in the code itself; explaining a defect does not resolve it.
+Improve names and structure before explaining a passage in comments. Comment
+necessary constraints, invariants, justified exceptions, and behavior derived
+from specifications; link the specification. Add a short purpose comment to a
+class or coordinating function when its name needs that support. Repair a
+defect in code rather than justifying it in a comment.
 
 ## Completion
 
-Before running validation, compare the diff with the intended design. Inspect
-each added or renamed identifier for meaning, grammatical form, and clarity in
-its scope. Reconsider the split of each new or substantially changed function
-using **Calls and values**, and correct what this inspection reveals. Mention
-exceptions that matter and issues still open; no list of routine identifier
-checks is required.
+1. For a refactor, establish passing relevant tests before editing.
+2. Before final validation, compare the diff with the intended design. Check
+   every added or renamed identifier under **Reading the code**, and each new
+   or substantially changed function under **Calls and values**. Correct the
+   problems found.
+3. Run required formatting, linting, and tests at the agreed testing level,
+   including an agreement to add no tests. Tests exercise public behavior and
+   relevant failures. A regression test must detect the unfixed bug; rerun the
+   relevant baseline tests after a refactor.
+4. Report the observable result, validation evidence, useful exceptions, and
+   unresolved issues through the existing result fields. A pass requires the
+   requested behavior and all required validation to be demonstrated. Identify
+   unavailable required evidence and leave the corresponding claims unverified;
+   report unavailable optional evidence as a limitation.
 
-Perform the applicable required formatting, linting, and tests. Respect the
-agreed testing level, which can include adding no tests. Where tests are called
-for, exercise behavior available to callers and relevant failures. Confirm that
-a regression test detects the original bug. For a refactor, check the relevant
-tests both before and after the edit.
-
-Report completion only when the requested result and required checks are
-demonstrated. If required evidence cannot be obtained, the result cannot pass;
-say what remains unverified. A gap in optional evidence is a limitation to
-report.
+Routine identifier checks need no itemized report.
 
 ## Review
 
 ### Coverage and evidence
 
-Assess the final implementation in context: its callers, the other side of any
-changed contract, the task requirements, and the chosen testing level. Work
-through all applicable **Code standards** within the review's scope, including
-after finding a problem. Look for regressions and unsafe changes to touched
-interfaces, as well as missing required validation. Explain which checks do
-not apply or lack evidence without adding a reporting checklist.
+Read the final code, its callers, and both sides of changed contracts. Assess
+every applicable **Code standards** rule within scope, task requirements, the
+agreed testing level, regressions, unsafe touched interfaces, and required
+validation. Continue through the full scope after finding a defect. Account
+for gaps and inapplicable rules in the existing summary.
 
-A review judges the code available to inspect. Absent design history leaves the
-process unknown. Judge test coverage against the agreed level and the confidence
-it provides; additional tests have a maintenance cost as well as a benefit.
+Missing design history leaves the authoring process unknown. Judge tests
+against the agreed level and relevant confidence, accounting for their
+maintenance cost.
 
-For a substantive issue, identify the inspected location, explain its practical
-consequence, and propose a correction inside the task's scope. Read and search
-before reporting an omission, and look for evidence that would disprove the
-claim. Confusion caused by a name or structure can warrant a finding: describe
-what the reader would misunderstand or have to reconstruct. Keep actual
-failures, possible hazards, and appearance preferences distinct. Repairs, when
-requested, follow **Design** and **Completion**.
+Each substantive candidate finding needs a checked location, a concrete
+consequence, and an in-scope correction. Search before claiming an omission
+and seek counterevidence. A misleading name or difficult structure can warrant
+a finding: explain the misunderstanding or reasoning burden. Distinguish actual
+failures, possible hazards, and cosmetic preferences. Requested repairs follow
+**Design** and **Completion**.
 
 ### Checking and reporting conclusions
 
-Substantive candidate findings need a second reader before they are treated as
-settled or used to direct repairs. That reader examines the reviewed code and
-the claim together, confirming that the cited location supports the applicable
-rule, impact, and severity. A coordinator who did not author the finding can
-perform this check; otherwise dispatch a fresh verifier using the settings
-retained for the run. Check the candidates only. This adds neither a full
-review nor a further check of the checking result. With no findings, or only
-valid mechanical `validation_write:` markers, no second reader is needed.
+1. Retain the inspected code state. Use the stored snapshot for task
+   verification and retain comparable state for other reviews.
+2. Before treating a substantive finding as settled or directing repairs, have
+   a reader other than its author check the location, rule applicability,
+   consequence, and severity against that state. An independent coordinator
+   may do this; otherwise use a fresh verifier with the run's retained settings.
+   Limit this check to candidate findings. It requires neither a full review
+   nor a recursive check of its own result. Zero findings and valid mechanical
+   `validation_write:` markers require no second reader.
+3. Keep supported findings. Correct or withdraw overturned claims and explain
+   the revision in the existing summary. Report unresolved claims as open
+   questions, which require no additional checking worker. When the route
+   requires verified findings, identify unchecked claims and block completion
+   or repair instructions if their check is unavailable.
+4. Compare the reviewed state again after checking findings. Any change
+   requires a fresh review.
 
-Revise or withdraw claims that fail this check and explain the correction in
-the existing summary. Retain those supported by evidence. A claim still in doubt
-is an open question and may be reported as such without another worker. If the
-route requires verified findings, unresolved checking prevents completion or
-repair instructions; identify the claims awaiting a check.
-
-Keep the reviewed state available for comparison. For task verification, use
-the stored snapshot and compare it again after finding checks; retain and
-compare the inspected state for other reviews too. Changes to that state
-require a new review.
-
-The review is complete when coverage, evidence, and second-reader checks are
-resolved and remaining limitations are stated. An evidence-backed result of no
-findings is valid. Report through the route's existing fields and summary; no
-additional format or durable record is needed.
+Finish when all applicable checks are covered, findings have evidence,
+independent checks are resolved, and remaining gaps are stated. Report through
+the existing result fields and summary. An evidence-backed result of no
+findings is valid.

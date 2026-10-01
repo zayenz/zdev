@@ -19,7 +19,8 @@ pr-run-mode = "upload"
 merge-tasks = false
 allow-dirty = ["ci"]
 global-artifacts-jobs = ["./release-smoke"]
-github-custom-job-permissions = { "release-smoke" = { contents = "read" } }
+publish-jobs = ["./publish-crates"]
+github-custom-job-permissions = { "release-smoke" = { contents = "read" }, "publish-crates" = { contents = "read", id-token = "write" } }
 
 [dist.github-action-commits]
 "actions/checkout" = "df4cb1c069e1874edd31b4311f1884172cec0e10" # v6.0.3

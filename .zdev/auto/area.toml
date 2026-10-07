@@ -1,0 +1,7 @@
+schema_version = 1
+tag = "auto"
+title = "Autonomous research"
+objective = "Add metric-driven research areas that mix ordinary work with durable hypothesis tasks, execute serially or in isolated parallel worktrees, and retain measured results and lessons."
+branch = "feature/auto"
+lifecycle = "open"
+base_commit = "dd641caeb9a435b3a99750e010b9935331fdca62"

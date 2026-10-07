@@ -8,7 +8,10 @@ area condition and no invented token budget. Continue an exact active match.
 For an exact paused match, preserve it, return `BLOCKER`, and ask the user to
 run `/goal resume`; Oh My Pi hides the model-facing goal tool while paused.
 Preserve a different unfinished goal. After the same active zdev goal reaches
-a terminal PASS, call `goal({ op: "complete" })`.
+a terminal `PASS` or reports its first confirmed terminal `BLOCKER`, call
+`goal({ op: "complete" })` in the same turn. Both satisfy the area condition's
+explicit stop rule. Keep a blocker result as `BLOCKER`, preserve unfinished
+task and area state, and do not repeat workers or goal turns to reconfirm it.
 
 # Zdev area loop (native)
 
@@ -59,7 +62,7 @@ Replace the bracketed clause with its inner focus sentence when the user
 supplied focus; otherwise remove it:
 
 ```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. [Fuzzy focus: <the user's exact focus words>. Before every iteration, inspect the complete ready frontier and choose the best-fitting task; do not treat the focus as an exact filter.] With no focus, let work-context choose the next task. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration, and report each selected and completed task through normal progress updates.
+For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. [Fuzzy focus: <the user's exact focus words>. Before every iteration, inspect the complete ready frontier and choose the best-fitting task; do not treat the focus as an exact filter.] With no focus, let work-context choose the next task. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. This run is complete when fresh context is open/empty, open/exhausted, or closed, or when a confirmed blocker or required user-owned decision has been reported with its reason and preserved state. Stop at the first confirmed blocker; preserve unfinished work. Complete and commit exactly one independently verified task per iteration, and report each selected and completed task through normal progress updates.
 ```
 
 Apply it with the native creation operation named by the adapter. The selected
@@ -68,6 +71,15 @@ area condition. After successful native activation, follow the condition in
 the current session. Every iteration repeats the applicable selection rule and
 uses the one-task contract below. Tell the user which task was selected and
 when its verified commit completes.
+
+Reporting a terminal `BLOCKER` satisfies this run's explicit stop condition.
+End the matching active native goal through the adapter's completion operation
+in that same turn. Keep the public result `BLOCKER` and preserve the exact task,
+area, and Git state; ending the run does not complete unfinished tasks or close
+the area. Do not repeat workers or wait for more goal turns to reconfirm an
+established impasse. Partial progress and actionable in-scope rework still
+continue under the one-task contract. Never complete a different, paused, or
+budget-limited native goal.
 
 The exact installed task-workflows contract path is
 "/Users/zayenz/projects/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it and include the resulting

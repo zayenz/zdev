@@ -89,12 +89,21 @@ Codex and Oh My Pi native continuation use this area-sized condition, with
 JavaScript workflow encodes the same predicate directly in its loop:
 
 ```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. With fuzzy focus, inspect the complete ready frontier before every iteration and choose the best-fitting task; without focus, let work-context choose. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. Finish when fresh context is open/empty, open/exhausted, or closed. Stop and report any blocker. Complete and commit exactly one independently verified task per iteration and report each selected and completed task.
+For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. With fuzzy focus, inspect the complete ready frontier before every iteration and choose the best-fitting task; without focus, let work-context choose. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. This run is complete when fresh context is open/empty, open/exhausted, or closed, or when a confirmed blocker or required user-owned decision has been reported with its reason and preserved state. Stop at the first confirmed blocker; preserve unfinished work. Complete and commit exactly one independently verified task per iteration and report each selected and completed task.
 ```
 
 This condition never replaces the selected task's `native_goal`. The area
 condition governs continuation; every `zdev-implement` handoff still receives
 the unchanged task-sized projection and `native_goal` from `zdev goal`.
+
+A confirmed blocker ends the run in the same turn. Reporting its reason and
+preserved state fulfills the area condition's explicit stop rule, so Codex
+calls `update_goal` with `status: "complete"` and Oh My Pi calls
+`goal({ op: "complete" })` for that matching active goal. The public result
+remains `BLOCKER`; unfinished tasks and area lifecycle retain their exact state.
+This avoids Codex's three-turn threshold for marking an unfinished native goal
+`blocked`. A different, paused, or budget-limited goal is preserved. Actionable
+in-scope rework continues under the ordinary task contract.
 
 | Fresh state or event | Result |
 | --- | --- |

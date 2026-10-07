@@ -98,6 +98,17 @@ state is clear. Native unavailability falls back to at most one verified
 committed task and returns canonical `CONTINUE zdev-loop <area>` only when
 fresh ready work remains.
 
+The native area condition explicitly completes the run after reporting a
+confirmed blocker or required user-owned decision. On that first terminal
+`BLOCKER`, report its reason and preserved state, then call `update_goal` with
+`status: "complete"` for the matching active goal in the same turn and return
+the canonical `BLOCKER` result. This completes
+the run's stop-and-report objective; unfinished tasks and the area retain their
+exact state. Do not use `status: "blocked"` for this completed run, wait for
+three goal turns, or repeat workers to confirm the same impasse. Complete the
+matching active goal on terminal `PASS` as well. Preserve every other native
+goal and follow its own objective and lifecycle rules.
+
 {{repository_guidance}}
 
 The [task format](references/task-format.md) defines imported task bundles.

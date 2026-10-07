@@ -8,7 +8,10 @@ area condition and no invented token budget. Continue an exact active match.
 For an exact paused match, preserve it, return `BLOCKER`, and ask the user to
 run `/goal resume`; Oh My Pi hides the model-facing goal tool while paused.
 Preserve a different unfinished goal. After the same active zdev goal reaches
-a terminal PASS, call `goal({ op: "complete" })`.
+a terminal `PASS` or reports its first confirmed terminal `BLOCKER`, call
+`goal({ op: "complete" })` in the same turn. Both satisfy the area condition's
+explicit stop rule. Keep a blocker result as `BLOCKER`, preserve unfinished
+task and area state, and do not repeat workers or goal turns to reconfirm it.
 
 __ZDEV_NATIVE_AREA_LOOP_BODY__
 

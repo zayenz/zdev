@@ -28,8 +28,10 @@ the next interaction turns this brief into a reviewed implementation bundle.
   capacity, and verifies each proposed integration against the current baseline.
 - A fresh session can recover the objective, current accepted result, unfinished
   work, useful failed ideas, and remaining budget from durable records.
-- Codex and Claude Code both demonstrate the complete serial and rolling
-  parallel workflow in the initial release.
+- Codex demonstrates the complete serial and rolling workflow live. Claude
+  Code receives local scenario validation, integration checks and review
+  against primary workflow documentation; the user will test it live
+  elsewhere later, without gating initial completion.
 - Shared measurement and optional statistical helpers support area-defined
   evaluation rules, with recorded samples and an explained comparison method.
 - Ending a run or exhausting the current queue does not claim that the area's
@@ -122,6 +124,9 @@ These requirements come from the user's request:
   evaluation conditions pause affected candidates until comparisons are valid.
 - Codex and Claude Code both support the complete initial workflow, including
   serial runs, rolling parallel worktrees, result recording, and recovery.
+- Live acceptance is required for Codex. Claude Code readiness is established
+  through local validation and documentation review without invoking Claude
+  Code here; its later live testing is a user follow-up, not a completion gate.
 - Implement the local hypothesis lifecycle before the serial loop and rolling
   parallel execution. Both execution modes and both harnesses belong to the
   initial feature; supporting other harnesses follows that complete increment.
@@ -204,9 +209,13 @@ framework or one test per field. Statistical utility tests should check
 meaningful comparison behavior and invalid inputs on small known samples;
 they must not rely on stochastic live benchmarks. Use a documented trusted
 reference when validating a method rather than mirroring its implementation.
-An existing benchmark and end-to-end walkthroughs in Codex and Claude Code
-demonstrate the research loop, including rolling parallel execution. Finding
-a metric improvement in a stochastic demo is not required for feature success.
+An existing benchmark and live end-to-end walkthroughs in Codex demonstrate
+the research loop, including rolling parallel execution. For Claude Code,
+reuse passing deterministic installed-workflow scenarios, review the current
+primary workflow documentation and run read-only integration checks. Do not
+invoke Claude Code here; the user will test it elsewhere later. Its live
+execution remains unverified and does not block completion. Finding a metric
+improvement in a stochastic demo is not required for feature success.
 
 ## Validation
 

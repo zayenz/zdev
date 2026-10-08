@@ -196,6 +196,13 @@ means `standard`. Routine work uses the routine implementer. Advanced work gets
 a read-only plan before its first edit. Every route uses a fresh standard
 verifier.
 
+Inside T3 Code, Codex and Claude Code can also coordinate workers through T3's
+MCP. Select it explicitly: “Use zdev with T3 orchestration to loop through area
+scheduling, using Codex for implementation and Claude Code for verification.”
+This uses the same task records and verification gates, with sequential T3-owned
+workers and completion wakes instead of a native goal or Claude workflow.
+See [T3 Code coordination](docs/t3-code.md) for installation and limits.
+
 ## Area reports
 
 The companion [zdev-area-report skill](skills/zdev-area-report/SKILL.md)
@@ -209,6 +216,7 @@ The skill is available from this checkout and the Codex plugin's skills
 directory. It is separate from the binary's existing `zdev skill install`
 workflow. Its [generation guide](skills/zdev-area-report/references/generation.md)
 describes dependency setup and the `init` and `build` commands.
+
 
 ## Adapted skills
 

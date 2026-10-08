@@ -81,6 +81,8 @@ const VERIFY_WORKFLOW_CONTRACT_TEMPLATE: &str =
 const BOUNDED_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/bounded-area-loop.md");
 const NATIVE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/native-area-loop.md");
 const CLAUDE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/claude-area-loop.md");
+const T3_CODE_ROUTING: &str = include_str!("../templates/zdev/t3-code-routing.md");
+const T3_CODE_ORCHESTRATION: &str = include_str!("../templates/zdev/references/t3-code.md");
 const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
@@ -541,6 +543,17 @@ impl Harness {
                 }
             }
         }
+        if matches!(self, Self::Codex | Self::Claude) {
+            let skill_root = if self == Self::Codex {
+                "zdev"
+            } else {
+                "skills/zdev"
+            };
+            files.push(IntegrationFile {
+                path: format!("{skill_root}/references/t3-code.md"),
+                content: T3_CODE_ORCHESTRATION.to_owned(),
+            });
+        }
         if matches!(self, Self::Opencode | Self::Omp | Self::Agy) {
             add_profile_agents(self, &mut files, configured_workers)?;
         }
@@ -835,6 +848,7 @@ fn render_template(
     let mut rendered = template
         .render(context! {
             shared_contract => contracts.0,
+            t3_code_routing => T3_CODE_ROUTING.trim_end(),
             audit_contract => contracts.1,
             task_workflow_contract => contracts.2,
             verify_workflow_contract => contracts.3,

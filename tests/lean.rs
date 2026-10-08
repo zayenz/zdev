@@ -6638,6 +6638,48 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
 }
 
 #[test]
+fn t3_coordination_reference_is_reachable_and_managed_for_both_main_harnesses() {
+    let repository = repository();
+    let root = repository.path();
+    for (harness, skill_root) in [("codex", "zdev"), ("claude", "skills/zdev")] {
+        let destination = root.join(format!("installed {harness}"));
+        let destination_text = destination.to_str().expect("destination");
+        json_output(
+            root,
+            &["skill", "install", harness, "--to", destination_text],
+        );
+        let skill = fs::read_to_string(destination.join(skill_root).join("SKILL.md"))
+            .expect("installed router");
+        assert!(skill.contains("(references/t3-code.md)"));
+        let reference = destination.join(skill_root).join("references/t3-code.md");
+        let installed = fs::read(&reference).expect("reachable T3 route");
+        fs::remove_file(&reference).expect("remove route to exercise readiness");
+        let checked = json_output_with_exit_code(
+            root,
+            &["skill", "check", harness, "--to", destination_text],
+            1,
+        );
+        assert_eq!(checked["status"], "conflict");
+        json_output(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination_text,
+                "--force",
+            ],
+        );
+        assert_eq!(fs::read(reference).expect("restored route"), installed);
+        assert_eq!(
+            json_output(root, &["skill", "check", harness, "--to", destination_text])["status"],
+            "ok"
+        );
+    }
+}
+
+#[test]
 fn skill_human_output_names_zdev_integrations_and_their_harnesses() {
     let repository = repository();
     let root = repository.path();
@@ -7428,6 +7470,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/references/recovery.md",
             "zdev/references/setup.md",
             "zdev/references/shape-work.md",
+            "zdev/references/t3-code.md",
             "zdev/references/task-format.md",
             "zdev/references/task-workflows.md",
             "zdev/references/to-tasks.md",
@@ -7459,6 +7502,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/recovery.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
+            "skills/zdev/references/t3-code.md",
             "skills/zdev/references/task-format.md",
             "skills/zdev/references/task-workflows.md",
             "skills/zdev/references/to-tasks.md",

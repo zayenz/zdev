@@ -5,6 +5,8 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 
 # Zdev for Claude Code
 
+{{t3_code_routing}}
+
 {{shared_contract}}
 
 ## Claude Code orchestration

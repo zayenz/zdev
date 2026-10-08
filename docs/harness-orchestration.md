@@ -7,6 +7,13 @@ were checked on 2026-08-20.
 
 ## Routes and native adapters
 
+Codex and Claude Code installations also package an explicitly selected
+[T3 Code route](t3-code.md). It replaces native dispatch and continuation when
+the main thread is running in T3 Code and the user requests T3 orchestration.
+Worker targets and profiles resolve by each worker's harness. Ownership,
+verification, snapshot comparison, completion, and commits retain the common
+contract below. Other requests continue through the native adapters.
+
 Each harness installs one discoverable zdev skill. The skill routes these user
 intents to internal contracts and harness-native adapters:
 

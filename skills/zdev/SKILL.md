@@ -5,6 +5,25 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 
 # Zdev for Codex
 
+## Select orchestration before the workflow
+
+An explicit request to use zdev **with T3 orchestration** selects
+[T3 Code coordination](references/t3-code.md). Read that reference before
+selecting native dispatch, worker profiles, or continuation. It supports
+implementation, verification, plan-only work, audits, and goal/loop in a T3
+main thread running Codex or Claude Code. Keep this selection for the logical
+run, its completion wakes, and explicitly requested recovery. Ordinary requests
+use the native harness route unless they continue that selected T3 run.
+
+For the selected T3 route, the reference replaces the native dispatch, scoped
+profile resolution, and goal/workflow instructions below. The shared zdev
+ownership, safety, result, verification, and commit contracts still apply.
+Availability of T3 tools alone does not select the route. An unavailable T3
+route reports a blocker instead of substituting native orchestration.
+
+Example: “Use zdev with T3 orchestration to loop through area scheduling,
+using Codex for implementation and Claude Code for verification.”
+
 ## Activate zdev, then route intent
 
 Activate this workflow when the user invokes `zdev` or `$zdev`, names a stored
@@ -344,7 +363,7 @@ Codex supports the explicit **Parallel** route in `references/parallel.md`.
 Codex also supports the read-only **Plan one task** route in
 `references/plan-task.md`.
 The exact installed task-workflows contract path for this installation is
-"/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
+"/Users/zayenz/.codex/worktrees/f7c2/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.
 
 Use one Codex collaboration agent to implement a task and a different agent to

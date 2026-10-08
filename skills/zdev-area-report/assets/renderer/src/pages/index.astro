@@ -1,0 +1,15 @@
+---
+import Content, { frontmatter, getHeadings } from '@report';
+import Report from '../layouts/Report.astro';
+import ReportTable from '../components/ReportTable.astro';
+for (const field of ['title', 'area', 'date', 'revision', 'scope', 'status']) {
+  if (typeof frontmatter[field] !== 'string' || !frontmatter[field].trim())
+    throw new Error(`Report frontmatter requires a nonempty ${field} string`);
+}
+if (!['draft', 'final'].includes(frontmatter.status))
+  throw new Error('Report status must be draft or final');
+const headings = getHeadings().filter(heading => heading.depth === 2);
+---
+<Report metadata={frontmatter} headings={headings}>
+  <Content components={{ table: ReportTable }} />
+</Report>

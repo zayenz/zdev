@@ -196,6 +196,20 @@ means `standard`. Routine work uses the routine implementer. Advanced work gets
 a read-only plan before its first edit. Every route uses a fresh standard
 verifier.
 
+## Area reports
+
+The companion [zdev-area-report skill](skills/zdev-area-report/SKILL.md)
+researches an area and writes a report for readers who have not followed its
+development. It includes question prompts, MDX fixtures and an Astro renderer.
+Editable source and a self-contained HTML reading copy live together under
+`.zdev/reports/<area>/<date>-<name>/`. Reports normally use prose and tables;
+small JavaScript widgets are available when interaction helps explain a result.
+
+The skill is available from this checkout and the Codex plugin's skills
+directory. It is separate from the binary's existing `zdev skill install`
+workflow. Its [generation guide](skills/zdev-area-report/references/generation.md)
+describes dependency setup and the `init` and `build` commands.
+
 ## Adapted skills
 
 The zdev skill adapts methods from three upstream skill projects:

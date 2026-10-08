@@ -1,0 +1,45 @@
+---
+title: "Area report format demonstration"
+area: "{{AREA}}"
+date: "{{DATE}}"
+revision: "Illustrative fixture, not a source assessment"
+scope: "This sample demonstrates prose, tables, references and an optional widget. All measurements below are invented."
+status: final
+---
+
+import CostComparison from '@report-components/CostComparison.astro';
+
+## A useful report explains the consequence
+
+Suppose a compiler change increases setup time from 0.10 to 0.16 milliseconds.
+The relative increase is 60%, but the added cost is 0.06 milliseconds per call.
+Whether that matters depends on how often the application builds a model and
+how much time it spends solving it.
+
+These numbers are deliberately fictional. They demonstrate the report format,
+not the performance or readiness of this repository.
+
+## Compare the same work
+
+| Boundary | Baseline | Candidate | Interpretation |
+| --- | ---: | ---: | --- |
+| One setup | 0.10 ms | 0.16 ms | An added 0.06 ms |
+| 1,000 setups, arithmetic total | 0.10 s | 0.16 s | An added 0.06 s, before considering reuse or concurrency |
+
+This table works without JavaScript. The widget below lets a reader examine
+the same arithmetic at another call count; it adds no new measurement.
+
+<CostComparison baselineMs={0.1} candidateMs={0.16} repetitions={1000} />
+
+## Findings need a trigger and evidence
+
+A real report would identify the measured revision, workload and sampling
+method, then explain the observed consequence. It would distinguish a
+reproducible leak from a small fixed storage cost and a completed solve from a
+timeout. The number of failed budget checks would not stand in for that work.
+
+## Sources and limits
+
+The [area brief](../../../{{AREA}}/brief.md) supplies project context when this
+fixture is initialised in a repository. It is not a source for the fictional
+numbers above. This demonstration does not approve a release or propose tasks.

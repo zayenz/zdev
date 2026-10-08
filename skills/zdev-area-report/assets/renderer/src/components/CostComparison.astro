@@ -1,0 +1,38 @@
+---
+import ReportTable from './ReportTable.astro';
+interface Props { baselineMs: number; candidateMs: number; repetitions?: number; }
+const { baselineMs, candidateMs, repetitions = 1000 } = Astro.props;
+if (![baselineMs, candidateMs].every(value => Number.isFinite(value) && value >= 0) ||
+    !Number.isSafeInteger(repetitions) || repetitions < 1)
+  throw new Error('CostComparison needs nonnegative millisecond values and a positive integer call count');
+const difference = candidateMs - baselineMs;
+---
+<div class="cost-comparison" data-difference={difference}>
+  <ReportTable>
+    <caption>Per-call cost</caption>
+    <thead><tr><th>Baseline</th><th>Candidate</th><th>Difference</th></tr></thead>
+    <tbody><tr><td>{baselineMs} ms</td><td>{candidateMs} ms</td><td>{difference.toFixed(3)} ms</td></tr></tbody>
+  </ReportTable>
+  <label>Number of calls <input type="number" min="1" step="1" value={repetitions} /></label>
+  <p><output aria-live="polite">{(difference * repetitions / 1000).toFixed(3)} seconds difference</output></p>
+  <p class="small">A multiplication of per-call cost, not a throughput prediction. Concurrency, reuse and other work can change the practical effect.</p>
+</div>
+<script is:inline>
+(() => {
+  const widget = document.currentScript.previousElementSibling;
+  const input = widget.querySelector('input');
+  const output = widget.querySelector('output');
+  input.addEventListener('input', () => {
+    const count = input.valueAsNumber;
+    output.textContent = Number.isSafeInteger(count) && count >= 1
+      ? `${(Number(widget.dataset.difference) * count / 1000).toFixed(3)} seconds difference`
+      : 'Enter a positive whole number of calls.';
+  });
+})();
+</script>
+<style>
+  .cost-comparison { margin: 1.5rem 0; padding: 1.25rem; border: 1px solid var(--rule); background: var(--panel); }
+  label { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem; margin-top: 1rem; }
+  input { font: inherit; width: 8rem; max-width: 100%; padding: .3rem .5rem; }
+  output { font-weight: 600; }
+</style>

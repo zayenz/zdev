@@ -1,0 +1,13 @@
+{
+  "name": "zdev-area-report",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": { "test": "node --test tests/report.test.mjs" },
+  "dependencies": {
+    "@astrojs/mdx": "8.0.2",
+    "astro": "7.3.5",
+    "parse5": "8.0.0"
+  },
+  "devDependencies": { "playwright": "1.63.0" }
+}

@@ -1,0 +1,51 @@
+---
+title: "Review of {{AREA}}"
+area: "{{AREA}}"
+date: "{{DATE}}"
+revision: "Not recorded"
+scope: "Draft compiler/model fixture. Replace prompts with source-backed findings."
+status: draft
+---
+
+## Assessment
+
+Explain what the interface adds for its users and what remains for acceptance.
+
+## Can a user work without learning the compiler?
+
+Show a small real modelling workflow. Define handles, expressions or other
+unfamiliar values before discussing their implementation.
+
+## Which work repeats, and what stays alive?
+
+Trace construction, compilation, executable instances and copies. Explain
+temporary objects and observable values separately.
+
+## How are transformations selected and scheduled?
+
+Describe the actual pass order, dependencies, optional settings and any local
+or global fixpoint. Name useful algorithms and their limits.
+
+## What must optimisation preserve?
+
+Use an example for observable values, solutions and other public contracts.
+Check extension points and unknown consumers as well as compiler-owned nodes.
+
+## What do the measurements show?
+
+Compare like boundaries. State absolute costs, ratios, scaling and no-op cases.
+Separate owned storage, process memory, source size and downstream build cost.
+
+## Which ideas from other systems transfer?
+
+Link primary sources, identify matching assumptions and explain actual local
+experimental outcomes, including rejected optimisations.
+
+## Findings and next steps
+
+Connect each recommendation to evidence. Preserve accepted tradeoffs.
+
+## Sources and review boundary
+
+Link the [area brief](../../../{{AREA}}/brief.md), source locations and results.
+Distinguish current inspection from measurements of older revisions.

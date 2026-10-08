@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zdev area report"
+  short_description: "Research an area and generate a readable HTML report"
+  default_prompt: "Use $zdev-area-report to review this area's implementation and evidence and generate its report."

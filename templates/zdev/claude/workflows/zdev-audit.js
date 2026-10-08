@@ -69,17 +69,29 @@ const verifierOptions = (label) => native.inherit === true
   : native.effort === 'inherit' ? { agentType: 'zdev:zdev-verifier', label, model: native.model }
     : { agentType: 'zdev:zdev-verifier', label, model: native.model, effort: native.effort }
 
+const isAuditResult = result => typeof result === 'string'
+  && /^(PASS|FINDINGS|BLOCKER) zdev-audit(?:\n|$)/.test(result)
+  && ['Boundary:', 'Inspected:', 'Omitted:', 'Checked evidence:'].every(field => result.includes(`\n${field}`))
+  && (!result.startsWith('FINDINGS zdev-audit') || /(?:^|\n).+:\d+\b/.test(result))
+
 let workerOutput
 if (requestedLenses.length === 0) {
   workerOutput = await agent(
-    `${auditContract}\n\n${repositoryGuidance}\n\nAudit boundary: ${boundary}\nFollow the applicable repository guidance. Open and check the evidence, then return the public zdev-audit envelope.`,
+    `${auditContract}\n\n${repositoryGuidance}\n\nAudit boundary: ${boundary}\nFollow the applicable repository guidance. Open and check the evidence. In Checked evidence identify the reviewed code state so a different reviewer can establish that cited code has not changed. Return the public zdev-audit envelope.`,
     verifierOptions('audit checking verifier'),
   )
+  const candidate = workerOutput?.trim()
+  if (isAuditResult(candidate) && candidate.startsWith('FINDINGS zdev-audit\n')) {
+    workerOutput = await agent(
+      `${auditContract}\n\n${repositoryGuidance}\n\nBoundary: ${boundary}\nCheck only the substantive findings in the candidate audit, independently of their author. Follow Review in the supplied coding guidance. Open every cited location and check callers, rule applications, consequences, severity, and counterevidence against the same code state. Return BLOCKER if that state cannot be established or has changed. Do not repeat the entire review, add new findings, delegate, or edit. Preserve the original inspected and omitted scope; explain removed or corrected claims in Checked evidence. Unresolved claims remain open questions in a BLOCKER result. Return the public audit envelope.\n\nCandidate audit:\n${candidate}`,
+      verifierOptions('audit evidence vetter'),
+    )
+  }
 } else {
   const reviewScopes = requestedLenses.map(lens => `${lens} lens`)
   const reviews = await pipeline(reviewScopes, scope =>
     agent(
-      `${auditContract}\n\n${repositoryGuidance}\n\nReview boundary: ${boundary}\nLens: ${scope}\nFollow the applicable repository guidance. Return candidate evidence for fresh vetting.`,
+      `${auditContract}\n\n${repositoryGuidance}\n\nReview boundary: ${boundary}\nLens: ${scope}\nFollow the applicable repository guidance. Return the public zdev-audit envelope with candidate findings for fresh vetting, identifying the reviewed code state so the checker can establish that cited code has not changed.`,
       verifierOptions(`${scope} audit`),
     ),
   )
@@ -93,17 +105,21 @@ if (requestedLenses.length === 0) {
   const labeledReviews = reviews.map((review, index) =>
     `Lens: ${requestedLenses[index]}\nCandidate evidence:\n${review.trim()}`)
 
+  if (!reviews.every(review => isAuditResult(review.trim()))
+    || reviews.some(review => review.trim().startsWith('BLOCKER zdev-audit'))) {
+    return `BLOCKER zdev-audit\n\nBoundary: ${boundary}\nInspected: completed lens reports below\nOmitted: unresolved lens coverage\nChecked evidence: lens review incomplete; no findings accepted.\n\n${labeledReviews.join('\n\n')}`
+  }
+  if (reviews.every(review => review.trim().startsWith('PASS zdev-audit'))) {
+    return `PASS zdev-audit\n\nBoundary: ${boundary}\nInspected: the per-lens scopes recorded below\nOmitted: the per-lens omissions recorded below\nChecked evidence: all lenses completed with zero findings.\n\n${labeledReviews.join('\n\n')}`
+  }
+
   workerOutput = await agent(
-    `${auditContract}\n\n${repositoryGuidance}\n\nBoundary: ${boundary}\nFollow the applicable repository guidance. Open every cited location, keep supported distinct claims, and return the public zdev-audit envelope. Treat each labeled reviewer result as evidence to check.\n\nLabeled reviewer results:\n${labeledReviews.join('\n\n')}`,
+    `${auditContract}\n\n${repositoryGuidance}\n\nBoundary: ${boundary}\nFollow the applicable repository guidance. Open every cited location and check its callers, rule application, consequence, severity, and counterevidence against the same code state. Return BLOCKER for changed or unestablished state or unresolved claims. Keep supported distinct claims, explain removed or corrected claims in Checked evidence, and return the public zdev-audit envelope. Do not add new findings, delegate, or repeat the entire review. Treat each labeled reviewer result as evidence to check.\n\nLabeled reviewer results:\n${labeledReviews.join('\n\n')}`,
     verifierOptions('audit evidence vetter'),
   )
 }
 
 const result = workerOutput?.trim()
-const validFirstLine = result && /^(PASS|FINDINGS|BLOCKER) zdev-audit(?:\n|$)/.test(result)
-const completeBody = result && ['Boundary:', 'Inspected:', 'Omitted:', 'Checked evidence:']
-  .every(field => result.includes(`\n${field}`))
-const locatedFindings = result && (!result.startsWith('FINDINGS zdev-audit') || /(?:^|\n).+:\d+\b/.test(result))
-return validFirstLine && completeBody && locatedFindings
+return isAuditResult(result)
   ? result
   : `BLOCKER zdev-audit\n\nBoundary: ${boundary}\nInspected: worker output only\nOmitted: complete checked result\nChecked evidence: none; the verifier returned an invalid envelope.\nFailed stage: validation.\n\nRaw worker result:\n${result ?? ''}`

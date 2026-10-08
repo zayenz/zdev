@@ -27,8 +27,10 @@ areas; do not infer project-wide selection from an omitted area.
    keep every authoritative record and lifecycle operation in that destination.
 2. Read the area brief first. Inspect the selected task's routing frontmatter;
    when it names a slice, read that slice brief next, then read the complete
-   task file, repository instructions, and the smallest relevant source and
-   tests. When the brief indexes an area-local
+   task file, repository instructions, supplied coding guidance, and the
+   smallest relevant source and tests. Apply its design, structural, and
+   completion rules within the task's scope and testing level. When the brief
+   indexes an area-local
    `background/` corpus, follow only links identified as relevant to the task,
    including any focused links in the task file; do not load the entire corpus
    by default. Treat `brief.md` as the authoritative synthesis when background
@@ -59,8 +61,9 @@ areas; do not infer project-wide selection from an omitted area.
    the advanced implementer. A planner blocker or user-owned decision stops
    before edits. Never infer routine, and never plan again on resume or rework.
    Give the selected implementer repository-relative locators for the brief,
-   optional slice and linked background files, task, repository guidance, and
-   relevant source and tests, plus the baseline snapshot and task-owned path
+   optional slice and linked background files, task, repository guidance,
+   supplied coding guidance, and relevant source and tests, plus the baseline
+   snapshot and task-owned path
    evidence. Named and planned paths are expected seams, not an allowlist,
    unless the task states an explicit file boundary. The implementer may touch
    another path when it is directly necessary for the approved outcome, has
@@ -102,7 +105,10 @@ areas; do not infer project-wide selection from an omitted area.
    original baseline still available. Do not use this route for a pending
    reviewed bundle, a changed acceptance criterion, or an ambiguous owner.
 8. Run every verifier with the run's retained concrete verifier settings.
-   Return every concrete task-owned verifier `rework` finding with escalation
+   Independently vet substantive findings under the task-workflow contract
+   before reporting them or returning them for correction. Require the same
+   unchanged snapshot; changed code needs fresh review. Return every checked
+   concrete task-owned verifier `rework` finding with escalation
    `none` to the same selected profile when possible. Otherwise give a
    same-profile replacement the task, current diff, and exact findings. A
    verifier may request `advanced-implementer` once only after standard/default

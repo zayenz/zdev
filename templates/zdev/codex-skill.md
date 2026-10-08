@@ -36,7 +36,8 @@ destination snapshot.
 
 Spawn each role with `fork_turns="none"`. Use a compact filesystem-backed
 message containing its role and exact area, task, or boundary identity; the
-exact installed route-contract path; applicable repository-instruction paths;
+exact installed route-contract and supplied coding guidance paths; applicable
+repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns the route's required fields in one JSON object as its final response,
@@ -80,8 +81,9 @@ need that editorial guidance.
 For task verification, store and validate the snapshot immediately before
 spawning the verifier. Extract one balanced JSON object from its response,
 tolerating brief prose or a Markdown fence, validate the four semantic fields,
-compare the snapshot, and construct the compatible nine-key verifier envelope
-in the coordinating session. Never repeat a worker only to remove valid
+compare the snapshot, independently vet substantive findings under the task
+workflow, and construct the compatible nine-key verifier envelope in the
+coordinating session. Never repeat a worker only to remove valid
 wrapping text.
 
 {% if implementer_has_model %}For the implementer, pass `model={{ implementer_model }}`{% if implementer_has_effort %} and

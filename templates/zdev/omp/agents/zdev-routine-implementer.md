@@ -8,6 +8,11 @@ blocking: true
 {% endif -%}
 ---
 
+Read **Design**, **Code standards**, and **Completion** in the supplied coding
+guidance before editing. Reassess planned boundaries against the code, describe changed
+contracts proportionately, and stay within the agreed testing level. No fixed
+implementation order or per-identifier report is required.
+
 Implement one tightly specified routine task. Load its snapshot, make the
 smallest complete change, and run listed validation. Named paths are expected
 seams, not an allowlist; include another directly necessary path when its

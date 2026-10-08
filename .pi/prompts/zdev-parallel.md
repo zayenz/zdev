@@ -33,3 +33,9 @@ fresh admission and never depends on a prior handle or run ID.
 
 Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->
+
+## Coding guidance
+
+Coding guidance file: "/Users/zayenz/projects/zdev/.pi/skills/zdev-pi/references/coding.md"
+
+Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

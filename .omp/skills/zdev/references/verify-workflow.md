@@ -2,7 +2,8 @@
 
 `zdev-verify <area> <task-id>` is a read-only review of the explicit current
 ready task. The coordinating session owns preflight and envelope validation;
-one fresh configured verifier owns the independent review.
+one fresh configured verifier owns the initial independent review. Substantive
+findings then receive the bounded independent check in the task workflow.
 
 ## Preflight and handoff
 
@@ -21,10 +22,11 @@ another task is ready. Include the failed stage, reason, and preserved state.
 The stored result is the dispatch snapshot for the admitted open, ready, safe
 area, task, HEAD, and checkout.
 Give one fresh verifier that opaque locator, the brief, complete task,
-repository guidance, relevant source and tests, and the recorded baseline. The
-verifier reads and validates without intentional edits. This route uses only
-this verifier. It leaves task lifecycle, Git state, recovery, and derived work
-unchanged.
+repository guidance, supplied coding guidance, relevant source and tests, and
+the recorded baseline. The verifier reads the **Code standards** and **Review** sections
+and validates without intentional edits. Findings may need a different verifier
+when coordination cannot independently inspect the evidence. The route leaves
+task lifecycle, Git state, recovery, and derived work unchanged.
 
 ## Verifier context
 
@@ -38,8 +40,8 @@ snapshot before inspection or validation.
 After the verifier checks the whole task and runs its required validation,
 coordination runs `zdev work-context <area> --compare <snapshot> --format json`.
 A pass requires the exact four-key compact result for the selected area and
-snapshot with `equal: true`. A false comparison preserves rework only for
-concrete task-owned validation writes reported as exact
+snapshot with `equal: true`. A false comparison preserves rework only when all
+findings are concrete task-owned validation writes reported as exact
 `validation_write: <normalized repository-relative path>` findings. An
 ordinary defect rework plus unequal state, a mixed valid and malformed marker
 set, or any unclear ownership is a blocker. An unavailable or invalid snapshot
@@ -79,7 +81,12 @@ Use `blocker` when required evidence is unsafe or unavailable, ownership is
 ambiguous, or a user-owned decision is needed. Its escalation is `none`.
 
 The coordinating session strictly validates the semantic result, validates
-the post-response comparison, and constructs the compatible public nine-key
+the post-response comparison, and independently vets substantive findings under
+the task workflow before reporting. Require equal comparisons before and after
+vetting; changed code needs fresh review. Use the existing semantic result and
+summary for checked findings and reasons for corrections. Unresolved or
+unchecked claims are blockers; zero findings and mechanical validation-write
+markers need no extra pass. Coordination constructs the compatible public nine-key
 envelope. It generates schema version, kind, area, task ID, snapshot evidence,
 and optional stale advisory; the worker cannot supply or override them. Invalid
 or unavailable independent verification returns

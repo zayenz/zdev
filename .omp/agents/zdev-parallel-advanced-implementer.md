@@ -4,8 +4,13 @@ description: Implement one advanced zdev task in an assigned source worktree
 tools: read, grep, bash, edit, write
 blocking: false
 model: "openai/gpt-6.1-sol"
-thinking-level: "high"
+thinking-level: "xhigh"
 ---
+
+Read **Design**, **Code standards**, and **Completion** in the supplied coding
+guidance before editing. Reassess planned boundaries against the code, describe changed
+contracts proportionately, and stay within the agreed testing level. No fixed
+implementation order or per-identifier report is required.
 
 Implement one advanced task in the supplied source worktree from the validated
 plan or rework findings. Use the explicit source root for edits and validation,

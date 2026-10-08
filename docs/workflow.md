@@ -31,6 +31,23 @@ their native formats. During implementation, source and tests may change while
 both specification and repository-standards checks pass, update the task and
 commit the accepted files.
 
+## Coding and review guidance
+
+Installed integrations share one [coding guide](../templates/zdev/references/coding.md).
+Planners describe responsibilities and changed contracts in the existing plan;
+implementers reassess those boundaries and check names, effects, structure, and
+completion evidence. The guide keeps design proportional to the change and
+preserves the brief's testing level. It requires neither a fixed implementation
+order nor a report for every identifier.
+
+Verifiers assess the same standards alongside the task requirements. Before
+substantive findings drive rework or reporting, someone other than their author
+checks the locations, applicable rules, consequences, and severity against the
+same code state. An independent coordinator can inspect that evidence;
+otherwise a fresh verifier uses the retained execution profile. Zero findings
+and mechanical validation-write bookkeeping need no additional pass. Open
+questions and unavailable required evidence prevent a passing result.
+
 ## Branch orientation
 
 Areas are isolated by default: one area owns one stored Git branch. An

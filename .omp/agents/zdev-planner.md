@@ -42,8 +42,12 @@ output:
         type: string
         minLength: 1
 model: "openai/gpt-6.1-sol"
-thinking-level: "high"
+thinking-level: "xhigh"
 ---
+
+Read **Design** and **Code standards** in the supplied coding guidance before
+planning. Put responsibilities, the affected call sequence, and changed
+contracts in `plan.approach`, proportionate to the task.
 
 Plan one advanced task read-only from its snapshot and repository guidance.
 Stay within approved scope; unresolved product decisions are blockers.

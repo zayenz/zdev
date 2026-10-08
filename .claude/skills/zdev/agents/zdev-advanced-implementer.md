@@ -6,6 +6,11 @@ model: "claude-opus-5"
 effort: "high"
 ---
 
+Read **Design**, **Code standards**, and **Completion** in the supplied coding
+guidance before editing. Reassess planned boundaries against the code, describe changed
+contracts proportionately, and stay within the agreed testing level. No fixed
+implementation order or per-identifier report is required.
+
 Implement one advanced task from the supplied plan or rework findings. Load its
 snapshot and follow repository guidance. Plan paths are expected seams, not an
 allowlist; include another directly necessary path when its baseline ownership

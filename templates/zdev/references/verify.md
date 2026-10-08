@@ -5,7 +5,9 @@
 Use a different verifier from the implementer. Give it repository-relative
 locators for the area brief, task, relevant source and tests, repository
 verification instructions, and the recorded pre-implementation baseline
-snapshot. The verifier inspects and tests without making intentional edits.
+snapshot, plus the supplied coding guidance and available design evidence.
+The verifier reads its **Code standards** and **Review** sections, then inspects and tests
+without making intentional edits.
 It receives the coordinator-stored opaque snapshot and shows it before review.
 Resolve and retain the concrete verifier settings at the start of this
 interaction, or use the frozen verifier settings from its authorized run.
@@ -52,9 +54,13 @@ Require the verifier to:
    merely passing. Do not fail an implementation for omitting tests beyond the
    agreed level, or reward a larger test suite when it adds cost without
    relevant confidence.
-5. **Inspect the touched code:** check the complete evidence for unrelated
-   changes, repository-convention violations, maintainability problems, and
-   regressions or unsafe behavior at touched interfaces. Treat an invented test
+5. **Inspect the touched code:** assess every applicable coding-guidance section,
+   including callers and both sides of changed contracts. Check for unrelated
+   changes, repository-convention violations, misleading names or structure,
+   regressions, and unsafe behavior at touched interfaces. Distinguish exhibited
+   failures, latent hazards, and cosmetic differences; seek counterevidence.
+   Missing historical design evidence remains unknown; missing required
+   completion evidence prevents a pass. Treat an invented test
    harness, unfamiliar testing style, or unnecessary test expansion as a scope
    or standards concern rather than extra credit.
 6. Run every listed required validation command. Prefer a check or dry-run form
@@ -92,7 +98,13 @@ coordinator accepts that request at most once and only after standard/default
 implementation. Verification itself always uses a fresh standard verifier.
 
 The coordinating agent confirms that the verdict addresses the whole task,
-runs the post-response comparison, and generates the compatible public
+runs the post-response comparison, and independently vets substantive findings
+under the task-workflow contract before reporting or routing them. Vetting must
+use the unchanged snapshot; changed code needs fresh review. An independent
+coordinator may inspect the evidence, otherwise use a different fresh verifier
+with the frozen settings. Unresolved or unchecked claims block acceptance. No
+extra pass is needed for zero findings or only validation-write bookkeeping.
+Coordination then generates the compatible public
 nine-key envelope including identity, snapshot evidence, and optional stale
 advisory. On completion it writes a concise result and validation summary to
 the task. Explicit verification returns that envelope without mutation.

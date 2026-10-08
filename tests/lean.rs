@@ -808,6 +808,10 @@ fn assert_task_workflows_locator(destination: &Path, skill_root: &str, coordinat
     let contract = fs::canonicalize(contract).expect("canonical task-workflows contract path");
     let encoded = serde_json::to_string(contract.to_str().expect("UTF-8 contract path"))
         .expect("contract path JSON");
+    let coding = fs::canonicalize(destination.join(skill_root).join("references/coding.md"))
+        .expect("installed coding guidance");
+    let coding_encoded = serde_json::to_string(coding.to_str().expect("UTF-8 coding path"))
+        .expect("coding path JSON");
     for coordinator in coordinator_paths {
         let rendered = fs::read_to_string(destination.join(coordinator))
             .unwrap_or_else(|_| panic!("read coordinator {coordinator}"));
@@ -815,11 +819,37 @@ fn assert_task_workflows_locator(destination: &Path, skill_root: &str, coordinat
             rendered.contains(&encoded),
             "{coordinator} does not contain exact contract locator {encoded}"
         );
+        let guidance = rendered.lines().find_map(|line| {
+            line.strip_prefix("const repositoryGuidance = ")
+                .and_then(|value| serde_json::from_str::<String>(value).ok())
+        });
+        assert!(
+            guidance
+                .as_deref()
+                .unwrap_or(&rendered)
+                .contains(&coding_encoded),
+            "{coordinator} does not carry installed coding guidance {coding_encoded}"
+        );
     }
 }
 
 fn normalize_task_workflows_locator(content: Vec<u8>) -> Vec<u8> {
-    let content = String::from_utf8(content).expect("UTF-8 integration artifact");
+    let mut content = String::from_utf8(content).expect("UTF-8 integration artifact");
+    let marker = "Coding guidance file: ";
+    let mut offset = 0;
+    while let Some(found) = content[offset..].find(marker) {
+        let start = offset + found + marker.len();
+        let tail = &content[start..];
+        let end = start
+            + tail
+                .find('\n')
+                .into_iter()
+                .chain(tail.find("\\n"))
+                .min()
+                .unwrap_or(tail.len());
+        content.replace_range(start..end, "<coding-guidance>");
+        offset = start + "<coding-guidance>".len();
+    }
     let mut normalized = String::with_capacity(content.len());
     let mut locator_value_follows = false;
     for line in content.split_inclusive('\n') {
@@ -7388,6 +7418,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/agents/openai.yaml",
             "zdev/references/area-loop.md",
             "zdev/references/audit.md",
+            "zdev/references/coding.md",
             "zdev/references/discuss.md",
             "zdev/references/implement.md",
             "zdev/references/improve.md",
@@ -7418,6 +7449,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/SKILL.md",
             "skills/zdev/references/area-loop.md",
             "skills/zdev/references/audit.md",
+            "skills/zdev/references/coding.md",
             "skills/zdev/references/discuss.md",
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
@@ -7594,10 +7626,11 @@ const exercise = async (response, equal = true, invocation = {{ area, task_id: t
   const prompts = []
   const result = await run(invocation, async (prompt, options) => {{
     prompts.push({{ prompt, options }})
+    if (options.label.endsWith(': check findings')) return prompt.split('Candidate review: ').at(-1)
     if (options.agentType) return response
     if (options.label === 'zdev ' + task + ': capture verification snapshot') return storedResponse
     if (options.label === 'zdev ' + task + ': freeze verifier profile') return dispatch
-    if (options.label === 'zdev ' + task + ': confirm verifier left snapshot unchanged') return comparedResponse
+    if (options.label === 'zdev ' + task + ': confirm verifier left snapshot unchanged' || options.label.endsWith(': confirm findings snapshot unchanged')) return comparedResponse
     throw new Error('unexpected coordination call: ' + options.label)
   }})
   return {{ result, prompts }}
@@ -7640,6 +7673,14 @@ const ambiguousRework = await exercise(worker('rework', ['src/lib.rs: ordinary i
 if (!ambiguousRework.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(ambiguousRework.result)
 const mixedMarkers = await exercise(worker('rework', ['validation_write: src/generated.rs', 'validation_write: ../outside']), false)
 if (!mixedMarkers.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(mixedMarkers.result)
+for (const marker of ['validation_write:missing-space', 'validation_write: ../outside.rs']) {{
+  const malformed = await exercise(worker('rework', [marker]), true)
+  if (!malformed.result.startsWith('BLOCKER zdev-verify') || malformed.prompts.some(call => call.options.label.endsWith(': check findings')))
+    throw new Error('malformed bookkeeping reached finding review: ' + malformed.result)
+}}
+const mixedNoop = await exercise(worker('rework', ['validation_write: src/generated.rs', 'src/lib.rs:12: real defect']))
+if (!JSON.parse(mixedNoop.result).findings.every(item => !item.startsWith('validation_write:')))
+  throw new Error('mixed no-op markers were not removed before finding review')
 const escalated = await exercise(worker('rework', ['advanced correction required'], 'advanced-implementer'))
 if (!escalated.result.includes('"escalation":"advanced-implementer"')) throw new Error(escalated.result)
 const semanticBlocker = await exercise(worker('blocker', ['ownership is ambiguous']))
@@ -7652,6 +7693,34 @@ const changedPass = await exercise(worker('pass'), false)
 if (!changedPass.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(changedPass.result)
 const malformedCompare = await exercise(worker('pass'), true, {{ area, task_id: task }}, stored, '{{}}')
 if (!malformedCompare.result.startsWith('BLOCKER zdev-verify work work-001')) throw new Error(malformedCompare.result)
+for (const [checked, unchanged, expected] of [
+  [worker('rework', ['src/lib.rs:12: confirmed defect']), true, 'rework'],
+  [worker('pass'), true, 'pass'],
+  [worker('blocker', ['open question: contract evidence unavailable']), true, 'blocker'],
+  ['{{}}', true, 'BLOCKER'],
+  [worker('pass'), false, 'BLOCKER'],
+  [worker('rework', ['new escalation'], 'advanced-implementer'), true, 'BLOCKER'],
+  [worker('rework', ['validation_write: invented.rs']), true, 'BLOCKER'],
+]) {{
+  const calls = []
+  const result = await run({{ area, task_id: task }}, async (prompt, options) => {{
+    calls.push({{ prompt, options }})
+    if (options.label.endsWith(': check findings')) return checked
+    if (options.agentType) return worker('rework', ['src/lib.rs:12: candidate defect'])
+    if (options.label.endsWith(': capture verification snapshot')) return stored
+    if (options.label.endsWith(': freeze verifier profile')) return dispatch
+    if (options.label.endsWith(': confirm verifier left snapshot unchanged')) return comparison(true)
+    if (options.label.endsWith(': confirm findings snapshot unchanged')) return comparison(unchanged)
+    throw new Error('unexpected vetting call: ' + options.label)
+  }})
+  if (expected === 'BLOCKER' ? !result.startsWith('BLOCKER zdev-verify') : JSON.parse(result).verdict !== expected)
+    throw new Error('finding check accepted wrong outcome: ' + result)
+  const vetters = calls.filter(call => call.options.label.endsWith(': check findings'))
+  if (vetters.length !== 1 || vetters[0].options.model !== 'claude-fable-5-1' || vetters[0].options.effort !== 'high')
+    throw new Error('finding check did not use exactly one fresh frozen verifier')
+  if (!vetters[0].prompt.includes('src/lib.rs:12: candidate defect') || !vetters[0].prompt.includes(snapshot))
+    throw new Error('finding checker lost candidate or code state')
+}}
 const staleStored = JSON.stringify({{ ...JSON.parse(stored), stale_advisory: true }})
 const stale = await exercise(worker('pass'), true, {{ area, task_id: task }}, staleStored, comparison(true))
 const stalePublic = JSON.parse(stale.result)
@@ -7748,6 +7817,8 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   const calls = []
   const result = await run(invocation, async (prompt, options) => {{
     calls.push({{ prompt, options }})
+    if (options.label.endsWith(': check findings')) return prompt.split('Candidate review: ').at(-1)
+    if (options.label.endsWith(': confirm findings snapshot unchanged')) return comparison(true)
     if (options.agentType) {{
       types.push(options.agentType)
       if (responses.length === 0) throw new Error(name + ': unexpected worker')
@@ -7785,7 +7856,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   if (JSON.stringify(types) !== JSON.stringify(expectedTypes)) {{
     throw new Error(name + ': ' + JSON.stringify(types))
   }}
-  const verifierPrompts = calls.filter(call => call.options.agentType === 'zdev:zdev-verifier').map(call => call.prompt)
+  const verifierPrompts = calls.filter(call => call.options.agentType === 'zdev:zdev-verifier' && !call.options.label.endsWith(': check findings')).map(call => call.prompt)
   for (const call of calls.filter(call => call.options.agentType)) {{
     if (call.prompt.includes('workflow contract')) throw new Error(name + ': full workflow contract was injected')
   }}
@@ -7931,7 +8002,7 @@ const ordinaryRework = await exercise(
   ],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
 )
-if (ordinaryRework.calls.length !== 12) throw new Error('one REWORK did not use twelve Claude calls')
+if (ordinaryRework.calls.length !== 14) throw new Error('one REWORK did not include independent finding vetting and its snapshot check')
 if (ordinaryRework.calls.some(call => call.options.label === 'zdev post-rework verification refresh')) throw new Error('redundant post-rework verification refresh retained')
 if (!ordinaryRework.verifierPrompts[0].includes('initial locator')) throw new Error('first verifier lost initial locator')
 if (!ordinaryRework.verifierPrompts[1].includes('rework locator') || ordinaryRework.verifierPrompts[1].includes('initial locator')) throw new Error('second verifier did not receive only latest locator')
@@ -8382,11 +8453,12 @@ const exercise = async (name, contexts, workers, completions, expectedPrefix, de
       value.path = '.git/zdev/work-context/work/' + verificationSnapshot + '.json'
       return JSON.stringify(value)
     }}
-    if (options.label.includes('confirm verifier')) {{
+    if (options.label.includes('confirm verifier') || options.label.endsWith(': confirm findings snapshot unchanged')) {{
       return JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal: true }})
     }}
     if (options.label.includes('freeze loop worker profiles')) return dispatchSpec(lastContext)
     if (options.label.includes('freeze worker profiles')) return dispatchSpec(lastContext)
+    if (options.label.endsWith(': check findings')) return prompt.split('Candidate review: ').at(-1)
     if (options.agentType) {{
       if (workers.length === 0) throw new Error(name + ': unexpected worker')
       return workers.shift()
@@ -8470,7 +8542,7 @@ const rework = await exercise(
   [completionPass('work-001')],
   'PASS',
 )
-if (rework.calls.filter(call => call.type === 'zdev:zdev-verifier').length !== 2) throw new Error(JSON.stringify(rework.calls))
+if (rework.calls.filter(call => call.type === 'zdev:zdev-verifier').length !== 3) throw new Error(JSON.stringify(rework.calls))
 
 const resumed = await exercise(
   'cached completion result',
@@ -8655,6 +8727,21 @@ const defaultResult = await run(
 )
 if (defaultResult !== publicResult) throw new Error('default result changed')
 if (JSON.stringify(defaultCalls) !== JSON.stringify(['audit: freeze verifier profile', 'audit checking verifier'])) throw new Error(`default calls: ${{JSON.stringify(defaultCalls)}}`)
+const candidateAudit = 'FINDINGS zdev-audit\n\nBoundary: src\nInspected: src\nOmitted: none\nChecked evidence: current checkout\nsrc/lib.rs:12: candidate defect'
+for (const checked of [publicResult, candidateAudit, 'BLOCKER zdev-audit\n\nBoundary: src\nInspected: src\nOmitted: none\nChecked evidence: unresolved claim', 'invalid']) {{
+  const calls = []
+  const result = await run('src', async (prompt, options) => {{
+    calls.push({{ prompt, options }})
+    if (options.label.includes('freeze verifier')) return profile
+    return options.label === 'audit evidence vetter' ? checked : candidateAudit
+  }}, async () => {{ throw new Error('default findings used pipeline') }})
+  const vetters = calls.filter(call => call.options.label === 'audit evidence vetter')
+  if (vetters.length !== 1 || !vetters[0].prompt.includes(candidateAudit)
+    || vetters[0].options.model !== 'claude-fable-5-1' || vetters[0].options.effort !== 'high')
+    throw new Error('default audit did not vet findings with frozen profile')
+  if (checked === 'invalid' ? !result.startsWith('BLOCKER zdev-audit') : result !== checked)
+    throw new Error('audit returned unchecked or changed finding result: ' + result)
+}}
 let areaResolvePrompt = ''
 await run(
   {{ boundary: 'src', area: 'work' }},
@@ -8695,7 +8782,7 @@ const boundedResult = await run(
     boundedCalls.push(options.label)
     boundedPrompts.push(prompt)
     if (options.label.includes('freeze verifier')) return profile
-    return options.label === 'audit evidence vetter' ? publicResult : `candidate from ${{options.label}}`
+    return options.label === 'audit evidence vetter' ? publicResult : candidateAudit
   }},
   async (scopes, dispatch) => Promise.all(scopes.map(dispatch)),
 )
@@ -8706,6 +8793,15 @@ for (const lens of ['api', 'tests', 'safety', 'usability']) {{
   if (!vetterPrompt.includes('Lens: ' + lens)) throw new Error('unlabeled lens: ' + lens)
 }}
 if (!vetterPrompt.includes('repository guidance')) throw new Error('repository guidance missing')
+
+let emptyLensVetting = 0
+const emptyLenses = await run(['src', 'api', 'tests'], async (_prompt, options) => {{
+  if (options.label.includes('freeze verifier')) return profile
+  if (options.label === 'audit evidence vetter') emptyLensVetting += 1
+  return publicResult
+}}, async (scopes, dispatch) => Promise.all(scopes.map(dispatch)))
+if (emptyLensVetting !== 0 || !emptyLenses.startsWith('PASS zdev-audit') || !emptyLenses.includes('Lens: api') || !emptyLenses.includes('Lens: tests'))
+  throw new Error('zero-finding lens audit added a reviewer or lost coverage')
 
 const incompleteResult = await run(
   {{ boundary: 'src', lenses: ['api', 'tests'] }},
@@ -9381,6 +9477,8 @@ let activeGate = 0
 let maximumGate = 0
 const completedWorkers = []
 const gated = []
+let releaseFirstWorker
+const firstWorkerGate = new Promise(resolve => {{ releaseFirstWorker = resolve }})
 let integratedWhileWorkerActive = false
 const agent = async (prompt, options) => {{
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
@@ -9390,7 +9488,9 @@ const agent = async (prompt, options) => {{
   if (options.agentType && options.agentType.includes('implementer')) {{
     activeWorkers += 1
     maximumWorkers = Math.max(maximumWorkers, activeWorkers)
-    await new Promise(resolve => setTimeout(resolve, task === 'work-001' ? 35 : task === 'work-002' ? 5 : 10))
+    // Keep the first worker active until the third reaches destination transport.
+    if (task === 'work-001') await firstWorkerGate
+    else await Promise.resolve()
     activeWorkers -= 1
     completedWorkers.push(task)
     return {{ schema_version: 1, kind: 'implementer', area: 'work', task_id: task,
@@ -9402,6 +9502,7 @@ const agent = async (prompt, options) => {{
     integratedWhileWorkerActive ||= activeWorkers > 0
     await new Promise(resolve => setTimeout(resolve, 2))
     gated.push(task)
+    if (task === 'work-003') releaseFirstWorker()
     activeGate -= 1
     return {{ task_id: task, status: 'integrated', head: task.at(-1).repeat(40), summary: 'integrated', findings: [], preserved: '/tmp/' + task }}
   }}
@@ -9421,6 +9522,27 @@ if (!integratedWhileWorkerActive) throw new Error('integration waited for every 
 if (completedWorkers.join(',') !== 'work-002,work-003,work-001') throw new Error('workers did not finish out of order: ' + completedWorkers)
 if (gated.join(',') !== completedWorkers.join(',')) throw new Error('task identity was lost: ' + gated)
 if (!result.startsWith('PASS zdev-parallel work') || !result.includes('work-001') || !result.includes('work-003')) throw new Error(result)
+for (const [finding, checked, expected, vetterCount] of [
+  ['src/api.rs:10: candidate defect', {{ verdict: 'pass', summary: 'Claim disproved; original validation passed.', findings: [], escalation: 'none' }}, 'PASS', 1],
+  ['src/api.rs:10: candidate defect', {{ verdict: 'blocker', summary: 'Caller evidence unavailable.', findings: ['Open question'], escalation: 'none' }}, 'BLOCKER', 1],
+  ['validation_write:missing-space', null, 'BLOCKER', 0],
+  ['validation_write: ../outside.rs', null, 'BLOCKER', 0],
+]) {{
+  let checks = 0
+  let repairs = 0
+  const vetted = await run({{ area: 'work', task_ids: ids, destination_root: '/repo',
+    destination_branch: 'main', worker_limit: 2, cleanup: false, consent: true }}, async (prompt, options) => {{
+    if (options.label === 'zdev work-001: check findings') {{ checks += 1; return checked }}
+    if (options.label === 'zdev work-001: confirm findings snapshot unchanged')
+      return {{ schema_version: 1, area: 'work', snapshot: 'W' + '1'.repeat(16), equal: true }}
+    if (options.label === 'zdev work-001: verify destination')
+      return {{ verdict: 'rework', summary: 'Original validation passed; candidate correction.', findings: [finding], escalation: 'none' }}
+    if (options.label === 'zdev work-001: rework') {{ repairs += 1; throw new Error('unchecked claim reached repair') }}
+    return agent(prompt, options)
+  }})
+  if (!vetted.startsWith(expected + ' zdev-parallel work') || checks !== vetterCount || repairs !== 0)
+    throw new Error('parallel finding gate failed: ' + vetted)
+}}
 const stopped = await run({{ area: 'work', task_ids: ids, destination_root: '/repo',
   destination_branch: 'main', worker_limit: 2, cleanup: true, consent: true }}, async (prompt, options) => {{
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
@@ -10012,7 +10134,7 @@ fn worker_roles_state_their_semantic_result_contracts() {
         include_str!("../templates/zdev/omp/agents/zdev-verifier.md"),
     ] {
         let prompt = prompt.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(prompt.contains("For task verification only"));
+        assert!(prompt.contains("For initial task verification"));
         assert!(prompt.contains("`pass` with no findings"));
         assert!(prompt.contains("`rework` with at least one finding"));
         assert!(prompt.contains("`rework` may request `advanced-implementer`"));
@@ -11354,6 +11476,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev-pi/SKILL.md",
             "skills/zdev-pi/references/area-loop.md",
             "skills/zdev-pi/references/audit.md",
+            "skills/zdev-pi/references/coding.md",
             "skills/zdev-pi/references/discuss.md",
             "skills/zdev-pi/references/implement.md",
             "skills/zdev-pi/references/improve.md",
@@ -11495,6 +11618,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev/SKILL.md",
             "skills/zdev/references/area-loop.md",
             "skills/zdev/references/audit.md",
+            "skills/zdev/references/coding.md",
             "skills/zdev/references/discuss.md",
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",

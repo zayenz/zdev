@@ -6,12 +6,26 @@ the retained concrete settings for every lens and the final evidence check.
 When the requested audit names an area, pass that area to profile resolution so
 the current harness's area profile applies.
 
-With no explicit lenses, use exactly one fresh verifier to inspect the boundary,
-check the evidence, and return the public result. An explicit list of one to
-four lenses selects the larger audit path: use one independent verifier per
-lens, then give every candidate finding to one different fresh verifier for
-final checking and deduplication. Reject more than four lenses before starting
-any worker. Never report an unchecked finding.
+Read the supplied coding guidance's **Code standards** and **Review** sections, and give
+its installed path to each verifier. Assess applicable rules within the audit
+boundary; missing historical authoring evidence remains unknown. Retain the
+reviewed code state and compare it before accepting checked findings. Changed
+code requires fresh review.
+
+With no explicit lenses, use one fresh verifier for the initial boundary
+review. Before substantive findings are reported, someone other than their
+author must inspect the cited code and check locations, rule applications,
+consequences, and severity. The coordinating agent may do this when independent
+and able to inspect the evidence; otherwise use a different fresh verifier with
+the retained settings. No additional check is needed for zero findings.
+
+An explicit list of one to four lenses uses one independent verifier per lens,
+then a different fresh verifier to check and deduplicate candidate findings
+when any exist. Reject more than four lenses before starting any worker. Do
+not repeat the whole audit to vet findings or recursively check the checking
+reviewer. Correct or remove overturned claims with reasons in `Checked
+evidence`. Unresolved or unchecked claims remain open questions in a blocker,
+never established findings. Never report an unchecked finding as verified.
 
 The first line must be exactly one of:
 

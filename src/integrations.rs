@@ -21,6 +21,10 @@ const GUIDANCE_END_MARKER: &str = "<!-- zdev:guidance:end -->";
 const GUIDANCE_TEMPLATE: &str = "# Repository guidance for zdev\n\n## Understand and navigate\n\n## Build and compile\n\n## Run locally\n\n## Test and validate\n\n## Format and lint\n\n## Generated files and migrations\n\n## Safety, secrets, and unavailable services\n";
 const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
     (
+        "references/coding.md",
+        include_str!("../templates/zdev/references/coding.md"),
+    ),
+    (
         "references/discuss.md",
         include_str!("../templates/zdev/references/discuss.md"),
     ),
@@ -553,11 +557,19 @@ impl Harness {
         } else {
             canonicalize_with_missing_suffix(&destination.join(contract_suffix))
         };
+        let coding_guidance_path = canonicalize_with_missing_suffix(&if self == Self::Claude {
+            destination.join("skills/zdev/references/coding.md")
+        } else {
+            destination
+                .join(contract_suffix)
+                .with_file_name("coding.md")
+        });
         realize_templates(
             self,
             guidance,
             &workers,
             &task_workflows_contract_path,
+            &coding_guidance_path,
             &mut files,
         )?;
         Ok(SkillIntegration {
@@ -880,9 +892,15 @@ fn realize_templates(
     guidance: Option<(&str, &str)>,
     workers: &ResolvedWorkers,
     task_workflows_contract_path: &Path,
+    coding_guidance_path: &Path,
     files: &mut [IntegrationFile],
 ) -> Result<(), ZdevError> {
-    let repository_guidance = repository_guidance(guidance);
+    let coding_path_json = serde_json::to_string(&coding_guidance_path.to_string_lossy())
+        .map_err(|error| ZdevError::new(format!("Cannot render coding guidance path: {error}")))?;
+    let repository_guidance = format!(
+        "{}\n\n## Coding guidance\n\nCoding guidance file: {coding_path_json}\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.",
+        repository_guidance(guidance)
+    );
     let version = env!("CARGO_PKG_VERSION");
     let task_workflows_contract_path_json = serde_json::to_string(
         &task_workflows_contract_path.to_string_lossy(),
@@ -2059,6 +2077,7 @@ mod tests {
             Some(("AGENTS.md", guidance)),
             &workers,
             Path::new("/tmp/task-workflows.md"),
+            Path::new("/tmp/coding.md"),
             &mut files,
         )
         .expect("render JSON artifact");
@@ -2074,6 +2093,7 @@ mod tests {
             None,
             &workers,
             Path::new("/tmp/task-workflows.md"),
+            Path::new("/tmp/coding.md"),
             &mut files,
         )
         .expect_err("invalid destination syntax must fail");

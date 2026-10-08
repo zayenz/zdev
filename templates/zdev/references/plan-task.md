@@ -22,7 +22,10 @@ the run's implementation, advanced-implementation, or verifier choice.
 
 Start exactly one fresh read-only planner. Give it the immutable work-context
 snapshot, brief, optional slice, complete task, repository guidance, and the
-task-workflow contract. Validate its four-field semantic result and construct
+task-workflow contract, and supplied coding guidance. Require its design and
+structural sections; use `plan.approach` for responsibilities, call sequence,
+and changed contracts at the level needed by this task. Validate its four-field
+semantic result and construct
 the public planner envelope exactly as required by that contract. Return the
 selected area and task, the plan's approach, paths, validation, findings, the
 snapshot baseline, and the concrete planner profile, model, and effort.

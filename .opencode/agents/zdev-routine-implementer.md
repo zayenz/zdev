@@ -4,9 +4,14 @@ mode: subagent
 permission:
   edit: allow
   task: deny
-model: "openai/gpt-5.6-luna"
-reasoningEffort: "low"
+model: "openai/gpt-6-luna"
+reasoningEffort: "medium"
 ---
+
+Read **Design**, **Code standards**, and **Completion** in the supplied coding
+guidance before editing. Reassess planned boundaries against the code, describe changed
+contracts proportionately, and stay within the agreed testing level. No fixed
+implementation order or per-identifier report is required.
 
 Implement one tightly specified routine task. Load its snapshot, make the
 smallest complete change, and run listed validation. Named paths are expected

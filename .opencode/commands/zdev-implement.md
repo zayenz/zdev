@@ -31,10 +31,19 @@ Keep branch-only reference material beside that branch. Name the required
 behavior and completion condition. Remove facts the worker can inspect cheaply
 and lines that do not change what the worker does.
 
+Every planner, implementer, and verifier payload supplies the exact installed
+coding guidance path from repository guidance. Require planners to read its
+**Design** and **Code standards** sections, implementers also **Completion**, and
+verifiers its **Code standards** and **Review** sections before work. Carry
+available design and process evidence in existing plans and summaries, not new records.
+A planner puts responsibilities and changed contracts in `plan.approach`;
+implementers reassess them and revise affected contracts before implementation
+within approved scope, without another planning worker or fixed build order.
+
 For example, the implementer payload always names the brief, task, repository
-guidance, and work-context snapshot. It names the derived-work section only
-when a split is needed, and it includes the shared prose guidance only when the
-task authors human-facing text. The verifier snapshot rules remain with the
+guidance, supplied coding guidance, and work-context snapshot. It names the
+derived-work section only when a split is needed, and it includes the shared
+prose guidance only when the task authors human-facing text. The verifier snapshot rules remain with the
 verifier handoff below instead of being repeated in implementer instructions.
 
 When that prose branch applies, preserve meaning and tone. Name actors and
@@ -327,16 +336,43 @@ the exact compact schema for the selected area and snapshot. It never accepts
 `pass` unless `equal` is true. When the comparison is equal and every finding
 is a valid validation-write marker, coordination normalizes the result to
 `pass`, clears the findings, and keeps the verifier summary. An equal comparison
-proves that validation left the canonical work context unchanged, so there is
-nothing for an implementer to correct. This rule applies only to validation-write
+proves that validation left the canonical work context unchanged. Remove valid
+validation-write markers before checking substantive findings in a mixed result;
+the remaining findings still need review. This rule applies only to validation-write
 findings; an equal comparison never erases a semantic finding. A false comparison
 preserves `rework` only when
-the semantic result contains at least one tagged task-owned validation-write
-path and every marker-prefixed finding is valid;
-an ordinary implementation-defect rework plus unequal state is a coordinator
-blocker because the mismatch is not attributed. Missing, corrupt, cross-area,
-or malformed snapshot or comparison evidence is also a
-blocker.
+the semantic result contains only valid tagged task-owned validation-write
+paths. Substantive implementation findings with unequal state are a coordinator
+blocker and require fresh review, including when mixed with valid markers.
+Missing, corrupt, cross-area, or malformed snapshot or comparison evidence is
+also a blocker.
+
+Before routing substantive findings for rework or reporting them as established
+defects, apply the supplied coding guidance's independent finding check. The
+author of a finding cannot vet it.
+The coordinating agent may inspect the cited code and counterevidence when it
+is independent; otherwise dispatch a different fresh verifier with the frozen
+verifier settings, original snapshot, initial semantic result, and the same
+requirements and coding guidance. This is a bounded check of locations, rule
+applications, consequences, and severity, not another whole-task review.
+
+Require an equal comparison before and after this check. Substantive findings
+combined with changed code require fresh review against a new admitted snapshot;
+do not certify the old findings against the new code. Only mechanical
+`validation_write:` bookkeeping uses the unequal-state exception above. No
+finding check is needed for no findings or only those markers, and the checker
+needs no further checker.
+
+Use the existing four-field semantic result for a delegated check. Preserve
+supported findings; correct or remove overturned claims with reasons in
+`summary`. Retain unresolved claims as open
+questions in a `blocker`, with `escalation: "none"`, rather than established
+repair instructions. If all substantive claims are overturned, `pass` requires
+the initial whole-task review and all required validation to be complete and
+no remaining markers or gaps. An unavailable check is a blocker. Keep the
+checking rationale in the accepted summary; never silently discard a finding.
+Blocker claims remain open questions and do not require a separate checking
+worker unless they are to be accepted as verified defects.
 
 Coordination then constructs the compatible public verifier envelope with
 generated `schema_version: 1`, `kind: "verifier"`, selected `area`, selected
@@ -416,7 +452,8 @@ brief, task, guidance, and source file paths, applicable snapshot IDs, and the
 short result from the preceding role. Do not copy the rendered contract.
 Immediately before each verifier task, the primary agent stores and validates
 the snapshot; after extracting and validating one balanced semantic object it
-compares that snapshot and constructs the public nine-key verifier envelope.
+compares that snapshot, independently vets substantive findings under this
+contract, and constructs the public nine-key verifier envelope.
 Never repeat a worker only to remove wrapping text.
 
 <!-- zdev:generated-repository-guidance:start -->
@@ -424,3 +461,9 @@ Never repeat a worker only to remove wrapping text.
 
 Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->
+
+## Coding guidance
+
+Coding guidance file: "/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/coding.md"
+
+Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

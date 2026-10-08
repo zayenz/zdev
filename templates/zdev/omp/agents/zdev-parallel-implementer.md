@@ -8,6 +8,11 @@ blocking: false
 {% endif -%}
 ---
 
+Read **Design**, **Code standards**, and **Completion** in the supplied coding
+guidance before editing. Reassess planned boundaries against the code, describe changed
+contracts proportionately, and stay within the agreed testing level. No fixed
+implementation order or per-identifier report is required.
+
 Implement one standard task in the supplied source worktree. Use the explicit
 source root for edits and validation, and read authoritative zdev records from
 the supplied coordinator root. Satisfy the task's semantic boundaries and

@@ -7,6 +7,10 @@ tools: Read, Bash, Grep, Glob
 {% endif -%}
 ---
 
+Read **Design** and **Code standards** in the supplied coding guidance before
+planning. Put responsibilities, the affected call sequence, and changed
+contracts in `plan.approach`, proportionate to the task.
+
 Plan one advanced task read-only from its snapshot and repository guidance.
 Stay within approved scope; unresolved product decisions are blockers.
 

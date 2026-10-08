@@ -355,7 +355,7 @@ const runDestinationGate = async candidate => {
       && admitted.safe === true && admitted.stale_advisory === false && admitted.checkout === destinationRoot
     if (!validAdmission) return preserved(candidate, 'fresh verifier admission was malformed, mismatched, unsafe, or stale', transported.findings)
     const snapshot = admitted.snapshot
-    const verification = parseVerifier(await agent(
+    let verification = parseVerifier(await agent(
       `${workerContract}\n\nIndependently verify parallel task ${candidate.task_id} in authoritative checkout ${destinationRoot}. Load only fresh snapshot ${snapshot} with zdev work-context ${area} --show ${snapshot} --format json and require exact task ${candidate.task_id}. Check the whole task and run required validation. Keep verification read-only and return exactly the four-key semantic verifier object.`,
       profiled('verifier', { agentType: 'zdev:zdev-verifier', label: `zdev ${candidate.task_id}: verify destination` }),
     ))
@@ -368,15 +368,40 @@ const runDestinationGate = async candidate => {
       return preserved(candidate, 'invalid verifier or snapshot comparison result', verification?.findings ?? [])
     }
     const validationWrites = verification.findings.filter(item => item.startsWith('validation_write:'))
-    const validWrites = validationWrites.length > 0 && validationWrites.every(item => /^validation_write: [^/\\][^\\]*$/.test(item))
+    const validWrites = verification.verdict === 'rework' && validationWrites.length > 0 && validationWrites.every(item => {
+      if (!item.startsWith('validation_write: ')) return false
+      const path = item.slice('validation_write: '.length)
+      return !path.startsWith('/') && !path.includes('\\')
+        && path.split('/').every(part => part && part !== '.' && part !== '..')
+    })
+    if (validationWrites.length > 0 && !validWrites) return preserved(candidate, 'malformed validation-write finding; verification remains incomplete')
     if (!compared.equal && !(verification.verdict === 'rework' && validWrites)) {
       return preserved(candidate, 'verifier changed the destination without attributable validation writes', verification.findings)
     }
-    if (compared.equal && verification.verdict === 'rework' && validWrites
-      && validationWrites.length === verification.findings.length) {
-      verification.verdict = 'pass'
-      verification.findings = []
-      verification.escalation = 'none'
+    if (compared.equal && verification.verdict === 'rework' && validWrites) {
+      verification.findings = verification.findings.filter(item => !item.startsWith('validation_write:'))
+      if (verification.findings.length === 0) {
+        verification.verdict = 'pass'
+        verification.escalation = 'none'
+      }
+    }
+    if (verification.verdict === 'rework' && verification.findings.some(item => !item.startsWith('validation_write:'))) {
+      if (!compared.equal) return preserved(candidate, 'substantive findings require a fresh review of the changed destination')
+      const vetted = parseVerifier(await agent(
+        `${workerContract}\n\nCheck substantive findings for parallel task ${candidate.task_id} independently of their author. Work read-only in ${destinationRoot}; load context with zdev work-context ${area} --show ${snapshot} --format json. Follow Review in the supplied coding guidance. Inspect locations, callers, rules, consequences, severity, and counterevidence without repeating the whole review or rerunning validation. Preserve original validation conclusions. Return the reconciled four-field semantic verifier object: rework for supported corrections, pass only when all substantive findings are disproved and the original review otherwise established completion, or blocker for unresolved claims or missing evidence. Explain removed or corrected claims in summary. Do not add new findings, validation_write markers, or escalate beyond the candidate. Do not delegate or edit.\n\nCandidate review: ${JSON.stringify(verification)}`,
+        profiled('verifier', { agentType: 'zdev:zdev-verifier', label: `zdev ${candidate.task_id}: check findings` }),
+      ))
+      const unchanged = strictObject(await agent(
+        `Act only as deterministic findings coordination. Run zdev work-context ${area} --compare ${snapshot} --format json exactly once in ${destinationRoot} and return its JSON stdout unchanged.`,
+        { label: `zdev ${candidate.task_id}: confirm findings snapshot unchanged`, schema: comparisonSchema },
+      ), ['schema_version', 'area', 'snapshot', 'equal'])
+      if (!vetted || !unchanged || unchanged.schema_version !== 1 || unchanged.area !== area
+        || unchanged.snapshot !== snapshot || unchanged.equal !== true
+        || vetted.findings.some(item => item.startsWith('validation_write:'))
+        || (vetted.escalation !== 'none' && vetted.escalation !== verification.escalation)) {
+        return preserved(candidate, 'finding verification was invalid or the reviewed destination changed; findings remain unchecked')
+      }
+      verification = vetted
     }
     if (verification.verdict === 'blocker') return { task_id: candidate.task_id, status: 'blocked',
       summary: verification.summary, commit: null, findings: verification.findings, preserved: transported.preserved }

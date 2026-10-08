@@ -26,7 +26,8 @@ snapshot IDs, and the short result from the preceding role. Pi children read
 those files from the shared checkout; do not copy the rendered contract.
 Immediately before each verifier child, the current session stores and
 validates the snapshot; after extracting and validating one balanced semantic
-object it compares that snapshot and constructs the public nine-key verifier
+object it compares that snapshot, independently vets substantive findings under this
+contract, and constructs the public nine-key verifier
 envelope. Never repeat a child only to remove wrapping text.
 
 {{repository_guidance}}

@@ -24,7 +24,8 @@ brief, task, guidance, and source file paths, applicable snapshot IDs, and the
 short result from the preceding role. Do not copy the rendered contract.
 Immediately before each verifier task, the primary agent stores and validates
 the snapshot; after extracting and validating one balanced semantic object it
-compares that snapshot and constructs the public nine-key verifier envelope.
+compares that snapshot, independently vets substantive findings under this
+contract, and constructs the public nine-key verifier envelope.
 Never repeat a worker only to remove wrapping text.
 
 {{repository_guidance}}

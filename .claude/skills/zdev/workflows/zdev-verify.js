@@ -3,7 +3,7 @@ export const meta = {
   description: 'Independently verify the explicit current ready zdev task',
 }
 
-const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->"
+const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->\n\n## Coding guidance\n\nCoding guidance file: \"/Users/zayenz/projects/zdev/.claude/skills/zdev/skills/zdev/references/coding.md\"\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it."
 const workerContract = repositoryGuidance
 const normalizeVerifyArgs = value => {
   if (Array.isArray(value)) return { area: value[0], task_id: value[1] }
@@ -286,7 +286,7 @@ const verified = await agent(
   `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load immutable context with zdev work-context ${area} --show ${stored.snapshot} --format json and require the same ready task at HEAD ${stored.head}. Check the whole task and run required validation. Keep verification read-only: use a check or dry-run form for generators and other commands expected to rewrite tracked files. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each unexpected validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Never repair or discard validation writes.`,
   verifierOptions,
 )
-const semantic = parseVerifierResult(verified?.trim())
+let semantic = parseVerifierResult(verified?.trim())
 const comparedRaw = await agent(
   `Act only as deterministic post-verification coordination. Run zdev work-context ${area} --compare ${stored.snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
   { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'haiku' },
@@ -295,10 +295,31 @@ const compared = parseComparison(comparedRaw?.trim(), stored.snapshot)
 if (!semantic || !compared || (!compared.equal && !reportsValidationWrite(semantic))) {
   return blocker(area, taskId, 'verifier output or post-validation comparison was invalid, contradictory, or changed ambiguously.', stored.staleAdvisory)
 }
-const normalized = compared.equal && onlyValidationWrites(semantic)
-  ? { ...semantic, verdict: 'pass', findings: [], escalation: 'none' }
-  : semantic
-const result = publicVerifier(normalized, stored.snapshot, advisory)
+if (semantic.findings.some(item => item.startsWith(validationWriteMarker)) && !reportsValidationWrite(semantic)) {
+  return blocker(area, taskId, 'malformed validation-write finding; verification remains incomplete.', stored.staleAdvisory)
+}
+if (compared.equal && reportsValidationWrite(semantic)) {
+  semantic = { ...semantic, findings: semantic.findings.filter(item => !item.startsWith(validationWritePrefix)) }
+  if (semantic.findings.length === 0) semantic = { ...semantic, verdict: 'pass', escalation: 'none' }
+}
+if (semantic.verdict === 'rework' && !onlyValidationWrites(semantic)) {
+  if (!compared.equal) return blocker(area, taskId, 'substantive findings require a fresh review of the changed code state.', stored.staleAdvisory)
+  const checked = await agent(
+    `${workerContract}\n\nCheck the substantive findings in this candidate review of task ${taskId}, independently of their author. Load context with zdev work-context ${area} --show ${stored.snapshot} --format json. Follow Review in the supplied coding guidance. Inspect locations, callers, rule applications, consequences, severity, and counterevidence without repeating the whole review or rerunning validation. Preserve the original validation conclusions. Return the reconciled four-field semantic verifier object: rework for supported corrections, pass only when all substantive findings are disproved and the original review otherwise established completion, or blocker for unresolved claims or missing evidence. Explain removed or corrected claims in summary. Do not add new findings, validation_write markers, or escalate beyond the candidate. Do not delegate or edit.\n\nCandidate review: ${JSON.stringify(semantic)}`,
+    { ...verifierOptions, label: `zdev ${taskId}: check findings` },
+  )
+  const vetted = parseVerifierResult(typeof checked === 'string' ? checked.trim() : checked)
+  const unchanged = parseComparison(await agent(
+    `Act only as deterministic findings coordination. Run zdev work-context ${area} --compare ${stored.snapshot} --format json exactly once and return its JSON stdout unchanged. Keep files and Git state unchanged.`,
+    { label: `zdev ${taskId}: confirm findings snapshot unchanged`, model: 'haiku' },
+  ), stored.snapshot)
+  if (!vetted || !unchanged?.equal || vetted.findings.some(item => item.startsWith(validationWriteMarker))
+    || (vetted.escalation !== 'none' && vetted.escalation !== semantic.escalation)) {
+    return blocker(area, taskId, 'finding verification was invalid or the reviewed code state changed; findings remain unchecked.', stored.staleAdvisory)
+  }
+  semantic = vetted
+}
+const result = publicVerifier(semantic, stored.snapshot, advisory)
 return result
   ? JSON.stringify(result)
   : blocker(area, taskId, 'coordinator could not construct the public verifier envelope.', stored.staleAdvisory)

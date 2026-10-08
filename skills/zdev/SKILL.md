@@ -33,8 +33,9 @@ ready or unblocked task across areas. A generic request to continue, select the
 next task, or work without naming an area keeps the ordinary area-specific
 selection rules.
 
-Load only the references named by the selected row, read each completely once,
-and do not ask a reference to choose another route. Run requested interactions
+Load the references named by the selected row and read each completely once.
+Read the applicable coding guidance sections when the route involves code. Do
+not ask a reference to choose another route. Run requested interactions
 in their requested order; load a shared reference only at its first use. After
 the last interaction, report the result and wait. If a pending reviewed bundle
 changes, show the revision and ask for exact approval again. During authorized
@@ -139,6 +140,21 @@ stops implementation, verification, completion, and commit preparation.
 
 Keep existing Git changes in place. Establish ownership before touching an
 overlapping path or changing the index.
+
+## Apply shared coding guidance
+
+Read [coding guidance](references/coding.md) before planning, authoring, or
+reviewing code. Names explain intent, structure separates responsibilities, and
+values make dependencies explicit; readability contributes to correctness.
+Apply **Design** and **Completion** when authoring and **Review** when assessing
+code, with **Code standards** applying to both. Keep the work
+proportional to the task and its agreed testing level.
+
+Give every relevant worker the supplied installed coding guidance path and tell
+it which sections to read. Carry changed contracts and available process
+evidence in existing plans, summaries, and handoffs. Independently check
+substantive findings before they drive rework or reporting, as specified there;
+use the task workflow's snapshot and result rules for task verification.
 
 ## Scoped execution profiles
 
@@ -349,7 +365,8 @@ destination snapshot.
 
 Spawn each role with `fork_turns="none"`. Use a compact filesystem-backed
 message containing its role and exact area, task, or boundary identity; the
-exact installed route-contract path; applicable repository-instruction paths;
+exact installed route-contract and supplied coding guidance paths; applicable
+repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
 returns the route's required fields in one JSON object as its final response,
@@ -393,16 +410,17 @@ need that editorial guidance.
 For task verification, store and validate the snapshot immediately before
 spawning the verifier. Extract one balanced JSON object from its response,
 tolerating brief prose or a Markdown fence, validate the four semantic fields,
-compare the snapshot, and construct the compatible nine-key verifier envelope
-in the coordinating session. Never repeat a worker only to remove valid
+compare the snapshot, independently vet substantive findings under the task
+workflow, and construct the compatible nine-key verifier envelope in the
+coordinating session. Never repeat a worker only to remove valid
 wrapping text.
 
 For the implementer, pass `model="gpt-6.1-sol"` and
-`reasoning_effort="low"` together with `fork_turns="none"`.
+`reasoning_effort="medium"` together with `fork_turns="none"`.
 For the verifier, pass `model="gpt-6.1-sol"` and
-`reasoning_effort="low"` together with `fork_turns="none"`.
+`reasoning_effort="medium"` together with `fork_turns="none"`.
 For the planner, pass `model="gpt-6.1-sol"` and
-`reasoning_effort="high"` together with `fork_turns="none"`.
+`reasoning_effort="xhigh"` together with `fork_turns="none"`.
 
 For an active-zdev goal or loop request, follow the internal area-loop
 contract. It calls `get_goal` before repository work, preserves an unfinished
@@ -427,5 +445,11 @@ goal and follow its own objective and lifecycle rules.
 
 Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->
+
+## Coding guidance
+
+Coding guidance file: "/Users/zayenz/projects/zdev/skills/zdev/references/coding.md"
+
+Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
 
 The [task format](references/task-format.md) defines imported task bundles.

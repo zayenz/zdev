@@ -3,9 +3,14 @@ name: zdev-routine-implementer
 description: Implement tightly specified, low-risk mechanical work for one authored routine zdev task
 tools: read, grep, bash, edit, write
 blocking: true
-model: "openai/gpt-5.6-luna"
-thinking-level: "low"
+model: "openai/gpt-6-luna"
+thinking-level: "medium"
 ---
+
+Read **Design**, **Code standards**, and **Completion** in the supplied coding
+guidance before editing. Reassess planned boundaries against the code, describe changed
+contracts proportionately, and stay within the agreed testing level. No fixed
+implementation order or per-identifier report is required.
 
 Implement one tightly specified routine task. Load its snapshot, make the
 smallest complete change, and run listed validation. Named paths are expected

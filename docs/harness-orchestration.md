@@ -150,13 +150,17 @@ from a fresh standard `verifier`. Ordinary rework returns to the selected
 implementation tier without replanning. After standard implementation only, a
 verifier may recommend one move to `advanced-implementer` during the current
 in-memory task run; the repair is followed by another fresh standard verifier.
-Routine and already advanced work cannot escalate. `zdev-verify` uses only a
-fresh `verifier`. `zdev-audit` uses a verifier for the audit and a different
-fresh verifier to vet findings; when the boundary is small, the coordinator
-may omit the first delegation and ask one fresh verifier for the checked audit
-directly. An explicit multi-lens audit uses one verifier per lens and one more
-for final vetting. These workers use the resolved profiles; zdev does not
-invent an `auditor`, planner, or advanced-verifier model role.
+Routine and already advanced work cannot escalate. `zdev-verify` starts a fresh
+`verifier`. Before substantive findings drive rework or reporting, an independent
+coordinator inspects their evidence or a different fresh verifier checks them.
+The executable Claude routes use a fresh verifier and compare the task snapshot
+again afterward. Zero findings and valid mechanical validation-write markers
+need no extra reviewer.
+
+`zdev-audit` starts one verifier, or one per explicit lens. Substantive findings
+receive the same independent check; a default audit with no findings and a lens
+audit whose reviewers all pass need no checking worker. These workers use the
+resolved profiles; zdev does not invent an auditor or advanced-verifier role.
 
 The harness runtime owns child execution, cancellation, and delivery only. A
 child session, job, transcript, or agent ID is not zdev state. Audit reviewers

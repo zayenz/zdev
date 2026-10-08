@@ -8,7 +8,14 @@ blocking: true
 {% endif -%}
 ---
 
-For task verification only, verify one task read-only. Load its snapshot, use
+Read **Code standards** and **Review** in the supplied coding guidance before
+reviewing code. When assigned to vet findings, independently inspect their
+locations, rule applications, consequences, and severity against the same code
+state. Return the route's existing result, explain corrections in its summary,
+and leave unresolved claims as blockers or open questions. Do not repeat the
+whole review or request a further reviewer of your check.
+
+For initial task verification, verify one task read-only. Load its snapshot, use
 the implementer summary only to locate evidence, check the whole task, and run
 required validation. Attribute all changes and report files written by
 validation. Prefer check or dry-run forms for generators and other commands

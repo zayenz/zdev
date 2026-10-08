@@ -107,49 +107,37 @@ no worker-supplied locator or identity is trusted.
 
 ## Workflow call counts
 
-These counts cover fixed orchestration calls in the audited routes, excluding
-task-specific reads, validation, and provider-internal turns. They are not
-latency measurements.
+The executable Claude workflow probes count seven agent calls for an ordinary
+successful implementation, four for an explicit verification with no findings,
+and fourteen for one implementation that needs a substantive correction and
+then passes. These counts include profile resolution and agents used for
+snapshot collection, comparison, and completion. They exclude task-specific
+reads, validation, provider-internal turns, and optional advanced planning;
+they are not latency measurements.
 
-The counts use four units:
+A substantive finding adds one fresh checking verifier and one post-check
+snapshot comparison before the accepted result can reach rework or completion.
+The checker reads the supplied snapshot and cited code without repeating the
+whole review or its validation. Prompt-driven harnesses may instead have the
+independent coordinator inspect the findings directly. Zero findings and valid
+mechanical validation-write markers do not add a checker.
 
-- **C** — a minimum sequential coordinator turn: output must be observed and a
-  semantic decision made before the next step can start. A harness may split a
-  turn further, but cannot safely merge two turns separated by a listed gate.
-- **Z** — one external `zdev` process, whether the coordinator or verifier runs
-  it.
-- **G** — one explicit local Git command. These are cheap, but keeping them
-  separate makes repeated evidence collection visible. Internal Git child
-  processes inside one zdev command are not separate orchestration calls.
-- **W** — one agent dispatch. For Claude this includes generic agents used for
-  preflight and completion, not only named implementers and verifiers.
-
-The audited counts are:
-
-| Harness route | Ordinary PASS C/Z/G/W | Explicit verify C/Z/G/W | One REWORK C/Z/G/W |
-| --- | --- | --- | --- |
-| Codex, OpenCode, Pi, Oh My Pi | 5 / 9 / 2 / 2 | 2 / 5 / 0 / 1 | 7 / 15 / 2 / 4 |
-| Claude | 5 / 10 / 2 / 6 | 2 / 4 / 0 / 3 | 7 / 17 / 2 / 11 |
-
-A closed or open no-work implementation stops after one work-context call: `C1
-Z1 G0 W0` for prompt-driven harnesses and `C1 Z1 G0 W1` for Claude. A closed
-area requires no status or Git inspection. Each verifier reads the
-coordinator's snapshot. Claude uses separate agents for snapshot collection
-and comparison. Its existing completion agent performs the distinct final
-comparison after PASS.
-
-The ordinary PASS counts end at the verified commit. A one-task command does
-not run an unused post-commit `next` or work-context call. An explicit
-continuation or area goal/loop collects fresh work-context only when it will
-use that result to decide whether to dispatch another task.
+A closed or open no-work implementation stops after one work-context call.
+An ordinary successful one-task command stops at the verified commit; it does
+not collect unused post-commit context. An explicit continuation or area loop
+collects fresh work-context to decide whether to dispatch another task.
 
 ## Small Claude audits
 
-When `lenses` is absent or empty, Claude can call one fresh verifier with the
-public audit contract and validate its final result directly.
+When `lenses` is absent or empty, Claude starts one fresh verifier with the
+public audit contract. A valid result with substantive findings goes to a
+different fresh verifier for a bounded evidence check. A result with no
+findings needs no additional reviewer.
 
-A small audit uses one worker. An audit with explicit lenses uses one worker
-per lens and one fresh verifier to check the combined findings.
+An audit with explicit lenses uses one worker per lens and one fresh verifier
+to check combined findings when any exist. When all lens reports pass, the
+workflow combines their coverage and evidence without another worker. Missing
+or blocked lens reports leave the audit incomplete.
 
 ## Ready tasks after import
 

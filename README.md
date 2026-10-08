@@ -120,11 +120,11 @@ allowance from durable records. Ordinary Implement and Loop keep their existing
 behavior. See [Serial research](docs/user-guide.md#serial-research-in-codex-and-claude-code) for
 requests, accounting and recovery.
 
-Codex also supports an explicit **rolling research** request with separate
+Codex and Claude Code also support an explicit **rolling research** request with separate
 worker and measurement limits. It refills free role capacity while siblings
 prepare, starts each source from current accepted code, and serializes destination
 acceptance. Stale candidates reconcile and remeasure. See
-[Rolling research in Codex](docs/user-guide.md#rolling-research-in-codex).
+[Rolling research](docs/user-guide.md#rolling-research-in-codex-and-claude-code).
 
 ### Complete and commit work
 

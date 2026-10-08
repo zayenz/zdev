@@ -1,8 +1,9 @@
-# Run serial research in Claude Code
+# Run serial or rolling research in Claude Code
 
 Use this route only for an explicit research-run authorization or continuation
 in a named area. Ordinary Implement, Plan, Verify, Parallel and Loop keep their
-hypothesis guards. This route uses the current branch and one coordinator.
+hypothesis guards. Serial execution uses the current branch. Rolling execution
+uses run-owned linked sources and one destination coordinator.
 Read the research sections of the installed task-format reference completely.
 The exact installed task-workflows contract path is
 {{ task_workflows_contract_path_json }}. Decode that string.
@@ -29,10 +30,20 @@ Give it structured arguments, for example:
   "authorization": "start",
   "invocation_id": "work-session-1",
   "scope": "Improve parsing within the brief",
+  "execution": "rolling",
+  "worker_limit": 2,
+  "measurement_limit": 1,
   "attempt_limit": 20,
-  "target": 5
+  "target": 5,
+  "cleanup": false
 }
 ```
+
+Omit execution for the existing serial route, or set execution rolling explicitly.
+Worker and measurement limits are positive integers used only at start; both
+default to one. Rolling authorization includes creating linked source worktrees.
+Cleanup is optional and requires explicit authority, confirmed stop, durable
+completion and retained history.
 
 The coordinator supplies a distinct invocation_id for each fresh invocation.
 Use letters, numbers, underscores and hyphens. The first coordination prompt
@@ -43,10 +54,13 @@ command_seconds and time_limit_seconds. Unlimited authorization still obeys
 runtime and resource limits.
 
 Resume with authorization resume, the same run_id, a fresh invocation_id and
-the frozen_profiles returned by the prior invocation. Do not supply replacement
+the execution, cleanup and frozen_profiles returned by the prior invocation.
+Also pass retained_candidates to preserve unfinished source implementation or
+checked acceptance repair requirements. An interrupted repair cannot use its old
+measurements or verification to accept code. Do not supply replacement
 scope, limits or target on resume. The original identity, deadline and costs
-survive. Pass retained_plans as the task-ID map of semantic plans returned by the prior
-invocation. Restore those advanced plans when continuing the same task;
+survive. Pass retained_plans as the task-ID map of semantic plans returned by the
+prior invocation. Restore those advanced plans when continuing the same task;
 never plan again during same-task rework. If a conversation lacks concrete role
 choices, explain that and resolve all five Claude roles afresh through `zdev
 config profile resolve claude <role> --area <area>` before dispatch. Freeze the
@@ -69,6 +83,61 @@ A generation-only or rebaseline-only iteration also consumes that bound. State
 the exact extent, runtime limitation and required continuation. Apply every
 accounting, recovery and verification rule below; do not promise background or
 unlimited execution because the run has until-interrupted authorization.
+
+## Coordinate rolling work
+
+Set execution rolling for continuous refill. After each arrival, collect the
+confirmed stopped source through Return, inspect fresh durable capacity and fill
+an available worker slot while siblings are still preparing. Exclude assigned
+unfinished tasks when selecting from the complete frontier. Generate and publish
+small mixed bundles within scope when no unassigned work is ready. Create each
+linked source branch from destination HEAD current at that dispatch, checking
+its code against the accepted baseline. Pass the candidate's absolute source cwd
+and authoritative brief/task/instruction paths to the worker.
+
+Every named native role, including advanced planners, ordinary support,
+acceptance verifiers and independent finding checkers, first requires a new
+counted reserve --worker-slot claim with dispatch_authorized true. Exact replay
+never grants permission. Settle standalone roles only after actual stop. Transfer
+implementation claims into Admit and repair claims into Prepare; require those
+operations' first-call dispatch_authorized true before source edits. Return with
+confirmed worker stop retains transport and settles the bound claim, including
+at worker limit one. Retain the original advanced semantic plan through repair.
+
+Evaluate runs through asynchronous command mediation. Track pending calls as
+well as durable measurement occupancy: an agent waiting to execute Evaluate
+already consumes the workflow's available measurement capacity. Source
+preparation may overlap an actual evaluator. Do not integrate while another
+measurement is pending. Serialize publication, ordinary support, integration
+and acceptance in the authoritative destination. Give a waiting acceptance
+verifier the next free role slot before another preparation.
+
+Before comparison or acceptance, refresh a stopped source against current HEAD.
+Code or condition drift requires counted Reconcile and a new actual Evaluate;
+record-only drift can retain unchanged code measurements through the public
+refresh rules. Integrate supplies a fresh destination verification snapshot.
+Reserve a confirmation role, independently verify the whole acceptance claim,
+compare that snapshot and construct the public verifier envelope. Independently
+check substantive rework findings with another counted confirmation role.
+Checked repair uses a fresh repair claim and Prepare to withdraw integrated
+owned paths before source edits, preserving unrelated destination changes,
+retained history and observations. Return, new measurement, integration and a
+fresh verifier follow every repair. Recovery never turns a replayed Prepare
+into permission for another source worker.
+
+Shared failures halt affected dispatch. Drain known source/measurement calls,
+confirm actual stops, then use relevant counted ordinary support and an actual
+accepted-code rebaseline before paused comparisons resume. Preserve the frozen
+metric, direction, correctness and acceptance requirements. Unknown workers or
+processes keep their claims and sources occupied.
+
+The workflow counts every agent call, including command mediation and composed
+ordinary helpers, toward Claude's documented 1,000-agent workflow cap. It stops
+refill at 900 calls with room to drain and report; a hard guard before 980 calls
+preserves unresolved effects. Continue through a fresh invocation of the same
+run using the returned execution, cleanup, concrete profiles, plans and repair
+handoff. Native pause/replay is not fresh dispatch authority. See
+[Claude workflow limits](https://code.claude.com/docs/en/workflows#behavior-and-limits).
 
 ## Coordinate serial work
 

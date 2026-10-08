@@ -16,11 +16,16 @@ request identity; recover the owning experiment instead of relaunching an
 unresolved measurement. Resume with `resume --run <run>` only on an authorized
 continuation. Never replace an unfinished run or reset its consumed allowance.
 {% if research_supported %}
-For Codex serial or rolling continuation, or Claude serial continuation, follow
+For Codex or Claude serial and rolling continuation, follow
 the installed research reference.
 Codex inspects actual native goal state; Claude uses a fresh research workflow
 invocation after stop/failure rather than replaying a stopped script. Restore concrete worker settings from
 the handoff; if absent, explain that limitation and resolve fresh settings.
+Claude rolling resume also carries execution, cleanup, retained_plans and
+retained_candidates. Confirm actual workers and processes stopped before
+Return or Settle; failed Promise transport alone cannot release a claim.
+Recover authorized withdrawal before a new counted repair. Preserve checked
+repair requirements so old measurements cannot accept unfinished corrections.
 {% endif %}
 
 ## Local experiment recovery

@@ -424,5 +424,7 @@ stop, durable completion, retained candidate history and an unambiguous run-owne
 source. Use the exposed archive operation for a managed worktree, or remove an
 owned local linked worktree. Keep pre-existing, unfinished and ambiguous sources.
 A finished run leaves the area open and does not claim its optimization objective
-achieved. Claude's installed route remains serial; its rolling route is a
-separate increment. Live native acceptance is separate from deterministic checks.
+achieved. Claude's installed zdev-research route accepts execution rolling with
+separate worker_limit and measurement_limit start arguments. Its research
+reference owns Claude's Promise arrival, native call-cap and fresh-invocation
+recovery rules. Live native acceptance is separate from deterministic checks.

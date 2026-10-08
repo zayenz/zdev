@@ -3,7 +3,7 @@ schema_version = 1
 id = "auto-009"
 key = "claude-rolling"
 area = "auto"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -26,11 +26,20 @@ Read the candidate contract and Claude serial route. Start with templates/zdev/c
 
 ## Done when
 
-- [ ] The Claude workflow refills available capacity before the full active set finishes, generating both task kinds within run scope.
-- [ ] Dispatch takes the latest accepted revision; returning stale candidates reconcile and remeasure under the run budget before acceptance.
-- [ ] Acceptance verification, shared evaluator changes, worker errors, cancellation, and resume follow the common contract and preserve ambiguous work.
-- [ ] Canonical templates, generated workflows/fixtures, and documentation expose the complete rolling route.
+- [x] The Claude workflow refills available capacity before the full active set finishes, generating both task kinds within run scope.
+- [x] Dispatch takes the latest accepted revision; returning stale candidates reconcile and remeasure under the run budget before acceptance.
+- [x] Acceptance verification, shared evaluator changes, worker errors, cancellation, and resume follow the common contract and preserve ambiguous work.
+- [x] Canonical templates, generated workflows/fixtures, and documentation expose the complete rolling route.
 
 ## Validation
 
 - Extend deterministic workflow scenarios for rolling refill, out-of-order returns, drift, measurement serialization, and interrupted recovery. Regenerate fixtures and run matching checks; defer credentialed Claude execution to live acceptance.
+
+## Result
+
+Added continuously refilled Claude research workers with separate measurement capacity, serialized acceptance, retained recovery and native call-cap handoff.
+
+Validation:
+
+- Independent whole-task PASS on Wd73216fd7221cc9f; fmt, clippy, 185 integration tests and 3 unit tests, build and diff checks passed.
+- All five explicit read-only integration fixture checks passed with warnings []; no Claude CLI or provider was invoked. Credentialed live acceptance remains in auto-010.

@@ -391,7 +391,10 @@ works.
 
 An explicit research-run request uses [references/research.md](references/research.md)
 and the packaged `zdev-research` workflow. Pass structured start/resume arguments,
-a fresh invocation identity and retained concrete profiles. After stop/failure,
+a fresh invocation identity, execution serial (default) or rolling, and retained
+concrete profiles. Rolling start accepts separate positive worker_limit and
+measurement_limit values; resume carries execution, cleanup, retained_plans and
+retained_candidates from its prior report. After stop/failure,
 use a new resume invocation of the same durable run. Ordinary Loop keeps its
 existing continuation behavior.
 

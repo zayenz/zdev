@@ -16668,6 +16668,89 @@ fn claude_serial_research_executes_real_commands_and_recovers_fresh_invocations(
     }
 }
 
+#[test]
+fn claude_rolling_research_refills_measures_and_recovers_public_workflow() {
+    for scenario in [
+        "rolling",
+        "rolling-one",
+        "rolling-rework",
+        "rolling-null",
+        "rolling-throw",
+        "rolling-invalid",
+        "rolling-replay",
+        "rolling-prepare",
+        "rolling-admission",
+        "rolling-finalization",
+        "rolling-measurement",
+        "rolling-ambiguous",
+        "rolling-conditions",
+        "rolling-shared",
+        "rolling-record-only",
+        "rolling-process",
+        "rolling-cap",
+        "rolling-conflict",
+        "rolling-stale-verifier",
+        "rolling-budget",
+        "rolling-cleanup",
+        "rolling-support-completion",
+    ] {
+        eprintln!("Claude rolling scenario: {scenario}");
+        let evaluator = if scenario == "rolling-process" {
+            "kill -KILL \"$PPID\"; sleep 0.1; printf 15"
+        } else {
+            "sleep 0.08; wc -c < seed.txt"
+        };
+        let repository = isolated_candidate_fixture(evaluator);
+        let sources = TempDir::new().unwrap();
+        let root = repository.path();
+        // Advanced planning is part of the same retained hypothesis across recovery.
+        let task_path = root.join(".zdev/work/tasks/001-candidate.md");
+        let task = fs::read_to_string(&task_path).unwrap();
+        let advanced = task.replacen("+++\n", "+++\ncomplexity = \"advanced\"\n", 1);
+        fs::write(&task_path, advanced).unwrap();
+        git(root, &["add", ".zdev/work/tasks/001-candidate.md"]);
+        git(root, &["commit", "-m", "Advanced rolling hypothesis"]);
+        let destination = root.join(".git/claude-rolling-integration");
+        let config_home = root.join(".git/rolling-config");
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                "claude",
+                "--to",
+                destination.to_str().unwrap(),
+            ],
+            &[("XDG_CONFIG_HOME", config_home.as_path())],
+        );
+        let output = Command::new("node")
+            .args([
+                "--input-type=module",
+                "--eval",
+                include_str!("claude-research-probe.mjs"),
+            ])
+            .env("ZDEV_PROBE_ROOT", root)
+            .env("ZDEV_PROBE_BINARY", env!("CARGO_BIN_EXE_zdev"))
+            .env(
+                "ZDEV_PROBE_SOURCE",
+                destination.join("workflows/zdev-research.js"),
+            )
+            .env("ZDEV_PROBE_SCENARIO", scenario)
+            .env("ZDEV_PROBE_SOURCES", sources.path())
+            .env("XDG_CONFIG_HOME", &config_home)
+            .output()
+            .expect("run deterministic installed rolling workflow");
+        assert!(
+            output.status.success(),
+            "Claude rolling {scenario} failed: {}\n{}",
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        );
+        let evidence: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(evidence["report"]["native_calls"].as_u64().unwrap() < 1_000);
+    }
+}
+
 fn isolated_candidate_fixture(evaluator: &str) -> TempDir {
     let repository = local_experiment_fixture("printf 7");
     let root = repository.path();

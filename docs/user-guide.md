@@ -99,7 +99,7 @@ records and local commands without this installed execution route. Deterministic
 installation and command scenarios validate the contracts; authenticated live
 Codex and Claude acceptance remain separate.
 
-### Rolling research in Codex
+### Rolling research in Codex and Claude Code
 
 Explicitly request rolling work and its capacities:
 
@@ -130,7 +130,20 @@ or accepted supporting code require an actual counted rebaseline before paused
 candidates reconcile and measure. Required advanced plans and concrete worker
 settings remain unchanged through rework and recovery; missing evidence stops
 that candidate. Cleanup requires a stopped, durably completed, run-owned source
-and retained cleanup authority. Claude rolling execution follows separately.
+and retained cleanup authority.
+
+Claude uses its installed zdev-research workflow with execution rolling,
+worker_limit and measurement_limit at start. Serial remains the default. Resume
+the same durable run with a fresh invocation_id, execution, cleanup,
+frozen_profiles, retained_plans and retained_candidates from the prior report.
+All native roles consume worker-slot claims; asynchronous command mediation
+lets one actual evaluator overlap source preparation. The workflow also counts
+all native calls, including mediation and composed ordinary helpers, toward
+Claude's documented 1,000-agent workflow cap. It stops refill at 900 calls and
+retains room to drain and report. Continue with a fresh invocation; stopped-script
+replay cannot grant fresh dispatch permission. Deterministic tests exercise
+installed workflows against local public commands. Credentialed Claude
+execution remains separate live acceptance.
 
 ## 1. Install zdev
 

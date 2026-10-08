@@ -3,9 +3,9 @@
 # Tasks: auto
 
 - Total: 10
-- Ready: 2
+- Ready: 1
 - Blocked: 1
-- Done: 7
+- Done: 8
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -16,6 +16,6 @@
 | [auto-005](tasks/005-run-serial-research-through-codex.md) | Run serial research through Codex | done | auto-003, auto-004 |
 | [auto-006](tasks/006-run-serial-research-through-claude-code.md) | Run serial research through Claude Code | done | auto-003, auto-004 |
 | [auto-007](tasks/007-support-isolated-candidate-admission-and-current-baseline-re.md) | Support isolated candidate admission and current-baseline reconciliation | done | auto-003, auto-004 |
-| [auto-008](tasks/008-continuously-refill-codex-research-workers.md) | Continuously refill Codex research workers | ready | auto-005, auto-007 |
+| [auto-008](tasks/008-continuously-refill-codex-research-workers.md) | Continuously refill Codex research workers | done | auto-005, auto-007 |
 | [auto-009](tasks/009-continuously-refill-claude-code-research-workers.md) | Continuously refill Claude Code research workers | ready | auto-006, auto-007 |
 | [auto-010](tasks/010-demonstrate-serial-and-rolling-research-in-both-live-harness.md) | Demonstrate serial and rolling research in both live harnesses | blocked | auto-008, auto-009 |

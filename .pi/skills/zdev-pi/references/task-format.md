@@ -783,7 +783,8 @@ level, not silently expand it.
 Done conditions must be checklist items; a completed task must have every item
 checked and include a non-empty `Result` section.
 
-Codex and Claude Code install separate serial research execution references.
+Codex and Claude Code install separate research execution references. Codex
+supports serial and rolling runs; Claude remains serial.
 Claude uses `zdev-research` with structured authorization and a fresh invocation
 identity after stop/failure. Ordinary Loop remains ordinary task continuation.
 Other harnesses expose these records and local commands without an installed
@@ -811,7 +812,8 @@ destination HEAD, accepted revision and measurement requirements at dispatch,
 source root/branch/base and authoritative record locations. It charges one
 preparation reservation before worker dispatch. A source root or branch already
 owned by an unfinished or ambiguous candidate in any area refuses admission
-before claiming capacity or authorizing dispatch. Ownership continues until
+before claiming capacity or authorizing dispatch. A changed reservation identity
+also refuses admission replay. Ownership continues until
 durable completion and confirmed worker and measurement stop. Retrying the same
 admission returns the stored context with `dispatch_authorized: false`; only a new admission
 reports `dispatch_authorized: true`. It never authorizes another worker. An unconfirmed
@@ -821,6 +823,29 @@ Unknown invocation costs and measurement slots remain reserved.
 For a later source repair, reserve a new `repair` request, then call `prepare
 --reservation <request>` to claim its worker slot before dispatch. Its retry also
 reports no dispatch authorization. Return confirms stop and releases that slot.
+
+Use `reserve --worker-slot` before every native planner, implementer, verifier
+or delegated finding checker. The existing reservation stores both its immutable
+requested slot mode and current occupancy. Only its first successful Reserve
+returns `dispatch_authorized: true`; exact retries return `false` even after
+binding or settlement. Changed task, kind or requested mode refuses. Transfer
+an unused preparation claim to Admit or a repair claim to Prepare with
+`--reservation`; neither counts its own worker slot twice. Worker requests cannot
+be bound as evaluator authorization. Confirm standalone roles stopped before
+`settle`; bound source roles settle through Return. The coordinator also checks
+actual native capacity and uses the tighter limit. Measurements remain separate.
+
+After clean integration, only the acceptance owner may reserve a counted
+`confirmation --worker-slot` or `repair --worker-slot` role. Other confirmations,
+repairs and measurements remain gated. A same-owner Prepare can withdraw that
+exact measured destination code to unchanged accepted HEAD, preserving unrelated
+index/worktree/untracked changes, retained source and historical evidence. It
+persists the repair claim and withdrawal before effects, invalidates verification
+and releases the lane after restoration. Changed owned code/index or unresolved
+integration conflicts refuse. Recover finishes authorized withdrawal without
+worker permission; Prepare replay cannot dispatch again. Run stops cannot admit
+new repair but permit recovery of recorded effects. Repaired source requires
+confirmed Return, new Evaluate, integration and fresh destination verification.
 
 After the coordinator confirms that source work has stopped:
 

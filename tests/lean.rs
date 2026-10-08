@@ -9274,6 +9274,13 @@ fn codex_and_claude_install_separate_serial_research_routes_with_resolved_contra
             );
             if harness == "codex" {
                 assert!(ordinary.contains("Open `empty` or `exhausted` returns `PASS`"));
+                assert!(skill.contains("strict `dispatch-spec` object"));
+                assert!(contract.contains("## Rolling research in Codex"));
+                assert!(contract.contains("collaboration.list_agents"));
+                assert!(contract.contains("--worker-slot"));
+                assert!(contract.contains("mcp__codex_app__create_worktree"));
+            } else {
+                assert!(!contract.contains("## Rolling research in Codex"));
             }
         } else {
             assert!(!research.exists());
@@ -16878,6 +16885,20 @@ fn isolated_candidates_reconcile_current_baseline_and_preserve_git_transport() {
     );
     isolated_action(root, "work-001", "evaluate");
     isolated_action(root, "work-002", "evaluate");
+    // A sibling remains active while acceptance advances the baseline and capacity refills.
+    reserve_research_worker(root, identity, "sibling-repair", "work-002", "repair");
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-002",
+            "prepare",
+            "--reservation",
+            "sibling-repair",
+        ],
+    );
     fs::write(root.join("seed.txt"), "overlap\n").unwrap();
     assert!(
         !run_zdev(
@@ -16915,6 +16936,39 @@ fn isolated_candidates_reconcile_current_baseline_and_preserve_git_transport() {
         b"added candidate\n"
     );
     assert!(git(root, &["ls-tree", "HEAD", "mode.txt"]).starts_with("100755"));
+    let current_head = git_stdout(root, &["rev-parse", "HEAD"]).trim().to_owned();
+    let c = sources.path().join("refilled");
+    git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "-b",
+            "candidate-c",
+            c.to_str().unwrap(),
+            "HEAD",
+        ],
+    );
+    assert_eq!(
+        isolated_action(root, "work-002", "inspect")["checkpoint"]["isolated"]["worker_stopped"],
+        false
+    );
+    let refilled = admit_isolated_candidate(root, &c, "work-003", &["seed.txt"]);
+    assert_eq!(refilled["dispatch_authorized"], true);
+    assert_eq!(
+        refilled["checkpoint"]["isolated"]["dispatch_head"],
+        current_head
+    );
+    assert_eq!(
+        refilled["checkpoint"]["isolated"]["dispatch_settings"],
+        json_output(root, &["area", "research", "work"])["research"]
+    );
+    assert_ne!(
+        refilled["checkpoint"]["head"],
+        admitted["checkpoint"]["head"]
+    );
+    isolated_action(root, "work-003", "return");
+    isolated_action(root, "work-002", "return");
     assert!(
         !run_zdev(
             root,
@@ -17325,4 +17379,688 @@ fn isolated_candidates_preserve_capacity_pause_and_recover_without_relaunch() {
         isolated_action(root, "work-003", "inspect")["cleanup_eligible"],
         false
     );
+}
+
+fn reserve_research_worker(root: &Path, run: &str, request: &str, task: &str, kind: &str) -> Value {
+    research_run_action(
+        root,
+        run,
+        "reserve",
+        &[
+            "--request",
+            request,
+            "--task",
+            task,
+            "--kind",
+            kind,
+            "--worker-slot",
+        ],
+    )
+}
+
+#[test]
+fn codex_rolling_roles_transfer_claims_and_refuse_replay_at_limit_one() {
+    let repository = isolated_candidate_fixture("wc -c < seed.txt");
+    let root = repository.path();
+    import_research_fixture(
+        root,
+        json!([{"key":"support", "title":"Prepare inputs", "outcome":"Fixed inputs are ready.", "done_when":["Inputs are ready."]}]),
+    );
+    git(root, &["add", ".zdev"]);
+    git(root, &["commit", "-m", "support task"]);
+    let sources = TempDir::new().unwrap();
+    let source = sources.path().join("candidate");
+    git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "-b",
+            "candidate",
+            source.to_str().unwrap(),
+            "HEAD",
+        ],
+    );
+    let started = start_research_run(root, &["--worker-limit", "1", "--attempt-limit", "7"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    let claimed = reserve_research_worker(root, identity, "planner", "work-001", "preparation");
+    assert_eq!(claimed["dispatch_authorized"], true);
+    assert_eq!(claimed["remaining"]["workers"], 0);
+    assert_eq!(
+        reserve_research_worker(root, identity, "planner", "work-001", "preparation")["dispatch_authorized"],
+        false
+    );
+    let run_path = git_path(root, "zdev/runs/work/current.json");
+    let before = fs::read(&run_path).unwrap();
+    for (request, task, kind, mode) in [
+        ("support-worker", "work-004", "supporting", true),
+        ("planner", "work-002", "preparation", true),
+        ("planner", "work-001", "repair", true),
+        ("planner", "work-001", "preparation", false),
+    ] {
+        let mut args = vec![
+            "research",
+            "run",
+            "work",
+            "reserve",
+            "--run",
+            identity,
+            "--request",
+            request,
+            "--task",
+            task,
+            "--kind",
+            kind,
+        ];
+        if mode {
+            args.push("--worker-slot");
+        }
+        assert!(!run_zdev(root, &args).status.success());
+        assert_eq!(fs::read(&run_path).unwrap(), before);
+    }
+    research_run_action(root, identity, "settle", &["--request", "planner"]);
+    let support =
+        reserve_research_worker(root, identity, "support-worker", "work-004", "supporting");
+    assert_eq!(support["dispatch_authorized"], true);
+    research_run_action(root, identity, "settle", &["--request", "support-worker"]);
+    let prep = reserve_research_worker(root, identity, "implementation", "work-001", "preparation");
+    assert_eq!(prep["remaining"]["workers"], 0);
+    let admit_args = [
+        "research",
+        "experiment",
+        "work",
+        "work-001",
+        "admit",
+        "--source",
+        source.to_str().unwrap(),
+        "--path",
+        "seed.txt",
+        "--reservation",
+        "implementation",
+    ];
+    let admitted = json_output(root, &admit_args);
+    assert_eq!(admitted["dispatch_authorized"], true);
+    assert_eq!(json_output(root, &admit_args)["dispatch_authorized"], false);
+    let mut changed_admission = admit_args;
+    changed_admission[changed_admission.len() - 1] = "planner";
+    let before = fs::read(&run_path).unwrap();
+    assert!(!run_zdev(root, &changed_admission).status.success());
+    assert_eq!(fs::read(&run_path).unwrap(), before);
+    assert_eq!(
+        reserve_research_worker(root, identity, "implementation", "work-001", "preparation")["dispatch_authorized"],
+        false
+    );
+    let context = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(context["remaining"]["workers"], 0);
+    assert_eq!(context["consumed"]["work_attempts"], 3);
+    fs::write(source.join("seed.txt"), "a\n").unwrap();
+    isolated_action(root, "work-001", "return");
+    // A settled native claim retains its original request mode and cannot become an evaluator.
+    let before = fs::read(&run_path).unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "evaluate",
+                "--reservation",
+                "implementation"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(&run_path).unwrap(), before);
+    assert_eq!(
+        reserve_research_worker(root, identity, "implementation", "work-001", "preparation")["dispatch_authorized"],
+        false
+    );
+    reserve_research_worker(
+        root,
+        identity,
+        "not-measurement",
+        "work-001",
+        "confirmation",
+    );
+    let before = fs::read(&run_path).unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "evaluate",
+                "--reservation",
+                "not-measurement"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(&run_path).unwrap(), before);
+    research_run_action(root, identity, "settle", &["--request", "not-measurement"]);
+    isolated_action(root, "work-001", "evaluate");
+    isolated_action(root, "work-001", "integrate");
+    let support_before = json_output(root, &["task", "show", "work", "work-004"]);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "task",
+                "done",
+                "work",
+                "work-004",
+                "--summary",
+                "Inputs are ready."
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-004"]),
+        support_before
+    );
+    let confirmation = reserve_research_worker(
+        root,
+        identity,
+        "destination-verifier",
+        "work-001",
+        "confirmation",
+    );
+    assert_eq!(confirmation["dispatch_authorized"], true);
+    assert_eq!(confirmation["remaining"]["workers"], 0);
+    let before = fs::read(&run_path).unwrap();
+    for args in [
+        vec![
+            "research",
+            "run",
+            "work",
+            "reserve",
+            "--run",
+            identity,
+            "--request",
+            "other-confirmation",
+            "--task",
+            "work-002",
+            "--kind",
+            "confirmation",
+            "--worker-slot",
+        ],
+        vec![
+            "research",
+            "run",
+            "work",
+            "reserve",
+            "--run",
+            identity,
+            "--request",
+            "measurement-confirmation",
+            "--task",
+            "work-001",
+            "--kind",
+            "confirmation",
+        ],
+    ] {
+        assert!(!run_zdev(root, &args).status.success());
+        assert_eq!(fs::read(&run_path).unwrap(), before);
+    }
+    research_run_action(
+        root,
+        identity,
+        "settle",
+        &["--request", "destination-verifier"],
+    );
+    let finding_check =
+        reserve_research_worker(root, identity, "finding-check", "work-001", "confirmation");
+    assert_eq!(finding_check["dispatch_authorized"], true);
+    research_run_action(root, identity, "settle", &["--request", "finding-check"]);
+    finish_isolated_candidate(root, "work-001", "keep");
+    let replay = reserve_research_worker(
+        root,
+        identity,
+        "destination-verifier",
+        "work-001",
+        "confirmation",
+    );
+    assert_eq!(replay["dispatch_authorized"], false);
+    assert_eq!(replay["consumed"]["work_attempts"], 7);
+    assert_eq!(replay["remaining"]["workers"], 1);
+    assert_eq!(replay["stop_reason"], "budget");
+    let before = fs::read(&run_path).unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "reserve",
+                "--run",
+                identity,
+                "--request",
+                "over-budget",
+                "--task",
+                "work-002",
+                "--kind",
+                "repair",
+                "--worker-slot"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(&run_path).unwrap(), before);
+}
+
+#[test]
+fn codex_rolling_integrated_rework_withdraws_owned_code_and_recovers_without_permission() {
+    let repository = isolated_candidate_fixture("wc -c < seed.txt");
+    let root = repository.path();
+    import_research_fixture(
+        root,
+        json!([{"key":"support", "title":"Prepare inputs", "outcome":"Fixed inputs are ready.", "done_when":["Inputs are ready."]}]),
+    );
+    git(root, &["add", ".zdev"]);
+    git(root, &["commit", "-m", "support task"]);
+    let sources = TempDir::new().unwrap();
+    let source = sources.path().join("candidate");
+    git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "-b",
+            "candidate",
+            source.to_str().unwrap(),
+            "HEAD",
+        ],
+    );
+    let started = start_research_run(root, &["--worker-limit", "2", "--until-interrupted"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    let paths = [
+        "seed.txt",
+        "delete.txt",
+        "mode.txt",
+        "binary.dat",
+        "added.txt",
+    ];
+    admit_isolated_candidate(root, &source, "work-001", &paths);
+    edit_local_candidate(&source);
+    isolated_action(root, "work-001", "return");
+    let measured = isolated_action(root, "work-001", "evaluate");
+    let historical =
+        json_output(root, &["task", "show", "work", "work-001"])["research_results"].clone();
+    let integrated = isolated_action(root, "work-001", "integrate");
+    let old_snapshot = integrated["checkpoint"]["verification_snapshot"]
+        .as_str()
+        .unwrap();
+    let verifier = git_path(root, "old-verifier.json");
+    fs::write(&verifier, serde_json::to_vec(&json!({"schema_version":1,"kind":"verifier","area":"work","task_id":"work-001","verdict":"pass","summary":"Checked the original candidate.","evidence":[format!("work_context_snapshot: {old_snapshot}")],"findings":[],"escalation":"none"})).unwrap()).unwrap();
+    fs::write(root.join("unrelated-stage.txt"), "staged\n").unwrap();
+    git(root, &["add", "unrelated-stage.txt"]);
+    fs::write(root.join("unrelated-stage.txt"), "staged then edited\n").unwrap();
+    fs::write(root.join("unrelated-work.txt"), "unstaged\n").unwrap();
+    fs::write(root.join("unrelated-new.txt"), "untracked\n").unwrap();
+    let unrelated_index = git_stdout(
+        root,
+        &["diff", "--cached", "--binary", "--", "unrelated-stage.txt"],
+    );
+    let source_status = git_stdout(&source, &["status", "--porcelain", "--untracked-files=all"]);
+    research_run_action(root, identity, "stop", &[]);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "reserve",
+                "--run",
+                identity,
+                "--request",
+                "interrupted-repair",
+                "--task",
+                "work-001",
+                "--kind",
+                "repair",
+                "--worker-slot"
+            ]
+        )
+        .status
+        .success()
+    );
+    research_run_action(root, identity, "resume", &[]);
+    reserve_research_worker(root, identity, "repair", "work-001", "repair");
+    let prepare_args = [
+        "research",
+        "experiment",
+        "work",
+        "work-001",
+        "prepare",
+        "--reservation",
+        "repair",
+    ];
+    let run_path = git_path(root, "zdev/runs/work/current.json");
+    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
+    let before = fs::read(&checkpoint_path).unwrap();
+    let authorized_run = fs::read(&run_path).unwrap();
+    for change in [
+        json!({"target": 100.0}),
+        json!({"command_limit": 3}),
+        json!({"stop": {"reason": "blocker", "description": "shared failure"}}),
+    ] {
+        let mut stopped: Value = serde_json::from_slice(&authorized_run).unwrap();
+        for (key, value) in change.as_object().unwrap() {
+            stopped[key] = value.clone();
+        }
+        fs::write(&run_path, serde_json::to_vec_pretty(&stopped).unwrap()).unwrap();
+        assert!(!run_zdev(root, &prepare_args).status.success());
+        assert_eq!(fs::read(&checkpoint_path).unwrap(), before);
+    }
+    fs::write(&run_path, authorized_run).unwrap();
+    fs::write(root.join("seed.txt"), "unexpected edit\n").unwrap();
+    assert!(!run_zdev(root, &prepare_args).status.success());
+    assert_eq!(fs::read(&checkpoint_path).unwrap(), before);
+    assert_eq!(
+        fs::read(root.join("seed.txt")).unwrap(),
+        b"unexpected edit\n"
+    );
+    let candidate = measured["checkpoint"]["attempts"][0]["candidate"]
+        .as_str()
+        .unwrap();
+    git(
+        root,
+        &[
+            "restore",
+            "--source",
+            candidate,
+            "--staged",
+            "--worktree",
+            "seed.txt",
+        ],
+    );
+    let prepared = json_output(root, &prepare_args);
+    assert_eq!(prepared["dispatch_authorized"], true);
+    assert_eq!(prepared["checkpoint"]["isolated"]["integrated"], false);
+    assert!(prepared["checkpoint"]["verification_snapshot"].is_null());
+    assert_eq!(
+        json_output(root, &prepare_args)["dispatch_authorized"],
+        false
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "context"])["run"]["acceptance"],
+        Value::Null
+    );
+    assert_eq!(
+        git_stdout(
+            root,
+            &["diff", "--cached", "--binary", "--", "unrelated-stage.txt"]
+        ),
+        unrelated_index
+    );
+    assert_eq!(
+        git_stdout(&source, &["status", "--porcelain", "--untracked-files=all"]),
+        source_status
+    );
+    for path in paths {
+        assert_eq!(git_stdout(root, &["diff", "HEAD", "--", path]), "");
+    }
+    assert!(!root.join("added.txt").exists());
+    // A crash after restoration and lane release still requires recovery before candidate actions.
+    let mut late_withdrawal = prepared["checkpoint"].clone();
+    late_withdrawal["isolated"]["withdrawing"] = json!(true);
+    late_withdrawal["isolated"]["worker_stopped"] = json!(true);
+    fs::write(
+        &checkpoint_path,
+        serde_json::to_vec_pretty(&late_withdrawal).unwrap(),
+    )
+    .unwrap();
+    let late_before = fs::read(&checkpoint_path).unwrap();
+    let run_before = fs::read(&run_path).unwrap();
+    for action in ["return", "evaluate", "reconcile", "integrate"] {
+        let mut args = vec!["research", "experiment", "work", "work-001", action];
+        if action == "return" {
+            args.push("--worker-stopped");
+        }
+        assert!(
+            !run_zdev(root, &args).status.success(),
+            "pending withdrawal allowed {action}"
+        );
+        assert_eq!(fs::read(&checkpoint_path).unwrap(), late_before);
+        assert_eq!(fs::read(&run_path).unwrap(), run_before);
+    }
+    let support = json_output(root, &["task", "show", "work", "work-004"]);
+    let support_path = root.join(support["path"].as_str().unwrap());
+    let support_before = fs::read(&support_path).unwrap();
+    let index_before = fs::read(root.join(".zdev/work/TASKS.md")).unwrap();
+    for (request, task, kind) in [
+        ("late-verifier", "work-001", "confirmation"),
+        ("late-support", "work-004", "supporting"),
+    ] {
+        let refused = run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "reserve",
+                "--run",
+                identity,
+                "--request",
+                request,
+                "--task",
+                task,
+                "--kind",
+                kind,
+                "--worker-slot",
+            ],
+        );
+        assert!(!refused.status.success());
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("Recover candidate withdrawal"));
+        assert_eq!(fs::read(&run_path).unwrap(), run_before);
+    }
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "task",
+                "done",
+                "work",
+                "work-004",
+                "--summary",
+                "Inputs are ready."
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(&support_path).unwrap(), support_before);
+    assert_eq!(
+        fs::read(root.join(".zdev/work/TASKS.md")).unwrap(),
+        index_before
+    );
+    assert_eq!(fs::read(&checkpoint_path).unwrap(), late_before);
+    assert_eq!(fs::read(&run_path).unwrap(), run_before);
+    // Reconstruct a crash halfway through an already authorized withdrawal.
+    let mut interrupted = prepared["checkpoint"].clone();
+    interrupted["isolated"]["withdrawing"] = json!(true);
+    interrupted["isolated"]["integrated"] = json!(true);
+    interrupted["isolated"]["worker_stopped"] = json!(true);
+    fs::write(
+        &checkpoint_path,
+        serde_json::to_vec_pretty(&interrupted).unwrap(),
+    )
+    .unwrap();
+    let mut run: Value = serde_json::from_slice(&fs::read(&run_path).unwrap()).unwrap();
+    run["acceptance"] = json!("work-001");
+    fs::write(&run_path, serde_json::to_vec_pretty(&run).unwrap()).unwrap();
+    git(
+        root,
+        &[
+            "restore",
+            "--source",
+            candidate,
+            "--staged",
+            "--worktree",
+            "--",
+            "binary.dat",
+            "mode.txt",
+            "delete.txt",
+            "added.txt",
+        ],
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "context"])["remaining"]["workers"],
+        1
+    );
+    let unfinished_confirmation = run_zdev(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "reserve",
+            "--run",
+            identity,
+            "--request",
+            "unfinished-verifier",
+            "--task",
+            "work-001",
+            "--kind",
+            "confirmation",
+            "--worker-slot",
+        ],
+    );
+    assert!(!unfinished_confirmation.status.success());
+    assert!(
+        String::from_utf8_lossy(&unfinished_confirmation.stderr)
+            .contains("Recover candidate withdrawal")
+    );
+    research_run_action(root, identity, "stop", &[]);
+    let recovered = isolated_action(root, "work-001", "recover");
+    assert_eq!(recovered["dispatch_authorized"], false);
+    assert_eq!(recovered["checkpoint"]["isolated"]["withdrawing"], false);
+    assert_eq!(
+        json_output(root, &prepare_args)["dispatch_authorized"],
+        false
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "context"])["remaining"]["workers"],
+        1
+    );
+    assert_eq!(
+        git_stdout(
+            root,
+            &["diff", "--cached", "--binary", "--", "unrelated-stage.txt"]
+        ),
+        unrelated_index
+    );
+    assert_eq!(
+        fs::read(root.join("unrelated-stage.txt")).unwrap(),
+        b"staged then edited\n"
+    );
+    assert_eq!(
+        fs::read(root.join("unrelated-new.txt")).unwrap(),
+        b"untracked\n"
+    );
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-001"])["research_results"],
+        historical
+    );
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "reserve",
+                "--run",
+                identity,
+                "--request",
+                "stopped-repair",
+                "--task",
+                "work-001",
+                "--kind",
+                "repair",
+                "--worker-slot"
+            ]
+        )
+        .status
+        .success()
+    );
+    isolated_action(root, "work-001", "return");
+    research_run_action(root, identity, "resume", &[]);
+    reserve_research_worker(root, identity, "new-repair", "work-001", "repair");
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "prepare",
+            "--reservation",
+            "new-repair",
+        ],
+    );
+    fs::write(source.join("seed.txt"), "fixed\n").unwrap();
+    isolated_action(root, "work-001", "return");
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-001", "integrate"]
+        )
+        .status
+        .success()
+    );
+    let remeasured = isolated_action(root, "work-001", "evaluate");
+    assert_eq!(
+        remeasured["checkpoint"]["attempts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let fresh = isolated_action(root, "work-001", "integrate");
+    assert_ne!(fresh["checkpoint"]["verification_snapshot"], old_snapshot);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "finalize",
+                "--decision",
+                "keep",
+                "--lesson",
+                "Repair keeps the improvement.",
+                "--verification",
+                verifier.to_str().unwrap()
+            ]
+        )
+        .status
+        .success()
+    );
+    reserve_research_worker(root, identity, "fresh-verifier", "work-001", "confirmation");
+    research_run_action(root, identity, "settle", &["--request", "fresh-verifier"]);
+    let kept = finish_isolated_candidate(root, "work-001", "keep");
+    assert_eq!(kept["candidate_state"], "accepted");
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"fixed\n");
+    assert_eq!(
+        git_stdout(root, &["diff", "--cached", "--binary"]),
+        unrelated_index
+    );
+    let results =
+        json_output(root, &["task", "show", "work", "work-001"])["research_results"].clone();
+    assert_eq!(results[0], historical[0]);
+    assert_eq!(results.as_array().unwrap().len(), 3);
 }

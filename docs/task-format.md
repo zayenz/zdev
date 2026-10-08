@@ -11,10 +11,11 @@ Task completion and experiment decisions remain separate. The
 executes correctness checks and measurements, retains candidate Git code, and
 keeps or restores owned files before completing and committing the result.
 `requires_code` admits later work only after verified acceptance. The installed
-[Codex serial research route](../skills/zdev/references/research.md) and
+[Codex research route](../skills/zdev/references/research.md) and
 [Claude serial research route](../.claude/skills/zdev/skills/zdev/references/research.md)
 generate scoped supporting tasks and hypotheses and coordinate execution.
-Parallel research and execution routes for other harnesses follow later.
+Codex also coordinates rolling source worktrees. Claude rolling research and
+execution routes for other harnesses follow separately.
 
 The [research run contract](../skills/zdev/references/task-format.md#authorize-and-recover-a-research-run)
 authorizes generated mixed work, counts dispatch and command costs, and retains
@@ -41,3 +42,14 @@ for the current destination. It preserves accepted sibling code. Inspect/recover
 identifies active, returned, terminal, paused and ambiguous candidates, retaining
 unknown worker/process capacity. The binary never removes worktrees. See the
 installed task-format and recovery references for the complete command contract.
+
+
+`reserve --worker-slot` counts native planning, implementation, verification and
+finding checks against worker capacity, separately from measurements. Exact
+retries never grant another dispatch; task, kind and requested mode stay fixed.
+Admit and Prepare transfer their own unused claims without double-counting.
+The integrated acceptance owner may claim confirmation or repair capacity.
+Prepare records authorized withdrawal, restores only exact measured destination
+paths to unchanged accepted HEAD and preserves unrelated work and historical
+evidence. Recover completes that withdrawal without worker permission. Source
+repair then requires Return, fresh Evaluate, Integrate and a fresh verifier.

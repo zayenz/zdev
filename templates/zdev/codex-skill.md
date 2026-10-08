@@ -17,8 +17,9 @@ Codex supports the explicit **Parallel** route in `references/parallel.md`.
 Codex also supports the read-only **Plan one task** route in
 `references/plan-task.md`.
 An explicitly authorized **Research run** uses `references/research.md` for
-serial current-branch experiments, mixed task generation, counted dispatch and
-durable recovery. Research continuation follows that contract; ordinary goal
+serial current-branch experiments or explicitly authorized rolling source
+worktrees, mixed task generation, counted role/measurement dispatch and durable
+recovery. Research continuation follows that contract; ordinary goal
 and loop requests keep `references/area-loop.md` and stop at queue exhaustion.
 The exact installed task-workflows contract path for this installation is
 {{ task_workflows_contract_path_json }}. Decode that JSON string and include the
@@ -66,7 +67,7 @@ dispatch-spec <plan-next-task|implement> --area <area> --task <task-id>
 context. Pass any run choice with `--run-profile`, a one-off choice with
 `--role-profile ROLE=PROFILE`, and retained-plan evidence with
 `--retained-plan <applicable|stale> --plan-snapshot <snapshot>`. Accept only its
-strict `codex-dispatch-spec` object and execute its ordered `dispatches` until
+strict `dispatch-spec` object and execute its ordered `dispatches` until
 the stated `stop` boundary. Retain the complete concrete specification in the
 conversation handoff; same-step retry reuses it instead of resolving again.
 The command compares the supplied explicit-task snapshot with current

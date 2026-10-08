@@ -59,6 +59,9 @@ pub(crate) enum Action {
         task: String,
         #[arg(long, value_enum)]
         kind: WorkKind,
+        /// Claim native role capacity before launching a worker
+        #[arg(long)]
+        worker_slot: bool,
     },
     /// Settle completed supporting work; experiment costs settle through its checkpoint
     Settle {
@@ -187,6 +190,8 @@ struct Reservation {
     #[serde(default)]
     worker: bool,
     #[serde(default)]
+    requested_worker_slot: bool,
+    #[serde(default)]
     measurement: bool,
 }
 
@@ -207,6 +212,7 @@ struct Baseline {
 }
 
 pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOutput, ZdevError> {
+    let mut dispatch_authorized = false;
     if let Action::Rebaseline { run, request } = action {
         rebaseline(root, area, run, request)?;
     } else if !matches!(action, Action::Context | Action::Inspect) {
@@ -247,9 +253,18 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
                 request,
                 task,
                 kind,
+                worker_slot,
             } => {
                 let mut run = authorized(root, area, identity)?;
-                reserve(root, &mut run, request, Some(task), *kind, false)?;
+                dispatch_authorized = reserve(
+                    root,
+                    &mut run,
+                    request,
+                    Some(task),
+                    *kind,
+                    false,
+                    *worker_slot,
+                )?;
             }
             Action::Settle {
                 run: identity,
@@ -345,7 +360,12 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
             Action::Context | Action::Inspect | Action::Rebaseline { .. } => unreachable!(),
         }
     }
-    context(root, area)
+    let mut output = context(root, area)?;
+    if matches!(action, Action::Reserve { .. }) {
+        output.value["dispatch_authorized"] = json!(dispatch_authorized);
+        output.text = serde_json::to_string_pretty(&output.value).unwrap();
+    }
+    Ok(output)
 }
 
 fn path(root: &Path, area: &str) -> Result<PathBuf, ZdevError> {
@@ -721,8 +741,23 @@ fn require_dispatch(
     run: &mut Run,
     kind: WorkKind,
     new_work: bool,
+    task: Option<&str>,
+    worker: bool,
 ) -> Result<(), ZdevError> {
-    if run.acceptance.is_some() && !matches!(kind, WorkKind::Preparation | WorkKind::Supporting) {
+    require_no_pending_withdrawal(root, &run.area)?;
+    let acceptance_owner = worker
+        && task.is_some()
+        && run.acceptance.as_deref() == task
+        && matches!(kind, WorkKind::Confirmation | WorkKind::Repair)
+        && checkpoints(root, &run.area)?.iter().any(|checkpoint| {
+            checkpoint["task"].as_str() == task
+                && checkpoint["isolated"]["integrated"] == true
+                && checkpoint["isolated"]["integrating"] == false
+        });
+    if run.acceptance.is_some()
+        && !matches!(kind, WorkKind::Preparation | WorkKind::Supporting)
+        && !acceptance_owner
+    {
         return Err(ZdevError::new(
             "Finish the acceptance lane before starting measurements",
         ));
@@ -760,17 +795,35 @@ fn reserve(
     task: Option<&str>,
     kind: WorkKind,
     bound: bool,
-) -> Result<(), ZdevError> {
+    worker_slot: bool,
+) -> Result<bool, ZdevError> {
     crate::validate_nonempty_line(request, "Work request identity")?;
     if let Some(existing) = run.reservations.get(request) {
-        if existing.task.as_deref() != task || existing.kind != kind {
+        if existing.task.as_deref() != task
+            || existing.kind != kind
+            || existing.requested_worker_slot != worker_slot
+        {
             return Err(ZdevError::new(
                 "Changed work under an existing reservation identity",
             ));
         }
-        return Ok(());
+        return Ok(false);
     }
-    require_dispatch(root, run, kind, true)?;
+    require_dispatch(root, run, kind, true, task, worker_slot)?;
+    if worker_slot {
+        if !matches!(
+            kind,
+            WorkKind::Supporting
+                | WorkKind::Preparation
+                | WorkKind::Repair
+                | WorkKind::Confirmation
+        ) {
+            return Err(ZdevError::new(
+                "This work kind does not authorize a native worker",
+            ));
+        }
+        require_capacity(run, true)?;
+    }
     if kind == WorkKind::Rebaseline {
         require_capacity(run, false)?;
         if run.acceptance.is_some() {
@@ -802,11 +855,13 @@ fn reserve(
             commands: 0,
             elapsed_seconds: 0.0,
             pending_timeout: None,
-            worker: false,
+            worker: worker_slot,
+            requested_worker_slot: worker_slot,
             measurement: kind == WorkKind::Rebaseline,
         },
     );
-    save(root, run)
+    save(root, run)?;
+    Ok(worker_slot)
 }
 
 fn admit(
@@ -817,6 +872,7 @@ fn admit(
     source: &Path,
 ) -> Result<(), ZdevError> {
     let mut run = authorized(root, area, identity)?;
+    require_no_pending_withdrawal(root, area)?;
     crate::validate_nonempty_line(request, "Admission request identity")?;
     let bundle = tasks::read_task_bundle(source)?;
     let fingerprint = tasks::generated_bundle_fingerprint(&bundle)?;
@@ -829,7 +885,12 @@ fn admit(
         require_area(root, area)?;
         return recover_admission(root, &mut run, request);
     }
-    require_dispatch(root, &mut run, WorkKind::Supporting, true)?;
+    if run.acceptance.is_some() {
+        return Err(ZdevError::new(
+            "Finish the acceptance lane before publishing tasks",
+        ));
+    }
+    require_dispatch(root, &mut run, WorkKind::Supporting, true, None, false)?;
     if run
         .admissions
         .values()
@@ -939,6 +1000,7 @@ pub(crate) fn bind_work_with_capacity(
         && reservation.bound
         && !reservation.settled
         && reservation.commands == 0
+        && (worker || !reservation.requested_worker_slot)
         && !checkpoints(root, area)?.iter().any(|checkpoint| {
             checkpoint["preparation"]["request"].as_str() == Some(request)
                 || checkpoint["isolated"]["reconciliation"]["request"].as_str() == Some(request)
@@ -957,7 +1019,7 @@ pub(crate) fn bind_work_with_capacity(
         if !claimed && (worker || measurement) {
             require_capacity(&run, worker)?;
         }
-        require_dispatch(root, &mut run, kind, false)?;
+        require_dispatch(root, &mut run, kind, false, Some(task), worker)?;
         let reservation = run.reservations.get_mut(request).unwrap();
         reservation.worker = worker;
         reservation.measurement = measurement;
@@ -967,11 +1029,19 @@ pub(crate) fn bind_work_with_capacity(
             request: request.to_owned(),
         }));
     }
-    if worker || measurement {
+    let own_claim = run.reservations.get(request).is_some_and(|reservation| {
+        reservation.task.as_deref() == Some(task)
+            && reservation.kind == kind
+            && !reservation.bound
+            && !reservation.settled
+            && worker
+            && reservation.worker
+    });
+    if (worker || measurement) && !own_claim {
         require_capacity(&run, worker)?;
     }
     let new_work = !run.reservations.contains_key(request);
-    require_dispatch(root, &mut run, kind, new_work)?;
+    require_dispatch(root, &mut run, kind, new_work, Some(task), worker)?;
     if provided.is_some() {
         let reservation = run
             .reservations
@@ -981,6 +1051,7 @@ pub(crate) fn bind_work_with_capacity(
             || reservation.bound
             || reservation.settled
             || reservation.kind == WorkKind::Supporting
+            || (!worker && reservation.requested_worker_slot)
             || (worker && reservation.kind != kind)
         {
             return Err(ZdevError::new(
@@ -995,7 +1066,7 @@ pub(crate) fn bind_work_with_capacity(
                 "Work was already reserved; recover its checkpoint without redispatch",
             ));
         }
-        reserve(root, &mut run, request, Some(task), kind, true)?;
+        reserve(root, &mut run, request, Some(task), kind, true, false)?;
     }
     let reservation = run.reservations.get_mut(request).unwrap();
     reservation.worker = worker;
@@ -1030,7 +1101,7 @@ pub(crate) fn claim_measurement(
     if !reservation.measurement {
         require_capacity(&run, false)?;
     }
-    require_dispatch(root, &mut run, WorkKind::Rerun, false)?;
+    require_dispatch(root, &mut run, WorkKind::Rerun, false, None, false)?;
     run.reservations
         .get_mut(&binding.request)
         .unwrap()
@@ -1087,6 +1158,8 @@ pub(crate) fn reserve_command(
         } else {
             WorkKind::Rebaseline
         },
+        false,
+        None,
         false,
     )?;
     let reservation = run
@@ -1218,6 +1291,32 @@ fn live_isolated_measurement(root: &Path, run: &Run, request: &str) -> bool {
     })
 }
 
+pub(crate) fn require_no_pending_withdrawal(root: &Path, area: &str) -> Result<(), ZdevError> {
+    if checkpoints(root, area)?
+        .iter()
+        .any(|checkpoint| checkpoint["isolated"]["withdrawing"] == true)
+    {
+        return Err(ZdevError::new(
+            "Recover candidate withdrawal before dispatch or supporting completion",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn require_acceptance_owner(
+    root: &Path,
+    area: &str,
+    task: &str,
+) -> Result<(), ZdevError> {
+    let run = load(root, area)?
+        .filter(|run| !run.ended)
+        .ok_or_else(|| ZdevError::new("No active run owns this acceptance"))?;
+    if run.acceptance.as_deref() != Some(task) {
+        return Err(ZdevError::new("Candidate does not own the acceptance lane"));
+    }
+    Ok(())
+}
+
 /// The authoritative lock serializes the single destination acceptance lane.
 pub(crate) fn acceptance(
     root: &Path,
@@ -1234,6 +1333,7 @@ pub(crate) fn acceptance(
         ));
     }
     if claim {
+        require_no_pending_withdrawal(root, area)?;
         if run
             .reservations
             .values()
@@ -1396,7 +1496,15 @@ fn rebaseline(root: &Path, area: &str, identity: &str, request: &str) -> Result<
                 )));
             }
         }
-        reserve(root, &mut run, request, None, WorkKind::Rebaseline, true)?;
+        reserve(
+            root,
+            &mut run,
+            request,
+            None,
+            WorkKind::Rebaseline,
+            true,
+            false,
+        )?;
         invalidate(&mut run, "Actual baseline measurement is unfinished");
         run.rebaseline = Some(Baseline {
             request: request.to_owned(),
@@ -1560,6 +1668,12 @@ pub(crate) fn require_supporting_reservation(
     let Some(run) = load(root, area)?.filter(|run| !run.ended) else {
         return Ok(());
     };
+    require_no_pending_withdrawal(root, area)?;
+    if run.acceptance.is_some() {
+        return Err(ZdevError::new(
+            "Finish the acceptance lane before supporting completion",
+        ));
+    }
     if run
         .admissions
         .values()

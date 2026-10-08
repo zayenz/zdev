@@ -99,6 +99,39 @@ records and local commands without this installed execution route. Deterministic
 installation and command scenarios validate the contracts; authenticated live
 Codex and Claude acceptance remain separate.
 
+### Rolling research in Codex
+
+Explicitly request rolling work and its capacities:
+
+```text
+$zdev run rolling research in work within the brief, with two workers and one measurement slot, for 20 work attempts
+$zdev resume the existing rolling research run in work
+```
+
+This authorizes run-owned source worktrees within those limits. Ordinary Parallel
+keeps its finite batch authorization. Each native planner, implementer, verifier
+and delegated finding checker consumes a counted `reserve --worker-slot` claim.
+The coordinator uses the tighter run/native capacity, refills when a role finishes
+while siblings remain active, and starts each source from current accepted HEAD.
+One measurement slot permits overlapping source preparation and one evaluator.
+
+Returning sources enter one destination acceptance lane. Stale candidates
+reconcile and remeasure. The owner gets a counted confirmation role for its fresh
+destination verifier. Checked rework uses a counted Prepare to withdraw only
+that candidate's integrated code to accepted HEAD before source edits. Unrelated
+destination changes and historical evidence survive. Recovery finishes recorded
+withdrawal without authorizing another worker; repair needs new measurements,
+integration and independent verification.
+
+Budget, target, interruption, lost capacity and shared failure stop affected
+dispatch. Resume preserves costs and deadlines and rechecks actual worker/process
+ownership. Unknown workers and measurements keep their slots. Shared conditions
+or accepted supporting code require an actual counted rebaseline before paused
+candidates reconcile and measure. Required advanced plans and concrete worker
+settings remain unchanged through rework and recovery; missing evidence stops
+that candidate. Cleanup requires a stopped, durably completed, run-owned source
+and retained cleanup authority. Claude rolling execution follows separately.
+
 ## 1. Install zdev
 
 Versioned binaries are available from the

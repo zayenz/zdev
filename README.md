@@ -106,7 +106,7 @@ one task and report `CONTINUE` when fresh ready work remains.
 Configure an open research area with a measured baseline and executable
 correctness/evaluator commands, then ask `$zdev` to **run research in the area**
 within a stated scope. Codex and Claude Code use separate serial routes that generate
-supporting tasks and hypotheses, executes them on the current branch, and reads
+supporting tasks and hypotheses, execute them on the current branch, and read
 retained lessons before proposing more work. The default allowance is 20 work
 attempts; explicitly asking to run **until interrupted** removes that default
 while retaining supplied targets, time and command limits.
@@ -119,6 +119,12 @@ are distinct stops. A fresh session resumes the same run and its remaining
 allowance from durable records. Ordinary Implement and Loop keep their existing
 behavior. See [Serial research](docs/user-guide.md#serial-research-in-codex-and-claude-code) for
 requests, accounting and recovery.
+
+Codex also supports an explicit **rolling research** request with separate
+worker and measurement limits. It refills free role capacity while siblings
+prepare, starts each source from current accepted code, and serializes destination
+acceptance. Stale candidates reconcile and remeasure. See
+[Rolling research in Codex](docs/user-guide.md#rolling-research-in-codex).
 
 ### Complete and commit work
 

@@ -165,3 +165,21 @@ the current accepted destination, including accepted siblings.
 Only confirmed stopped, durably completed candidates report cleanup eligibility.
 The binary never removes worktrees. Keep pre-existing, unfinished or ambiguous
 sources; a coordinator can clean up only its own fully integrated source.
+
+
+For integrated verifier rework, Prepare binds the same task's counted repair
+claim and records withdrawal before destination restoration. Recover completes
+only those authorized effects, preserving unrelated index and worktree changes
+and historical observations. It never returns fresh worker permission. A retry
+uses the same request to inspect/recover; confirm any unresolved source role
+stopped before a new counted repair. New repair is refused after budget, target,
+interruption or shared failure. After edits, Return, Evaluate, Integrate and a
+fresh destination verifier are required.
+
+Rolling Codex resume inspects actual native workers and process ownership as well
+as durable reservations. A missing worker ID does not free a slot. Restore the
+frozen concrete role settings and unchanged required advanced plan from the
+handoff; missing required evidence stops that candidate before dispatch. Refill
+only after fresh context identifies current accepted code and available capacity.
+Clean up a source only after durable completion and confirmed worker/process
+stop, with retained ownership and cleanup authority.

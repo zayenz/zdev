@@ -1,4 +1,4 @@
-# Run serial research in Codex
+# Run research in Codex
 
 ## When
 
@@ -7,8 +7,9 @@ named area, or asks to resume its existing run. For example: `$zdev research
 run work within the brief, for 20 work attempts` or `$zdev resume research run
 work`. Explicit `until interrupted` removes the default attempt limit; it
 does not remove supplied targets, time or command limits. Ordinary Implement,
-Plan, Verify, Parallel and Loop keep their hypothesis guards. This route uses
-the current branch and one coordinator; it does not create worktrees.
+Plan, Verify, Parallel and Loop keep their hypothesis guards. Serial research uses the current branch. An explicit rolling parallel research
+request also authorizes run-owned source worktrees within the stated limits.
+Both modes keep one coordinator for authoritative records and acceptance.
 
 Read the installed task-format reference's research sections for the exact
 policy, TaskBundle, run and local experiment contracts.
@@ -63,7 +64,7 @@ and concrete model/effort handling from the root Codex skill.
    Do not call ordinary `dispatch-spec` for a hypothesis or remove its guard.
 5. With clear native state, use exposed `create_goal` only for this explicitly
    requested run. Use an objective that names the area, authorized scope and
-   retained limits, requires this serial contract and durable recovery, and
+   retained limits, requires the selected serial or rolling contract and durable recovery, and
    distinguishes ending the run from achieving the area's optimization objective.
    Do not add a native token budget unless the user requested one. After native
    activation, carry out the run in the foreground; supported idle continuation
@@ -255,3 +256,173 @@ absolute authoritative record paths in their candidate context and never publish
 source records. Read the recovery reference before resuming a paused or ambiguous
 candidate. Rolling worker refill and harness role controls use this deterministic
 contract; the binary does not schedule workers.
+
+## Rolling research in Codex
+
+Use this section when the user explicitly requests rolling parallel research.
+For example: `$zdev run rolling research in work within the brief, with two
+workers and one measurement slot, for 20 work attempts`. Pass those capacities
+as `start --worker-limit 2 --measurement-limit 1`. This is continuing research
+authorization; it does not change ordinary Parallel's finite approved batch.
+Follow **Authorize or resume** above first. If native goal creation is
+unavailable, the same one foreground work-item bound applies; do not launch a
+rolling campaign through that fallback.
+
+The coordinator's operation is
+`coordinate_rolling(authoritative_root, run_id, frozen_roles, exposed_native_controls)`.
+It inspects workers, recovers durable effects, reads fresh run and explicit task
+context, claims a role, creates or reuses an owned source, dispatches, collects
+stopped work, measures, and processes acceptance. After each event it repeats
+those checks and fills available capacity while siblings remain active. It
+returns the existing run report described above. Run reservations and experiment
+checkpoints retain its progress; do not create a second scheduler or ledger.
+
+### Claim roles and admit sources
+
+1. Inspect native goal and worker state with the exposed `get_goal` and
+   `collaboration.list_agents` tools. Use `collaboration.spawn_agent`,
+   `send_message`, `followup_task`, `interrupt_agent` and `wait_agent` only for
+   their exposed operations. A message or wait does not create capacity. Count
+   every live planner, implementer, acceptance verifier and delegated finding
+   checker, including competing workers. A retained worker also counts when the
+   runtime says it occupies capacity. Use the tighter available native capacity
+   and the run's worker limit. If capacity falls, stop affected dispatch and
+   preserve unresolved claims until actual completion or stop is confirmed.
+2. Read fresh `research run <area> context` and explicit
+   `work-context <area> --task <task> --store` before each dispatch. Check the
+   current accepted revision, comparison conditions, stop reason and allowance.
+   Pick stored ready in-scope work before generating another small mixed bundle.
+   Publish and commit new records only when the acceptance lane is free.
+   Source preparation may continue during acceptance; destination mutations,
+   supporting completion and other candidates' measurements wait for that lane.
+3. Before every native role launch, claim a new counted request:
+
+   ```text
+   zdev research run <area> reserve --run <run> --request <request> --task <task> --kind preparation --worker-slot --format json
+   ```
+
+   Use `supporting` for each ordinary support role, `repair` for source rework,
+   and `confirmation` for acceptance verification or its delegated finding
+   check. Require first-call `dispatch_authorized: true` for a standalone role.
+   Identical retries return stored costs and `false`; changed task, kind or
+   requested slot mode refuse. Never interpret an old reservation as permission
+   to launch again. Settle standalone roles only after confirming actual stop.
+4. Advanced hypotheses first use a counted preparation planner. Validate its
+   strict semantic plan through the existing task-workflows rules and settle
+   that planner. Retain the exact plan, baseline, and concrete role settings for
+   implementation and later rework. Do not plan again on resume. If required
+   plan or frozen selection evidence is missing, preserve that candidate and
+   report the missing evidence before dispatch.
+5. Create a source from the authoritative HEAD current at this refill. Require
+   its code to match the current accepted baseline. Use exposed
+   `mcp__codex_app__create_worktree` and its returned workspace path when
+   available; inspect attachments first and reuse only an exclusively owned
+   suitable source. Pass the observed HEAD as `ref`, inspect asynchronous setup
+   through the exposed status tool, and give the managed checkout its own source
+   branch before admission. When these controls are absent, use an authorized
+   local linked Git worktree. Keep source and authoritative roots absolute.
+   Never reuse a stale sibling's source or silently change the user's checkout.
+6. Claim implementation capacity, then transfer that claim into admission:
+
+   ```text
+   zdev research experiment <area> <task> admit --source <absolute-source> --path <exact-file> --reservation <request> --format json
+   ```
+
+   Wait for admission's first-call `dispatch_authorized: true` before launching
+   this source worker; reserving alone does not authorize source edits. Transfer
+   uses the existing claim without counting it twice, including at worker limit
+   one. Admission captures the current baseline and authoritative record paths.
+   Supply those paths, absolute source cwd, exact owned files, snapshot and
+   unchanged advanced plan to the worker. It returns the existing strict
+   implementer result and never edits `.zdev`, stages or commits.
+
+Do not wait for all siblings before refill. A confirmed finished source role
+releases its claim through `return --worker-stopped`. A planner or destination
+verifier releases its standalone claim through run `settle`. Give a waiting
+acceptance verifier the next free role slot before starting more preparation.
+Keep each request with its actual worker and source. Disappearing worker IDs,
+ended conversations and failed waits do not prove stop or release capacity.
+
+### Measure and accept one candidate at a time
+
+Return inspects the complete source delta and retains its Git transport. Start
+`evaluate` only when the run reports measurement capacity and no acceptance
+owner. Use a supported nonblocking command operation when measurement must
+continue while other sources prepare. For example, `exec_command` may return a
+process session; retain that session and poll with `write_stdin`. Read durable
+checkpoint ownership before other dispatch. A failed command transport does
+not prove that its evaluator exited. Never start a second evaluator from an
+old permission. Preparation roles cannot substitute for measurement claims.
+With measurement limit one, source edits can overlap one evaluator, while a
+second Evaluate refuses without launching or adding cost.
+
+Process improving returned candidates through one destination lane. If accepted
+code changed since dispatch or measurement, use counted `reconcile` and a fresh
+Evaluate before integration. If the baseline changes again, repeat those gates.
+Record-only drift follows the explicit refresh rules in the task-format
+reference. `integrate` rechecks current measurements, claims the lane, applies
+only owned code and supplies a fresh destination `verification_snapshot`.
+
+Reserve a `confirmation --worker-slot` request for this acceptance owner, then
+launch a fresh independent verifier in the authoritative destination. Supply
+its snapshot, original baseline, declared paths, samples, comparison policy and
+coding guidance. Validate its four semantic fields, compare the exact snapshot
+and construct the ordinary public verifier envelope. A delegated substantive
+finding check also needs its own counted confirmation slot and equal snapshot
+comparisons. Settle each role after confirmed completion. Other tasks cannot
+use this owner exception, and it never opens measurement capacity.
+
+For checked verifier rework, stop the source worker and reserve a new
+`repair --worker-slot` request for the same owner. Call:
+
+```text
+zdev research experiment <area> <task> prepare --reservation <repair-request> --format json
+```
+
+Prepare requires unchanged destination HEAD and exact measured bytes and index
+entries on every owned path. It binds the counted repair claim and records
+withdrawal before restoring those paths to accepted HEAD. It preserves unrelated
+staged, unstaged and untracked work, the measured source, retained candidates and
+historical observations. It invalidates the verifier snapshot and releases the
+acceptance lane after restoration. Only the first completed Prepare grants
+source dispatch. `recover` finishes an interrupted authorized withdrawal without
+new permission. Confirm any unresolved worker stopped before requesting another
+role; never turn a recovery response into a worker launch.
+
+After repair, confirm Return, run a new counted Evaluate, integrate and obtain a
+fresh independent destination verifier. Old measurements and verification cannot
+accept edited code. Changed owned files, integration conflicts, exhausted budget,
+reached target, interruption or a shared blocker refuse new repair. Recovery may
+finish already authorized restoration even after a run stops.
+
+Ordinary supporting tasks use the existing explicit-task complexity, planning,
+independent verification, checked rework, completion and commit route. Reserve
+and settle a worker slot for every native role. Serialize their destination
+work with acceptance. Before shared evaluator or workload changes, pause
+affected candidates and confirm active measurements stopped. Accepted support
+or changed comparison conditions require an actual counted rebaseline on clean
+accepted code. Only then reconcile and remeasure paused candidates; supplied
+samples cannot clear this gate or loosen the frozen requirements.
+
+### Stop, resume and clean up
+
+On target, budget, interruption, lost native capacity or shared failure, stop
+new affected dispatch. Interrupt owned active workers when supported, confirm
+termination and preserve their source trees, deltas, requests and process
+sessions. Keep ambiguous slots occupied. Shared failure permits only relevant
+counted supporting repair while comparisons remain halted. Report the actual
+stop reason and unfinished effects.
+
+Resume the same authorized run after fresh native and durable inspection.
+Recover authorized withdrawal, integration, publication and measurement effects
+before refill. Retain deadlines, consumed costs, concrete settings and required
+advanced plans. A live or unknown measurement stays owned and is never
+relaunched. Recheck current accepted code and conditions at the next dispatch.
+
+Clean up only with retained cleanup authority, confirmed worker and process
+stop, durable completion, retained candidate history and an unambiguous run-owned
+source. Use the exposed archive operation for a managed worktree, or remove an
+owned local linked worktree. Keep pre-existing, unfinished and ambiguous sources.
+A finished run leaves the area open and does not claim its optimization objective
+achieved. Claude's installed route remains serial; its rolling route is a
+separate increment. Live native acceptance is separate from deterministic checks.

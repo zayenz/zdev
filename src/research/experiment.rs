@@ -138,6 +138,8 @@ struct Candidate {
     admitted_snapshot: String,
     dispatch_head: String,
     dispatch_settings: Settings,
+    #[serde(default)]
+    admission_request: Option<String>,
     source_root: PathBuf,
     source_branch: String,
     source_base: String,
@@ -149,6 +151,8 @@ struct Candidate {
     refresh_from: Option<String>,
     integrating: bool,
     integrated: bool,
+    #[serde(default)]
+    withdrawing: bool,
 }
 
 pub(crate) fn experiment(
@@ -216,6 +220,12 @@ pub(crate) fn experiment(
                 } else if checkpoint
                     .isolated
                     .as_ref()
+                    .is_some_and(|candidate| candidate.withdrawing)
+                {
+                    withdraw_integration(root, &mut checkpoint)?;
+                } else if checkpoint
+                    .isolated
+                    .as_ref()
                     .is_some_and(|candidate| candidate.refreshing)
                 {
                     refresh_source(root, &mut checkpoint)?;
@@ -239,6 +249,12 @@ pub(crate) fn experiment(
         "complete"
     } else if checkpoint.final_record.is_some() {
         "recover"
+    } else if checkpoint
+        .isolated
+        .as_ref()
+        .is_some_and(|candidate| candidate.withdrawing)
+    {
+        "recover candidate withdrawal; do not redispatch"
     } else if checkpoint
         .attempts
         .last()
@@ -310,6 +326,15 @@ fn load(root: &Path, area: &str, task: &str) -> Result<Checkpoint, ZdevError> {
     checkpoint.settings.validate()?;
     if let Some(candidate) = &checkpoint.isolated {
         candidate.dispatch_settings.validate()?;
+        if candidate.withdrawing
+            && (checkpoint.attempts.is_empty()
+                || checkpoint.preparation.is_none()
+                || checkpoint.final_record.is_some())
+        {
+            return Err(ZdevError::new(
+                "Candidate withdrawal is missing its measured evidence or repair claim",
+            ));
+        }
         if candidate.authoritative_root
             != fs::canonicalize(root)
                 .map_err(|error| ZdevError::io("Cannot resolve authoritative root", error))?
@@ -484,7 +509,7 @@ fn begin_at(
         require_clean_path(root, path)?;
     }
     let starting_snapshot = snapshot(root, area, task)?;
-    let isolated = source
+    let mut isolated = source
         .map(|source| {
             validate_source(
                 root,
@@ -498,6 +523,13 @@ fn begin_at(
             )
         })
         .transpose()?;
+    if let Some(candidate) = &mut isolated {
+        candidate.admission_request = Some(
+            reservation
+                .map(str::to_owned)
+                .unwrap_or_else(|| format!("experiment:{task}:preparation")),
+        );
+    }
     let preparation = super::run::bind_work_with_capacity(
         root,
         area,
@@ -865,6 +897,7 @@ fn evaluate(
                 || candidate.returned_commit.is_none()
                 || candidate.integrating
                 || candidate.integrated
+                || candidate.withdrawing
             {
                 return Err(ZdevError::new(
                     "Return a stopped isolated candidate before measurement",
@@ -1361,6 +1394,7 @@ fn authorize_finalization(
             "Finalization already authorized; use recover",
         ));
     }
+    super::run::require_no_pending_withdrawal(root, &checkpoint.area)?;
     require_environment(root, checkpoint)?;
     if matches!(decision, Finish::Keep) && !comparison_current(root, checkpoint)? {
         return Err(ZdevError::new(
@@ -1371,6 +1405,7 @@ fn authorize_finalization(
         if !candidate.worker_stopped
             || candidate.refreshing
             || candidate.integrating
+            || candidate.withdrawing
             || (matches!(decision, Finish::Keep) && !candidate.integrated)
         {
             return Err(ZdevError::new(
@@ -1512,6 +1547,7 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
         }
         return Ok(());
     }
+    super::run::require_no_pending_withdrawal(root, &checkpoint.area)?;
     crate::project::require_task_work_area_link(root, &checkpoint.area)?;
     let record = checkpoint
         .final_record
@@ -1910,6 +1946,7 @@ fn candidate_state(
             "rejected"
         }
     } else if candidate.refreshing
+        || candidate.withdrawing
         || candidate.integrating
         || checkpoint
             .attempts
@@ -1997,6 +2034,7 @@ fn validate_source(
         admitted_snapshot: admitted_snapshot.to_owned(),
         dispatch_head: head.to_owned(),
         dispatch_settings: settings.clone(),
+        admission_request: None,
         source_root: source,
         source_branch,
         source_base: head.to_owned(),
@@ -2008,6 +2046,7 @@ fn validate_source(
         refresh_from: None,
         integrating: false,
         integrated: false,
+        withdrawing: false,
     })
 }
 
@@ -2050,6 +2089,7 @@ fn require_available_source(root: &Path, source: &Path, branch: &str) -> Result<
                     || !candidate.worker_stopped
                     || candidate.refreshing
                     || candidate.integrating
+                    || candidate.withdrawing
                     || checkpoint.attempts.iter().any(|attempt| attempt.measuring))
             {
                 return Err(ZdevError::new(format!(
@@ -2078,7 +2118,14 @@ fn admit_candidate(
             .ok_or_else(|| ZdevError::new("Existing experiment is local"))?;
         let source = fs::canonicalize(source)
             .map_err(|error| ZdevError::io("Cannot resolve source", error))?;
-        if candidate.source_root != source || checkpoint.paths != paths {
+        if candidate.source_root != source
+            || checkpoint.paths != paths
+            || candidate
+                .admission_request
+                .as_deref()
+                .unwrap_or(&format!("experiment:{task}:preparation"))
+                != reservation.unwrap_or(&format!("experiment:{task}:preparation"))
+        {
             return Err(ZdevError::new(
                 "Changed source or owned paths under existing admission",
             ));
@@ -2097,6 +2144,19 @@ fn prepare_source(
         .isolated
         .as_ref()
         .ok_or_else(|| ZdevError::new("Prepare requires an isolated source"))?;
+    if candidate.withdrawing {
+        if checkpoint
+            .preparation
+            .as_ref()
+            .is_some_and(|binding| binding.request == reservation)
+        {
+            withdraw_integration(root, checkpoint)?;
+            return Ok(false);
+        }
+        return Err(ZdevError::new(
+            "Recover the authorized withdrawal before another repair",
+        ));
+    }
     if !candidate.worker_stopped {
         if checkpoint
             .preparation
@@ -2111,7 +2171,6 @@ fn prepare_source(
     }
     if checkpoint.final_record.is_some()
         || candidate.integrating
-        || candidate.integrated
         || checkpoint
             .attempts
             .last()
@@ -2122,6 +2181,27 @@ fn prepare_source(
         ));
     }
     require_environment(root, checkpoint)?;
+    let integrated = candidate.integrated;
+    if integrated {
+        super::run::require_acceptance_owner(root, &checkpoint.area, &checkpoint.task)?;
+        if git_output(root, &["rev-parse", "HEAD"])? != checkpoint.head {
+            return Err(ZdevError::new(
+                "Destination HEAD changed before acceptance repair",
+            ));
+        }
+        let measured = &checkpoint.attempts.last().unwrap().candidate;
+        require_source_delta(checkpoint)?;
+        if !candidate_matches(&candidate.source_root, checkpoint, measured)?
+            || !candidate_matches(root, checkpoint, measured)?
+        {
+            return Err(ZdevError::new(
+                "Measured candidate changed before acceptance repair",
+            ));
+        }
+        for path in &checkpoint.paths {
+            require_candidate_index(root, checkpoint, path)?;
+        }
+    }
     let preparation = super::run::bind_work_with_capacity(
         root,
         &checkpoint.area,
@@ -2132,10 +2212,92 @@ fn prepare_source(
         true,
     )?;
     checkpoint.preparation = preparation;
-    checkpoint.isolated.as_mut().unwrap().worker_stopped = false;
     checkpoint.verification_snapshot = None;
-    save(root, checkpoint)?;
+    if integrated {
+        // Persist authorization and the counted claim before touching destination code.
+        checkpoint.isolated.as_mut().unwrap().withdrawing = true;
+        save(root, checkpoint)?;
+        withdraw_integration(root, checkpoint)?;
+    } else {
+        checkpoint.isolated.as_mut().unwrap().worker_stopped = false;
+        save(root, checkpoint)?;
+    }
     Ok(true)
+}
+
+// Recover each exact path from measured code or accepted HEAD; unrelated index entries stay intact.
+fn withdraw_integration(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
+    require_environment(root, checkpoint)?;
+    if checkpoint.isolated.as_ref().unwrap().integrated {
+        super::run::require_acceptance_owner(root, &checkpoint.area, &checkpoint.task)?;
+    }
+    if git_output(root, &["rev-parse", "HEAD"])? != checkpoint.head {
+        return Err(ZdevError::new(
+            "Destination HEAD changed during acceptance withdrawal",
+        ));
+    }
+    let measured = &checkpoint.attempts.last().unwrap().candidate;
+    for path in &checkpoint.paths {
+        validate_path(root, path)?;
+        let worktree = code_tree(root, &checkpoint.head, std::slice::from_ref(path))?;
+        if worktree != path_tree(root, &checkpoint.head, measured, path)?
+            && worktree != path_tree(root, &checkpoint.head, &checkpoint.head, path)?
+        {
+            return Err(ZdevError::new(format!(
+                "Owned destination changed during withdrawal: {path}"
+            )));
+        }
+        let matches_index = |revision: &str| -> Result<bool, ZdevError> {
+            Ok(git_output_bytes(
+                root,
+                &[
+                    "--literal-pathspecs",
+                    "diff",
+                    "--cached",
+                    "--name-only",
+                    "-z",
+                    revision,
+                    "--",
+                    path,
+                ],
+            )?
+            .is_empty())
+        };
+        if !matches_index(measured)? && !matches_index(&checkpoint.head)? {
+            return Err(ZdevError::new(format!(
+                "Owned staging changed during withdrawal: {path}"
+            )));
+        }
+    }
+    for path in &checkpoint.paths {
+        if require_clean_path(root, path).is_err() {
+            git_output(
+                root,
+                &[
+                    "--literal-pathspecs",
+                    "restore",
+                    "--source",
+                    &checkpoint.head,
+                    "--staged",
+                    "--worktree",
+                    "--",
+                    path,
+                ],
+            )?;
+        }
+    }
+    for path in &checkpoint.paths {
+        require_clean_path(root, path)?;
+    }
+    // Keep the lane until the restored checkpoint is durable; retrying release is safe.
+    let candidate = checkpoint.isolated.as_mut().unwrap();
+    candidate.integrated = false;
+    save(root, checkpoint)?;
+    super::run::acceptance(root, &checkpoint.area, &checkpoint.task, false)?;
+    let candidate = checkpoint.isolated.as_mut().unwrap();
+    candidate.withdrawing = false;
+    candidate.worker_stopped = false;
+    save(root, checkpoint)
 }
 
 fn common_git_directory(root: &Path) -> Result<PathBuf, ZdevError> {
@@ -2236,6 +2398,7 @@ fn return_candidate(
     if !worker_stopped
         || candidate.integrating
         || candidate.integrated
+        || candidate.withdrawing
         || checkpoint.final_record.is_some()
         || checkpoint
             .attempts
@@ -2324,6 +2487,7 @@ fn reconcile(
         || candidate.returned_commit.is_none()
         || candidate.integrated
         || candidate.integrating
+        || candidate.withdrawing
     {
         return Err(ZdevError::new(
             "Reconcile requires exclusively owned stopped returned source work",
@@ -2557,7 +2721,11 @@ fn integrate(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> 
         .isolated
         .as_ref()
         .ok_or_else(|| ZdevError::new("Integrate requires an isolated candidate"))?;
-    if !candidate.worker_stopped || candidate.refreshing || candidate.returned_commit.is_none() {
+    if !candidate.worker_stopped
+        || candidate.refreshing
+        || candidate.withdrawing
+        || candidate.returned_commit.is_none()
+    {
         return Err(ZdevError::new(
             "Integration requires a stopped returned candidate",
         ));

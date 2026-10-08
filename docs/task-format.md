@@ -22,3 +22,22 @@ limits through recovery. Its public commands expose current accepted samples,
 task lessons, unfinished work and remaining allowance. Evaluator or accepted
 supporting-code changes require an actual counted rebaseline. Queue exhaustion
 and stopping a run leave the area open.
+
+
+Isolated hypothesis candidates use one authoritative checkout for records and
+acceptance. An authorized research run admits linked source worktrees with
+`research experiment <area> <task> admit --source <root> --path <file>`. Workers
+read authoritative records by absolute path and edit only source code. After
+confirmed worker stop, `return --worker-stopped` retains Git transport; `evaluate`
+measures in the source; `integrate` claims the serialized destination acceptance
+lane and captures its verification snapshot. `reconcile` refreshes a stopped
+candidate after baseline drift and charges fresh measurement work. Separate
+positive `--worker-limit` and `--measurement-limit` run capacities default to one.
+
+Each attempt keeps its comparison facts. Evaluation changes pause candidates
+until an actual counted rebaseline; resumed candidates reconcile and remeasure.
+Historical isolated rejection retains evidence and records `accepted_revision`
+for the current destination. It preserves accepted sibling code. Inspect/recover
+identifies active, returned, terminal, paused and ambiguous candidates, retaining
+unknown worker/process capacity. The binary never removes worktrees. See the
+installed task-format and recovery references for the complete command contract.

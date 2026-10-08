@@ -16660,3 +16660,669 @@ fn claude_serial_research_executes_real_commands_and_recovers_fresh_invocations(
         }
     }
 }
+
+fn isolated_candidate_fixture(evaluator: &str) -> TempDir {
+    let repository = local_experiment_fixture("printf 7");
+    let root = repository.path();
+    import_research_fixture(
+        root,
+        json!([hypothesis_draft("second"), hypothesis_draft("third")]),
+    );
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["evaluator_command"] = json!(evaluator);
+    settings["comparison"]["evaluator_identity"] = json!("isolated-fixture-v1");
+    settings["correctness_commands"] = json!({"equivalent output": "test -f seed.txt"});
+    settings["comparison"]["baseline_samples"] = json!([100.0, 100.0]);
+    settings["attempt_limit"] = json!(5);
+    configure_research_fixture(root, &settings);
+    git(root, &["add", ".zdev"]);
+    git(root, &["commit", "-m", "isolated hypotheses and evaluator"]);
+    repository
+}
+
+fn admit_isolated_candidate(root: &Path, source: &Path, task: &str, paths: &[&str]) -> Value {
+    let mut args = vec![
+        "research",
+        "experiment",
+        "work",
+        task,
+        "admit",
+        "--source",
+        source.to_str().unwrap(),
+    ];
+    for path in paths {
+        args.extend(["--path", path]);
+    }
+    json_output(root, &args)
+}
+
+fn isolated_action(root: &Path, task: &str, action: &str) -> Value {
+    let mut args = vec!["research", "experiment", "work", task, action];
+    if action == "return" {
+        args.push("--worker-stopped");
+    }
+    json_output(root, &args)
+}
+
+fn finish_isolated_candidate(root: &Path, task: &str, decision: &str) -> Value {
+    let inspected = isolated_action(root, task, "inspect");
+    let mut args = vec![
+        "research",
+        "experiment",
+        "work",
+        task,
+        "finalize",
+        "--decision",
+        decision,
+        "--lesson",
+        "The measured source answers this hypothesis.",
+    ];
+    let verifier = git_path(root, &format!("{task}-verifier.json"));
+    if decision == "keep" {
+        let snapshot = inspected["checkpoint"]["verification_snapshot"]
+            .as_str()
+            .unwrap();
+        fs::write(&verifier, serde_json::to_vec(&json!({"schema_version":1,"kind":"verifier","area":"work","task_id":task,"verdict":"pass","summary":"Independently checked integration and current measurements.","evidence":[format!("work_context_snapshot: {snapshot}")],"findings":[],"escalation":"none"})).unwrap()).unwrap();
+        args.extend(["--verification", verifier.to_str().unwrap()]);
+    }
+    json_output(root, &args)
+}
+
+#[test]
+fn isolated_candidates_reconcile_current_baseline_and_preserve_git_transport() {
+    let repository = isolated_candidate_fixture("wc -c < seed.txt");
+    let root = repository.path();
+    let sources = TempDir::new().unwrap();
+    let a = sources.path().join("a");
+    let b = sources.path().join("b");
+    for (source, branch) in [(&a, "candidate-a"), (&b, "candidate-b")] {
+        git(
+            root,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                source.to_str().unwrap(),
+                "HEAD",
+            ],
+        );
+    }
+    let run = start_research_run(
+        root,
+        &[
+            "--worker-limit",
+            "2",
+            "--measurement-limit",
+            "1",
+            "--until-interrupted",
+        ],
+    );
+    let identity = run["run"]["id"].as_str().unwrap();
+    let admitted = admit_isolated_candidate(
+        root,
+        &a,
+        "work-001",
+        &[
+            "seed.txt",
+            "delete.txt",
+            "mode.txt",
+            "binary.dat",
+            "added.txt",
+        ],
+    );
+    assert_eq!(admitted["candidate_state"], "active");
+    assert_eq!(admitted["dispatch_authorized"], true);
+    assert_eq!(admitted["cleanup_eligible"], false);
+    assert_eq!(
+        admitted["checkpoint"]["isolated"]["authoritative_root"],
+        fs::canonicalize(root).unwrap().to_str().unwrap()
+    );
+    let before = json_output(root, &["research", "run", "work", "inspect"])["consumed"].clone();
+    let retried = admit_isolated_candidate(
+        root,
+        &a,
+        "work-001",
+        &[
+            "seed.txt",
+            "delete.txt",
+            "mode.txt",
+            "binary.dat",
+            "added.txt",
+        ],
+    );
+    assert_eq!(retried["dispatch_authorized"], false);
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["consumed"],
+        before
+    );
+    let run_path = git_path(root, "zdev/runs/work/current.json");
+    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
+    let run_before = fs::read(&run_path).unwrap();
+    let checkpoint_before = fs::read(&checkpoint_path).unwrap();
+    let source_before = git_stdout(&a, &["status", "--porcelain", "--untracked-files=all"]);
+    let shared_source = run_zdev(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-002",
+            "admit",
+            "--source",
+            a.join(".").to_str().unwrap(),
+            "--path",
+            "seed.txt",
+        ],
+    );
+    assert!(!shared_source.status.success(), "source admitted twice");
+    assert!(String::from_utf8_lossy(&shared_source.stderr).contains("unfinished candidate"));
+    assert_eq!(fs::read(&run_path).unwrap(), run_before);
+    assert_eq!(fs::read(&checkpoint_path).unwrap(), checkpoint_before);
+    assert!(!git_path(root, "zdev/experiments/work/work-002.json").exists());
+    assert_eq!(
+        git_stdout(&a, &["status", "--porcelain", "--untracked-files=all"]),
+        source_before
+    );
+    assert_eq!(
+        admit_isolated_candidate(root, &b, "work-002", &["seed.txt"])["dispatch_authorized"],
+        true
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["remaining"]["workers"],
+        0
+    );
+    edit_local_candidate(&a);
+    fs::write(b.join("seed.txt"), "b\n").unwrap();
+    fs::write(b.join("unowned.txt"), "preserve\n").unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-002",
+                "return",
+                "--worker-stopped"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(b.join("unowned.txt")).unwrap(), b"preserve\n");
+    fs::remove_file(b.join("unowned.txt")).unwrap();
+    let source_record = b.join(".zdev/work/area.toml");
+    let record = fs::read(&source_record).unwrap();
+    fs::write(&source_record, b"changed record\n").unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-002",
+                "return",
+                "--worker-stopped"
+            ]
+        )
+        .status
+        .success()
+    );
+    fs::write(&source_record, record).unwrap();
+    isolated_action(root, "work-001", "return");
+    assert_eq!(
+        isolated_action(root, "work-002", "return")["candidate_state"],
+        "returned"
+    );
+    isolated_action(root, "work-001", "evaluate");
+    isolated_action(root, "work-002", "evaluate");
+    fs::write(root.join("seed.txt"), "overlap\n").unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-001", "integrate"]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"overlap\n");
+    git(root, &["restore", "seed.txt"]);
+    fs::write(root.join("unrelated-stage.txt"), "staged\n").unwrap();
+    git(root, &["add", "unrelated-stage.txt"]);
+    fs::write(root.join("unrelated-stage.txt"), "staged then edited\n").unwrap();
+    fs::write(root.join("unrelated-work.txt"), "unstaged\n").unwrap();
+    fs::write(root.join("unrelated-new.txt"), "untracked\n").unwrap();
+    let staged = git_stdout(root, &["diff", "--cached", "--binary"]);
+    isolated_action(root, "work-001", "integrate");
+    let accepted = finish_isolated_candidate(root, "work-001", "keep");
+    assert_eq!(accepted["candidate_state"], "accepted");
+    assert_eq!(accepted["cleanup_eligible"], true);
+    assert_eq!(git_stdout(root, &["diff", "--cached", "--binary"]), staged);
+    assert_eq!(
+        fs::read(root.join("unrelated-stage.txt")).unwrap(),
+        b"staged then edited\n"
+    );
+    assert_eq!(
+        fs::read(root.join("unrelated-new.txt")).unwrap(),
+        b"untracked\n"
+    );
+    assert_eq!(fs::read(root.join("binary.dat")).unwrap(), [0, 255, 4, 0]);
+    assert!(!root.join("delete.txt").exists());
+    assert_eq!(
+        fs::read(root.join("added.txt")).unwrap(),
+        b"added candidate\n"
+    );
+    assert!(git(root, &["ls-tree", "HEAD", "mode.txt"]).starts_with("100755"));
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-002", "integrate"]
+        )
+        .status
+        .success()
+    );
+    let reconcile = run_zdev(
+        root,
+        &["research", "experiment", "work", "work-002", "reconcile"],
+    );
+    assert!(!reconcile.status.success()); // Both sources changed seed.txt: Git retains the conflict.
+    assert!(!git(&b, &["ls-files", "--unmerged"]).is_empty());
+    research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "conflict-repair",
+            "--task",
+            "work-002",
+            "--kind",
+            "repair",
+        ],
+    );
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-002",
+            "prepare",
+            "--reservation",
+            "conflict-repair",
+        ],
+    );
+    fs::write(b.join("seed.txt"), "b\n").unwrap();
+    git(&b, &["add", "seed.txt"]);
+    isolated_action(root, "work-002", "return");
+    let measured = isolated_action(root, "work-002", "evaluate");
+    assert_eq!(
+        measured["checkpoint"]["attempts"][0]["observation"]["samples"],
+        json!([2.0, 2.0])
+    );
+    assert_ne!(
+        measured["checkpoint"]["attempts"][0]["settings"]["comparison"]["baseline_revision"],
+        measured["checkpoint"]["attempts"][1]["settings"]["comparison"]["baseline_revision"]
+    );
+    // A second code baseline change after measurement must pass the final integration gate again.
+    git(root, &["restore", "--staged", "unrelated-stage.txt"]);
+    git(
+        root,
+        &["restore", "unrelated-stage.txt", "unrelated-work.txt"],
+    );
+    fs::remove_file(root.join("unrelated-new.txt")).unwrap();
+    commit_file(
+        root,
+        "other-accepted.txt",
+        "supporting code\n",
+        "accepted supporting change",
+    );
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-002", "integrate"]
+        )
+        .status
+        .success()
+    );
+    research_run_action(root, identity, "rebaseline", &["--request", "current-code"]);
+    isolated_action(root, "work-002", "reconcile");
+    isolated_action(root, "work-002", "evaluate");
+    let integrated = isolated_action(root, "work-002", "integrate");
+    let brief = root.join(".zdev/work/brief.md");
+    let mut text = fs::read_to_string(&brief).unwrap();
+    text.push_str("\nRecorded clarification of the unchanged research objective.\n");
+    fs::write(&brief, text).unwrap();
+    git(root, &["add", ".zdev/work/brief.md"]);
+    git(
+        root,
+        &[
+            "commit",
+            "--only",
+            "-m",
+            "record-only clarification",
+            ".zdev/work/brief.md",
+        ],
+    );
+    let refreshed = isolated_action(root, "work-002", "integrate");
+    assert_ne!(
+        integrated["checkpoint"]["verification_snapshot"],
+        refreshed["checkpoint"]["verification_snapshot"]
+    );
+    assert_eq!(
+        refreshed["checkpoint"]["attempts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    let accepted = finish_isolated_candidate(root, "work-002", "keep");
+    assert_eq!(accepted["candidate_state"], "accepted");
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"b\n");
+    assert_eq!(fs::read(root.join("binary.dat")).unwrap(), [0, 255, 4, 0]);
+    assert_eq!(
+        fs::read(root.join("other-accepted.txt")).unwrap(),
+        b"supporting code\n"
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["consumed"]["commands"],
+        15
+    );
+}
+
+#[test]
+fn isolated_candidates_preserve_capacity_pause_and_recover_without_relaunch() {
+    let controls = TempDir::new().unwrap();
+    let gate = controls.path().join("pause");
+    let calls = controls.path().join("calls");
+    fs::write(&gate, b"pause").unwrap();
+    let evaluator = format!(
+        "printf e >> '{}'; if test -f '{}'; then sleep 30; fi; wc -c < seed.txt",
+        calls.display(),
+        gate.display()
+    );
+    let repository = isolated_candidate_fixture(&evaluator);
+    let root = repository.path();
+    let sources = TempDir::new().unwrap();
+    let a = sources.path().join("a");
+    let b = sources.path().join("b");
+    let c = sources.path().join("c");
+    for (source, branch) in [
+        (&a, "candidate-a"),
+        (&b, "candidate-b"),
+        (&c, "candidate-c"),
+    ] {
+        git(
+            root,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                source.to_str().unwrap(),
+                "HEAD",
+            ],
+        );
+    }
+    let started = start_research_run(
+        root,
+        &[
+            "--worker-limit",
+            "2",
+            "--measurement-limit",
+            "1",
+            "--until-interrupted",
+        ],
+    );
+    let identity = started["run"]["id"].as_str().unwrap();
+    admit_isolated_candidate(root, &a, "work-001", &["seed.txt"]);
+    admit_isolated_candidate(root, &b, "work-002", &["seed.txt"]);
+    let recovered_active = isolated_action(root, "work-002", "recover");
+    assert_eq!(recovered_active["candidate_state"], "active");
+    assert_eq!(recovered_active["cleanup_eligible"], false);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-003",
+                "admit",
+                "--source",
+                c.to_str().unwrap(),
+                "--path",
+                "seed.txt"
+            ]
+        )
+        .status
+        .success()
+    );
+    fs::write(a.join("seed.txt"), "a\n").unwrap();
+    fs::write(b.join("seed.txt"), "bbb\n").unwrap();
+    isolated_action(root, "work-001", "return");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_zdev"))
+        .arg("--root")
+        .arg(root)
+        .args(["research", "experiment", "work", "work-001", "evaluate"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let process = loop {
+        let checkpoint: Value =
+            serde_json::from_slice(&fs::read(&checkpoint_path).unwrap()).unwrap();
+        let attempt = &checkpoint["attempts"][0];
+        if attempt["observation"]["evaluation_runs"] == 1 && attempt["running_pid"].is_u64() {
+            break attempt["running_pid"].as_u64().unwrap();
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "evaluator did not start"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    // Safe live measurement ownership permits further source preparation within worker capacity.
+    admit_isolated_candidate(root, &c, "work-003", &["seed.txt"]);
+    isolated_action(root, "work-002", "return");
+    let before = json_output(root, &["research", "run", "work", "inspect"])["consumed"].clone();
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-002", "evaluate"]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["consumed"],
+        before
+    );
+    assert_eq!(fs::read(&calls).unwrap(), b"e");
+    child.kill().unwrap();
+    child.wait().unwrap();
+    assert_eq!(
+        isolated_action(root, "work-001", "inspect")["candidate_state"],
+        "ambiguous"
+    );
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["remaining"]["measurements"],
+        0
+    );
+    Command::new("sh")
+        .args(["-c", &format!("kill -KILL -{process}")])
+        .status()
+        .unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if run_zdev(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        )
+        .status
+        .success()
+        {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "killed measurement remains unresolved"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let recovered = isolated_action(root, "work-001", "recover");
+    assert_eq!(
+        recovered["checkpoint"]["attempts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(fs::read(&calls).unwrap(), b"e");
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["remaining"]["measurements"],
+        1
+    );
+    assert_eq!(
+        isolated_action(root, "work-003", "recover")["cleanup_eligible"],
+        false
+    );
+    fs::remove_file(&gate).unwrap();
+    research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "source-repair",
+            "--task",
+            "work-001",
+            "--kind",
+            "repair",
+        ],
+    );
+    let prepared = json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "prepare",
+            "--reservation",
+            "source-repair",
+        ],
+    );
+    assert_eq!(prepared["dispatch_authorized"], true);
+    assert_eq!(
+        json_output(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "prepare",
+                "--reservation",
+                "source-repair"
+            ]
+        )["dispatch_authorized"],
+        false
+    );
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["remaining"]["workers"],
+        0
+    );
+    isolated_action(root, "work-001", "return");
+    assert_eq!(
+        json_output(root, &["research", "run", "work", "inspect"])["remaining"]["workers"],
+        1
+    );
+    isolated_action(root, "work-002", "evaluate");
+    let historical =
+        json_output(root, &["task", "show", "work", "work-002"])["research_results"][0].clone();
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["comparison"]["conditions"] = json!("changed evaluator workload");
+    configure_research_fixture(root, &settings);
+    assert_eq!(
+        isolated_action(root, "work-001", "inspect")["candidate_state"],
+        "paused"
+    );
+    assert_eq!(
+        isolated_action(root, "work-003", "inspect")["candidate_state"],
+        "paused"
+    );
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-001", "reconcile"]
+        )
+        .status
+        .success()
+    );
+    let before = json_output(root, &["research", "run", "work", "inspect"])["consumed"]["commands"]
+        .as_u64()
+        .unwrap();
+    let rebaseline = research_run_action(
+        root,
+        identity,
+        "rebaseline",
+        &["--request", "changed-workload"],
+    );
+    assert_eq!(
+        rebaseline["consumed"]["commands"].as_u64().unwrap(),
+        before + 3
+    );
+    isolated_action(root, "work-001", "reconcile");
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-001", "integrate"]
+        )
+        .status
+        .success()
+    );
+    isolated_action(root, "work-001", "evaluate");
+    let integrated = isolated_action(root, "work-001", "integrate");
+    // Resume a crash after Git integration but before publishing the verification snapshot.
+    let mut interrupted = integrated["checkpoint"].clone();
+    interrupted["isolated"]["integrating"] = json!(true);
+    interrupted["isolated"]["integrated"] = json!(false);
+    interrupted["verification_snapshot"] = Value::Null;
+    fs::write(
+        &checkpoint_path,
+        serde_json::to_vec_pretty(&interrupted).unwrap(),
+    )
+    .unwrap();
+    let recovered = isolated_action(root, "work-001", "recover");
+    assert_eq!(recovered["checkpoint"]["isolated"]["integrated"], true);
+    let calls_before = fs::read(&calls).unwrap();
+    finish_isolated_candidate(root, "work-001", "keep");
+    let accepted = git(root, &["rev-parse", "HEAD"]);
+    let rejected = finish_isolated_candidate(root, "work-002", "discard");
+    assert_eq!(rejected["candidate_state"], "rejected");
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"a\n");
+    assert!(git(root, &["merge-base", "--is-ancestor", &accepted, "HEAD"]).is_empty());
+    let results =
+        json_output(root, &["task", "show", "work", "work-002"])["research_results"].clone();
+    assert_eq!(results[0], historical);
+    assert!(results[1]["accepted_revision"].is_string());
+    isolated_action(root, "work-002", "recover");
+    assert_eq!(fs::read(&calls).unwrap(), calls_before);
+    assert_eq!(
+        isolated_action(root, "work-003", "inspect")["cleanup_eligible"],
+        false
+    );
+}

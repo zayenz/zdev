@@ -382,3 +382,22 @@ for the verifier envelope and retained-code prerequisite. After interruption,
 `inspect` shows the checkpoint and `recover` resumes pending steps without
 repeating recorded measurements, completion or a successful commit. Unresolved
 measurements remain open; recovery does not launch them again.
+
+
+For isolated hypotheses, start an authorized run with separate worker and
+measurement limits. Create a source branch/worktree from admitted HEAD, then use
+`research experiment <area> <task> admit --source <root> --path <file>`. Its context
+records the authoritative paths and required measurements. Source workers edit
+and validate only there. The coordinator confirms stop with `return
+--worker-stopped`, measures with `evaluate`, and applies current measured Git
+transport with `integrate`. A fresh independent verifier checks the destination
+snapshot before keep.
+
+If another candidate or supporting task changes accepted code, reconcile the
+stopped source and measure again against the new baseline. Changed evaluator or
+workload conditions pause candidates until an actual counted run rebaseline.
+Rejected isolated candidates retain their code, observations and lessons while
+leaving current accepted destination code in place. Recover pending effects before
+new dispatch; unknown workers/processes retain capacity, and the binary never
+removes their worktrees. The installed task-format reference defines this common
+candidate contract for the coding harnesses.

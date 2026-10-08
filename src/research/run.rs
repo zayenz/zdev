@@ -31,6 +31,10 @@ pub(crate) enum Action {
         time_limit_seconds: Option<f64>,
         #[arg(long)]
         target: Option<f64>,
+        #[arg(long, default_value_t = 1)]
+        worker_limit: usize,
+        #[arg(long, default_value_t = 1)]
+        measurement_limit: usize,
     },
     /// Inspect current policy, task results, unfinished checkpoints and live remaining limits
     Context,
@@ -115,7 +119,7 @@ pub(crate) enum WorkKind {
 #[serde(deny_unknown_fields)]
 pub(crate) struct Binding {
     run: String,
-    request: String,
+    pub(crate) request: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -133,6 +137,12 @@ struct Run {
     command_limit: Option<usize>,
     command_seconds: Option<f64>,
     target: Option<f64>,
+    #[serde(default = "serial_capacity")]
+    worker_limit: usize,
+    #[serde(default = "serial_capacity")]
+    measurement_limit: usize,
+    #[serde(default)]
+    acceptance: Option<String>,
     stop: Option<Stop>,
     comparison_valid: bool,
     invalidation: Option<String>,
@@ -174,6 +184,10 @@ struct Reservation {
     commands: usize,
     elapsed_seconds: f64,
     pending_timeout: Option<f64>,
+    #[serde(default)]
+    worker: bool,
+    #[serde(default)]
+    measurement: bool,
 }
 
 // Baseline progress belongs here until measured samples can replace area settings.
@@ -206,6 +220,8 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
                 command_seconds,
                 time_limit_seconds,
                 target,
+                worker_limit,
+                measurement_limit,
             } => {
                 start(
                     root,
@@ -217,6 +233,8 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
                     *command_seconds,
                     *time_limit_seconds,
                     *target,
+                    *worker_limit,
+                    *measurement_limit,
                 )?;
             }
             Action::Admit {
@@ -240,6 +258,8 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
                 let mut run = authorized(root, area, identity)?;
                 let bound_to_checkpoint = checkpoints(root, area)?.iter().any(|checkpoint| {
                     checkpoint["preparation"]["request"].as_str() == Some(request)
+                        || checkpoint["isolated"]["reconciliation"]["request"].as_str()
+                            == Some(request)
                         || checkpoint["attempts"].as_array().is_some_and(|attempts| {
                             attempts.iter().any(|attempt| {
                                 attempt["reservation"]["request"].as_str() == Some(request)
@@ -368,6 +388,8 @@ fn load(root: &Path, area: &str) -> Result<Option<Run>, ZdevError> {
             .deadline
             .is_some_and(|value| !value.is_finite() || value < run.started_at)
         || (!run.until_interrupted && run.attempt_limit.is_none())
+        || run.worker_limit == 0
+        || run.measurement_limit == 0
         || run.attempt_limit == Some(0)
         || run.command_limit == Some(0)
         || [run.command_seconds]
@@ -442,6 +464,8 @@ fn start(
     command_seconds: Option<f64>,
     time: Option<f64>,
     target: Option<f64>,
+    worker_limit: usize,
+    measurement_limit: usize,
 ) -> Result<(), ZdevError> {
     require_area(root, area)?;
     crate::validate_nonempty_line(scope, "Authorized research scope")?;
@@ -452,7 +476,11 @@ fn start(
             ));
         }
     }
-    if attempts == Some(0) || commands == Some(0) || target.is_some_and(|value| !value.is_finite())
+    if worker_limit == 0
+        || measurement_limit == 0
+        || attempts == Some(0)
+        || commands == Some(0)
+        || target.is_some_and(|value| !value.is_finite())
     {
         return Err(ZdevError::new(
             "Count limits must be positive and target must be finite",
@@ -491,6 +519,9 @@ fn start(
         command_limit: commands,
         command_seconds,
         target,
+        worker_limit,
+        measurement_limit,
+        acceptance: None,
         stop: None,
         comparison_valid: valid,
         invalidation: (!valid).then(|| "Accepted code requires a measured baseline".to_owned()),
@@ -691,16 +722,19 @@ fn require_dispatch(
     kind: WorkKind,
     new_work: bool,
 ) -> Result<(), ZdevError> {
+    if run.acceptance.is_some() && !matches!(kind, WorkKind::Preparation | WorkKind::Supporting) {
+        return Err(ZdevError::new(
+            "Finish the acceptance lane before starting measurements",
+        ));
+    }
     require_policy(
         root,
         run,
         !matches!(kind, WorkKind::Supporting | WorkKind::Rebaseline),
     )?;
-    if run
-        .reservations
-        .values()
-        .any(|reservation| reservation.pending_timeout.is_some())
-    {
+    if run.reservations.iter().any(|(request, reservation)| {
+        reservation.pending_timeout.is_some() && !live_isolated_measurement(root, run, request)
+    }) {
         return Err(ZdevError::new(
             "Unresolved command cost; recover its checkpoint before dispatching more work",
         ));
@@ -737,6 +771,14 @@ fn reserve(
         return Ok(());
     }
     require_dispatch(root, run, kind, true)?;
+    if kind == WorkKind::Rebaseline {
+        require_capacity(run, false)?;
+        if run.acceptance.is_some() {
+            return Err(ZdevError::new(
+                "Finish the acceptance lane before rebaselining",
+            ));
+        }
+    }
     if let Some(task) = task {
         let view = tasks::show(root, &run.area, task)?.value;
         if view["state"] != "ready" || view["status"] != "open" {
@@ -760,6 +802,8 @@ fn reserve(
             commands: 0,
             elapsed_seconds: 0.0,
             pending_timeout: None,
+            worker: false,
+            measurement: kind == WorkKind::Rebaseline,
         },
     );
     save(root, run)
@@ -868,13 +912,64 @@ pub(crate) fn bind_work(
     kind: WorkKind,
     provided: Option<&str>,
 ) -> Result<Option<Binding>, ZdevError> {
+    bind_work_with_capacity(root, area, task, request, kind, provided, false)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn bind_work_with_capacity(
+    root: &Path,
+    area: &str,
+    task: &str,
+    request: &str,
+    kind: WorkKind,
+    provided: Option<&str>,
+    worker: bool,
+) -> Result<Option<Binding>, ZdevError> {
     let Some(mut run) = load(root, area)?.filter(|run| !run.ended) else {
-        if provided.is_some() {
+        if provided.is_some() || worker {
             return Err(ZdevError::new("No active run owns this reservation"));
         }
         return Ok(None);
     };
+    let measurement = !worker && !matches!(kind, WorkKind::Preparation | WorkKind::Reconciliation);
     let request = provided.unwrap_or(request);
+    if let Some(reservation) = run.reservations.get(request)
+        && reservation.task.as_deref() == Some(task)
+        && reservation.kind == kind
+        && reservation.bound
+        && !reservation.settled
+        && reservation.commands == 0
+        && !checkpoints(root, area)?.iter().any(|checkpoint| {
+            checkpoint["preparation"]["request"].as_str() == Some(request)
+                || checkpoint["isolated"]["reconciliation"]["request"].as_str() == Some(request)
+                || checkpoint["attempts"].as_array().is_some_and(|attempts| {
+                    attempts
+                        .iter()
+                        .any(|attempt| attempt["reservation"]["request"].as_str() == Some(request))
+                })
+        })
+    {
+        let claimed = if worker {
+            reservation.worker
+        } else {
+            reservation.measurement
+        };
+        if !claimed && (worker || measurement) {
+            require_capacity(&run, worker)?;
+        }
+        require_dispatch(root, &mut run, kind, false)?;
+        let reservation = run.reservations.get_mut(request).unwrap();
+        reservation.worker = worker;
+        reservation.measurement = measurement;
+        save(root, &run)?;
+        return Ok(Some(Binding {
+            run: run.id,
+            request: request.to_owned(),
+        }));
+    }
+    if worker || measurement {
+        require_capacity(&run, worker)?;
+    }
     let new_work = !run.reservations.contains_key(request);
     require_dispatch(root, &mut run, kind, new_work)?;
     if provided.is_some() {
@@ -886,6 +981,7 @@ pub(crate) fn bind_work(
             || reservation.bound
             || reservation.settled
             || reservation.kind == WorkKind::Supporting
+            || (worker && reservation.kind != kind)
         {
             return Err(ZdevError::new(
                 "Reservation is already bound, settled or belongs to different work",
@@ -901,10 +997,45 @@ pub(crate) fn bind_work(
         }
         reserve(root, &mut run, request, Some(task), kind, true)?;
     }
+    let reservation = run.reservations.get_mut(request).unwrap();
+    reservation.worker = worker;
+    reservation.measurement = measurement;
+    save(root, &run)?;
     Ok(Some(Binding {
         run: run.id,
         request: request.to_owned(),
     }))
+}
+
+/// Reconciliation has already counted source refresh; measurement capacity starts with its actual attempt.
+pub(crate) fn claim_measurement(
+    root: &Path,
+    area: &str,
+    binding: &Binding,
+) -> Result<(), ZdevError> {
+    let mut run = authorized(root, area, &binding.run)?;
+    let reservation = run
+        .reservations
+        .get(&binding.request)
+        .ok_or_else(|| ZdevError::new("Missing reconciliation reservation"))?;
+    if !reservation.bound
+        || reservation.settled
+        || reservation.kind != WorkKind::Reconciliation
+        || reservation.commands != 0
+    {
+        return Err(ZdevError::new(
+            "Reconciliation measurement is already consumed or unresolved",
+        ));
+    }
+    if !reservation.measurement {
+        require_capacity(&run, false)?;
+    }
+    require_dispatch(root, &mut run, WorkKind::Rerun, false)?;
+    run.reservations
+        .get_mut(&binding.request)
+        .unwrap()
+        .measurement = true;
+    save(root, &run)
 }
 
 pub(crate) fn settle(
@@ -932,6 +1063,10 @@ pub(crate) fn settle(
         }
     }
     reservation.settled |= complete;
+    if complete {
+        reservation.worker = false;
+        reservation.measurement = false;
+    }
     save(root, &run)
 }
 
@@ -1031,6 +1166,90 @@ fn checkpoints(root: &Path, area: &str) -> Result<Vec<serde_json::Value>, ZdevEr
     Ok(values)
 }
 
+fn serial_capacity() -> usize {
+    1
+}
+
+fn require_capacity(run: &Run, worker: bool) -> Result<(), ZdevError> {
+    let used = run
+        .reservations
+        .values()
+        .filter(|reservation| {
+            !reservation.settled
+                && if worker {
+                    reservation.worker
+                } else {
+                    reservation.measurement
+                }
+        })
+        .count();
+    let limit = if worker {
+        run.worker_limit
+    } else {
+        run.measurement_limit
+    };
+    if used >= limit {
+        return Err(ZdevError::new(if worker {
+            "Worker capacity is occupied; retain unresolved workers"
+        } else {
+            "Measurement capacity is occupied; no invocation was launched"
+        }));
+    }
+    Ok(())
+}
+
+fn live_isolated_measurement(root: &Path, run: &Run, request: &str) -> bool {
+    checkpoints(root, &run.area).is_ok_and(|checkpoints| {
+        checkpoints.iter().any(|checkpoint| {
+            !checkpoint["isolated"].is_null()
+                && checkpoint["attempts"].as_array().is_some_and(|attempts| {
+                    attempts.iter().any(|attempt| {
+                        attempt["reservation"]["request"].as_str() == Some(request)
+                            && attempt["measuring"] == true
+                            && attempt["owner_pid"]
+                                .as_u64()
+                                .is_some_and(|pid| super::experiment::process_running(pid as u32))
+                            && attempt["running_pid"].as_u64().is_some_and(|pid| {
+                                super::experiment::process_group_running(pid as u32)
+                            })
+                    })
+                })
+        })
+    })
+}
+
+/// The authoritative lock serializes the single destination acceptance lane.
+pub(crate) fn acceptance(
+    root: &Path,
+    area: &str,
+    task: &str,
+    claim: bool,
+) -> Result<(), ZdevError> {
+    let mut run = load(root, area)?
+        .filter(|run| !run.ended)
+        .ok_or_else(|| ZdevError::new("Isolated candidates require an active run"))?;
+    if run.acceptance.as_deref().is_some_and(|owner| owner != task) {
+        return Err(ZdevError::new(
+            "Another candidate owns the acceptance lane; recover it first",
+        ));
+    }
+    if claim {
+        if run
+            .reservations
+            .values()
+            .any(|reservation| !reservation.settled && reservation.measurement)
+        {
+            return Err(ZdevError::new(
+                "Settle measurements before destination integration",
+            ));
+        }
+        run.acceptance = Some(task.to_owned());
+    } else if run.acceptance.as_deref() == Some(task) {
+        run.acceptance = None;
+    }
+    save(root, &run)
+}
+
 fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
     let mut run = load(root, area)?.ok_or_else(|| ZdevError::new("Area has no research run"))?;
     let settings = super::settings(root, area)?;
@@ -1059,7 +1278,9 @@ fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
         "remaining": {"work_attempts": run.attempt_limit.map(|limit| limit.saturating_sub(run.reservations.len())),
             "commands": run.command_limit.map(|limit| limit.saturating_sub(command_count(&run))),
             "command_seconds": run.command_seconds.map(|limit| (limit - elapsed_cost(&run)).max(0.0)),
-            "wall_seconds": run.deadline.map(|deadline| (deadline - now).max(0.0))},
+            "wall_seconds": run.deadline.map(|deadline| (deadline - now).max(0.0)),
+            "workers": run.worker_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.worker).count()),
+            "measurements": run.measurement_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.measurement).count())},
         "elapsed_wall_seconds": (now - run.started_at).max(0.0), "next_action": next});
     Ok(CommandOutput::new(
         serde_json::to_string_pretty(&value).unwrap(),

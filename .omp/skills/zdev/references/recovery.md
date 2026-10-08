@@ -139,3 +139,29 @@ Keep unfinished or ambiguous source trees. Report each task with its worktree,
 branch, baseline, accepted commits, and last result. Cleanup may remove only a
 run-owned source tree whose worker has stopped and whose task has a successful
 destination commit, and only when the batch authorization included cleanup.
+
+## Isolated hypothesis recovery
+
+Inspect the authoritative experiment checkpoint before returning to source work.
+Its candidate context identifies the source root, branch/base, dispatch baseline,
+retained transport and worker-stop confirmation. An active unconfirmed worker
+keeps its slot. Confirm actual stop through `return --worker-stopped`; a session
+ending is insufficient evidence. Unknown/live measurement processes keep their
+slot and reserved costs, and recover never launches their evaluator again.
+
+After baseline drift, `reconcile` retains the old candidate before refreshing
+stopped source work through Git. `recover` resumes a pending source refresh.
+Resolve source conflicts and return stopped work before fresh measurement.
+Changed evaluation conditions require an actual counted run rebaseline first.
+Every historical observation keeps its original comparison facts.
+
+`integrate` owns one persisted acceptance lane. Recovery can finish an already
+applied transport or safely apply a recorded integration whose destination is
+still unchanged. It preserves conflicts and unexpected changes. Verify the fresh
+destination snapshot independently before keep. Recover authorized completion
+and exact-path commit before releasing the lane. An isolated rejection preserves
+the current accepted destination, including accepted siblings.
+
+Only confirmed stopped, durably completed candidates report cleanup eligibility.
+The binary never removes worktrees. Keep pre-existing, unfinished or ambiguous
+sources; a coordinator can clean up only its own fully integrated source.

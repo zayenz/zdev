@@ -243,3 +243,15 @@ and consumed resources. Conversation handoffs retain concrete worker choices;
 durable records establish work and measurement state. Signed-in live Codex
 execution is separate acceptance evidence; deterministic command checks do not
 claim that a provider-backed session ran.
+
+
+### Isolated candidates
+
+The task-format reference defines the common isolated candidate contract for
+admission, stopped-worker return, source measurements, current-baseline
+reconciliation, serialized integration and destination verification. Use separate
+run `--worker-limit` and `--measurement-limit` values. Source workers read the
+absolute authoritative record paths in their candidate context and never publish
+source records. Read the recovery reference before resuming a paused or ambiguous
+candidate. Rolling worker refill and harness role controls use this deterministic
+contract; the binary does not schedule workers.

@@ -134,6 +134,9 @@ pub(super) struct ResultRecord {
     pub retained_candidate: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub restored_revision: Option<String>,
+    /// Isolated rejection leaves the current accepted destination in place.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accepted_revision: Option<String>,
 }
 
 pub(super) fn read_json<T: serde::de::DeserializeOwned>(source: &Path) -> Result<T, ZdevError> {
@@ -379,6 +382,17 @@ pub(super) fn validate_evidence(
         {
             validate_nonempty_line(value, "Research completion evidence")?;
         }
+        if let Some(revision) = &record.accepted_revision {
+            validate_revision(revision)?;
+            if !record.decision.is_terminal()
+                || record.decision == Decision::Accepted
+                || record.restored_revision.is_some()
+            {
+                return Err(ZdevError::new(
+                    "Accepted destination evidence belongs to isolated rejection only",
+                ));
+            }
+        }
         if let Some(verification) = &record.verification {
             validate_nonempty_line(&verification.reviewer, "Independent reviewer")?;
             validate_nonempty_line(&verification.summary, "Independent verification summary")?;
@@ -433,6 +447,7 @@ pub(super) fn validate_evidence(
                     }
                 } else if record.restored_revision.as_deref()
                     != Some(comparison.baseline_revision.as_str())
+                    && record.accepted_revision.is_none()
                 {
                     return Err(ZdevError::new(
                         "Rejected results require restoration to the compared baseline revision",

@@ -329,7 +329,7 @@ Non-finite samples, costs, aggregates, and gains are rejected.
 | `observed` | At least one recorded observation; remains open. |
 | `interrupted` | Remains open and may append evidence after resuming; observations may be empty when interrupted before the first attempt. |
 | `accepted` | Latest observation is usable under this record's comparison; directional gain meets the threshold; `verification` records a passed independent review, and `retained_candidate` records retained code. |
-| `rejected` | Latest observation is usable; non-empty `retained_candidate` preserves the candidate and `restored_revision` equals the baseline. Improvement is not required for completion. |
+| `rejected` | Latest observation is usable; non-empty `retained_candidate` preserves the candidate and `restored_revision` equals the baseline, or isolated rejection records the current `accepted_revision`. Improvement is not required for completion. |
 | `inconclusive` | All allotted attempts are consumed; at least one observation is usable, but the experiment has no usable decision. |
 | `failed_to_run` | All allotted attempts are consumed and none produced a usable observation. |
 
@@ -337,7 +337,8 @@ Non-finite samples, costs, aggregates, and gains are rejected.
 (boolean), and `summary` (non-empty). Acceptance requires `passed: true` and an
 independent review; the binary checks the supplied attestation and cannot prove
 the review happened. `retained_candidate` is a non-empty Git retention reference
-or description. `restored_revision` must equal the full compared baseline ID.
+or description. `restored_revision` must equal the full compared baseline ID. Isolated rejection uses
+`accepted_revision` to identify the current accepted destination instead.
 
 The four last decisions are terminal. A concluding record may have an empty
 `observations` array and use the latest earlier observation, provided its
@@ -789,3 +790,87 @@ Claude uses `zdev-research` with structured authorization and a fresh invocation
 identity after stop/failure. Ordinary Loop remains ordinary task continuation.
 Other harnesses expose these records and local commands without an installed
 research execution route.
+
+### Isolated hypothesis candidates
+
+One authoritative checkout owns the task, run, observations, acceptance and
+completion. Source workers edit and validate in separate linked Git worktrees.
+They read the authoritative brief, task and repository instructions by the
+absolute paths in the candidate context. They do not edit source `.zdev` records
+or publish authoritative records. Create each source branch from the admitted
+HEAD before dispatch; the binary admits existing sources and never launches
+workers or removes worktrees.
+
+Start an explicitly authorized run with separate positive capacities:
+
+```text
+zdev research run work start --scope "Changes allowed by the brief." --worker-limit 2 --measurement-limit 1
+zdev research experiment work work-002 admit --source /absolute/source --path src/cache.rs --format json
+```
+
+Both limits default to one. Admission captures the explicit task snapshot,
+destination HEAD, accepted revision and measurement requirements at dispatch,
+source root/branch/base and authoritative record locations. It charges one
+preparation reservation before worker dispatch. A source root or branch already
+owned by an unfinished or ambiguous candidate in any area refuses admission
+before claiming capacity or authorizing dispatch. Ownership continues until
+durable completion and confirmed worker and measurement stop. Retrying the same
+admission returns the stored context with `dispatch_authorized: false`; only a new admission
+reports `dispatch_authorized: true`. It never authorizes another worker. An unconfirmed
+worker keeps its slot even when a coordinator session ends. Preparation can
+continue while a known live isolated measurement occupies another capacity.
+Unknown invocation costs and measurement slots remain reserved.
+For a later source repair, reserve a new `repair` request, then call `prepare
+--reservation <request>` to claim its worker slot before dispatch. Its retry also
+reports no dispatch authorization. Return confirms stop and releases that slot.
+
+After the coordinator confirms that source work has stopped:
+
+```text
+zdev research experiment work work-002 return --worker-stopped --format json
+zdev research experiment work work-002 evaluate --format json
+zdev research experiment work work-002 integrate --format json
+```
+
+Return checks the full staged, unstaged and untracked source delta, refuses
+unowned paths and `.zdev` edits, and retains an ordinary Git transport commit
+and reference. It preserves refused changes. Evaluate runs correctness and
+measurement commands in the validated source directory, with authoritative
+observations and counted reservations. A competing measurement cannot launch
+while its capacity is occupied. Every attempt retains its own comparison facts.
+
+Integration claims the run's single acceptance lane and rechecks the ready
+task, baseline, conditions, retained source and destination ownership. It applies
+Git transport with `cherry-pick --no-commit`, preserving binary bytes, modes,
+additions, deletions and unrelated destination index/worktree/untracked work.
+Overlapping destination changes refuse integration before mutation. Conflicts
+remain in place for inspection. Only an unchanged fresh destination snapshot
+and a passing independent verifier permit `finalize --decision keep`.
+
+When accepted code changes, use `reconcile` before another measurement or
+integration. Reconciliation charges a new reservation, retains the old source,
+refreshes exclusively owned stopped source work against current accepted HEAD
+and applies its Git transport. Repair preserved conflicts in the source and
+return with confirmed stopped work. The refresh retains its counted reservation;
+measurement capacity is claimed when evaluate begins its actual attempt.
+Evaluate again against the current baseline;
+old improvement evidence cannot authorize keep. Repeated baseline changes repeat
+these gates. Record-only HEAD changes require explicit refresh through reconcile
+(or integrate for an already integrated candidate) and fresh destination
+verification, while unchanged code measurements remain valid.
+
+Changed evaluator/workload conditions pause old comparisons. Run an actual
+counted `research run ... rebaseline` on clean accepted destination code, then
+reconcile and remeasure resumed candidates. Historical rejection may instead
+retain its original evidence and lesson. Isolated rejection leaves the current
+accepted destination implementation in place; its terminal result records
+`accepted_revision`, rather than claiming restoration to an obsolete compared
+baseline. Local rejection continues to use `restored_revision`.
+
+Inspect/recover exposes `active`, `returned`, `accepted`, `rejected`, `paused`
+and `ambiguous` candidate states. Recovery resumes retained commits, source
+refresh, integration, publication, finalization and accounting; it never
+redispatches a worker or relaunches an unresolved measurement. A live or unknown
+process retains measurement capacity. `cleanup_eligible` requires confirmed
+worker stop and durable completion. The coordinator may remove only a source it
+created and owns; pre-existing and ambiguous worktrees stay in place.

@@ -3,7 +3,7 @@ schema_version = 1
 id = "auto-007"
 key = "parallel-candidates"
 area = "auto"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -27,11 +27,22 @@ Read [Experiment mechanics](../background/experiment-mechanics.md) and the brief
 
 ## Done when
 
-- [ ] Public candidate context captures task, accepted revision at dispatch, isolated source location, and required measurements using the established run contract.
-- [ ] Return and integration checks detect baseline drift, require reconciliation and fresh measurement before keep, and count this work against the run limits.
-- [ ] Serialized acceptance retains rejected candidate code/evidence, preserves unrelated destination work, and pauses affected candidates when evaluation conditions change.
-- [ ] Recovery identifies active, returned, accepted, rejected, and ambiguous candidates without duplicate dispatch or premature cleanup.
+- [x] Public candidate context captures task, accepted revision at dispatch, isolated source location, and required measurements using the established run contract.
+- [x] Return and integration checks detect baseline drift, require reconciliation and fresh measurement before keep, and count this work against the run limits.
+- [x] Serialized acceptance retains rejected candidate code/evidence, preserves unrelated destination work, and pauses affected candidates when evaluation conditions change.
+- [x] Recovery identifies active, returned, accepted, rejected, and ambiguous candidates without duplicate dispatch or premature cleanup.
 
 ## Validation
 
 - Add focused Git/CLI scenarios with two candidates, a baseline change, a measurement-capacity limit, evaluation drift, and interrupted recovery. Reuse local lifecycle fixtures rather than duplicate their coverage; run matching checks and document the candidate contract.
+
+## Result
+
+Added isolated hypothesis admission, stopped-worker return, counted current-baseline reconciliation and source measurement, serialized destination integration, and recovery; exclusive source ownership prevents concurrent candidates sharing a worktree or branch.
+
+Validation:
+
+- Independent whole-task review of the repaired candidate against its unchanged stored work-context snapshot.
+- cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked (182 integration and 3 unit tests); cargo build --locked; git diff --check.
+- Both public isolated-candidate scenarios passed, including duplicate-source refusal, capacity separation, baseline drift and remeasurement, Git transport, evaluation drift, recovery, and historical rejection.
+- All five generated integrations passed explicit read-only skill checks using fresh empty XDG configuration roots. No Claude Code CLI or provider execution.

@@ -115,6 +115,19 @@ it never selects or upgrades an execution profile.
 Before rework implementation, retain the ordinary refresh and require an
 explainable exact Git delta.
 
+## Isolated hypothesis sources
+
+Hypotheses use the candidate lifecycle in the task-format reference. Under an
+explicit research run, admit an existing linked source with `research experiment
+<area> <task> admit --source <absolute-root> --path <exact-file>`. Give workers its
+source cwd and authoritative record paths. Return only after confirmed worker
+stop, measure in the source, reconcile against a changed accepted baseline, then
+integrate through the serialized acceptance lane. Independent verification and
+finalization occur in the authoritative destination. Source workers never publish
+research records. Read the recovery reference before resuming pending effects.
+Worker and measurement capacities belong to the existing run; this contract does
+not create another scheduler or alter ordinary assigned-source work below.
+
 ## Optional assigned source worktree
 
 Ordinary one-task work stays in the admitted checkout. Use a separate source

@@ -3738,7 +3738,7 @@ pub(super) fn goal_tasks(
     })
 }
 
-fn write_index(root: &Path, area: &str) -> Result<PathBuf, ZdevError> {
+pub(super) fn write_index(root: &Path, area: &str) -> Result<PathBuf, ZdevError> {
     let (_, area_dir) = load_area(root, area)?;
     let tasks = load_tasks(root, area)?;
     let path = area_dir.join("TASKS.md");

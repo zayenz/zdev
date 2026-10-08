@@ -47,6 +47,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
+| **Research run** — authorize or resume serial experimentation and generate scoped work | [references/research.md](references/research.md) |
 | **Research records** — configure research settings or record/inspect hypothesis evidence | [references/task-format.md](references/task-format.md#research-settings-and-hypothesis-evidence) |
 | **Set up zdev** — initialize durable state or install/check a harness integration | [references/setup.md](references/setup.md) |
 
@@ -58,7 +59,7 @@ selection rules.
 An area with research settings can mix ordinary tasks and hypotheses. Inspect
 the selected task's `hypothesis` field before ordinary planning, implementation,
 verification, loop, or parallel dispatch. Stop before ordinary workers;
-this harness has no installed research execution route.
+an explicitly authorized **Research run** uses its separate installed contract.
 Explain the research record contract for supplied settings/evidence operations.
 `area research` and `task research` validate supplied settings and evidence;
 they do not execute evaluators or establish recorded Git operations. Ordinary
@@ -387,6 +388,12 @@ When packaged workflows are available, it uses them internally for a full task
 cycle, explicit verification, audit, or continuing area work. “Goal” and
 “loop” select the same continuation workflow. The ordinary subagent loop also
 works.
+
+An explicit research-run request uses [references/research.md](references/research.md)
+and the packaged `zdev-research` workflow. Pass structured start/resume arguments,
+a fresh invocation identity and retained concrete profiles. After stop/failure,
+use a new resume invocation of the same durable run. Ordinary Loop keeps its
+existing continuation behavior.
 
 An explicit parallel request uses the packaged `zdev-parallel` workflow when
 it is installed. Collect the finite task list, destination, worktree authority,

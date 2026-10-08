@@ -157,7 +157,8 @@ const parseStoredContext = (raw, expectedArea, expected = null) => {
     || (expected.taskPath && stored.task_path !== expected.taskPath))) return null
   return { lifecycle: stored.lifecycle, queue: stored.queue, taskId: stored.task_id,
     complexity: stored.complexity, staleAdvisory: stored.stale_advisory, head: stored.head,
-    baselineSnapshot: stored.snapshot, taskPath: stored.task_path }
+    baselineSnapshot: stored.snapshot, taskPath: stored.task_path,
+    hypothesis: stored.hypothesis }
 }
 const parseDispatchSpec = (raw, expectedRoute, expectedTask, expectedSnapshot) => {
   const decoded = decodeJsonObject(raw)
@@ -579,6 +580,9 @@ const validFrozenRole = (record, role) => record && !Array.isArray(record)
 const suppliedFrozen = input.frozenProfiles
   && JSON.stringify(Object.keys(input.frozenProfiles).sort()) === JSON.stringify([...frozenRoles].sort())
   && frozenRoles.every(role => validFrozenRole(input.frozenProfiles[role], role))
+if (suppliedFrozen && prepared.hypothesis !== false) {
+  return blocker(area, taskId, 'task kind', 'frozen ordinary dispatch requires confirmed supporting work; hypotheses use the authorized research route.', 'no task worker was started.', staleAdvisory)
+}
 const dispatchRaw = suppliedFrozen ? null : await agent(
   `Act only as deterministic profile coordination. Run zdev config profile dispatch-spec ${dispatchRoute} --harness claude --area ${area} --task ${taskId} --snapshot ${prepared.baselineSnapshot}${profileFlags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and Git state unchanged.`,
   { label: `zdev ${taskId}: freeze worker profiles`, model: 'haiku' },

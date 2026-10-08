@@ -11,8 +11,9 @@ Task completion and experiment decisions remain separate. The
 executes correctness checks and measurements, retains candidate Git code, and
 keeps or restores owned files before completing and committing the result.
 `requires_code` admits later work only after verified acceptance. The installed
-[Codex serial research route](../skills/zdev/references/research.md) generates
-scoped supporting tasks and hypotheses and coordinates their execution.
+[Codex serial research route](../skills/zdev/references/research.md) and
+[Claude serial research route](../.claude/skills/zdev/skills/zdev/references/research.md)
+generate scoped supporting tasks and hypotheses and coordinate execution.
 Parallel research and execution routes for other harnesses follow later.
 
 The [research run contract](../skills/zdev/references/task-format.md#authorize-and-recover-a-research-run)

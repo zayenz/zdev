@@ -855,6 +855,10 @@ fn normalize_task_workflows_locator(content: Vec<u8>) -> Vec<u8> {
     for line in content.split_inclusive('\n') {
         if line.starts_with("const taskWorkflowContractPath = ") {
             normalized.push_str("const taskWorkflowContractPath = \"<task-workflows-contract>\"\n");
+        } else if line.starts_with("const researchReferencePath = ") {
+            normalized.push_str("const researchReferencePath = \"<research-reference>\"\n");
+        } else if line.starts_with("const codingReferencePath = ") {
+            normalized.push_str("const codingReferencePath = \"<coding-reference>\"\n");
         } else if locator_value_follows {
             let (_, tail) = line
                 .split_once(". Decode")
@@ -864,7 +868,9 @@ fn normalize_task_workflows_locator(content: Vec<u8>) -> Vec<u8> {
             locator_value_follows = false;
         } else {
             normalized.push_str(line);
-            locator_value_follows = line.contains("exact installed task-workflows contract path");
+            locator_value_follows = line.contains("exact installed task-workflows contract path")
+                || line.contains("exact installed coding reference path")
+                || line.contains("exact installed research reference path");
         }
     }
     normalized.into_bytes()
@@ -1131,6 +1137,7 @@ fn work_context_snapshots_round_trip_exact_json_and_compare_fresh_state() {
             "area",
             "complexity",
             "head",
+            "hypothesis",
             "lifecycle",
             "path",
             "queue",
@@ -7505,6 +7512,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/parallel.md",
             "skills/zdev/references/plan-task.md",
             "skills/zdev/references/recovery.md",
+            "skills/zdev/references/research.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
             "skills/zdev/references/t3-code.md",
@@ -7518,6 +7526,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "workflows/zdev-implement.js",
             "workflows/zdev-loop.js",
             "workflows/zdev-parallel.js",
+            "workflows/zdev-research.js",
             "workflows/zdev-verify.js",
         ]
     );
@@ -7824,7 +7833,7 @@ const semanticPlan = () => ({{ approach: 'inspect then edit', paths: ['src/lib.r
 const baselineSnapshot = 'Wfedcba9876543210'
 const verificationSnapshot = 'W0123456789abcdef'
 const compactContext = (complexity, snapshot, overrides = {{}}) => JSON.stringify({{
-  schema_version: 1, area, lifecycle: 'open', queue: 'ready',
+  schema_version: 1, area, lifecycle: 'open', queue: 'ready', hypothesis: overrides.hypothesis ?? false,
   task_id: overrides.taskId ?? taskId,
   task_path: overrides.taskPath ?? '.zdev/work/tasks/001-implement-work.md',
   complexity: overrides.complexity ?? complexity,
@@ -7888,7 +7897,11 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
       return adjustmentDecisions.shift()
     }}
     if (options.label.includes('complete and commit')) return completion
-    if (options.label === 'zdev work: select ready task') return storedContext(complexity)
+    if (options.label === 'zdev work: select ready task') {{
+      const prepared = JSON.parse(compactContext(complexity, baselineSnapshot, {{ hypothesis: invocation.hypothesis }}))
+      if (invocation.omit_kind) delete prepared.hypothesis
+      return JSON.stringify(prepared)
+    }}
     if (options.label.includes('freeze worker profiles')) return dispatchSpec(complexity, invocation.plan_only === true)
     if (options.label.includes('capture verification snapshot')) return verificationContext(complexity, verificationOverrides)
     if (options.label.includes('confirm verifier')) return comparison(compareEquals.length ? compareEquals.shift() : true)
@@ -8077,6 +8090,10 @@ await exercise(
   ['zdev:zdev-implementer'],
   'BLOCKER',
 )
+for (const guard of [{{ hypothesis: true }}, {{ omit_kind: true }}]) {{
+  await exercise('frozen ordinary hypothesis guard', 'standard', [], [], 'BLOCKER', null,
+    {{ area, frozen_profiles: JSON.parse(dispatchSpec('standard')).profiles, ...guard }})
+}}
 await exercise(
   'actionable implementer blocker continues',
   'standard',
@@ -8438,17 +8455,17 @@ const worker = (task, kind, verdict, escalation = 'none', evidence = [], finding
 const baselineSnapshot = 'Wfedcba9876543210'
 const verificationSnapshot = 'W0123456789abcdef'
 const ready = (task, complexity = 'standard', contextHead = head) => JSON.stringify({{
-  schema_version: 1, area, lifecycle: 'open', queue: 'ready', task_id: task,
+  schema_version: 1, area, hypothesis: false, lifecycle: 'open', queue: 'ready', task_id: task,
   task_path: '.zdev/work/tasks/' + task.slice(task.lastIndexOf('-') + 1).padStart(3, '0') + '-task.md',
   complexity, stale_advisory: false, head: contextHead, snapshot: baselineSnapshot,
   path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})
 const closed = JSON.stringify({{
-  schema_version: 1, area, lifecycle: 'closed', queue: 'empty', task_id: null,
+  schema_version: 1, area, hypothesis: false, lifecycle: 'closed', queue: 'empty', task_id: null,
   snapshot: baselineSnapshot, path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})
 const empty = contextHead => JSON.stringify({{
-  schema_version: 1, area, lifecycle: 'open', queue: 'empty', task_id: null,
+  schema_version: 1, area, hypothesis: false, lifecycle: 'open', queue: 'empty', task_id: null,
   stale_advisory: false, head: contextHead, snapshot: baselineSnapshot,
   path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
 }})
@@ -9191,7 +9208,7 @@ fn native_loop_harnesses_install_one_skill_and_their_area_adapter() {
 }
 
 #[test]
-fn codex_installs_a_separate_serial_research_route_with_resolved_contracts() {
+fn codex_and_claude_install_separate_serial_research_routes_with_resolved_contracts() {
     let repository = repository();
     let root = repository.path();
     let config_home = root.join("research-config");
@@ -9219,7 +9236,7 @@ fn codex_installs_a_separate_serial_research_route_with_resolved_contracts() {
         );
         let skill = fs::read_to_string(destination.join(skill_root).join("SKILL.md")).unwrap();
         let research = destination.join(skill_root).join("references/research.md");
-        if harness == "codex" {
+        if matches!(harness, "codex" | "claude") {
             assert!(skill.contains("**Research run**"));
             assert!(skill.contains("references/research.md"));
             let contract = fs::read_to_string(research).unwrap();
@@ -9229,7 +9246,11 @@ fn codex_installs_a_separate_serial_research_route_with_resolved_contracts() {
                         &destination
                             .canonicalize()
                             .unwrap()
-                            .join("zdev/references/task-workflows.md")
+                            .join(if harness == "codex" {
+                                "zdev/references/task-workflows.md"
+                            } else {
+                                "contracts/task-workflows.md"
+                            })
                             .to_str()
                             .unwrap()
                     )
@@ -9237,16 +9258,23 @@ fn codex_installs_a_separate_serial_research_route_with_resolved_contracts() {
                 )
             );
             assert!(!contract.contains("{{"));
-            assert!(contract.contains("begin --path <exact-file>"));
+            assert!(contract.contains(if harness == "codex" {
+                "begin --path <exact-file>"
+            } else {
+                "zdev-research"
+            }));
             assert!(contract.contains("verification_snapshot"));
             assert!(contract.contains("one foreground work-item"));
             let ordinary =
-                fs::read_to_string(destination.join("zdev/references/area-loop.md")).unwrap();
+                fs::read_to_string(destination.join(skill_root).join("references/area-loop.md"))
+                    .unwrap();
             assert!(
                 ordinary
                     .contains("This ordinary loop does not generate work or dispatch hypotheses")
             );
-            assert!(ordinary.contains("Open `empty` or `exhausted` returns `PASS`"));
+            if harness == "codex" {
+                assert!(ordinary.contains("Open `empty` or `exhausted` returns `PASS`"));
+            }
         } else {
             assert!(!research.exists());
             assert!(!skill.contains("**Research run**"));
@@ -16535,4 +16563,100 @@ fn research_run_changed_conditions_allow_historical_discard_but_protect_area_met
     assert_eq!(fresh["run"]["comparison_valid"], true);
     assert_eq!(fresh["consumed"]["work_attempts"], 3);
     assert_eq!(fresh["consumed"]["commands"], 6);
+}
+
+#[test]
+fn claude_serial_research_executes_real_commands_and_recovers_fresh_invocations() {
+    for scenario in [
+        "hypothesis-plan-settlement",
+        "hypothesis-plan-begin",
+        "support-plan-settlement",
+        "mixed",
+        "limits",
+        "acceptance-rework",
+        "last-unit",
+        "refused",
+        "null",
+        "throw",
+        "multiple",
+        "duplicate",
+        "malformed",
+        "stale",
+        "advanced-resume",
+        "admission",
+        "finalization",
+        "shared",
+        "support-completion",
+        "conditions",
+        "measurement",
+        "implementation-blocker",
+        "inconclusive",
+    ] {
+        let evaluator = if scenario == "measurement" {
+            "kill -KILL \"$PPID\"; sleep 0.1; printf 15"
+        } else {
+            "case $(cat seed.txt) in keep*) printf 5;; close) printf 3;; fail) exit 1;; *) printf 15;; esac"
+        };
+        let repository = local_experiment_fixture(evaluator);
+        let root = repository.path();
+        if matches!(
+            scenario,
+            "advanced-resume" | "hypothesis-plan-settlement" | "hypothesis-plan-begin"
+        ) {
+            let task_path = root.join(".zdev/work/tasks/001-candidate.md");
+            let task = fs::read_to_string(&task_path).unwrap();
+            let advanced = if task.contains("complexity = \"standard\"") {
+                task.replace("complexity = \"standard\"", "complexity = \"advanced\"")
+            } else {
+                task.replacen("+++\n", "+++\ncomplexity = \"advanced\"\n", 1)
+            };
+            fs::write(&task_path, advanced).unwrap();
+            git(root, &["add", ".zdev/work/tasks/001-candidate.md"]);
+            git(root, &["commit", "-m", "Plan advanced hypothesis"]);
+        }
+        let destination = root.join(".git/claude-research-integration");
+        let config_home = root.join(".git/research-config");
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                "claude",
+                "--to",
+                destination.to_str().unwrap(),
+            ],
+            &[("XDG_CONFIG_HOME", config_home.as_path())],
+        );
+        let output = Command::new("node")
+            .args([
+                "--input-type=module",
+                "--eval",
+                include_str!("claude-research-probe.mjs"),
+            ])
+            .env("ZDEV_PROBE_ROOT", root)
+            .env("ZDEV_PROBE_BINARY", env!("CARGO_BIN_EXE_zdev"))
+            .env(
+                "ZDEV_PROBE_SOURCE",
+                destination.join("workflows/zdev-research.js"),
+            )
+            .env("ZDEV_PROBE_SCENARIO", scenario)
+            .env("XDG_CONFIG_HOME", &config_home)
+            .output()
+            .expect("run real-command Claude research adapter");
+        assert!(
+            output.status.success(),
+            "Claude research {scenario} failed: {}\n{}",
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        );
+        let evidence: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let evaluated = evidence["evaluator_runs"].as_str().unwrap().len();
+        assert_eq!(
+            evidence["consumed"]["commands"].as_u64().unwrap() as usize,
+            evaluated + evidence["correctness_runs"].as_str().unwrap().len()
+        );
+        if matches!(scenario, "mixed" | "limits" | "shared") {
+            assert_eq!(evidence["report"]["verdict"], "stopped");
+        }
+    }
 }

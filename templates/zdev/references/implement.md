@@ -7,7 +7,7 @@ only when the user explicitly asks for any ready or unblocked task across
 areas; do not infer project-wide selection from an omitted area.
 
 If the selected task has `hypothesis`, stop before ordinary worker dispatch.
-{% if codex_research_supported %}An explicit research-run request uses the separate installed research reference.
+{% if research_supported %}An explicit research-run request uses the separate installed research reference.
 {% else %}This harness has no installed research execution route.
 {% endif %}Use the installed task-format reference for authorized settings and evidence
 operations. Ordinary supporting tasks in the same area keep this route.

@@ -1,6 +1,6 @@
 # Zdev area loop (native)
 
-{% if codex_research_supported %}An explicitly authorized research run uses the separate installed research
+{% if research_supported %}An explicitly authorized research run uses the separate installed research
 reference. This ordinary loop does not generate work or dispatch hypotheses.
 {% endif %}
 

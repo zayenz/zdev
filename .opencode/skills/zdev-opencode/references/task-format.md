@@ -781,3 +781,9 @@ level, not silently expand it.
 `zdev check` requires non-empty `Outcome`, `Done when`, and `Validation` sections.
 Done conditions must be checklist items; a completed task must have every item
 checked and include a non-empty `Result` section.
+
+Codex and Claude Code install separate serial research execution references.
+Claude uses `zdev-research` with structured authorization and a fresh invocation
+identity after stop/failure. Ordinary Loop remains ordinary task continuation.
+Other harnesses expose these records and local commands without an installed
+research execution route.

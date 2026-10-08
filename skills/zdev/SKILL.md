@@ -59,7 +59,7 @@ selection rules.
 An area with research settings can mix ordinary tasks and hypotheses. Inspect
 the selected task's `hypothesis` field before ordinary planning, implementation,
 verification, loop, or parallel dispatch. Stop before ordinary workers;
-an explicitly authorized **Research run** uses its separate Codex contract.
+an explicitly authorized **Research run** uses its separate installed contract.
 Explain the research record contract for supplied settings/evidence operations.
 `area research` and `task research` validate supplied settings and evidence;
 they do not execute evaluators or establish recorded Git operations. Ordinary

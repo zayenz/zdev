@@ -101,11 +101,11 @@ Both words select the same route. The skill continues one verified commit at a
 time where the harness supports native continuation; OpenCode and Pi stop after
 one task and report `CONTINUE` when fresh ready work remains.
 
-### Run serial research in Codex
+### Run serial research in Codex and Claude Code
 
 Configure an open research area with a measured baseline and executable
 correctness/evaluator commands, then ask `$zdev` to **run research in the area**
-within a stated scope. Codex uses a separate serial route that generates
+within a stated scope. Codex and Claude Code use separate serial routes that generate
 supporting tasks and hypotheses, executes them on the current branch, and reads
 retained lessons before proposing more work. The default allowance is 20 work
 attempts; explicitly asking to run **until interrupted** removes that default
@@ -117,7 +117,7 @@ keeps or restores code, and commits the task's measured conclusion. Empty queues
 permit more scoped proposals; target, budget, interruption and shared blocker
 are distinct stops. A fresh session resumes the same run and its remaining
 allowance from durable records. Ordinary Implement and Loop keep their existing
-behavior. See [Serial research](docs/user-guide.md#serial-research-in-codex) for
+behavior. See [Serial research](docs/user-guide.md#serial-research-in-codex-and-claude-code) for
 requests, accounting and recovery.
 
 ### Complete and commit work

@@ -19,7 +19,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
-{% if codex_research_supported %}| **Research run** — authorize or resume serial experimentation and generate scoped work | [references/research.md](references/research.md) |
+{% if research_supported %}| **Research run** — authorize or resume serial experimentation and generate scoped work | [references/research.md](references/research.md) |
 {% endif %}| **Research records** — configure research settings or record/inspect hypothesis evidence | [references/task-format.md](references/task-format.md#research-settings-and-hypothesis-evidence) |
 | **Set up zdev** — initialize durable state or install/check a harness integration | [references/setup.md](references/setup.md) |
 
@@ -31,7 +31,7 @@ selection rules.
 An area with research settings can mix ordinary tasks and hypotheses. Inspect
 the selected task's `hypothesis` field before ordinary planning, implementation,
 verification, loop, or parallel dispatch. Stop before ordinary workers;
-{% if codex_research_supported %}an explicitly authorized **Research run** uses its separate Codex contract.
+{% if research_supported %}an explicitly authorized **Research run** uses its separate installed contract.
 {% else %}this harness has no installed research execution route.
 {% endif %}Explain the research record contract for supplied settings/evidence operations.
 `area research` and `task research` validate supplied settings and evidence;

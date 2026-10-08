@@ -18,11 +18,11 @@ have distinct completion rules. A valid rejected experiment can complete
 without improving the metric. Completion does not accept candidate code or
 close the area. These commands validate supplied evidence without launching
 evaluators, retaining/restoring code, or proving recorded Git attestations.
-Codex also installs a separate serial research route using the managed local
+Codex and Claude Code install separate serial research routes using the managed local
 experiment commands. Ordinary Implement, Plan, Verify, Parallel and Loop stop
 before hypothesis dispatch; ordinary supporting tasks retain their workflow.
 
-### Serial research in Codex
+### Serial research in Codex and Claude Code
 
 First configure a research policy with actual baseline samples and a shell
 command for every required correctness check. The brief defines allowed changes,
@@ -87,10 +87,17 @@ remains. Target, budget, interruption and shared blocker stop distinctly; none
 implicitly closes the area or proves its optimization objective achieved.
 
 The [installed Codex contract](../skills/zdev/references/research.md) gives the
-ordered coordinator operations. Other harnesses currently expose research
+ordered coordinator operations. The [installed Claude contract](../.claude/skills/zdev/skills/zdev/references/research.md)
+uses `zdev-research` with structured authorization, a fresh invocation identity
+and retained concrete profiles. Pause/continue of a live workflow is supported.
+After stop or failure, use a new resume invocation with the same durable run;
+replaying a stopped script can replay a cached reservation before restarting a
+worker. When packaged execution is unavailable, complete at most one foreground
+work-item iteration and report the required continuation. Claude does not use
+its separate `/goal` command for this route. Other harnesses expose research
 records and local commands without this installed execution route. Deterministic
-installation and command scenarios validate the contract; authenticated live
-Codex acceptance remains separate.
+installation and command scenarios validate the contracts; authenticated live
+Codex and Claude acceptance remain separate.
 
 ## 1. Install zdev
 

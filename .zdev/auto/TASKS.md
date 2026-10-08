@@ -3,9 +3,9 @@
 # Tasks: auto
 
 - Total: 10
-- Ready: 2
+- Ready: 1
 - Blocked: 3
-- Done: 5
+- Done: 6
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@
 | [auto-003](tasks/003-complete-one-local-hypothesis-safely.md) | Complete one local hypothesis safely | done | auto-001, auto-002 |
 | [auto-004](tasks/004-authorize-generated-work-and-account-for-research-run-limits.md) | Authorize generated work and account for research run limits | done | auto-001 |
 | [auto-005](tasks/005-run-serial-research-through-codex.md) | Run serial research through Codex | done | auto-003, auto-004 |
-| [auto-006](tasks/006-run-serial-research-through-claude-code.md) | Run serial research through Claude Code | ready | auto-003, auto-004 |
+| [auto-006](tasks/006-run-serial-research-through-claude-code.md) | Run serial research through Claude Code | done | auto-003, auto-004 |
 | [auto-007](tasks/007-support-isolated-candidate-admission-and-current-baseline-re.md) | Support isolated candidate admission and current-baseline reconciliation | ready | auto-003, auto-004 |
 | [auto-008](tasks/008-continuously-refill-codex-research-workers.md) | Continuously refill Codex research workers | blocked | auto-005, auto-007 |
 | [auto-009](tasks/009-continuously-refill-claude-code-research-workers.md) | Continuously refill Claude Code research workers | blocked | auto-006, auto-007 |

@@ -5,13 +5,15 @@ selected task and return one role-specific result.
 Before ordinary planning, implementation, verification, loop, or parallel
 dispatch, inspect the selected task for `hypothesis`. If present, stop before
 starting ordinary workers.
-{% if codex_research_supported %}Use the separate installed research reference only on an explicit research-run
+{% if research_supported %}Use the separate installed research reference only on an explicit research-run
 authorization.
 {% else %}This harness has no installed research execution route.
 {% endif %}Read the research settings/result contract in the installed
 task-format reference for authorized record operations. Check every task in a
 parallel batch, including resumed assignments. Ordinary supporting tasks in a
-research area keep this workflow. Hypothesis completion requires validated
+research area keep this workflow. Compact work-context includes the selected
+task's hypothesis boolean; frozen Claude dispatch requires explicit false and
+refuses missing task-kind evidence. Hypothesis completion requires validated
 terminal evidence; interrupted evidence stays open and a rejected result can
 complete without improving the metric. Never treat completion as retained code.
 

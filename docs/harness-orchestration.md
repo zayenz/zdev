@@ -32,8 +32,9 @@ intents to internal contracts and harness-native adapters:
   which completes at most one task and returns `CONTINUE` only after a verified
   commit when fresh ready work remains.
 
-- In Codex, an explicit **Research run** request uses
-  `zdev/references/research.md` to coordinate serial current-branch research.
+- In Codex and Claude Code, an explicit **Research run** request uses
+  the harness-specific installed `references/research.md` to coordinate serial
+  research on the current branch.
   It generates mixed work within the authorized scope, charges dispatch before
   work, accepts only independently verified keeps, and recovers from the
   existing run and experiment commands. Empty queues permit further proposals.
@@ -47,7 +48,7 @@ form additional skills or change the root activation name.
 | Harness | Installed skill and adapters | Native workers |
 | --- | --- | --- |
 | Codex | One `zdev/SKILL.md`; audit, task, verification, serial research, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and a one-task fallback only after clear inspection when creation is unavailable. |
-| Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects a concise scoped role and passes a stored work-context locator. The detailed derived-work contract is loaded only when a split is needed. |
+| Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, `workflows/zdev-goal.js`, and `workflows/zdev-research.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects a concise scoped role and passes a stored work-context locator. The detailed derived-work contract is loaded only when a split is needed. |
 | OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-parallel.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; one-task commands use the native task tool and compact file/snapshot locators. The parallel command stops before mutation because foreground batches do not return coordinator control per completed child. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-parallel.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` keeps single configured roles and adds bounded, task-keyed planner and source-implementer batches with explicit working directories. Calls carry compact locators rather than the rendered workflow. |
 | Oh My Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-parallel.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | Concise blocking agents handle ordinary one-task work. Separate non-blocking routine, standard, and advanced implementers run assigned source worktrees for parallel batches; the coordinator uses blocking planners and verifiers and retains integration, completion, and commits. |
@@ -439,3 +440,25 @@ manifest field, and namespaced invocation, and issue 66032 is completed; those
 sources support retaining the canonical JavaScript route in 2.1.237. OpenCode
 background agents, Oh My Pi background jobs, and native session-goal behavior
 were not selected because the current sequential workflow does not need them.
+
+## Claude serial research coordination
+
+The installed `zdev-research` workflow composes the canonical ordinary one-task
+body for supporting work and coordinates hypotheses through the binary lifecycle.
+It uses only args and sequential agent calls. Resolve all five native Claude
+roles before dispatch and pass retained concrete model/effort options to each
+planner, implementer and verifier. Each supporting dispatch and hypothesis
+retry has a fresh reservation before launch; begin charges initial candidate
+preparation and evaluate charges correctness/evaluator commands. Only proposed
+keep gets a fresh independent acceptance verifier with strict snapshot equality.
+
+Pause/continue of live execution uses Claude controls. After stop/failure, use
+a new resume invocation identity with the same durable run and recover live
+effects before another reservation. Claude can replay completed cached agent
+calls on recovery, so restarting an interrupted worker with its old reservation
+would be unsafe accounting. The installed reference documents a bounded one
+foreground work-item fallback when packaged execution is unavailable. It has
+no `/goal` dependency or invented shell/clock/cancellation APIs. Deterministic
+command tests and authenticated provider execution are separate evidence. See
+[Claude workflow execution](https://code.claude.com/docs/en/workflows) and
+[plugin workflow discovery](https://code.claude.com/docs/en/plugins-reference).

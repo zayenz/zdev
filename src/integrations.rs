@@ -100,6 +100,9 @@ const CLAUDE_IMPLEMENT_WORKFLOW: &str =
 const CLAUDE_PARALLEL_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-parallel.js");
 const CLAUDE_LOOP_WORKFLOW: &str = include_str!("../templates/zdev/claude/workflows/zdev-loop.js");
+const CLAUDE_RESEARCH_WORKFLOW: &str =
+    include_str!("../templates/zdev/claude/workflows/zdev-research.js");
+const CLAUDE_RESEARCH_TEMPLATE: &str = include_str!("../templates/zdev/claude-research.md");
 const CLAUDE_VERIFY_WORKFLOW: &str =
     include_str!("../templates/zdev/claude/workflows/zdev-verify.js");
 const CLAUDE_AUDIT_WORKFLOW: &str =
@@ -285,6 +288,10 @@ impl Harness {
                     }
                 }));
                 add_route_references(&mut files, "skills/zdev", CLAUDE_AREA_LOOP_TEMPLATE);
+                files.push(IntegrationFile {
+                    path: "skills/zdev/references/research.md".to_owned(),
+                    content: CLAUDE_RESEARCH_TEMPLATE.to_owned(),
+                });
                 files.extend([
                     IntegrationFile {
                         path: "agents/zdev-routine-implementer.md".to_owned(),
@@ -313,6 +320,10 @@ impl Harness {
                     IntegrationFile {
                         path: "workflows/zdev-loop.js".to_owned(),
                         content: claude_loop_workflow("zdev-loop")?,
+                    },
+                    IntegrationFile {
+                        path: "workflows/zdev-research.js".to_owned(),
+                        content: claude_research_workflow()?,
                     },
                     IntegrationFile {
                         path: "workflows/zdev-parallel.js".to_owned(),
@@ -815,6 +826,38 @@ fn claude_loop_workflow(name: &str) -> Result<String, ZdevError> {
     Ok(rendered)
 }
 
+fn claude_research_workflow() -> Result<String, ZdevError> {
+    let (_, body) = CLAUDE_IMPLEMENT_WORKFLOW
+        .split_once("\n\n")
+        .ok_or_else(|| {
+            ZdevError::new("Cannot extract the canonical Claude one-task workflow body")
+        })?;
+    let (_, fields) = body.split_once("const field =").ok_or_else(|| {
+        ZdevError::new("Cannot extract the canonical Claude completion-result parser")
+    })?;
+    let (fields, _) = fields.split_once("const advisoryText =").ok_or_else(|| {
+        ZdevError::new("Cannot extract the canonical Claude completion-result parser")
+    })?;
+    let (_, helpers) = body
+        .split_once("const decodeJsonObject =")
+        .ok_or_else(|| ZdevError::new("Cannot extract the canonical Claude role-result parsers"))?;
+    let (helpers, _) = helpers
+        .split_once("const publicVerifier =")
+        .ok_or_else(|| ZdevError::new("Cannot extract the canonical Claude role-result parsers"))?;
+    let rendered = CLAUDE_RESEARCH_WORKFLOW
+        .replace("__ZDEV_ONE_TASK_BODY__", body)
+        .replace(
+            "__ZDEV_ROLE_RESULT_HELPERS__",
+            &format!("const field ={fields}const decodeJsonObject ={helpers}"),
+        );
+    if rendered.contains("__ZDEV_") {
+        return Err(ZdevError::new(
+            "Cannot compose the canonical Claude research workflow",
+        ));
+    }
+    Ok(rendered)
+}
+
 fn repository_guidance(guidance: Option<(&str, &str)>) -> String {
     match guidance {
         Some((source, content)) => format!(
@@ -860,6 +903,8 @@ fn render_template(
             question_tool_guidance,
             version,
             task_workflows_contract_path_json => contracts.4,
+            claude_research_reference_path_json => contracts.4.replace("contracts/task-workflows.md", "skills/zdev/references/research.md"),
+            claude_coding_reference_path_json => contracts.4.replace("contracts/task-workflows.md", "skills/zdev/references/coding.md"),
             routine_implementer_has_model => workers.routine_implementer.has_model(),
             routine_implementer_has_effort => workers.routine_implementer.has_effort(),
             routine_implementer_model => workers.routine_implementer.model_literal(),
@@ -881,7 +926,7 @@ fn render_template(
             planner_model => workers.planner.model_literal(),
             planner_effort => workers.planner.effort_literal(),
             parallel_supported => contracts.5,
-            codex_research_supported => contracts.6,
+            research_supported => contracts.6,
         })
         .map_err(|error| {
             ZdevError::new(format!(
@@ -942,7 +987,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -967,7 +1012,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -987,7 +1032,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -1007,7 +1052,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
-            harness == Harness::Codex,
+            matches!(harness, Harness::Codex | Harness::Claude),
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -1040,7 +1085,7 @@ fn realize_templates(
                     harness,
                     Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
                 ),
-                harness == Harness::Codex,
+                matches!(harness, Harness::Codex | Harness::Claude),
             ),
             &repository_guidance,
             &question_tool_guidance,

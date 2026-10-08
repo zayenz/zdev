@@ -30,6 +30,12 @@ cycle, explicit verification, audit, or continuing area work. “Goal” and
 “loop” select the same continuation workflow. The ordinary subagent loop also
 works.
 
+An explicit research-run request uses [references/research.md](references/research.md)
+and the packaged `zdev-research` workflow. Pass structured start/resume arguments,
+a fresh invocation identity and retained concrete profiles. After stop/failure,
+use a new resume invocation of the same durable run. Ordinary Loop keeps its
+existing continuation behavior.
+
 An explicit parallel request uses the packaged `zdev-parallel` workflow when
 it is installed. Collect the finite task list, destination, worktree authority,
 worker limit, cleanup choice, and explicit consent before launching it. If the

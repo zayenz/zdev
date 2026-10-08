@@ -12,3 +12,7 @@ states. It does not inspect or invoke Claude Code's separate `/goal` command.
 When packaged workflows are unavailable, continue under coordinator control.
 If reliable continuation is unavailable, complete at most one task and report
 the fresh next state with the canonical `zdev-loop` result.
+
+This ordinary loop does not generate work or dispatch hypotheses. An explicit
+research-run authorization uses the separate installed research reference and
+`zdev-research` workflow.

@@ -16,6 +16,11 @@ request identity; recover the owning experiment instead of relaunching an
 unresolved measurement. Resume with `resume --run <run>` only on an authorized
 continuation. Never replace an unfinished run or reset its consumed allowance.
 
+For Codex or Claude serial continuation, follow the installed research reference.
+Codex inspects actual native goal state; Claude uses a fresh research workflow
+invocation after stop/failure rather than replaying a stopped script. Restore concrete worker settings from
+the handoff; if absent, explain that limitation and resolve fresh settings.
+
 
 ## Local experiment recovery
 

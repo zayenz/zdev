@@ -31,7 +31,9 @@ paired sign test govern acceptance. `research measure` is a standalone utility
 that repeatedly runs evaluator commands. `compare` and `task research` validate
 supplied evidence. During an active run, managed `evaluate` owns measurement
 and accounting; standalone measurement and supplied observations cannot bypass it.
-This harness has no installed serial or parallel research execution route.
+The separate [installed serial research route](research.md) coordinates authorized
+runs, generated work and this lifecycle. Parallel research coordination follows
+later.
 Ordinary implementation, planning, and verification dispatch reject hypotheses
 before emitting workers. Ordinary supporting tasks keep their existing routes.
 Read this contract when a selected task has `hypothesis` frontmatter; do not
@@ -781,3 +783,9 @@ level, not silently expand it.
 `zdev check` requires non-empty `Outcome`, `Done when`, and `Validation` sections.
 Done conditions must be checklist items; a completed task must have every item
 checked and include a non-empty `Result` section.
+
+Codex and Claude Code install separate serial research execution references.
+Claude uses `zdev-research` with structured authorization and a fresh invocation
+identity after stop/failure. Ordinary Loop remains ordinary task continuation.
+Other harnesses expose these records and local commands without an installed
+research execution route.

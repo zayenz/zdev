@@ -1552,7 +1552,7 @@ fn dispatch_spec(
     }
     if shown.pointer("/goal/task/hypothesis").is_some() {
         return Err(ZdevError::new(
-            "Ordinary dispatch does not execute hypotheses. In Codex, an explicitly authorized research run uses the installed research reference; other harnesses can use the local experiment contract in the task-format reference. Ordinary supporting tasks retain their implementation workflow",
+            "Ordinary dispatch does not execute hypotheses. In Codex and Claude Code, an explicitly authorized research run uses the installed research reference; other harnesses can use the local experiment contract in the task-format reference. Ordinary supporting tasks retain their implementation workflow",
         ));
     }
     let admission = compare_work_context(root, area, snapshot)?.value;
@@ -2010,6 +2010,10 @@ fn work_context_snapshot_projection(
     }
     if let Some(task_path) = context.pointer("/goal/task/path") {
         projection.insert("task_path".to_owned(), task_path.clone());
+        projection.insert(
+            "hypothesis".to_owned(),
+            json!(context.pointer("/goal/task/hypothesis").is_some()),
+        );
     }
     Value::Object(projection)
 }

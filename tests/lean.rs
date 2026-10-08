@@ -10544,7 +10544,9 @@ fn executable_templates_realize_deterministically_and_match_generated_fixtures()
             let rendered = normalize_task_workflows_locator(
                 fs::read(destination.join(&path)).expect("rendered integration file"),
             );
-            if path.ends_with("SKILL.md") || path.contains("/references/") {
+            if path.ends_with("SKILL.md")
+                || (path.contains("/references/") && !path.ends_with("/references/task-format.md"))
+            {
                 continue;
             }
             assert_eq!(
@@ -14456,6 +14458,7 @@ fn local_verifier(root: &Path, snapshot: &str) -> std::path::PathBuf {
 fn local_experiment_keeps_verified_code_and_preserves_unrelated_work() {
     let repository = local_experiment_fixture("printf 0.12345678901234567");
     let root = repository.path();
+    start_research_run(root, &["--target", "1"]);
     let sample = "0.12345678901234567".parse::<f64>().unwrap();
     fs::write(root.join("unrelated-stage.txt"), "staged\n").unwrap();
     git(root, &["add", "unrelated-stage.txt"]);
@@ -14590,6 +14593,11 @@ fn local_experiment_keeps_verified_code_and_preserves_unrelated_work() {
         ],
     );
     assert_eq!(finalized["next_action"], "complete");
+    let run = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(run["run"]["comparison_valid"], true);
+    assert_eq!(run["stop_reason"], "target");
+    assert_eq!(run["consumed"]["commands"], 3);
+    assert_eq!(run["consumed"]["work_attempts"], 2);
     let accepted = json_output(root, &["area", "research", "work"]);
     assert_eq!(
         accepted["research"]["comparison"]["baseline_revision"],
@@ -14958,6 +14966,18 @@ fn local_experiment_recovers_each_finalization_boundary_and_refuses_overlap() {
 fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_measurement() {
     let repository = local_experiment_fixture("sleep 30; printf 7");
     let root = repository.path();
+    let run = start_research_run(
+        root,
+        &[
+            "--attempt-limit",
+            "2",
+            "--time-limit-seconds",
+            "60",
+            "--command-seconds",
+            "60",
+        ],
+    );
+    let identity = run["run"]["id"].as_str().unwrap();
     begin_local_experiment(root);
     edit_local_candidate(root);
     let mut child = Command::new(env!("CARGO_BIN_EXE_zdev"))
@@ -14991,6 +15011,31 @@ fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_meas
     );
     assert!(!unresolved.status.success());
     assert!(String::from_utf8_lossy(&unresolved.stderr).contains("no command was relaunched"));
+    let uncertain = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(uncertain["consumed"]["work_attempts"], 2);
+    assert_eq!(uncertain["consumed"]["commands"], 2);
+    assert!(uncertain["consumed"]["command_seconds"].as_f64().unwrap() > 1.0);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "reserve",
+                "--run",
+                identity,
+                "--request",
+                "repair",
+                "--task",
+                "work-001",
+                "--kind",
+                "repair"
+            ]
+        )
+        .status
+        .success()
+    );
     // Kill only the shell leader: its sleep descendant must still block restoration.
     Command::new("kill")
         .args(["-KILL", &process.to_string()])
@@ -15048,6 +15093,14 @@ fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_meas
             .unwrap()
             .len(),
         1
+    );
+    let settled = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(settled["consumed"]["work_attempts"], 2);
+    assert_eq!(settled["consumed"]["commands"], 2);
+    assert_eq!(settled["stop_reason"], "budget");
+    assert_eq!(
+        research_run_action(root, identity, "resume", &[])["run"]["deadline"],
+        run["run"]["deadline"]
     );
 }
 
@@ -15192,4 +15245,970 @@ fn local_experiment_failed_correctness_recovers_and_finishes_without_losing_evid
         assert_eq!(fs::read(git_path(root, "correctness-runs")).unwrap(), b"fp");
         assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
     }
+}
+
+fn start_research_run(root: &Path, extra: &[&str]) -> Value {
+    let mut arguments = vec![
+        "research",
+        "run",
+        "work",
+        "start",
+        "--scope",
+        "Implementation and supporting evaluation work in this area.",
+    ];
+    arguments.extend_from_slice(extra);
+    json_output(root, &arguments)
+}
+
+fn research_run_action(root: &Path, identity: &str, action: &str, extra: &[&str]) -> Value {
+    let mut arguments = vec!["research", "run", "work", action, "--run", identity];
+    arguments.extend_from_slice(extra);
+    json_output(root, &arguments)
+}
+
+#[test]
+fn research_run_admits_mixed_work_recovers_publication_and_refills_an_exhausted_queue() {
+    let repository = local_experiment_fixture("printf 14");
+    let root = repository.path();
+    let started = start_research_run(root, &[]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    assert_eq!(started["remaining"]["work_attempts"], 20);
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "The cache made this workload slower.",
+        ],
+    );
+    let exhausted = json_output(root, &["research", "run", "work", "context"]);
+    assert!(
+        exhausted["next_action"]
+            .as_str()
+            .unwrap()
+            .contains("generate and admit")
+    );
+    assert_eq!(exhausted["consumed"]["work_attempts"], 2);
+    assert_eq!(exhausted["consumed"]["commands"], 3);
+    assert_eq!(
+        exhausted["tasks"]["tasks"][0]["research_results"][1]["lesson"],
+        "The cache made this workload slower."
+    );
+    let index = root.join(".zdev/work/TASKS.md");
+    let previous_index = fs::read(&index).unwrap();
+    let mut hypothesis = hypothesis_draft("next-candidate");
+    hypothesis["blocked_by"] = json!(["prepare"]);
+    hypothesis["hypothesis"]["context_tasks"] = json!(["work-001", "prepare"]);
+    let bundle = json!({"schema_version": 1, "area": "work", "tasks": [
+        {"key": "prepare", "title": "Prepare next workload", "outcome": "Prepare the fixed input.", "done_when": ["Input is ready."]}, hypothesis]});
+    let bytes = serde_json::to_vec(&bundle).unwrap();
+    let admitted = json_output_with_stdin(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "admit",
+            "--run",
+            identity,
+            "--request",
+            "generation-1",
+            "--from",
+            "-",
+        ],
+        &bytes,
+    );
+    assert_eq!(
+        admitted["run"]["admissions"]["generation-1"]["tasks"],
+        json!(["work-002", "work-003"])
+    );
+    let candidate = json_output(root, &["task", "show", "work", "work-003"]);
+    assert_eq!(candidate["blocked_by"], json!(["work-002"]));
+    assert_eq!(
+        candidate["hypothesis"]["context_tasks"],
+        json!(["work-001", "work-002"])
+    );
+    let run_path = git_path(root, "zdev/runs/work/current.json");
+    let mut run: Value = serde_json::from_slice(&fs::read(&run_path).unwrap()).unwrap();
+    let mut pending = serde_json::Map::new();
+    for id in ["work-002", "work-003"] {
+        let task = json_output(root, &["task", "show", "work", id]);
+        let relative = task["path"].as_str().unwrap();
+        pending.insert(
+            relative.to_owned(),
+            json!({"before": null, "after": fs::read(root.join(relative)).unwrap()}),
+        );
+        if id == "work-003" {
+            fs::remove_file(root.join(relative)).unwrap();
+        }
+    }
+    pending.insert(
+        ".zdev/work/TASKS.md".to_owned(),
+        json!({"before": previous_index, "after": fs::read(&index).unwrap()}),
+    );
+    run["admissions"]["generation-1"]["pending"] = Value::Object(pending);
+    fs::write(&run_path, serde_json::to_vec_pretty(&run).unwrap()).unwrap();
+    fs::write(&index, previous_index).unwrap();
+    // Simulate interruption after publishing one allocated file: retry publishes the same IDs.
+    let retry = json_output_with_stdin(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "admit",
+            "--run",
+            identity,
+            "--request",
+            "generation-1",
+            "--from",
+            "-",
+        ],
+        &bytes,
+    );
+    assert_eq!(
+        retry["run"]["admissions"]["generation-1"]["tasks"],
+        json!(["work-002", "work-003"])
+    );
+    let after_retry = fs::read(&index).unwrap();
+    json_output_with_stdin(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "admit",
+            "--run",
+            identity,
+            "--request",
+            "generation-1",
+            "--from",
+            "-",
+        ],
+        &bytes,
+    );
+    assert_eq!(fs::read(&index).unwrap(), after_retry);
+    let mut changed = bundle;
+    changed["tasks"][0]["outcome"] = json!("Different work.");
+    assert!(
+        !json_output_with_stdin_status(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "admit",
+                "--run",
+                identity,
+                "--request",
+                "generation-1",
+                "--from",
+                "-"
+            ],
+            &serde_json::to_vec(&changed).unwrap()
+        )
+        .status
+        .success()
+    );
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "task",
+                "done",
+                "work",
+                "work-002",
+                "--summary",
+                "Prepared input.",
+                "--validation",
+                "Input checked."
+            ]
+        )
+        .status
+        .success()
+    );
+    research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "support-1",
+            "--task",
+            "work-002",
+            "--kind",
+            "supporting",
+        ],
+    );
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "work",
+            "work-002",
+            "--summary",
+            "Prepared input.",
+            "--validation",
+            "Input checked.",
+        ],
+    );
+    research_run_action(root, identity, "settle", &["--request", "support-1"]);
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-003"])["state"],
+        "ready"
+    );
+    // Ordinary stored review/import authority still operates independently of generated admission.
+    import_research_fixture(
+        root,
+        json!([{"key":"ordinary", "title":"Ordinary reviewed work", "outcome":"Maintain the environment.", "done_when":["Maintenance checked."]}]),
+    );
+    assert_eq!(
+        json_output(root, &["tasks", "list", "work"])["tasks"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    let fresh = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(fresh["consumed"]["work_attempts"], 3);
+    assert_eq!(fresh["remaining"]["work_attempts"], 17);
+    assert_eq!(json_output(root, &["goal", "work"])["lifecycle"], "open");
+}
+
+#[test]
+fn research_run_counts_reserved_repairs_and_commands_and_preserves_limits_on_resume() {
+    let repository = local_experiment_fixture("printf 14");
+    let root = repository.path();
+    let started = start_research_run(
+        root,
+        &["--attempt-limit", "5", "--time-limit-seconds", "60"],
+    );
+    let identity = started["run"]["id"].as_str().unwrap();
+    research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "prepare",
+            "--task",
+            "work-001",
+            "--kind",
+            "preparation",
+        ],
+    );
+    research_run_action(root, identity, "stop", &[]);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "begin",
+                "--path",
+                "seed.txt",
+                "--reservation",
+                "prepare"
+            ]
+        )
+        .status
+        .success()
+    );
+    let resumed = research_run_action(root, identity, "resume", &[]);
+    assert_eq!(resumed["run"]["started_at"], started["run"]["started_at"]);
+    assert_eq!(resumed["run"]["deadline"], started["run"]["deadline"]);
+    assert_eq!(resumed["remaining"]["work_attempts"], 4);
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "begin",
+            "--path",
+            "seed.txt",
+            "--reservation",
+            "prepare",
+        ],
+    );
+    for (request, kind) in [
+        ("repair", "repair"),
+        ("confirmation", "confirmation"),
+        ("reconciliation", "reconciliation"),
+    ] {
+        research_run_action(
+            root,
+            identity,
+            "reserve",
+            &["--request", request, "--task", "work-001", "--kind", kind],
+        );
+        if request != "repair" {
+            research_run_action(root, identity, "settle", &["--request", request]);
+        }
+    }
+    fs::write(root.join("seed.txt"), "candidate\n").unwrap();
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "evaluate",
+            "--reservation",
+            "repair",
+        ],
+    );
+    let rerun = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    assert_eq!(rerun["checkpoint"]["attempts"].as_array().unwrap().len(), 2);
+    let exhausted = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(exhausted["consumed"]["work_attempts"], 5);
+    assert_eq!(exhausted["consumed"]["commands"], 6);
+    assert_eq!(exhausted["stop_reason"], "budget");
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "reserve",
+                "--run",
+                identity,
+                "--request",
+                "extra",
+                "--task",
+                "work-001",
+                "--kind",
+                "repair"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "run", "work", "start", "--scope", "Another run"]
+        )
+        .status
+        .success()
+    );
+    research_run_action(root, identity, "stop", &[]);
+    assert_eq!(
+        research_run_action(root, identity, "resume", &[])["stop_reason"],
+        "budget"
+    );
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "Repair and repeated measurement still lost.",
+        ],
+    );
+    for _ in 0..2 {
+        json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+    }
+    let final_context = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(final_context["consumed"]["work_attempts"], 5);
+    assert_eq!(final_context["consumed"]["commands"], 6);
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"eeee");
+    research_run_action(root, identity, "end", &[]);
+    let target = start_research_run(
+        root,
+        &[
+            "--until-interrupted",
+            "--target",
+            "12",
+            "--command-limit",
+            "2",
+        ],
+    );
+    assert_eq!(target["remaining"]["work_attempts"], Value::Null);
+    assert_eq!(target["remaining"]["commands"], 2);
+    assert_eq!(target["stop_reason"], "target");
+    research_run_action(root, target["run"]["id"].as_str().unwrap(), "end", &[]);
+    let expired = start_research_run(
+        root,
+        &["--until-interrupted", "--time-limit-seconds", "0.000000001"],
+    );
+    assert_eq!(expired["stop_reason"], "budget");
+    let expired_id = expired["run"]["id"].as_str().unwrap();
+    let resumed = research_run_action(root, expired_id, "resume", &[]);
+    assert_eq!(resumed["run"]["deadline"], expired["run"]["deadline"]);
+    assert_eq!(resumed["stop_reason"], "budget");
+    let dispatch = run_zdev(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "reserve",
+            "--run",
+            expired_id,
+            "--request",
+            "expired-work",
+            "--task",
+            "work-001",
+            "--kind",
+            "repair",
+        ],
+    );
+    assert!(!dispatch.status.success());
+    assert!(String::from_utf8_lossy(&dispatch.stderr).contains("stopped: budget"));
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"eeee");
+}
+
+#[test]
+fn research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failure() {
+    let repository = local_experiment_fixture("printf 14");
+    let root = repository.path();
+    let started = start_research_run(
+        root,
+        &[
+            "--until-interrupted",
+            "--command-limit",
+            "20",
+            "--command-seconds",
+            "60",
+        ],
+    );
+    let identity = started["run"]["id"].as_str().unwrap();
+    let original = json_output(root, &["area", "research", "work"])["research"].clone();
+    for field in ["metric", "minimum_gain", "required_checks", "repetitions"] {
+        let mut changed = original.clone();
+        changed["comparison"][field] = match field {
+            "metric" => json!("Different metric"),
+            "minimum_gain" => json!(0.0),
+            "repetitions" => json!(3),
+            _ => json!(["weaker check"]),
+        };
+        if field == "repetitions" {
+            changed["comparison"]["baseline_samples"] = json!([10.0, 11.0, 12.0]);
+        }
+        if field == "required_checks" {
+            changed["correctness_commands"] = json!({"weaker check":"true"});
+        }
+        assert!(
+            !json_output_with_stdin_status(
+                root,
+                &["area", "research", "work", "--from", "-"],
+                &serde_json::to_vec(&changed).unwrap()
+            )
+            .status
+            .success()
+        );
+    }
+    let mut changed = original;
+    changed["evaluator_command"] =
+        json!("printf e >> .git/evaluator-runs; printf %s \"$((6 + ZDEV_REPETITION))\"");
+    changed["comparison"]["evaluator_identity"] = json!("fixture-v2");
+    changed["comparison"]["conditions"] = json!("new fixed workload");
+    configure_research_fixture(root, &changed);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "begin",
+                "--path",
+                "seed.txt"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert!(!git_path(root, "evaluator-runs").exists());
+    let mut fake = changed.clone();
+    fake["comparison"]["baseline_samples"] = json!([1.0, 1.0]);
+    assert!(
+        !json_output_with_stdin_status(
+            root,
+            &["area", "research", "work", "--from", "-"],
+            &serde_json::to_vec(&fake).unwrap()
+        )
+        .status
+        .success()
+    );
+    let prior_area = fs::read(root.join(".zdev/work/area.toml")).unwrap();
+    let baseline = research_run_action(root, identity, "rebaseline", &["--request", "baseline-1"]);
+    assert_eq!(
+        baseline["accepted_baseline"]["baseline_samples"],
+        json!([7.0, 8.0])
+    );
+    assert_eq!(baseline["consumed"]["work_attempts"], 1);
+    assert_eq!(baseline["consumed"]["commands"], 3);
+    // A crash after settling measured samples and before area publication recovers without rerunning.
+    fs::write(root.join(".zdev/work/area.toml"), prior_area).unwrap();
+    let run_path = git_path(root, "zdev/runs/work/current.json");
+    let mut pending_run: Value = serde_json::from_slice(&fs::read(&run_path).unwrap()).unwrap();
+    pending_run["rebaseline"]["published"] = json!(false);
+    fs::write(&run_path, serde_json::to_vec(&pending_run).unwrap()).unwrap();
+    let retry = research_run_action(root, identity, "rebaseline", &["--request", "baseline-1"]);
+    assert_eq!(
+        retry["accepted_baseline"]["baseline_samples"],
+        json!([7.0, 8.0])
+    );
+    assert_eq!(retry["consumed"]["commands"], 3);
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
+    let blocked = research_run_action(
+        root,
+        identity,
+        "block",
+        &["--reason", "Shared measurement host is unavailable."],
+    );
+    assert_eq!(blocked["stop_reason"], "blocker");
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "rebaseline",
+                "--run",
+                identity,
+                "--request",
+                "blocked-baseline"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
+    let repair = serde_json::to_vec(&json!({"schema_version":1, "area":"work", "tasks":[{"key":"restore-host", "title":"Restore measurement host", "outcome":"Resolve the shared environment failure.", "done_when":["The host is available."]}]})).unwrap();
+    json_output_with_stdin(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "admit",
+            "--run",
+            identity,
+            "--request",
+            "host-repair-tasks",
+            "--from",
+            "-",
+        ],
+        &repair,
+    );
+    let supporting = research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "host-repair",
+            "--task",
+            "work-002",
+            "--kind",
+            "supporting",
+        ],
+    );
+    assert_eq!(supporting["stop_reason"], "blocker");
+    assert_eq!(supporting["consumed"]["work_attempts"], 2);
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "work",
+            "work-002",
+            "--summary",
+            "Host availability restored.",
+            "--validation",
+            "Availability checked.",
+        ],
+    );
+    research_run_action(root, identity, "settle", &["--request", "host-repair"]);
+    research_run_action(root, identity, "resolve", &[]);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "begin",
+                "--path",
+                "seed.txt"
+            ]
+        )
+        .status
+        .success()
+    );
+    research_run_action(root, identity, "rebaseline", &["--request", "baseline-2"]);
+    git(root, &["add", ".zdev"]);
+    git(root, &["commit", "-m", "record actual baseline"]);
+    fs::write(root.join("seed.txt"), "accepted supporting change\n").unwrap();
+    git(root, &["add", "seed.txt"]);
+    git(root, &["commit", "-m", "accepted supporting change"]);
+    let drift = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(drift["run"]["comparison_valid"], false);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "begin",
+                "--path",
+                "seed.txt"
+            ]
+        )
+        .status
+        .success()
+    );
+    let measured = research_run_action(root, identity, "rebaseline", &["--request", "baseline-3"]);
+    assert_eq!(
+        measured["accepted_baseline"]["baseline_revision"],
+        git(root, &["rev-parse", "HEAD"])
+    );
+    assert_eq!(measured["run"]["comparison_valid"], true);
+    assert_eq!(measured["consumed"]["commands"], 9);
+    git(root, &["add", ".zdev"]);
+    git(root, &["commit", "-m", "record supporting baseline"]);
+    let current = json_output(root, &["area", "research", "work"])["research"].clone();
+    let revision = current["comparison"]["baseline_revision"].as_str().unwrap();
+    let direct = research_record(&current, revision, "observed", json!([6.0, 6.0]));
+    let refused_record = json_output_with_stdin_status(
+        root,
+        &["task", "research", "work", "work-001", "--from", "-"],
+        &serde_json::to_vec(&direct).unwrap(),
+    );
+    assert!(!refused_record.status.success());
+    assert!(String::from_utf8_lossy(&refused_record.stderr).contains("bound experiment lifecycle"));
+    let checks = git_path(root, "run-checks.json");
+    fs::write(&checks, br#"[{"name":"equivalent output","passed":true}]"#).unwrap();
+    let utility = run_zdev(
+        root,
+        &[
+            "research",
+            "measure",
+            "work",
+            "--starting-revision",
+            revision,
+            "--candidate-revision",
+            revision,
+            "--checks",
+            checks.to_str().unwrap(),
+        ],
+    );
+    assert!(!utility.status.success());
+    assert!(String::from_utf8_lossy(&utility.stderr).contains("Standalone measure cannot bypass"));
+    assert_eq!(
+        fs::read(git_path(root, "evaluator-runs")).unwrap(),
+        b"eeeeee"
+    );
+    let snapshot = json_output(root, &["work-context", "work", "--store"]);
+    json_output(root, &["research", "run", "work", "context"]);
+    let compared = json_output(
+        root,
+        &[
+            "work-context",
+            "work",
+            "--compare",
+            snapshot["snapshot"].as_str().unwrap(),
+        ],
+    );
+    assert_eq!(compared["equal"], true);
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "begin",
+            "--path",
+            "seed.txt",
+        ],
+    );
+}
+
+#[test]
+fn research_run_command_exhaustion_recovers_without_free_or_duplicate_measurement() {
+    let repository = local_experiment_fixture("printf 14");
+    let root = repository.path();
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["attempt_limit"] = json!(1);
+    configure_research_fixture(root, &settings);
+    git(root, &["add", ".zdev"]);
+    git(root, &["commit", "-m", "one allotted task attempt"]);
+    let started = start_research_run(root, &["--until-interrupted", "--command-limit", "2"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    assert!(
+        !run_zdev(
+            root,
+            &["research", "experiment", "work", "work-001", "evaluate"]
+        )
+        .status
+        .success()
+    );
+    let interrupted = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(interrupted["consumed"]["work_attempts"], 2);
+    assert_eq!(interrupted["consumed"]["commands"], 2);
+    assert_eq!(interrupted["stop_reason"], "budget");
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"e");
+    for _ in 0..2 {
+        json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+    }
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "failed-to-run",
+            "--lesson",
+            "The run command allowance ended before usable samples.",
+        ],
+    );
+    json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    let completed = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(completed["consumed"]["commands"], 2);
+    assert_eq!(completed["consumed"]["work_attempts"], 2);
+    assert_eq!(
+        completed["tasks"]["tasks"][0]["research_results"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"e");
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"accepted\n");
+    assert_eq!(
+        research_run_action(root, identity, "resume", &[])["stop_reason"],
+        "budget"
+    );
+    let resource_repository = local_experiment_fixture("sleep 30; printf 14");
+    let resource_root = resource_repository.path();
+    let mut policy = json_output(resource_root, &["area", "research", "work"])["research"].clone();
+    policy["attempt_limit"] = json!(1);
+    configure_research_fixture(resource_root, &policy);
+    git(resource_root, &["add", ".zdev"]);
+    git(
+        resource_root,
+        &["commit", "-m", "one resource-limited task attempt"],
+    );
+    start_research_run(
+        resource_root,
+        &["--until-interrupted", "--command-seconds", "1"],
+    );
+    begin_local_experiment(resource_root);
+    edit_local_candidate(resource_root);
+    let execution = run_zdev(
+        resource_root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    if !execution.status.success() {
+        json_output(
+            resource_root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+    }
+    let limited = json_output(resource_root, &["research", "run", "work", "context"]);
+    assert_eq!(limited["stop_reason"], "budget");
+    assert!(limited["consumed"]["commands"].as_u64().unwrap() <= 2);
+    assert!(limited["consumed"]["command_seconds"].as_f64().unwrap() > 0.0);
+    let checkpoint = json_output(
+        resource_root,
+        &["research", "experiment", "work", "work-001", "inspect"],
+    );
+    assert_ne!(
+        checkpoint["checkpoint"]["attempts"][0]["observation"]["outcome"],
+        "measured"
+    );
+    json_output(
+        resource_root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "failed-to-run",
+            "--lesson",
+            "The command runtime budget prevented usable measurement.",
+        ],
+    );
+    let settled = json_output(resource_root, &["research", "run", "work", "context"]);
+    assert_eq!(settled["consumed"], limited["consumed"]);
+}
+
+#[test]
+fn research_run_changed_conditions_allow_historical_discard_but_protect_area_metadata() {
+    let repository = local_experiment_fixture("printf 7");
+    let root = repository.path();
+    let started = start_research_run(root, &["--until-interrupted"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "begin",
+            "--path",
+            "seed.txt",
+        ],
+    );
+    fs::write(root.join("seed.txt"), "candidate\n").unwrap();
+    let measured = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    assert_eq!(measured["assessment"]["improved"], true);
+    let verification = local_verifier(
+        root,
+        measured["checkpoint"]["verification_snapshot"]
+            .as_str()
+            .unwrap(),
+    );
+    let settings_before = json_output(root, &["area", "research", "work"])["research"].clone();
+    research_run_action(
+        root,
+        identity,
+        "block",
+        &[
+            "--reason",
+            "Shared measurement conditions became unreliable.",
+        ],
+    );
+    assert_eq!(
+        json_output(root, &["area", "research", "work"])["research"],
+        settings_before
+    );
+    let head = git(root, &["rev-parse", "HEAD"]);
+    let keep = run_zdev(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "keep",
+            "--lesson",
+            "The recorded candidate improved the original workload.",
+            "--verification",
+            verification.to_str().unwrap(),
+        ],
+    );
+    assert!(!keep.status.success());
+    assert!(
+        String::from_utf8_lossy(&keep.stderr)
+            .contains("Changed comparison conditions cannot accept")
+    );
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), head);
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"candidate\n");
+    research_run_action(root, identity, "resolve", &[]);
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["comparison"]["conditions"] = json!("changed comparison workload");
+    configure_research_fixture(root, &settings);
+    let area_path = root.join(".zdev/work/area.toml");
+    let authorized = fs::read(&area_path).unwrap();
+    let mut area: toml::Value = toml::from_str(std::str::from_utf8(&authorized).unwrap()).unwrap();
+    area["title"] = toml::Value::String("Unrelated title edit".to_owned());
+    fs::write(&area_path, toml::to_string_pretty(&area).unwrap()).unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "finalize",
+                "--decision",
+                "discard",
+                "--lesson",
+                "Historical measurements cannot be retained under changed conditions."
+            ]
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"candidate\n");
+    fs::write(&area_path, authorized).unwrap();
+    let historical = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "inspect"],
+    );
+    assert_eq!(historical["comparison_valid"], false);
+    assert_eq!(historical["assessment"], Value::Null);
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "Historical measurements cannot be retained under changed conditions.",
+        ],
+    );
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"accepted\n");
+    let fresh = research_run_action(
+        root,
+        identity,
+        "rebaseline",
+        &["--request", "new-conditions"],
+    );
+    assert_eq!(fresh["run"]["comparison_valid"], true);
+    assert_eq!(fresh["consumed"]["work_attempts"], 3);
+    assert_eq!(fresh["consumed"]["commands"], 6);
 }

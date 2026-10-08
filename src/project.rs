@@ -997,7 +997,7 @@ pub(super) fn validate_slices(root: &Path, area: &str) -> Result<(), ZdevError> 
     load_slices(root, area).map(|_| ())
 }
 
-fn write_area_metadata(root: &Path, area: &AreaMetadata) -> Result<(), ZdevError> {
+pub(crate) fn write_area_metadata(root: &Path, area: &AreaMetadata) -> Result<(), ZdevError> {
     let path = area_path(root, &area.tag)?.join("area.toml");
     write_atomic(&path, toml::to_string_pretty(area).unwrap().as_bytes())
 }
@@ -1023,6 +1023,9 @@ pub(super) fn configure_research(
             return Err(ZdevError::new(
                 "Changed evaluator command requires a new evaluator identity and measured baseline",
             ));
+        }
+        if let Some(previous) = &area.research {
+            super::research::run::configure(root, tag, previous, &settings)?;
         }
         area.research = Some(settings);
         write_area_metadata(root, &area)?;

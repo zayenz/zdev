@@ -132,7 +132,7 @@ impl Task {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct TaskBundle {
+pub(crate) struct TaskBundle {
     schema_version: u64,
     area: String,
     tasks: Vec<TaskDraft>,
@@ -278,7 +278,7 @@ struct TaskView<'a> {
     research_results: &'a [ResultRecord],
 }
 
-fn read_task_bundle(source: &Path) -> Result<TaskBundle, ZdevError> {
+pub(crate) fn read_task_bundle(source: &Path) -> Result<TaskBundle, ZdevError> {
     let bytes = if source == Path::new("-") {
         let mut bytes = Vec::new();
         io::stdin()
@@ -1719,49 +1719,51 @@ fn git_read_tree(root: &Path, tree: &str) -> Result<(), ZdevError> {
     }
 }
 
-pub(super) fn import(
+pub(crate) struct GeneratedBundle {
+    pub ids: Vec<String>,
+    pub files: Vec<(PathBuf, Vec<u8>)>,
+}
+
+/// Validate and allocate the exact ordinary graph. Caller holds the state lock.
+pub(crate) fn prepare_generated_bundle(
     root: &Path,
     area: &str,
-    source: Option<&Path>,
-    reviewed: Option<&str>,
-    commit_changes: bool,
-    approval: Option<&str>,
-) -> Result<CommandOutput, ZdevError> {
-    let direct_bundle = if let Some(source) = source {
-        let bundle = read_task_bundle(source)?;
-        validate_task_bundle(root, &bundle, area)?;
-        if let Some(approval) = approval {
-            let actual = task_bundle_approval_id(&bundle)?;
-            if approval != actual {
-                return Err(ZdevError::new(
-                    "Task bundle differs from the reviewed content; run `zdev tasks review` again before importing it",
-                ));
-            }
-        }
-        Some(bundle)
-    } else {
-        None
-    };
-    let _lock = ZdevStateLock::acquire(root)?;
-    let bundle = if let Some(reviewed) = reviewed {
-        read_task_review(root, area, Some(reviewed))?.bundle
-    } else {
-        direct_bundle.expect("clap requires --from or --reviewed")
-    };
-    validate_task_bundle(root, &bundle, area)?;
-    let (metadata, area_dir) = load_area(root, area)?;
-    super::project::validate_area_relationships(root, &list_areas(root)?)?;
-    if metadata.lifecycle == AreaLifecycle::Closed {
-        return Err(ZdevError::new(format!(
-            "Cannot add tasks to closed area {area}. Run `zdev area reopen {area}` first"
-        )));
+    bundle: &TaskBundle,
+) -> Result<GeneratedBundle, ZdevError> {
+    validate_task_bundle(root, bundle, area)?;
+    let (writes, _) = allocate_bundle(root, area, bundle)?;
+    let ids = writes
+        .iter()
+        .map(|(path, content)| parse_task(content, path, area).map(|task| task.header.id))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut hypothetical = load_tasks(root, area)?;
+    for (path, content) in &writes {
+        hypothetical.push(parse_task(content, path, area)?);
     }
-    let committable_paths = if commit_changes {
-        require_checked_out_area_branch(root, &metadata)?;
-        require_committable_task_import(root, area)?
-    } else {
-        Vec::new()
-    };
+    hypothetical.sort_by(compare_tasks_by_id);
+    let mut files = writes
+        .into_iter()
+        .map(|(path, content)| (path, content.into_bytes()))
+        .collect::<Vec<_>>();
+    files.push((
+        root.join(format!(".zdev/{area}/TASKS.md")),
+        render_index(area, &hypothetical)?.into_bytes(),
+    ));
+    Ok(GeneratedBundle { ids, files })
+}
+
+pub(crate) fn generated_bundle_fingerprint(bundle: &TaskBundle) -> Result<String, ZdevError> {
+    task_bundle_approval_id(bundle)
+}
+
+type BundleWrites = (Vec<(PathBuf, String)>, Vec<String>);
+
+fn allocate_bundle(
+    root: &Path,
+    area: &str,
+    bundle: &TaskBundle,
+) -> Result<BundleWrites, ZdevError> {
+    let (_, area_dir) = load_area(root, area)?;
     let existing = load_tasks(root, area)?;
     let existing_ids = existing
         .iter()
@@ -1842,6 +1844,53 @@ pub(super) fn import(
         .filter(|task| task_state(task, &hypothetical) == "ready")
         .map(|task| task.header.id.clone())
         .collect::<Vec<_>>();
+    Ok((writes, ready))
+}
+
+pub(super) fn import(
+    root: &Path,
+    area: &str,
+    source: Option<&Path>,
+    reviewed: Option<&str>,
+    commit_changes: bool,
+    approval: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    let direct_bundle = if let Some(source) = source {
+        let bundle = read_task_bundle(source)?;
+        validate_task_bundle(root, &bundle, area)?;
+        if let Some(approval) = approval {
+            let actual = task_bundle_approval_id(&bundle)?;
+            if approval != actual {
+                return Err(ZdevError::new(
+                    "Task bundle differs from the reviewed content; run `zdev tasks review` again before importing it",
+                ));
+            }
+        }
+        Some(bundle)
+    } else {
+        None
+    };
+    let _lock = ZdevStateLock::acquire(root)?;
+    let bundle = if let Some(reviewed) = reviewed {
+        read_task_review(root, area, Some(reviewed))?.bundle
+    } else {
+        direct_bundle.expect("clap requires --from or --reviewed")
+    };
+    validate_task_bundle(root, &bundle, area)?;
+    let (metadata, area_dir) = load_area(root, area)?;
+    super::project::validate_area_relationships(root, &list_areas(root)?)?;
+    if metadata.lifecycle == AreaLifecycle::Closed {
+        return Err(ZdevError::new(format!(
+            "Cannot add tasks to closed area {area}. Run `zdev area reopen {area}` first"
+        )));
+    }
+    let committable_paths = if commit_changes {
+        require_checked_out_area_branch(root, &metadata)?;
+        require_committable_task_import(root, area)?
+    } else {
+        Vec::new()
+    };
+    let (writes, ready) = allocate_bundle(root, area, &bundle)?;
     let index_path = area_dir.join("TASKS.md");
     let previous_index = fs::read(&index_path)
         .map_err(|error| ZdevError::io(format!("Cannot read {}", index_path.display()), error))?;
@@ -3285,6 +3334,11 @@ pub(super) fn research_result(
                 "Research results require a ready open hypothesis task",
             ));
         }
+        if super::research::run::active(root, area)? {
+            return Err(ZdevError::new(
+                "Active research runs record observations through the bound experiment lifecycle",
+            ));
+        }
         if super::research::experiment::exists(root, area, id)? {
             return Err(ZdevError::new(
                 "Managed experiments record evidence through research experiment evaluate/finalize",
@@ -3386,6 +3440,9 @@ pub(super) fn complete_with_checkpoint(
         )));
     }
     require_hypothesis_completion(root, area, task)?;
+    if task.header.hypothesis.is_none() {
+        super::research::run::require_supporting_reservation(root, area, id)?;
+    }
     let mut header = task.header.clone();
     header.status = TaskStatus::Done;
     let mut body = replace_markdown_section(&task.body, "Done when", &task.path, |section| {

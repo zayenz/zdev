@@ -411,10 +411,133 @@ Use `inspect` to read an interrupted checkpoint and `recover` to resume it.
 Recovery retains completed samples and reserved invocation counts, never launches
 an unresolved command again, and resumes pending retention, publication,
 restoration, completion or commit. It refuses changed owned files, staged overlap,
-changed settings or ambiguous records. Candidate refs remain under
+unauthorized settings or ambiguous records. During an active run, authorized
+comparison-condition changes still permit historical recording and discard;
+unrelated area metadata edits remain protected. Candidate refs remain under
 `refs/zdev/experiments/<area>/<task>/<attempt>`. Checkpoints and snapshots live in
 the worktree's Git administrative directory. They are local recovery state;
 the completed task and Git history retain the experiment result.
+
+### Authorize and recover a research run
+
+A run authorizes the coordinator to generate supporting tasks and hypotheses
+within the area's policy and the supplied scope. The harness judges relevance
+to the brief and scope; the binary validates authorization, graph references,
+limits and exact publication. Ordinary reviewed task import and derived-work
+approval retain their existing authority.
+
+```text
+zdev research run work start --scope "Improve parsing and its fixed benchmark" --attempt-limit 20 --command-limit 100 --time-limit-seconds 3600 --format json
+# Keep the returned run.id as <run>.
+zdev research run work admit --run <run> --request generation-1 --from /tmp/mixed-tasks.json --format json
+zdev research run work context --format json
+```
+
+`admit` accepts the ordinary mixed TaskBundle schema. It allocates ordinary task
+IDs and resolves bundle keys in dependencies and hypothesis context links.
+`requires_code` still requires completed verified acceptance. Retry the exact
+bundle with the same request identity after interrupted publication. Retry
+returns the original IDs, preserves existing files, and refuses changed content
+under that identity or unrelated destination edits. An admission does not
+consume a work attempt; dispatch does. Commit newly admitted records through
+the usual coordinator workflow before beginning a local experiment.
+
+The default allowance is **20 coordinator work attempts**. Each dispatch for
+supporting work, candidate preparation, repair, measurement rerun, confirmation,
+reconciliation or actual rebaseline consumes one attempt, even if it produces
+no usable observation. `begin` charges preparation and each `evaluate` charges
+another attempt. Before dispatching ordinary supporting work, reserve it:
+
+```text
+zdev research run work reserve --run <run> --request support-1 --task work-003 --kind supporting
+# Perform and independently verify the ordinary task, then complete and commit it.
+zdev research run work settle --run <run> --request support-1
+```
+
+Generated supporting tasks require that reservation before completion. A
+reservation retry reports its original state; it never authorizes a second
+dispatch. Repeated work uses a new request. Kinds are `supporting`, `preparation`,
+`repair`, `rerun`, `confirmation`, `reconciliation`, and `rebaseline`. Local
+`begin` and `evaluate` reserve automatically, or consume a previously reserved
+hypothesis dispatch with `--reservation <request>`; a bound reservation cannot
+be reused by another attempt. Settle records completed external supporting
+work. Bound experiment costs settle from their existing checkpoint, including
+when a run stops. An orphan reservation created before checkpoint publication
+can be settled without refunding its consumed attempt.
+
+`--until-interrupted` explicitly removes the default attempt limit. Supplied
+`--attempt-limit`, `--command-limit`, `--command-seconds`,
+`--time-limit-seconds`, and directional `--target` remain effective. Command
+limits count each ZDev correctness or evaluator invocation before launch.
+`--command-seconds` limits their cumulative elapsed time; command timeouts are
+clipped to both that remaining allowance and the original wall-clock deadline.
+Supporting workers consume work attempts; the binary does not sandbox their
+shells. Use the bound lifecycle for measurement while a run is active:
+standalone `research measure` and supplied `task research` observations refuse
+to bypass its accounting.
+
+Reserved work and invocations remain consumed through failure or interruption.
+Recover the owning experiment before dispatching more work when a command's
+outcome or cost is unresolved. Recovery checks process ownership and never
+relaunches an unresolved process. Completed observations remain in the owning
+task; the empty terminal record adds no measurement cost. Repeated recovery or
+finalization settles the checkpoint's cumulative cost once. An invocation
+reserved before its checkpoint update retains a conservative timeout ceiling
+until recovery can reconcile its cost.
+
+```text
+zdev research run work stop --run <run>
+zdev research experiment work work-002 recover --format json
+zdev research run work resume --run <run> --format json
+```
+
+Stop and resume retain the same identity, scope, consumed allowance and original
+time boundary. Target, budget, interruption and shared environment blocker are
+distinct stop reasons. Stopping permits recording, restoration and previously
+authorized finalization without new costly dispatch. Ending authorization uses
+`end --run <run>` after reservations and experiment checkpoints are settled;
+a new `start` never replaces an unfinished run. Empty or exhausted queues
+request further authorized proposals while allowance remains. They neither
+close the area nor establish that its objective has been achieved.
+
+A run freezes metric, direction, permitted changes, repetitions, aggregation,
+minimum gain, significance policy and correctness requirements/commands. Evaluator identity,
+command or workload condition changes invalidate comparisons;
+supplied replacement baseline samples cannot clear invalidation. Changes to
+accepted supporting code also require a fresh baseline. Actual rebaseline
+measures clean accepted HEAD with the current executable correctness commands
+and evaluator, charges its attempt and commands, and stores new samples in
+area settings:
+
+```text
+zdev research run work rebaseline --run <run> --request baseline-1 --format json
+```
+
+A completed rebaseline request is idempotent, including recovery of pending area
+publication. An interrupted request never launches commands again; resolve its
+failure and use a new counted request. Retain or restore dirty candidates before
+rebaselining. A candidate measured under previous conditions can still publish
+historical evidence and be discarded; it cannot be accepted under the changed
+conditions. Verified acceptance through the local lifecycle advances the
+accepted baseline without requiring another baseline measurement.
+
+Record a shared environment failure, such as an unavailable measurement host,
+with `block --run <run> --reason "<failure>"`. A blocker prevents experimental
+dispatch rather than creating repeated failed hypotheses. In-scope supporting
+work can still be admitted and reserved to repair the shared environment, within
+the retained allowance. After resolving the
+external issue, `resolve --run <run>` preserves all costs and requires an actual
+rebaseline before comparisons resume. Ordinary candidate failures remain task
+results. Baseline correctness or evaluator failures establish a shared blocker.
+
+`context` (also `inspect`) reads current settings, task results and lessons,
+unfinished checkpoints, admissions, outstanding reservations and remaining
+limits. Live elapsed and remaining wall time appear only in this run projection,
+so ordinary immutable work-context snapshots do not change merely as time
+passes. Run state lives beside local experiment checkpoints in the worktree's
+Git administrative directory. Task records remain authoritative for hypotheses,
+observations and lessons. Serial/parallel harness orchestration builds on these
+commands; run authorization itself does not launch a harness.
 
 ## General area convention
 

@@ -20,9 +20,16 @@ pub(crate) enum Action {
     Begin {
         #[arg(long, required = true)]
         path: Vec<String>,
+        /// Existing run reservation for this preparation dispatch
+        #[arg(long)]
+        reservation: Option<String>,
     },
     /// Reserve one attempt, run correctness commands and evaluator, and record evidence
-    Evaluate,
+    Evaluate {
+        /// Existing run reservation for repair, rerun, confirmation or reconciliation
+        #[arg(long)]
+        reservation: Option<String>,
+    },
     /// Retain candidate code, keep or restore it, complete the task, and commit exact paths
     Finalize {
         #[arg(long, value_enum)]
@@ -70,6 +77,10 @@ struct Checkpoint {
     completed: bool,
     commit: Option<String>,
     index_updated: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    preparation: Option<super::run::Binding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    area_metadata: Option<crate::project::AreaMetadata>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -83,6 +94,8 @@ struct Attempt {
     invocation_started: Option<f64>,
     measuring: bool,
     published: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reservation: Option<super::run::Binding>,
 }
 
 pub(crate) fn experiment(
@@ -91,12 +104,14 @@ pub(crate) fn experiment(
     task: &str,
     action: &Action,
 ) -> Result<CommandOutput, ZdevError> {
-    if let Action::Evaluate = action {
-        evaluate(root, area, task)?;
+    if let Action::Evaluate { reservation } = action {
+        evaluate(root, area, task, reservation.as_deref())?;
     } else {
         let _lock = ZdevStateLock::acquire(root)?;
         match action {
-            Action::Begin { path } => begin(root, area, task, path)?,
+            Action::Begin { path, reservation } => {
+                begin(root, area, task, path, reservation.as_deref())?
+            }
             Action::Finalize {
                 decision,
                 lesson,
@@ -110,18 +125,23 @@ pub(crate) fn experiment(
                     lesson,
                     verification.as_deref(),
                 )?;
+                settle_checkpoint(root, &checkpoint)?;
                 finish(root, &mut checkpoint)?;
             }
             Action::Recover => {
                 let mut checkpoint = load(root, area, task)?;
                 if checkpoint.final_record.is_some() {
+                    if !checkpoint.index_updated {
+                        settle_checkpoint(root, &checkpoint)?;
+                    }
                     finish(root, &mut checkpoint)?;
                 } else {
                     recover_measurement(root, &mut checkpoint)?;
+                    settle_checkpoint(root, &checkpoint)?;
                 }
             }
             Action::Inspect => {}
-            Action::Evaluate => unreachable!(),
+            Action::Evaluate { .. } => unreachable!(),
         }
     }
     let checkpoint = load(root, area, task)?;
@@ -140,13 +160,15 @@ pub(crate) fn experiment(
     } else {
         "finalize, or edit and evaluate another allotted attempt"
     };
+    let comparison_valid = super::run::comparison_valid(root, area)?
+        && super::settings(root, area)? == checkpoint.settings;
     let assessment = checkpoint
         .attempts
         .last()
-        .filter(|attempt| !attempt.measuring)
+        .filter(|attempt| !attempt.measuring && comparison_valid)
         .map(|attempt| super::compare(&checkpoint.settings.comparison, &attempt.observation))
         .transpose()?;
-    let value = json!({"schema_version": 1, "area": area, "task": task, "checkpoint": checkpoint, "assessment": assessment, "next_action": next_action});
+    let value = json!({"schema_version": 1, "area": area, "task": task, "checkpoint": checkpoint, "assessment": assessment, "comparison_valid": comparison_valid, "next_action": next_action});
     Ok(CommandOutput::new(
         serde_json::to_string_pretty(&value).unwrap(),
         value,
@@ -255,7 +277,13 @@ fn snapshot(root: &Path, area: &str, task: &str) -> Result<String, ZdevError> {
     Ok(id)
 }
 
-fn begin(root: &Path, area: &str, task: &str, paths: &[String]) -> Result<(), ZdevError> {
+fn begin(
+    root: &Path,
+    area: &str,
+    task: &str,
+    paths: &[String],
+    reservation: Option<&str>,
+) -> Result<(), ZdevError> {
     if exists(root, area, task)? {
         return Err(ZdevError::new(
             "Experiment already began; inspect or recover it",
@@ -329,6 +357,14 @@ fn begin(root: &Path, area: &str, task: &str, paths: &[String]) -> Result<(), Zd
     for path in paths.iter().chain(&records) {
         require_clean_path(root, path)?;
     }
+    let preparation = super::run::bind_work(
+        root,
+        area,
+        task,
+        &format!("experiment:{task}:preparation"),
+        super::run::WorkKind::Preparation,
+        reservation,
+    )?;
     let starting_snapshot = snapshot(root, area, task)?;
     let mut checkpoint = Checkpoint {
         schema_version: 1,
@@ -349,9 +385,12 @@ fn begin(root: &Path, area: &str, task: &str, paths: &[String]) -> Result<(), Zd
         completed: false,
         commit: None,
         index_updated: false,
+        preparation,
+        area_metadata: Some(area_metadata_without_research(root, area)?),
     };
     update_record_hashes(root, &mut checkpoint)?;
-    save(root, &checkpoint)
+    save(root, &checkpoint)?;
+    settle_checkpoint(root, &checkpoint)
 }
 
 fn validate_path(root: &Path, path: &str) -> Result<(), ZdevError> {
@@ -424,7 +463,9 @@ fn require_environment(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevE
             "Experiment branch or HEAD changed; inspect before recovery",
         ));
     }
-    if super::settings(root, &checkpoint.area)? != checkpoint.settings {
+    if super::settings(root, &checkpoint.area)? != checkpoint.settings
+        && !super::run::record_policy_compatible(root, &checkpoint.area, &checkpoint.settings)?
+    {
         return Err(ZdevError::new(
             "Research settings changed during the experiment",
         ));
@@ -443,9 +484,36 @@ fn require_environment(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevE
     Ok(())
 }
 
+fn area_metadata_without_research(
+    root: &Path,
+    area: &str,
+) -> Result<crate::project::AreaMetadata, ZdevError> {
+    let mut metadata = crate::project::load_area(root, area)?.0;
+    metadata.research = None;
+    Ok(metadata)
+}
+
+fn area_metadata_matches(root: &Path, checkpoint: &Checkpoint) -> Result<bool, ZdevError> {
+    let Some(expected) = &checkpoint.area_metadata else {
+        return Ok(false);
+    };
+    Ok(serde_json::to_value(expected).map_err(json_error)?
+        == serde_json::to_value(area_metadata_without_research(root, &checkpoint.area)?)
+            .map_err(json_error)?)
+}
+
 fn require_record_ownership(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevError> {
     for (path, expected) in &checkpoint.record_hashes {
-        if git_output(root, &["hash-object", "--", path])? != *expected {
+        if git_output(root, &["hash-object", "--", path])? != *expected
+            && !(path == &format!(".zdev/{}/area.toml", checkpoint.area)
+                && area_metadata_matches(root, checkpoint)?
+                && super::settings(root, &checkpoint.area)? != checkpoint.settings
+                && super::run::record_policy_compatible(
+                    root,
+                    &checkpoint.area,
+                    &checkpoint.settings,
+                )?)
+        {
             return Err(ZdevError::new(format!(
                 "Experiment record changed outside the lifecycle: {path}"
             )));
@@ -574,11 +642,21 @@ fn candidate_matches(
         == git_output(root, &["rev-parse", &format!("{candidate}^{{tree}}")])?)
 }
 
-fn evaluate(root: &Path, area: &str, task: &str) -> Result<(), ZdevError> {
+fn evaluate(
+    root: &Path,
+    area: &str,
+    task: &str,
+    reservation: Option<&str>,
+) -> Result<(), ZdevError> {
     let settings = {
         let _lock = ZdevStateLock::acquire(root)?;
         let mut checkpoint = load(root, area, task)?;
         require_environment(root, &checkpoint)?;
+        if super::settings(root, area)? != checkpoint.settings {
+            return Err(ZdevError::new(
+                "Comparison conditions changed; retain evidence and discard this candidate before rebaselining",
+            ));
+        }
         if checkpoint.final_record.is_some()
             || checkpoint
                 .attempts
@@ -592,6 +670,17 @@ fn evaluate(root: &Path, area: &str, task: &str) -> Result<(), ZdevError> {
         if checkpoint.attempts.len() >= checkpoint.settings.attempt_limit {
             return Err(ZdevError::new("Allotted experiment attempts are exhausted"));
         }
+        let reservation = super::run::bind_work(
+            root,
+            area,
+            task,
+            &format!(
+                "experiment:{task}:attempt:{}",
+                checkpoint.attempts.len() + 1
+            ),
+            super::run::WorkKind::Rerun,
+            reservation,
+        )?;
         let tree = code_tree(root, &checkpoint.head, &checkpoint.paths)?;
         let candidate = git_output(
             root,
@@ -631,6 +720,7 @@ fn evaluate(root: &Path, area: &str, task: &str) -> Result<(), ZdevError> {
             invocation_started: None,
             measuring: true,
             published: false,
+            reservation,
         });
         checkpoint.verification_snapshot = None;
         save(root, &checkpoint)?;
@@ -659,6 +749,7 @@ fn evaluate(root: &Path, area: &str, task: &str) -> Result<(), ZdevError> {
             attempt.observation.failure = Some(format!("Correctness command {name}: {failure}"));
         }
         save(root, &checkpoint)?;
+        settle_checkpoint(root, &checkpoint)?;
     }
     for _ in 0..settings.comparison.repetitions {
         let (result, elapsed) = run_measured_command(
@@ -684,6 +775,7 @@ fn evaluate(root: &Path, area: &str, task: &str) -> Result<(), ZdevError> {
             }
         }
         save(root, &checkpoint)?;
+        settle_checkpoint(root, &checkpoint)?;
         if failed {
             break;
         }
@@ -706,7 +798,29 @@ fn evaluate(root: &Path, area: &str, task: &str) -> Result<(), ZdevError> {
     save(root, &checkpoint)?;
     publish_observations(root, &mut checkpoint)?;
     checkpoint.verification_snapshot = Some(snapshot(root, area, task)?);
-    save(root, &checkpoint)
+    save(root, &checkpoint)?;
+    settle_checkpoint(root, &checkpoint)
+}
+
+fn settle_checkpoint(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevError> {
+    if let Some(binding) = &checkpoint.preparation {
+        super::run::settle(root, &checkpoint.area, binding, 0.0, true, 0, false)?;
+    }
+    for attempt in &checkpoint.attempts {
+        if let Some(binding) = &attempt.reservation {
+            super::run::settle(
+                root,
+                &checkpoint.area,
+                binding,
+                attempt.observation.elapsed_seconds,
+                !attempt.measuring,
+                attempt.observation.correctness_runs.unwrap_or(0)
+                    + attempt.observation.evaluation_runs.unwrap_or(0),
+                attempt.invocation_started.is_some(),
+            )?;
+        }
+    }
+    Ok(())
 }
 
 type CommandResult = Result<f64, (ObservationOutcome, String)>;
@@ -719,14 +833,30 @@ fn run_measured_command(
     correctness: bool,
     timeout: f64,
 ) -> Result<(CommandResult, f64), ZdevError> {
-    let repetition = {
+    let (repetition, timeout) = {
         let _lock = ZdevStateLock::acquire(root)?;
         let mut checkpoint = load(root, area, task)?;
         require_environment(root, &checkpoint)?;
+        if super::settings(root, area)? != checkpoint.settings {
+            return Err(ZdevError::new(
+                "Research settings changed during measurement; recover without relaunching",
+            ));
+        }
         let attempt = checkpoint.attempts.last_mut().unwrap();
         if attempt.owner_pid != std::process::id() || !attempt.measuring {
             return Err(ZdevError::new("Measurement ownership changed"));
         }
+        let known_commands = attempt.observation.correctness_runs.unwrap_or(0)
+            + attempt.observation.evaluation_runs.unwrap_or(0);
+        let timeout = if let Some(binding) = &attempt.reservation {
+            super::run::reserve_command(root, area, binding, known_commands, timeout, true)?
+        } else if super::run::active(root, area)? {
+            return Err(ZdevError::new(
+                "Experiment has no active run reservation; recover existing work before dispatch",
+            ));
+        } else {
+            timeout
+        };
         let runs = if correctness {
             &mut attempt.observation.correctness_runs
         } else {
@@ -736,7 +866,7 @@ fn run_measured_command(
         let repetition = runs.unwrap();
         attempt.invocation_started = Some(unix_seconds());
         save(root, &checkpoint)?;
-        repetition
+        (repetition, timeout)
     };
     let started = std::time::Instant::now();
     let result = super::evaluate_with_started(root, command, timeout, repetition, |pid| {
@@ -844,7 +974,7 @@ fn unix_seconds() -> f64 {
         .as_secs_f64()
 }
 
-fn process_running(pid: u32) -> bool {
+pub(super) fn process_running(pid: u32) -> bool {
     let alive = Command::new("kill")
         .args(["-0", &pid.to_string()])
         .stdout(std::process::Stdio::null())
@@ -867,7 +997,7 @@ fn process_running(pid: u32) -> bool {
     !zombie
 }
 
-fn process_group_running(id: u32) -> bool {
+pub(super) fn process_group_running(id: u32) -> bool {
     #[cfg(unix)]
     {
         // The shell leader can exit while evaluator descendants still own the group.
@@ -968,6 +1098,14 @@ fn authorize_finalization(
         ));
     }
     require_environment(root, checkpoint)?;
+    if matches!(decision, Finish::Keep)
+        && (super::settings(root, &checkpoint.area)? != checkpoint.settings
+            || !super::run::comparison_valid(root, &checkpoint.area)?)
+    {
+        return Err(ZdevError::new(
+            "Changed comparison conditions cannot accept this candidate; discard and rebaseline",
+        ));
+    }
     crate::validate_nonempty_line(lesson, "Research lesson")?;
     if checkpoint.attempts.is_empty()
         || checkpoint
@@ -1201,6 +1339,7 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
         {
             return Err(ZdevError::new("Research policy changed during acceptance"));
         }
+        super::run::accepted(root, &checkpoint.area, &accepted_settings)?;
         metadata.research = Some(accepted_settings);
         let area_path = root.join(format!(".zdev/{}/area.toml", checkpoint.area));
         prepare_publication(
@@ -1212,7 +1351,9 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
             )],
         )?;
         recover_publication(root, checkpoint)?;
-    } else if super::settings(root, &checkpoint.area)? != checkpoint.settings {
+    } else if super::settings(root, &checkpoint.area)? != checkpoint.settings
+        && !super::run::record_policy_compatible(root, &checkpoint.area, &checkpoint.settings)?
+    {
         return Err(ZdevError::new("Research policy changed during discard"));
     }
     if !checkpoint.completed {
@@ -1382,7 +1523,10 @@ pub(crate) fn require_completion(
         completed_settings.comparison.baseline_revision = last.candidate.clone();
         completed_settings.comparison.baseline_samples = last.observation.samples.clone();
     }
-    if super::settings(root, area)? != completed_settings {
+    if super::settings(root, area)? != completed_settings
+        && (record.decision == Decision::Accepted
+            || !super::run::record_policy_compatible(root, area, &checkpoint.settings)?)
+    {
         return Err(ZdevError::new(
             "Managed completion differs from the experiment's accepted policy",
         ));

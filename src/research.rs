@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) mod experiment;
+pub(super) mod run;
 use std::io::{self, Read};
 use std::path::Path;
 
@@ -488,6 +489,12 @@ pub(super) fn measure(
     candidate_revision: &str,
     checks_source: &Path,
 ) -> Result<super::CommandOutput, ZdevError> {
+    let _lock = crate::ZdevStateLock::acquire(root)?;
+    if run::active(root, area)? {
+        return Err(ZdevError::new(
+            "Standalone measure cannot bypass active run accounting; use the bound experiment lifecycle",
+        ));
+    }
     let settings = settings(root, area)?;
     validate_revision(starting_revision)?;
     validate_revision(candidate_revision)?;
@@ -562,6 +569,11 @@ pub(super) fn compare_observation(
     area: &str,
     source: &Path,
 ) -> Result<super::CommandOutput, ZdevError> {
+    if !run::comparison_valid(root, area)? {
+        return Err(ZdevError::new(
+            "Comparisons are invalid until an actual counted rebaseline succeeds",
+        ));
+    }
     let settings = settings(root, area)?;
     let record: ResultRecord = read_json(source)?;
     if record.comparison != settings.comparison || record.attempt_limit != settings.attempt_limit {

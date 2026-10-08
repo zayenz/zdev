@@ -84,6 +84,13 @@ research area keep this workflow. Hypothesis completion requires validated
 terminal evidence; interrupted evidence stays open and a rejected result can
 complete without improving the metric. Never treat completion as retained code.
 
+An explicitly authorized local hypothesis uses `zdev research experiment <area>
+<task> begin/evaluate/finalize/inspect/recover` as described in the installed
+task-format reference. The binary runs commands, retains candidates, restores
+owned code and commits the completed result. Keep requires a fresh independent
+verifier bound to the candidate's supplied work-context snapshot. Ordinary
+hypothesis dispatch stays guarded until a research harness route is available.
+
 An isolated area uses its stored branch and managed base relationship. An
 explicit trunk area dynamically uses configured `project.trunk`, may share it
 with other explicit trunk areas, and never needs a rebase or freshness step.

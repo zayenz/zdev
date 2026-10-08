@@ -104,6 +104,8 @@ struct TaskHeader {
     slice: Option<String>,
     #[serde(default)]
     blocked_by: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    requires_code: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     hypothesis: Option<Hypothesis>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -190,6 +192,8 @@ struct TaskDraft {
     slice: Option<String>,
     #[serde(default)]
     blocked_by: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    requires_code: Vec<String>,
     outcome: String,
     context: Option<String>,
     #[serde(default)]
@@ -263,6 +267,8 @@ struct TaskView<'a> {
     afk: bool,
     priority: TaskPriority,
     blocked_by: &'a [String],
+    #[serde(skip_serializing_if = "<[String]>::is_empty")]
+    requires_code: &'a [String],
     slice: Option<&'a str>,
     slice_brief: Option<String>,
     path: String,
@@ -298,7 +304,10 @@ fn validate_task_bundle(root: &Path, bundle: &TaskBundle, area: &str) -> Result<
     }
     let slices = slice_briefs(root, area)?;
     let research = load_area(root, area)?.0.research;
-    let existing = if bundle.tasks.iter().any(|task| task.hypothesis.is_some())
+    let existing = if bundle
+        .tasks
+        .iter()
+        .any(|task| task.hypothesis.is_some() || !task.requires_code.is_empty())
         && root.join(".zdev").join(area).join("tasks").is_dir()
     {
         load_tasks(root, area)?
@@ -316,6 +325,7 @@ fn validate_task_bundle(root: &Path, bundle: &TaskBundle, area: &str) -> Result<
         .collect::<BTreeSet<_>>();
     let mut seen_keys = BTreeSet::new();
     for task in &bundle.tasks {
+        validate_code_prerequisites(root, &task.requires_code, &existing)?;
         if let Some(hypothesis) = &task.hypothesis {
             if research.is_none() {
                 return Err(ZdevError::new(
@@ -1453,6 +1463,7 @@ pub(super) fn apply_derived(
                 DerivedProposalKind::ImplementationSplit => source_task.header.slice.clone(),
             },
             blocked_by: blockers,
+            requires_code: draft.requires_code.clone(),
             hypothesis: resolve_hypothesis(draft.hypothesis.as_ref(), &allocated),
             research_results: Vec::new(),
         };
@@ -1808,6 +1819,7 @@ pub(super) fn import(
             priority: draft.priority,
             slice: draft.slice.clone(),
             blocked_by: blockers,
+            requires_code: draft.requires_code.clone(),
             hypothesis: resolve_hypothesis(draft.hypothesis.as_ref(), &allocated),
             research_results: Vec::new(),
         };
@@ -2329,6 +2341,9 @@ fn load_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
     tasks.sort_by(compare_tasks_by_id);
     validate_graph(&tasks)?;
     validate_research_tasks(&tasks, metadata.research.is_some())?;
+    for task in &tasks {
+        validate_code_prerequisites(root, &task.header.requires_code, &tasks)?;
+    }
     Ok(tasks)
 }
 
@@ -2380,6 +2395,61 @@ fn parse_task(content: &str, path: &Path, area: &str) -> Result<Task, ZdevError>
         body: body.to_owned(),
         path: path.to_path_buf(),
     })
+}
+
+fn validate_code_prerequisites(
+    root: &Path,
+    ids: &[String],
+    tasks: &[Task],
+) -> Result<(), ZdevError> {
+    let mut seen = BTreeSet::new();
+    for id in ids {
+        if !seen.insert(id) {
+            return Err(ZdevError::new(format!(
+                "Duplicate retained-code prerequisite: {id}"
+            )));
+        }
+        let task = find_task(tasks, id)?;
+        let result = task
+            .header
+            .research_results
+            .last()
+            .filter(|result| {
+                task.header.status == TaskStatus::Done
+                    && result.decision == super::research::Decision::Accepted
+                    && result
+                        .verification
+                        .as_ref()
+                        .is_some_and(|verification| verification.passed)
+            })
+            .ok_or_else(|| {
+                ZdevError::new(format!(
+                    "Retained-code prerequisite {id} requires completed verified acceptance"
+                ))
+            })?;
+        let retained = result
+            .retained_candidate
+            .as_deref()
+            .ok_or_else(|| ZdevError::new("Missing retained candidate"))?;
+        let revision = git_output(
+            root,
+            &["rev-parse", "--verify", &format!("{retained}^{{commit}}")],
+        )?;
+        if task
+            .header
+            .research_results
+            .iter()
+            .flat_map(|record| &record.observations)
+            .last()
+            .map(|observation| observation.candidate_revision.as_str())
+            != Some(revision.as_str())
+        {
+            return Err(ZdevError::new(format!(
+                "Retained-code prerequisite {id} does not resolve to its verified candidate"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn validate_research_tasks(tasks: &[Task], enabled: bool) -> Result<(), ZdevError> {
@@ -2669,6 +2739,7 @@ fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
             afk: task.header.afk,
             priority: task.priority(),
             blocked_by: &task.header.blocked_by,
+            requires_code: &task.header.requires_code,
             slice: task.header.slice.as_deref(),
             slice_brief: task_slice_brief_path(root, task),
             path: relative(root, &task.path),
@@ -2878,6 +2949,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         afk: task.header.afk,
         priority: task.priority(),
         blocked_by: &task.header.blocked_by,
+        requires_code: &task.header.requires_code,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, task),
         path: relative(root, &task.path),
@@ -3034,6 +3106,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         afk: task.header.afk,
         priority: task.priority(),
         blocked_by: &task.header.blocked_by,
+        requires_code: &task.header.requires_code,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, &task),
         path: relative(root, &task.path),
@@ -3135,6 +3208,7 @@ pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, Z
         "afk": task.header.afk,
         "priority": task.priority(),
         "blocked_by": task.header.blocked_by,
+        "requires_code": task.header.requires_code,
         "slice": task.header.slice,
         "slice_brief": slice_brief,
         "path": relative(root, &task.path),
@@ -3173,7 +3247,16 @@ fn require_hypothesis_completion(root: &Path, area: &str, task: &Task) -> Result
             .0
             .research
             .ok_or_else(|| ZdevError::new("Hypothesis completion requires research settings"))?;
-        validate_evidence(&task.header.research_results, true, Some(&settings))?;
+        if super::research::experiment::exists(root, area, &task.header.id)? {
+            super::research::experiment::require_completion(
+                root,
+                area,
+                &task.header.id,
+                &task.header.research_results,
+            )?;
+        } else {
+            validate_evidence(&task.header.research_results, true, Some(&settings))?;
+        }
     }
     Ok(())
 }
@@ -3202,6 +3285,11 @@ pub(super) fn research_result(
                 "Research results require a ready open hypothesis task",
             ));
         }
+        if super::research::experiment::exists(root, area, id)? {
+            return Err(ZdevError::new(
+                "Managed experiments record evidence through research experiment evaluate/finalize",
+            ));
+        }
         if result.comparison != settings.comparison
             || result.attempt_limit != settings.attempt_limit
         {
@@ -3209,15 +3297,7 @@ pub(super) fn research_result(
                 "Research result differs from current research settings",
             ));
         }
-        let mut header = task.header.clone();
-        header.research_results.push(result);
-        validate_evidence(&header.research_results, false, None)?;
-        let content = format!(
-            "+++\n{}+++\n{}",
-            toml::to_string(&header).unwrap(),
-            task.body
-        );
-        publish_task_and_index(root, area, task, &content)?;
+        append_research_record(root, area, id, &result)?;
     }
     let tasks = load_tasks(root, area)?;
     let task = find_task(&tasks, id)?;
@@ -3233,6 +3313,41 @@ pub(super) fn research_result(
     ))
 }
 
+/// Caller holds the state lock; managed experiments also publish recovered observations here.
+pub(super) fn append_research_record(
+    root: &Path,
+    area: &str,
+    id: &str,
+    result: &ResultRecord,
+) -> Result<(), ZdevError> {
+    append_research_record_with_checkpoint(root, area, id, result, |_| Ok(()))
+}
+
+pub(super) fn append_research_record_with_checkpoint(
+    root: &Path,
+    area: &str,
+    id: &str,
+    result: &ResultRecord,
+    checkpoint: impl FnOnce(&[(PathBuf, Vec<u8>)]) -> Result<(), ZdevError>,
+) -> Result<(), ZdevError> {
+    let tasks = load_tasks(root, area)?;
+    let task = find_task(&tasks, id)?;
+    if task.header.hypothesis.is_none() || task_state(task, &tasks) != "ready" {
+        return Err(ZdevError::new(
+            "Research results require a ready open hypothesis task",
+        ));
+    }
+    let mut header = task.header.clone();
+    header.research_results.push(result.clone());
+    validate_evidence(&header.research_results, false, None)?;
+    let content = format!(
+        "+++\n{}+++\n{}",
+        toml::to_string(&header).unwrap(),
+        task.body
+    );
+    publish_task_and_index_with_checkpoint(root, area, task, &content, checkpoint)
+}
+
 pub(super) fn complete(
     root: &Path,
     area: &str,
@@ -3245,6 +3360,17 @@ pub(super) fn complete(
         validate_nonempty_line(item, "Validation result")?;
     }
     let _lock = ZdevStateLock::acquire(root)?;
+    complete_with_checkpoint(root, area, id, summary, validation, |_| Ok(()))
+}
+
+pub(super) fn complete_with_checkpoint(
+    root: &Path,
+    area: &str,
+    id: &str,
+    summary: &str,
+    validation: &[String],
+    checkpoint: impl FnOnce(&[(PathBuf, Vec<u8>)]) -> Result<(), ZdevError>,
+) -> Result<CommandOutput, ZdevError> {
     let branch = require_task_work_area_link(root, area)?;
     let tasks = load_tasks(root, area)?;
     let task = find_task(&tasks, id)?;
@@ -3275,7 +3401,7 @@ pub(super) fn complete(
         body.push_str(&format!("- {item}\n"));
     }
     let content = format!("+++\n{}+++\n{}", toml::to_string(&header).unwrap(), body);
-    publish_task_and_index(root, area, task, &content)?;
+    publish_task_and_index_with_checkpoint(root, area, task, &content, checkpoint)?;
     let mut text = format!("Completed task {id}");
     if let Some(advisory) = &branch.advisory {
         text.push('\n');
@@ -3355,6 +3481,16 @@ fn publish_task_and_index(
     current: &Task,
     content: &str,
 ) -> Result<(), ZdevError> {
+    publish_task_and_index_with_checkpoint(root, area, current, content, |_| Ok(()))
+}
+
+fn publish_task_and_index_with_checkpoint(
+    root: &Path,
+    area: &str,
+    current: &Task,
+    content: &str,
+    checkpoint: impl FnOnce(&[(PathBuf, Vec<u8>)]) -> Result<(), ZdevError>,
+) -> Result<(), ZdevError> {
     let index_path = root.join(".zdev").join(area).join("TASKS.md");
     let original_task = fs::read(&current.path)
         .map_err(|error| ZdevError::io(format!("Cannot read {}", current.path.display()), error))?;
@@ -3373,6 +3509,10 @@ fn publish_task_and_index(
     validate_research_tasks(&tasks, load_area(root, area)?.0.research.is_some())?;
     let index = render_index(area, &tasks)?;
 
+    checkpoint(&[
+        (current.path.clone(), content.as_bytes().to_vec()),
+        (index_path.clone(), index.as_bytes().to_vec()),
+    ])?;
     write_atomic(&current.path, content.as_bytes())?;
     if let Err(error) = write_atomic(&index_path, index.as_bytes()) {
         let task_rollback = write_atomic(&current.path, &original_task);
@@ -3463,6 +3603,7 @@ pub(super) struct GoalTaskRead {
     pub done_when: String,
     pub validation: String,
     pub blocked_by: Vec<String>,
+    pub requires_code: Vec<String>,
     pub slice: Option<String>,
     pub hypothesis: Option<Hypothesis>,
     pub research_results: Vec<ResultRecord>,
@@ -3523,6 +3664,7 @@ pub(super) fn goal_tasks(
                 validation: required_markdown_section(&task.body, "Validation", &task.path)?
                     .to_owned(),
                 blocked_by: task.header.blocked_by.clone(),
+                requires_code: task.header.requires_code.clone(),
                 slice: task.header.slice.clone(),
                 hypothesis: task.header.hypothesis.clone(),
                 research_results: task.header.research_results.clone(),

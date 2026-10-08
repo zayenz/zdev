@@ -48,6 +48,8 @@ struct GoalTask {
     done_when: String,
     validation: String,
     blocked_by: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    requires_code: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     slice: Option<GoalSlice>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -184,6 +186,7 @@ pub(super) fn show_selected(
                 done_when: task.done_when,
                 validation: task.validation,
                 blocked_by: task.blocked_by,
+                requires_code: task.requires_code,
                 slice,
                 hypothesis: task.hypothesis,
                 research_results: task.research_results,

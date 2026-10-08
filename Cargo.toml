@@ -38,7 +38,7 @@ clap = { version = "4.6.0", features = ["derive"] }
 getrandom = "=0.4.3"
 minijinja = { version = "2.12.0", default-features = false }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
+serde_json = { version = "1.0.150", features = ["float_roundtrip"] }
 tempfile = "3.27.0"
 toml = { version = "0.8.23", default-features = false, features = ["display", "parse"] }
 

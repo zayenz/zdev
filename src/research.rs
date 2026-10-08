@@ -1,4 +1,6 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+
+pub(super) mod experiment;
 use std::io::{self, Read};
 use std::path::Path;
 
@@ -38,7 +40,7 @@ pub(super) struct Comparison {
     pub significance: Option<Significance>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Settings {
     pub comparison: Comparison,
@@ -47,6 +49,8 @@ pub(super) struct Settings {
     pub attempt_limit: usize,
     #[serde(default = "default_timeout")]
     pub timeout_seconds: f64,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub correctness_commands: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -84,6 +88,8 @@ pub(super) struct Observation {
     pub elapsed_seconds: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evaluation_runs: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correctness_runs: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<String>,
 }
@@ -254,6 +260,15 @@ impl Settings {
         }
         validate_nonempty_line(&self.evaluator_command, "Evaluator command")?;
         validate_names(&self.permitted_changes, "Permitted change")?;
+        for (name, command) in &self.correctness_commands {
+            validate_nonempty_line(name, "Correctness command name")?;
+            validate_nonempty_line(command, "Correctness command")?;
+            if !self.comparison.required_checks.contains(name) {
+                return Err(ZdevError::new(
+                    "Correctness commands must name required checks",
+                ));
+            }
+        }
         if self.permitted_changes.is_empty() || self.attempt_limit == 0 {
             return Err(ZdevError::new(
                 "Research requires permitted changes and a positive attempt limit",
@@ -485,6 +500,7 @@ pub(super) fn measure(
         checks,
         elapsed_seconds: 0.0,
         evaluation_runs: Some(0),
+        correctness_runs: None,
         failure: None,
     };
     validate_names(
@@ -734,6 +750,16 @@ fn evaluate(
     timeout_seconds: f64,
     repetition: usize,
 ) -> Result<f64, (ObservationOutcome, String)> {
+    evaluate_with_started(root, command, timeout_seconds, repetition, |_| Ok(()))
+}
+
+fn evaluate_with_started(
+    root: &Path,
+    command: &str,
+    timeout_seconds: f64,
+    repetition: usize,
+    started_process: impl FnOnce(u32) -> Result<(), ZdevError>,
+) -> Result<f64, (ObservationOutcome, String)> {
     use std::process::{Command, Stdio};
     let crashed = |error: io::Error| (ObservationOutcome::Crashed, error.to_string());
     let output = tempfile::tempfile().map_err(crashed)?;
@@ -752,6 +778,13 @@ fn evaluate(
         process.process_group(0);
     }
     let mut child = process.spawn().map_err(crashed)?;
+    if let Err(error) = started_process(child.id()) {
+        #[cfg(unix)]
+        kill_evaluator_group(child.id());
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err((ObservationOutcome::Crashed, error.to_string()));
+    }
     let started = std::time::Instant::now();
     let deadline = std::time::Duration::from_secs_f64(timeout_seconds);
     let status = loop {

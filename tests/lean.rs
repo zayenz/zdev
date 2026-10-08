@@ -14376,3 +14376,820 @@ fn research_comparison_applies_direction_threshold_and_exact_paired_sign_policy(
     );
     assert!(!mismatch.status.success());
 }
+
+fn local_experiment_fixture(evaluator: &str) -> TempDir {
+    let repository = repository();
+    let root = repository.path();
+    for (path, content) in [
+        ("seed.txt", "accepted\n"),
+        ("delete.txt", "delete\n"),
+        ("mode.txt", "mode\n"),
+        ("unrelated-stage.txt", "original\n"),
+        ("unrelated-work.txt", "original\n"),
+    ] {
+        fs::write(root.join(path), content).unwrap();
+    }
+    fs::write(root.join("binary.dat"), [0, 1, 2, 255]).unwrap();
+    git(root, &["add", "."]);
+    git(root, &["commit", "-m", "accepted code"]);
+    let baseline = git(root, &["rev-parse", "HEAD"]);
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "work", "main");
+    let mut settings = research_settings(&baseline);
+    settings["evaluator_command"] = json!(format!("printf e >> .git/evaluator-runs; {evaluator}"));
+    settings["correctness_commands"] =
+        json!({"equivalent output": "printf c >> .git/correctness-runs; test -f seed.txt"});
+    settings["permitted_changes"] = json!(["implementation files"]);
+    configure_research_fixture(root, &settings);
+    import_research_fixture(root, json!([hypothesis_draft("candidate")]));
+    git(root, &["add", ".zdev"]);
+    git(
+        root,
+        &["commit", "-m", "record hypothesis before candidate"],
+    );
+    assert_ne!(baseline, git(root, &["rev-parse", "HEAD"]));
+    repository
+}
+
+fn begin_local_experiment(root: &Path) -> Value {
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "begin",
+            "--path",
+            "seed.txt",
+            "--path",
+            "delete.txt",
+            "--path",
+            "mode.txt",
+            "--path",
+            "binary.dat",
+            "--path",
+            "added.txt",
+        ],
+    )
+}
+
+fn edit_local_candidate(root: &Path) {
+    fs::write(root.join("seed.txt"), "candidate\n").unwrap();
+    fs::remove_file(root.join("delete.txt")).unwrap();
+    fs::write(root.join("binary.dat"), [0, 255, 4, 0]).unwrap();
+    fs::write(root.join("added.txt"), "added candidate\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(root.join("mode.txt"), fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
+fn local_verifier(root: &Path, snapshot: &str) -> std::path::PathBuf {
+    let path = git_path(root, "verifier.json");
+    fs::write(&path, serde_json::to_vec(&json!({"schema_version": 1, "kind": "verifier", "area": "work", "task_id": "work-001", "verdict": "pass", "summary": "Independently checked candidate and measurements.", "evidence": [format!("work_context_snapshot: {snapshot}")], "findings": [], "escalation": "none"})).unwrap()).unwrap();
+    path
+}
+
+#[test]
+fn local_experiment_keeps_verified_code_and_preserves_unrelated_work() {
+    let repository = local_experiment_fixture("printf 0.12345678901234567");
+    let root = repository.path();
+    let sample = "0.12345678901234567".parse::<f64>().unwrap();
+    fs::write(root.join("unrelated-stage.txt"), "staged\n").unwrap();
+    git(root, &["add", "unrelated-stage.txt"]);
+    fs::write(root.join("unrelated-stage.txt"), "staged then edited\n").unwrap();
+    fs::write(root.join("unrelated-work.txt"), "unstaged\n").unwrap();
+    fs::write(root.join("unrelated-new.txt"), "untracked\n").unwrap();
+    let staged = git_stdout(root, &["diff", "--cached", "--binary"]);
+    let begin = begin_local_experiment(root);
+    assert!(
+        begin["checkpoint"]["starting_snapshot"]
+            .as_str()
+            .unwrap()
+            .starts_with('W')
+    );
+    let mut dependency = hypothesis_draft("dependent");
+    dependency["requires_code"] = json!(["work-001"]);
+    let bundle =
+        serde_json::to_vec(&json!({"schema_version":1,"area":"work","tasks":[dependency.clone()]}))
+            .unwrap();
+    assert!(
+        !json_output_with_stdin_status(root, &["tasks", "review", "work", "--from", "-"], &bundle)
+            .status
+            .success()
+    );
+    edit_local_candidate(root);
+    let measured = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    assert_eq!(measured["assessment"]["usable"], true);
+    assert_eq!(measured["assessment"]["improved"], true);
+    let attempt = &measured["checkpoint"]["attempts"][0];
+    assert_eq!(attempt["observation"]["samples"], json!([sample, sample]));
+    assert_eq!(attempt["observation"]["correctness_runs"], 1);
+    assert_eq!(attempt["observation"]["evaluation_runs"], 2);
+    assert_eq!(fs::read(git_path(root, "correctness-runs")).unwrap(), b"c");
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
+    let reference = attempt["retained_ref"].as_str().unwrap();
+    assert_eq!(
+        git(root, &["show", &format!("{reference}:seed.txt")]),
+        "candidate"
+    );
+    assert_eq!(
+        git(root, &["show", &format!("{reference}:added.txt")]),
+        "added candidate"
+    );
+    assert_eq!(
+        git(root, &["ls-tree", reference, "mode.txt"])
+            .split_whitespace()
+            .next()
+            .unwrap(),
+        "100755"
+    );
+    assert!(git(root, &["ls-tree", reference, "delete.txt"]).is_empty());
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "task",
+                "done",
+                "work",
+                "work-001",
+                "--summary",
+                "bypass",
+                "--validation",
+                "unchecked"
+            ]
+        )
+        .status
+        .success()
+    );
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "finalize",
+                "--decision",
+                "keep",
+                "--lesson",
+                "Caching wins."
+            ]
+        )
+        .status
+        .success()
+    );
+    let verification = local_verifier(
+        root,
+        measured["checkpoint"]["verification_snapshot"]
+            .as_str()
+            .unwrap(),
+    );
+    fs::write(root.join("unrelated-new.txt"), "changed after review\n").unwrap();
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "finalize",
+                "--decision",
+                "keep",
+                "--lesson",
+                "Caching wins.",
+                "--verification",
+                verification.to_str().unwrap()
+            ]
+        )
+        .status
+        .success()
+    );
+    fs::write(root.join("unrelated-new.txt"), "untracked\n").unwrap();
+    let finalized = json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "keep",
+            "--lesson",
+            "Caching wins.",
+            "--verification",
+            verification.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(finalized["next_action"], "complete");
+    let accepted = json_output(root, &["area", "research", "work"]);
+    assert_eq!(
+        accepted["research"]["comparison"]["baseline_revision"],
+        attempt["candidate"]
+    );
+    assert_eq!(
+        accepted["research"]["comparison"]["baseline_samples"],
+        json!([sample, sample])
+    );
+    assert_eq!(git_stdout(root, &["diff", "--cached", "--binary"]), staged);
+    assert_eq!(
+        fs::read(root.join("unrelated-stage.txt")).unwrap(),
+        b"staged then edited\n"
+    );
+    assert_eq!(
+        fs::read(root.join("unrelated-work.txt")).unwrap(),
+        b"unstaged\n"
+    );
+    assert_eq!(
+        fs::read(root.join("unrelated-new.txt")).unwrap(),
+        b"untracked\n"
+    );
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-001"])["status"],
+        "done"
+    );
+    let head = git(root, &["rev-parse", "HEAD"]);
+    json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), head);
+    import_research_fixture(root, json!([dependency]));
+    assert_eq!(
+        json_output(root, &["next", "work"])["task"]["requires_code"],
+        json!(["work-001"])
+    );
+}
+
+#[test]
+fn local_experiment_discards_or_exhausts_attempts_with_retained_evidence() {
+    for (evaluator, decision, attempts) in [
+        ("printf 20", "discard", 1),
+        ("printf 20", "inconclusive", 2),
+        (
+            "if test \"$ZDEV_REPETITION\" = 1; then printf 7; else exit 1; fi",
+            "failed-to-run",
+            2,
+        ),
+    ] {
+        let repository = local_experiment_fixture(evaluator);
+        let root = repository.path();
+        fs::write(root.join("seed.txt"), "preexisting owned edit\n").unwrap();
+        assert!(
+            !run_zdev(
+                root,
+                &[
+                    "research",
+                    "experiment",
+                    "work",
+                    "work-001",
+                    "begin",
+                    "--path",
+                    "seed.txt"
+                ]
+            )
+            .status
+            .success()
+        );
+        fs::write(root.join("seed.txt"), "accepted\n").unwrap();
+        begin_local_experiment(root);
+        edit_local_candidate(root);
+        let baseline = json_output(root, &["area", "research", "work"])["research"].clone();
+        let mut measured = Value::Null;
+        for _ in 0..attempts {
+            measured = json_output(
+                root,
+                &["research", "experiment", "work", "work-001", "evaluate"],
+            );
+        }
+        if attempts == 1 {
+            assert!(
+                !run_zdev(
+                    root,
+                    &[
+                        "research",
+                        "experiment",
+                        "work",
+                        "work-001",
+                        "finalize",
+                        "--decision",
+                        "inconclusive",
+                        "--lesson",
+                        "Too early."
+                    ]
+                )
+                .status
+                .success()
+            );
+        }
+        if decision == "failed-to-run" {
+            assert_eq!(
+                measured["checkpoint"]["attempts"][0]["observation"]["samples"],
+                json!([7.0])
+            );
+        }
+        json_output(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "finalize",
+                "--decision",
+                decision,
+                "--lesson",
+                "Candidate did not answer the question usefully.",
+            ],
+        );
+        assert_eq!(
+            json_output(root, &["area", "research", "work"])["research"],
+            baseline
+        );
+        assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"accepted\n");
+        assert_eq!(fs::read(root.join("binary.dat")).unwrap(), [0, 1, 2, 255]);
+        assert_eq!(fs::read(root.join("delete.txt")).unwrap(), b"delete\n");
+        assert!(!root.join("added.txt").exists());
+        assert_eq!(
+            git(root, &["ls-files", "--stage", "mode.txt"])
+                .split_whitespace()
+                .next()
+                .unwrap(),
+            "100644"
+        );
+        let evidence = json_output(root, &["task", "show", "work", "work-001"]);
+        assert_eq!(evidence["status"], "done");
+        assert_eq!(
+            evidence["research_results"].as_array().unwrap().len(),
+            attempts + 1
+        );
+        for attempt in measured["checkpoint"]["attempts"].as_array().unwrap() {
+            let reference = attempt["retained_ref"].as_str().unwrap();
+            assert_eq!(
+                git(root, &["show", &format!("{reference}:seed.txt")]),
+                "candidate"
+            );
+            assert_eq!(
+                git(root, &["show", &format!("{reference}:added.txt")]),
+                "added candidate"
+            );
+        }
+        assert!(
+            git(root, &["diff", "HEAD^", "HEAD", "--name-only"])
+                .lines()
+                .all(|path| path.starts_with(".zdev/"))
+        );
+        let head = git(root, &["rev-parse", "HEAD"]);
+        json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+        assert_eq!(git(root, &["rev-parse", "HEAD"]), head);
+        let mut dependency = hypothesis_draft("dependent");
+        dependency["requires_code"] = json!(["work-001"]);
+        let bundle =
+            serde_json::to_vec(&json!({"schema_version":1,"area":"work","tasks":[dependency]}))
+                .unwrap();
+        assert!(
+            !json_output_with_stdin_status(
+                root,
+                &["tasks", "review", "work", "--from", "-"],
+                &bundle
+            )
+            .status
+            .success()
+        );
+    }
+}
+
+#[test]
+fn local_experiment_recovers_each_finalization_boundary_and_refuses_overlap() {
+    // Recorded state from the same fixture lets us resume individual interrupted effects.
+    // No production fault switches or artificial internal interfaces are needed.
+    let repository = local_experiment_fixture("printf 20");
+    let root = repository.path();
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    let measured = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
+    let task_path = root.join(".zdev/work/tasks/001-candidate.md");
+    let index_path = root.join(".zdev/work/TASKS.md");
+    let open_task = fs::read(&task_path).unwrap();
+    let open_index = fs::read(&index_path).unwrap();
+    let original_head = git(root, &["rev-parse", "HEAD"]);
+    let finalized = json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "The candidate is slower.",
+        ],
+    );
+    let final_checkpoint = finalized["checkpoint"].clone();
+    let final_commit = finalized["checkpoint"]["commit"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let final_task = fs::read(&task_path).unwrap();
+    let final_index = fs::read(&index_path).unwrap();
+    for boundary in ["retention", "restore", "completion", "commit"] {
+        git(root, &["update-ref", "refs/heads/main", &original_head]);
+        git(root, &["reset", "-q", &original_head, "--", ".zdev/work"]);
+        let mut checkpoint = final_checkpoint.clone();
+        checkpoint["index_updated"] = json!(false);
+        if boundary != "commit" {
+            checkpoint["commit"] = Value::Null;
+            checkpoint["completed"] = json!(false);
+            if boundary == "retention" || boundary == "restore" {
+                checkpoint["restored"] = json!(false);
+                edit_local_candidate(root);
+                fs::write(&task_path, &open_task).unwrap();
+                fs::write(&index_path, &open_index).unwrap();
+                checkpoint["record_hashes"] = measured["checkpoint"]["record_hashes"].clone();
+                if boundary == "retention" {
+                    git(
+                        root,
+                        &[
+                            "update-ref",
+                            "-d",
+                            measured["checkpoint"]["attempts"][0]["retained_ref"]
+                                .as_str()
+                                .unwrap(),
+                        ],
+                    );
+                } else {
+                    // A crash between individual file restores.
+                    fs::write(root.join("seed.txt"), "accepted\n").unwrap();
+                }
+            } else {
+                // Task publication completed, but its checkpoint did not advance.
+                fs::write(&task_path, &final_task).unwrap();
+                fs::write(&index_path, &final_index).unwrap();
+            }
+        }
+        fs::write(
+            &checkpoint_path,
+            serde_json::to_vec_pretty(&checkpoint).unwrap(),
+        )
+        .unwrap();
+        if boundary == "commit" {
+            fs::write(root.join("seed.txt"), "human code edit\n").unwrap();
+            git(root, &["add", "seed.txt"]);
+            let staged_code = git_stdout(root, &["diff", "--cached", "--binary"]);
+            assert!(
+                !run_zdev(
+                    root,
+                    &["research", "experiment", "work", "work-001", "recover"]
+                )
+                .status
+                .success()
+            );
+            assert_eq!(git(root, &["rev-parse", "HEAD"]), original_head);
+            assert_eq!(
+                git_stdout(root, &["diff", "--cached", "--binary"]),
+                staged_code
+            );
+            assert_eq!(
+                fs::read(root.join("seed.txt")).unwrap(),
+                b"human code edit\n"
+            );
+            git(root, &["reset", "-q", &original_head, "--", "seed.txt"]);
+            fs::write(root.join("seed.txt"), "accepted\n").unwrap();
+            // Staged owned records from another actor must remain untouched.
+            fs::write(
+                &task_path,
+                [final_task.as_slice(), b"\nHuman edit\n"].concat(),
+            )
+            .unwrap();
+            git(root, &["add", ".zdev/work/tasks/001-candidate.md"]);
+            let staged = git_stdout(root, &["diff", "--cached", "--binary"]);
+            assert!(
+                !run_zdev(
+                    root,
+                    &["research", "experiment", "work", "work-001", "recover"]
+                )
+                .status
+                .success()
+            );
+            assert_eq!(git(root, &["rev-parse", "HEAD"]), original_head);
+            assert_eq!(git_stdout(root, &["diff", "--cached", "--binary"]), staged);
+            git(
+                root,
+                &[
+                    "reset",
+                    "-q",
+                    &original_head,
+                    "--",
+                    ".zdev/work/tasks/001-candidate.md",
+                ],
+            );
+            fs::write(&task_path, &final_task).unwrap();
+        } else if boundary == "restore" {
+            fs::write(root.join("binary.dat"), [8, 8]).unwrap();
+            git(root, &["add", "binary.dat"]);
+            let staged = git_stdout(root, &["diff", "--cached", "--binary"]);
+            assert!(
+                !run_zdev(
+                    root,
+                    &["research", "experiment", "work", "work-001", "recover"]
+                )
+                .status
+                .success()
+            );
+            assert_eq!(git_stdout(root, &["diff", "--cached", "--binary"]), staged);
+            assert_eq!(fs::read(root.join("binary.dat")).unwrap(), [8, 8]);
+            git(root, &["reset", "-q", &original_head, "--", "binary.dat"]);
+            fs::write(root.join("binary.dat"), [0, 255, 4, 0]).unwrap();
+        }
+        let recovered = json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+        assert_eq!(recovered["next_action"], "complete");
+        assert_eq!(fs::read(&task_path).unwrap(), final_task);
+        assert_eq!(fs::read(&index_path).unwrap(), final_index);
+        assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"accepted\n");
+        let head = git(root, &["rev-parse", "HEAD"]);
+        if boundary == "commit" {
+            assert_eq!(head, final_commit);
+        }
+        json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+        assert_eq!(git(root, &["rev-parse", "HEAD"]), head);
+        assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
+        assert_eq!(
+            fs::read_to_string(&task_path)
+                .unwrap()
+                .matches("## Result")
+                .count(),
+            1
+        );
+        assert_eq!(
+            json_output(root, &["task", "show", "work", "work-001"])["research_results"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_measurement() {
+    let repository = local_experiment_fixture("sleep 30; printf 7");
+    let root = repository.path();
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_zdev"))
+        .arg("--root")
+        .arg(root)
+        .args(["research", "experiment", "work", "work-001", "evaluate"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let process = loop {
+        let checkpoint: Value =
+            serde_json::from_slice(&fs::read(&checkpoint_path).unwrap()).unwrap();
+        let attempt = &checkpoint["attempts"][0];
+        if attempt["observation"]["evaluation_runs"] == 1 && attempt["running_pid"].is_u64() {
+            break attempt["running_pid"].as_u64().unwrap();
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "evaluator did not start"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    child.kill().unwrap();
+    child.wait().unwrap();
+    let unresolved = run_zdev(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    assert!(!unresolved.status.success());
+    assert!(String::from_utf8_lossy(&unresolved.stderr).contains("no command was relaunched"));
+    // Kill only the shell leader: its sleep descendant must still block restoration.
+    Command::new("kill")
+        .args(["-KILL", &process.to_string()])
+        .status()
+        .unwrap();
+    let descendant = run_zdev(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    assert!(!descendant.status.success());
+    assert!(String::from_utf8_lossy(&descendant.stderr).contains("no command was relaunched"));
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"candidate\n");
+    Command::new("sh")
+        .args(["-c", &format!("kill -KILL -{process}")])
+        .status()
+        .unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        let status = Command::new("ps")
+            .args(["-o", "stat=", "-p", &process.to_string()])
+            .output()
+            .unwrap();
+        if !status.status.success()
+            || String::from_utf8_lossy(&status.stdout)
+                .trim()
+                .starts_with('Z')
+        {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "killed evaluator remains running"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let recovered = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    let observation = &recovered["checkpoint"]["attempts"][0]["observation"];
+    assert_eq!(observation["correctness_runs"], 1);
+    assert_eq!(observation["evaluation_runs"], 1);
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"e");
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-001"])["status"],
+        "open"
+    );
+    json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-001"])["research_results"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn local_experiment_failed_correctness_recovers_and_finishes_without_losing_evidence() {
+    for (command, expected_outcome, legacy_checkpoint) in [
+        (
+            "printf f >> .git/correctness-runs; exit 1",
+            "crashed",
+            false,
+        ),
+        (
+            "printf f >> .git/correctness-runs; sleep 5",
+            "timed_out",
+            false,
+        ),
+        ("printf f >> .git/correctness-runs; exit 1", "invalid", true),
+    ] {
+        let repository = local_experiment_fixture("printf 1");
+        let root = repository.path();
+        let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+        settings["attempt_limit"] = json!(1);
+        settings["timeout_seconds"] = json!(0.1);
+        settings["comparison"]["required_checks"] =
+            json!(["equivalent output", "output remains readable"]);
+        settings["correctness_commands"] = json!({
+            "equivalent output": command,
+            "output remains readable": "printf p >> .git/correctness-runs; test -f seed.txt"
+        });
+        configure_research_fixture(root, &settings);
+        git(root, &["add", ".zdev/work/area.toml"]);
+        git(
+            root,
+            &["commit", "-m", "record executable correctness policy"],
+        );
+        let begun = begin_local_experiment(root);
+        let task_path = root.join(".zdev/work/tasks/001-candidate.md");
+        let index_path = root.join(".zdev/work/TASKS.md");
+        let open_task = fs::read(&task_path).unwrap();
+        let open_index = fs::read(&index_path).unwrap();
+        edit_local_candidate(root);
+        let mut evaluated = json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "evaluate"],
+        );
+        if legacy_checkpoint {
+            // Recreate the checkpoint saved by the previous implementation before publication failed.
+            let checkpoint = &mut evaluated["checkpoint"];
+            checkpoint["attempts"][0]["observation"]["outcome"] = json!("measured");
+            checkpoint["attempts"][0]["published"] = json!(false);
+            checkpoint["record_hashes"] = begun["checkpoint"]["record_hashes"].clone();
+            checkpoint["verification_snapshot"] = Value::Null;
+            fs::write(&task_path, &open_task).unwrap();
+            fs::write(&index_path, &open_index).unwrap();
+            fs::write(
+                git_path(root, "zdev/experiments/work/work-001.json"),
+                serde_json::to_vec_pretty(checkpoint).unwrap(),
+            )
+            .unwrap();
+        }
+        let recovered = json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+        let observation = &recovered["checkpoint"]["attempts"][0]["observation"];
+        assert_eq!(observation["outcome"], expected_outcome);
+        assert_eq!(observation["samples"], json!([1.0, 1.0]));
+        assert_eq!(
+            observation["checks"],
+            json!([
+                {"name": "equivalent output", "passed": false},
+                {"name": "output remains readable", "passed": true}
+            ])
+        );
+        assert_eq!(observation["correctness_runs"], 2);
+        assert_eq!(observation["evaluation_runs"], 2);
+        assert!(observation["elapsed_seconds"].as_f64().unwrap() > 0.0);
+        assert!(
+            observation["failure"]
+                .as_str()
+                .unwrap()
+                .starts_with("Correctness command equivalent output:")
+        );
+        let mut recorded = evaluated["checkpoint"]["attempts"][0]["observation"].clone();
+        recorded["outcome"] = json!(expected_outcome);
+        assert_eq!(
+            *observation, recorded,
+            "recovery preserves samples, checks and costs"
+        );
+        assert_eq!(recovered["assessment"]["usable"], false);
+        assert_eq!(fs::read(git_path(root, "correctness-runs")).unwrap(), b"fp");
+        assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
+        json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+        assert_eq!(
+            json_output(root, &["task", "show", "work", "work-001"])["research_results"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        json_output(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                "work-001",
+                "finalize",
+                "--decision",
+                "failed-to-run",
+                "--lesson",
+                "Correctness execution failed despite measured output.",
+            ],
+        );
+        assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"accepted\n");
+        let completed = json_output(root, &["task", "show", "work", "work-001"]);
+        assert_eq!(completed["status"], "done");
+        assert_eq!(
+            completed["research_results"][0]["observations"][0],
+            *observation
+        );
+        assert_eq!(
+            completed["research_results"][1]["decision"],
+            "failed_to_run"
+        );
+        let reference = recovered["checkpoint"]["attempts"][0]["retained_ref"]
+            .as_str()
+            .unwrap();
+        assert_eq!(
+            git(root, &["show", &format!("{reference}:seed.txt")]),
+            "candidate"
+        );
+        let head = git(root, &["rev-parse", "HEAD"]);
+        json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "recover"],
+        );
+        assert_eq!(git(root, &["rev-parse", "HEAD"]), head);
+        assert_eq!(fs::read(git_path(root, "correctness-runs")).unwrap(), b"fp");
+        assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
+    }
+}

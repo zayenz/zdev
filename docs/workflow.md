@@ -361,3 +361,24 @@ If Git has a rebase in progress, use `zdev area rebase <area> --continue` or
 completed rebase. Refresh a stale-but-safe link when work needs current base
 changes or approaches integration; ordinary task work can resume without it.
 There is no separate zdev execution record to recover.
+
+## One local hypothesis
+
+For a recorded ready hypothesis, configure named `correctness_commands` alongside
+the evaluator and commit the area records. Use `zdev research experiment <area>
+<task> begin --path <code-file>` before editing, then `evaluate` to run commands
+and record samples and invocation costs. A starting revision may precede HEAD
+when intervening commits contain only development records.
+
+`finalize --decision keep --lesson <lesson> --verification <verifier.json>` requires
+a fresh independent verifier bound to the reported candidate snapshot. It commits
+accepted code and advances the area baseline. `finalize --decision discard --lesson
+<lesson>` retains the candidate reference, restores owned code and commits the
+measured result. Exhausted attempts can finish as `failed-to-run` or `inconclusive`.
+Unrelated staged, unstaged and untracked files remain preserved.
+
+Read the [experiment contract](../skills/zdev/references/task-format.md#complete-one-local-experiment)
+for the verifier envelope and retained-code prerequisite. After interruption,
+`inspect` shows the checkpoint and `recover` resumes pending steps without
+repeating recorded measurements, completion or a successful commit. Unresolved
+measurements remain open; recovery does not launch them again.

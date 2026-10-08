@@ -436,6 +436,13 @@ enum CleanupCommand {
 
 #[derive(Debug, Subcommand)]
 enum ResearchCommand {
+    /// Begin, evaluate, finalize, inspect, or recover one recorded local hypothesis
+    Experiment {
+        area: String,
+        task: String,
+        #[command(subcommand)]
+        action: research::experiment::Action,
+    },
     /// Execute the area's evaluator and emit a task-compatible observation
     Measure {
         area: String,
@@ -920,6 +927,9 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
     match &cli.command {
         Command::Instructions => unreachable!(),
         Command::Research { command } => match command {
+            ResearchCommand::Experiment { area, task, action } => {
+                research::experiment::experiment(&root, area, task, action)
+            }
             ResearchCommand::Measure {
                 area,
                 starting_revision,

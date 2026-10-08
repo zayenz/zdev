@@ -24,10 +24,12 @@ A research area mixes ordinary tasks with hypothesis tasks. `open` and `done`
 still describe task completion. A hypothesis decision describes the experiment;
 it does not change the area's lifecycle or replace task dependencies.
 
-This version configures research, collects evaluator measurements, and validates
-supplied evidence using directional thresholds and an optional exact paired
-sign test. It does not verify Git attestations, retain or restore candidate
-code, or coordinate serial or parallel experiments.
+The local experiment path executes correctness checks and evaluator commands,
+records samples, retains candidate Git code, and keeps or restores owned files
+before task completion and commit. Directional thresholds and an optional exact
+paired sign test govern acceptance. `measure`, `compare` and `task research`
+remain supplied-record utilities. Serial loops and parallel research harness
+coordination follow later.
 Automatic implementation, planning, and verification dispatch reject hypotheses
 before emitting workers. Ordinary supporting tasks keep their existing routes.
 Read this contract when a selected task has `hypothesis` frontmatter; do not
@@ -87,15 +89,16 @@ All JSON objects reject unknown fields. Settings require the shown fields except
 | `evaluator_command` | Non-empty command; only the area setting supplies this command. |
 | `permitted_changes` | At least one unique non-empty scope boundary. These are human-reviewed boundaries, not a path sandbox. |
 | `attempt_limit` | Positive finite limit per hypothesis. Each observation counts as one attempt. |
-| `timeout_seconds` | Positive finite timeout per evaluator invocation, in seconds; defaults to 60. |
+| `timeout_seconds` | Positive finite timeout per correctness or evaluator invocation, in seconds; defaults to 60. |
+| `correctness_commands` | Optional map from required check names to shell commands. Managed experiments require a command for every required check. |
 
 Fields below `comparison.metric` through `significance` in the table also
 belong to `comparison`. Each candidate preparation or repair attempt, measurement
 rerun, confirmation, and reconciliation consumes an attempt; record its
-observation even if it fails. `elapsed_seconds` records its cost. This version
-validates the supplied count and cost; it cannot enforce accounting for
-unrecorded work. Run-wide limits and authorization belong to the later research
-execution workflow.
+observation even if it fails. `elapsed_seconds` records its cost. The managed
+local experiment reserves attempts and records command invocation counts;
+`measure` and `task research` remain utilities for supplied evidence. Run-wide
+limits and authorization belong to the later research execution workflow.
 
 A changed evaluator, workload, or other comparison condition requires a newly
 measured baseline under those conditions. Reconfigure the area with that full
@@ -341,11 +344,77 @@ Record-only completion commits are valid research work.
 
 Completion is separate from code acceptance and area closure. A rejected
 hypothesis being `done` does not establish its candidate code. Create or admit
-a later task that requires retained candidate code only after acceptance. A
+a later task that requires retained candidate code only after acceptance. Add
+`requires_code = ["work-002"]` to its task frontmatter, or the equivalent JSON
+array to its draft. These same-area task IDs must already identify completed,
+verified acceptance with resolvable retained candidate code when the task is
+reviewed or imported. Rejection cannot satisfy this requirement. `blocked_by`
+continues to mean task completion; `context_tasks` supplies research context. A
 justified retry is a new hypothesis linked through `context_tasks`; completed
 hypotheses cannot be reopened. Later proposals read earlier lessons before
 choosing a mechanism. Ordinary tasks retain their existing completion and
 reopening rules.
+
+### Complete one local experiment
+
+Record and import the hypothesis before changing code. Commit its task, index
+and area settings, then name the exact clean code files the experiment owns:
+
+```text
+zdev research experiment work work-002 begin --path src/cache.rs --path src/new-cache.rs
+# Edit only the declared candidate files.
+zdev research experiment work work-002 evaluate --format json
+zdev research experiment work work-002 inspect --format json
+```
+
+`begin` records the accepted baseline and a work-context snapshot. Baseline code
+must match HEAD; intervening commits containing only `.zdev` records are valid.
+Owned files must have no preexisting staged, unstaged or untracked changes.
+Unrelated changes on other files may remain. `permitted_changes` describes the
+human-reviewed scope; `--path` names exact files for Git retention and restoration.
+Leave candidate files unstaged. Directories, submodules and paths through
+symlinks cannot be owned.
+
+`evaluate` reserves one attempt, retains a Git candidate reference, executes
+all named correctness commands and the evaluator, and appends actual samples,
+failures, elapsed time and invocation counts to the task. Inspect reports the
+candidate reference and `verification_snapshot`. A correctness command passes
+only when it exits successfully. Each evaluator invocation must print one finite
+number. Commands run in the repository with the configured timeout.
+
+For keep, dispatch a fresh independent verifier against the reported snapshot.
+Save its ordinary nine-key verifier envelope as JSON, including
+`work_context_snapshot: <verification_snapshot>` in its evidence, then run:
+
+```text
+zdev research experiment work work-002 finalize --decision keep --lesson "The cache removes repeated parsing." --verification /tmp/verifier.json
+```
+
+Keep requires usable improving measurements, a passing verifier, the unchanged
+candidate snapshot and actual retained Git code. It advances the area's baseline
+revision and samples. For a measured candidate you reject, run:
+
+```text
+zdev research experiment work work-002 finalize --decision discard --lesson "The cache costs more than it saves."
+```
+
+Discard records the lesson, proves candidate retention, restores only owned code
+to the accepted baseline, completes the task and commits its records. Keep also
+commits accepted code. Both preserve unrelated staged, unstaged and untracked
+work. Terminal `--decision failed-to-run` requires exhausted attempts without a
+usable observation; `--decision inconclusive` requires exhausted attempts with
+at least one usable observation. Both retain candidate references and restore
+the baseline. Interruption leaves the task open. Managed tasks cannot use supplied
+`task research` records or `task done` to bypass these gates.
+
+Use `inspect` to read an interrupted checkpoint and `recover` to resume it.
+Recovery retains completed samples and reserved invocation counts, never launches
+an unresolved command again, and resumes pending retention, publication,
+restoration, completion or commit. It refuses changed owned files, staged overlap,
+changed settings or ambiguous records. Candidate refs remain under
+`refs/zdev/experiments/<area>/<task>/<attempt>`. Checkpoints and snapshots live in
+the worktree's Git administrative directory. They are local recovery state;
+the completed task and Git history retain the experiment result.
 
 ## General area convention
 

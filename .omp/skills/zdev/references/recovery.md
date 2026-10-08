@@ -6,6 +6,26 @@ creating a worktree and the user has not requested that Git change, explain the
 concrete recovery choice and ask before making it. An unanswered question does
 not authorize the mutation.
 
+## Local experiment recovery
+
+Read `zdev research experiment <area> <task> inspect --format json` first. The
+checkpoint identifies owned files, attempts, invocation counts, completed samples,
+retained candidates, the verifier snapshot and the next unfinished action.
+
+Run `zdev research experiment <area> <task> recover` to publish recorded
+measurement or resume a previously authorized finalization. A running or unresolved
+measurement is reported without relaunch. After its process exits, recovery
+preserves completed samples and counted invocations as interrupted evidence and
+leaves the task open. Evaluate again only when another allotted attempt remains.
+
+An authorized finalization resumes candidate retention, pending record writes,
+owned-file restoration, task completion and its exact-path commit. Already
+published observations, Result sections and commits are reused. Keep retains its
+approved verifier and candidate; recovery does not authorize a different candidate.
+Changed owned files, staged overlap, changed policy or unexpected task/index bytes
+stop recovery with the local work preserved. Resolve the reported overlap before
+resuming; do not reset the whole checkout or stage unrelated files.
+
 ## Rebase recovery
 
 Use `zdev area rebase <area>` for ordinary trunk updates and parent-area updates.

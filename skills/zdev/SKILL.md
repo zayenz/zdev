@@ -47,6 +47,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
+| **Research run** — authorize or resume serial experimentation and generate scoped work | [references/research.md](references/research.md) |
 | **Research records** — configure research settings or record/inspect hypothesis evidence | [references/task-format.md](references/task-format.md#research-settings-and-hypothesis-evidence) |
 | **Set up zdev** — initialize durable state or install/check a harness integration | [references/setup.md](references/setup.md) |
 
@@ -57,8 +58,9 @@ selection rules.
 
 An area with research settings can mix ordinary tasks and hypotheses. Inspect
 the selected task's `hypothesis` field before ordinary planning, implementation,
-verification, loop, or parallel dispatch. Automatic experiment execution is
-not yet supported; stop before workers and explain the research record contract.
+verification, loop, or parallel dispatch. Stop before ordinary workers;
+an explicitly authorized **Research run** uses its separate Codex contract.
+Explain the research record contract for supplied settings/evidence operations.
 `area research` and `task research` validate supplied settings and evidence;
 they do not execute evaluators or establish recorded Git operations. Ordinary
 supporting tasks keep their existing routes.
@@ -373,6 +375,10 @@ The root `$zdev` skill selects the route and loads its contract from
 Codex supports the explicit **Parallel** route in `references/parallel.md`.
 Codex also supports the read-only **Plan one task** route in
 `references/plan-task.md`.
+An explicitly authorized **Research run** uses `references/research.md` for
+serial current-branch experiments, mixed task generation, counted dispatch and
+durable recovery. Research continuation follows that contract; ordinary goal
+and loop requests keep `references/area-loop.md` and stop at queue exhaustion.
 The exact installed task-workflows contract path for this installation is
 "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.

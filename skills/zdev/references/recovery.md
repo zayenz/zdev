@@ -6,6 +6,21 @@ creating a worktree and the user has not requested that Git change, explain the
 concrete recovery choice and ask before making it. An unanswered question does
 not authorize the mutation.
 
+## Research run recovery
+
+Read `zdev research run <area> context --format json` for the original run
+identity, scope, target, deadline, costs, admissions, reservations, task lessons
+and unfinished experiments. Recover pending effects before generating or
+dispatching work. Retry interrupted admission with the identical bundle and
+request identity; recover the owning experiment instead of relaunching an
+unresolved measurement. Resume with `resume --run <run>` only on an authorized
+continuation. Never replace an unfinished run or reset its consumed allowance.
+
+For Codex serial continuation, follow the installed research reference and
+inspect actual native goal state first. Restore concrete worker settings from
+the handoff; if absent, explain that limitation and resolve fresh settings.
+
+
 ## Local experiment recovery
 
 Read `zdev research experiment <area> <task> inspect --format json` first. The

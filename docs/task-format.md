@@ -10,8 +10,10 @@ Task completion and experiment decisions remain separate. The
 [local experiment path](../skills/zdev/references/task-format.md#complete-one-local-experiment)
 executes correctness checks and measurements, retains candidate Git code, and
 keeps or restores owned files before completing and committing the result.
-`requires_code` admits later work only after verified acceptance. Automatic
-hypothesis generation and research harness dispatch follow later.
+`requires_code` admits later work only after verified acceptance. The installed
+[Codex serial research route](../skills/zdev/references/research.md) generates
+scoped supporting tasks and hypotheses and coordinates their execution.
+Parallel research and execution routes for other harnesses follow later.
 
 The [research run contract](../skills/zdev/references/task-format.md#authorize-and-recover-a-research-run)
 authorizes generated mixed work, counts dispatch and command costs, and retains

@@ -1,5 +1,9 @@
 # Zdev area loop (native)
 
+{% if codex_research_supported %}An explicitly authorized research run uses the separate installed research
+reference. This ordinary loop does not generate work or dispatch hypotheses.
+{% endif %}
+
 Resolve the run's concrete role settings once before the first iteration and
 retain them in the goal conversation. Every continued iteration uses those
 values; do not re-resolve profile names between tasks.

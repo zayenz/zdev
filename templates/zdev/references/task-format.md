@@ -27,10 +27,15 @@ it does not change the area's lifecycle or replace task dependencies.
 The local experiment path executes correctness checks and evaluator commands,
 records samples, retains candidate Git code, and keeps or restores owned files
 before task completion and commit. Directional thresholds and an optional exact
-paired sign test govern acceptance. `measure`, `compare` and `task research`
-remain supplied-record utilities. Serial loops and parallel research harness
-coordination follow later.
-Automatic implementation, planning, and verification dispatch reject hypotheses
+paired sign test govern acceptance. `research measure` is a standalone utility
+that repeatedly runs evaluator commands. `compare` and `task research` validate
+supplied evidence. During an active run, managed `evaluate` owns measurement
+and accounting; standalone measurement and supplied observations cannot bypass it.
+{% if codex_research_supported %}The separate [Codex serial research route](research.md) coordinates authorized
+runs, generated work and this lifecycle. Parallel research coordination follows
+later.
+{% else %}This harness has no installed serial or parallel research execution route.
+{% endif %}Ordinary implementation, planning, and verification dispatch reject hypotheses
 before emitting workers. Ordinary supporting tasks keep their existing routes.
 Read this contract when a selected task has `hypothesis` frontmatter; do not
 send it through the ordinary implementation or parallel workflow.
@@ -96,9 +101,11 @@ Fields below `comparison.metric` through `significance` in the table also
 belong to `comparison`. Each candidate preparation or repair attempt, measurement
 rerun, confirmation, and reconciliation consumes an attempt; record its
 observation even if it fails. `elapsed_seconds` records its cost. The managed
-local experiment reserves attempts and records command invocation counts;
-`measure` and `task research` remain utilities for supplied evidence. Run-wide
-limits and authorization belong to the later research execution workflow.
+local experiment reserves attempts and records command invocation counts.
+Outside an active run, `research measure` repeatedly executes evaluator commands;
+`compare` and `task research` validate supplied evidence. Active runs use managed
+`evaluate` for measurement and accounting. Run-wide limits and authorization
+belong to the research run commands below.
 
 A changed evaluator, workload, or other comparison condition requires a newly
 measured baseline under those conditions. Reconfigure the area with that full

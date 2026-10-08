@@ -36,8 +36,9 @@ selection rules.
 
 An area with research settings can mix ordinary tasks and hypotheses. Inspect
 the selected task's `hypothesis` field before ordinary planning, implementation,
-verification, loop, or parallel dispatch. Automatic experiment execution is
-not yet supported; stop before workers and explain the research record contract.
+verification, loop, or parallel dispatch. Stop before ordinary workers;
+this harness has no installed research execution route.
+Explain the research record contract for supplied settings/evidence operations.
 `area research` and `task research` validate supplied settings and evidence;
 they do not execute evaluators or establish recorded Git operations. Ordinary
 supporting tasks keep their existing routes.

@@ -16,6 +16,10 @@ The root `$zdev` skill selects the route and loads its contract from
 Codex supports the explicit **Parallel** route in `references/parallel.md`.
 Codex also supports the read-only **Plan one task** route in
 `references/plan-task.md`.
+An explicitly authorized **Research run** uses `references/research.md` for
+serial current-branch experiments, mixed task generation, counted dispatch and
+durable recovery. Research continuation follows that contract; ordinary goal
+and loop requests keep `references/area-loop.md` and stop at queue exhaustion.
 The exact installed task-workflows contract path for this installation is
 {{ task_workflows_contract_path_json }}. Decode that JSON string and include the
 resulting path in every worker payload.

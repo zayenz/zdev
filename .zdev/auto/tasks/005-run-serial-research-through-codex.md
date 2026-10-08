@@ -3,7 +3,7 @@ schema_version = 1
 id = "auto-005"
 key = "codex-serial"
 area = "auto"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -26,11 +26,21 @@ Read the new one-experiment and run contracts. Start with templates/zdev/codex-s
 
 ## Done when
 
-- [ ] The installed Codex route authorizes and resumes finite or explicit unlimited runs, generates both task kinds, and uses the local experiment lifecycle.
-- [ ] It continues after rejected or terminal failed experiments, reads their lessons, and stops on the recorded target, limits, interruption, or shared blocker.
-- [ ] A new session reconstructs progress from durable records and native continuation is used only where the harness supports it; any fallback states its actual extent.
-- [ ] Canonical templates, generated fixtures, user documentation, and route discoverability agree.
+- [x] The installed Codex route authorizes and resumes finite or explicit unlimited runs, generates both task kinds, and uses the local experiment lifecycle.
+- [x] It continues after rejected or terminal failed experiments, reads their lessons, and stops on the recorded target, limits, interruption, or shared blocker.
+- [x] A new session reconstructs progress from durable records and native continuation is used only where the harness supports it; any fallback states its actual extent.
+- [x] Canonical templates, generated fixtures, user documentation, and route discoverability agree.
 
 ## Validation
 
 - Add or update deterministic integration checks for accepted, rejected, empty-queue generation, budget stop, and recovery behavior. Regenerate affected fixtures in this task, run generator checks plus matching repository checks; defer signed-in live execution to live acceptance.
+
+## Result
+
+Added the installed Codex serial research route with scoped mixed-work generation, counted dispatch, independent acceptance verification, durable recovery, and matching documentation and fixtures.
+
+Validation:
+
+- Fresh independent verifier PASS at W4157aadaf08ab5fe; whole task and both corrected documentation findings reviewed.
+- cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check passed. 179 integration and 3 unit tests.
+- All five read-only generated integration checks passed with an empty temporary XDG configuration. Deterministic route/API evidence is complete; authenticated live execution remains auto-010.

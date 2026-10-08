@@ -15,6 +15,8 @@ task and area state, and do not repeat workers or goal turns to reconfirm it.
 
 # Zdev area loop (native)
 
+
+
 Resolve the run's concrete role settings once before the first iteration and
 retain them in the goal conversation. Every continued iteration uses those
 values; do not re-resolve profile names between tasks.
@@ -91,8 +93,9 @@ selected task and return one role-specific result.
 
 Before ordinary planning, implementation, verification, loop, or parallel
 dispatch, inspect the selected task for `hypothesis`. If present, stop before
-starting workers and report that automatic experiment execution is not yet
-supported. Read the research settings/result contract in the installed
+starting ordinary workers.
+This harness has no installed research execution route.
+Read the research settings/result contract in the installed
 task-format reference for authorized record operations. Check every task in a
 parallel batch, including resumed assignments. Ordinary supporting tasks in a
 research area keep this workflow. Hypothesis completion requires validated
@@ -104,7 +107,8 @@ An explicitly authorized local hypothesis uses `zdev research experiment <area>
 task-format reference. The binary runs commands, retains candidates, restores
 owned code and commits the completed result. Keep requires a fresh independent
 verifier bound to the candidate's supplied work-context snapshot. Ordinary
-hypothesis dispatch stays guarded until a research harness route is available.
+hypothesis dispatch stays guarded; an installed research route supplies separate
+run authorization and coordination.
 
 An isolated area uses its stored branch and managed base relationship. An
 explicit trunk area dynamically uses configured `project.trunk`, may share it

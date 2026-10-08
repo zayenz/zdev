@@ -163,7 +163,7 @@ pub(super) fn show_selected(
         };
         let native_goal = if task.hypothesis.is_some() {
             format!(
-                "Inspect hypothesis task {} in area {area}. Treat {authoritative} as authoritative and read the research record contract in the installed task-format reference. Automatic experiment execution is not yet supported. Supplied terminal evidence governs completion; completion does not itself accept code or close the area.",
+                "Inspect hypothesis task {} in area {area}. Treat {authoritative} as authoritative and read the research record contract in the installed task-format reference. Ordinary dispatch does not execute hypotheses. An explicitly authorized Codex research run uses the separate installed research reference and local experiment lifecycle. Terminal evidence governs completion; completion does not itself accept code or close the area.",
                 task.id
             )
         } else {

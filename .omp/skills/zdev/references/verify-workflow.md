@@ -6,7 +6,8 @@ one fresh configured verifier owns the initial independent review. Substantive
 findings then receive the bounded independent check in the task workflow.
 
 If the explicit task has `hypothesis`, return `BLOCKER zdev-verify` before
-starting a verifier: automatic experiment execution is not yet supported.
+starting an ordinary verifier: hypotheses require the separate authorized
+research route or local experiment lifecycle.
 The installed task-format reference defines research evidence, including the
 independent review attestation required for an accepted result.
 

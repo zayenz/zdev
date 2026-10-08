@@ -18,8 +18,79 @@ have distinct completion rules. A valid rejected experiment can complete
 without improving the metric. Completion does not accept candidate code or
 close the area. These commands validate supplied evidence without launching
 evaluators, retaining/restoring code, or proving recorded Git attestations.
-Automatic experiment execution is not yet supported; ordinary supporting tasks
-in research areas retain their existing implementation workflow.
+Codex also installs a separate serial research route using the managed local
+experiment commands. Ordinary Implement, Plan, Verify, Parallel and Loop stop
+before hypothesis dispatch; ordinary supporting tasks retain their workflow.
+
+### Serial research in Codex
+
+First configure a research policy with actual baseline samples and a shell
+command for every required correctness check. The brief defines allowed changes,
+experimental reasoning and measurement policy. Then explicitly authorize the
+installed skill, for example:
+
+```text
+$zdev run serial research in work within the brief, for 20 work attempts
+$zdev run serial research in work until interrupted, with target 5 and command limit 100
+$zdev resume the existing research run in work
+```
+
+State the scope and any attempt, command, cumulative command-time or wall-time
+limits. The default run has 20 coordinator work attempts. `until interrupted`
+removes that default; supplied limits and the directional target still apply.
+This authorization allows the coordinator to generate both supporting tasks
+and hypotheses inside the brief and frozen policy without reviewing every new
+bundle. Ordinary task creation outside a run retains exact bundle approval.
+
+The coordinator reads the accepted baseline and prior rejected, inconclusive
+and failed lessons before proposing work. It commits admitted task records
+before candidate preparation. Supporting tasks use ordinary planning,
+implementation, independent verification and completion. Hypotheses use local
+`begin`, `evaluate` and `finalize`: the binary runs correctness/evaluator
+commands, records samples and costs, retains candidate Git references, and
+keeps or restores exact owned files. Only a proposed keep gets a fresh
+independent acceptance verifier; the coordinator checks discarded and terminal
+failed results. Each completion has its own commit and leaves the area open.
+
+Preparation, supporting work and same-task rework, repair, rerun, confirmation,
+reconciliation and actual rebaseline consume allowance before work starts.
+Every correctness/evaluator invocation counts before launch. Failure and
+interruption receive no refunds. Workers use resolved concrete model/effort
+settings retained for the run. Accepted supporting code or changed comparison
+conditions require a counted actual rebaseline. A shared environment blocker
+halts affected experimentation but permits counted in-scope supporting repair;
+resolution also requires rebaseline.
+
+Inspect durable progress with:
+
+```sh
+zdev research run work context --format json
+zdev research experiment work work-001 inspect --format json
+zdev research experiment work work-001 recover --format json
+```
+
+A new session recovers admissions, reservations, unfinished measurements and
+finalization before new dispatch. Resume retains the original run ID, scope,
+target, deadline and consumed resources. Unresolved measurements are not
+relaunched. Task records preserve measurements and lessons, and Git preserves
+accepted code and rejected candidates. If the old conversation lacks concrete
+worker choices, the coordinator explains that and resolves fresh choices before
+dispatch.
+
+Codex uses the actual exposed native goal tools for continuation. It preserves
+another unfinished goal. If native inspection proves clear but creation is
+unavailable, it performs at most one foreground work-item iteration and states
+that limit; uncertain native state blocks. It never claims background execution
+or completes an unfinished objective because of a transient blocker or empty
+queue. A queue with no ready work permits more scoped proposals while allowance
+remains. Target, budget, interruption and shared blocker stop distinctly; none
+implicitly closes the area or proves its optimization objective achieved.
+
+The [installed Codex contract](../skills/zdev/references/research.md) gives the
+ordered coordinator operations. Other harnesses currently expose research
+records and local commands without this installed execution route. Deterministic
+installation and command scenarios validate the contract; authenticated live
+Codex acceptance remains separate.
 
 ## 1. Install zdev
 

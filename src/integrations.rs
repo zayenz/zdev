@@ -83,7 +83,7 @@ const NATIVE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/native-a
 const CLAUDE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/claude-area-loop.md");
 const T3_CODE_ROUTING: &str = include_str!("../templates/zdev/t3-code-routing.md");
 const T3_CODE_ORCHESTRATION: &str = include_str!("../templates/zdev/references/t3-code.md");
-const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
+const CODEX_RESEARCH_TEMPLATE: &str = include_str!("../templates/zdev/references/research.md");const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");
@@ -260,6 +260,10 @@ impl Harness {
                     }
                 }));
                 add_route_references(&mut files, "zdev", NATIVE_AREA_LOOP_TEMPLATE);
+                files.push(IntegrationFile {
+                    path: "zdev/references/research.md".to_owned(),
+                    content: CODEX_RESEARCH_TEMPLATE.to_owned(),
+                });
             }
             Self::Claude => {
                 files.push(IntegrationFile {
@@ -730,7 +734,7 @@ fn add_profile_agents(
             let content = render_template(
                 &agent_path,
                 &source,
-                ("", "", "", "", "", false),
+                ("", "", "", "", "", false, false),
                 "",
                 "",
                 env!("CARGO_PKG_VERSION"),
@@ -831,7 +835,7 @@ fn template_environment() -> Environment<'static> {
 fn render_template(
     name: &str,
     source: &str,
-    contracts: (&str, &str, &str, &str, &str, bool),
+    contracts: (&str, &str, &str, &str, &str, bool, bool),
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
@@ -877,6 +881,7 @@ fn render_template(
             planner_model => workers.planner.model_literal(),
             planner_effort => workers.planner.effort_literal(),
             parallel_supported => contracts.5,
+            codex_research_supported => contracts.6,
         })
         .map_err(|error| {
             ZdevError::new(format!(
@@ -937,6 +942,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
+            harness == Harness::Codex,
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -961,6 +967,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
+            harness == Harness::Codex,
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -980,6 +987,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
+            harness == Harness::Codex,
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -999,6 +1007,7 @@ fn realize_templates(
                 harness,
                 Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
             ),
+            harness == Harness::Codex,
         ),
         &repository_guidance,
         harness.question_tool_guidance(),
@@ -1031,6 +1040,7 @@ fn realize_templates(
                     harness,
                     Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
                 ),
+                harness == Harness::Codex,
             ),
             &repository_guidance,
             &question_tool_guidance,
@@ -2066,7 +2076,7 @@ mod tests {
             let error = render_template(
                 name,
                 source,
-                ("", "", "", "", "\"/tmp/task-workflows.md\"", false),
+                ("", "", "", "", "\"/tmp/task-workflows.md\"", false, false),
                 "",
                 "",
                 "",

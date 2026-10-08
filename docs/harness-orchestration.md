@@ -32,6 +32,13 @@ intents to internal contracts and harness-native adapters:
   which completes at most one task and returns `CONTINUE` only after a verified
   commit when fresh ready work remains.
 
+- In Codex, an explicit **Research run** request uses
+  `zdev/references/research.md` to coordinate serial current-branch research.
+  It generates mixed work within the authorized scope, charges dispatch before
+  work, accepts only independently verified keeps, and recovers from the
+  existing run and experiment commands. Empty queues permit further proposals.
+  Ordinary routes retain their hypothesis guards.
+
 Packaged workflows, commands, and prompts support those routes. They do not
 form additional skills or change the root activation name.
 
@@ -39,7 +46,7 @@ form additional skills or change the root activation name.
 
 | Harness | Installed skill and adapters | Native workers |
 | --- | --- | --- |
-| Codex | One `zdev/SKILL.md`; audit, task, verification, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and a one-task fallback only after clear inspection when creation is unavailable. |
+| Codex | One `zdev/SKILL.md`; audit, task, verification, serial research, and continuation contracts live under `zdev/references/` | The root skill passes the resolved `routine-implementer`, `implementer`, `verifier`, or `advanced-implementer` profile when spawning a native Codex subagent. Its continuation route uses Codex's native goal when clear and a one-task fallback only after clear inspection when creation is unavailable. |
 | Claude Code | One skills-directory plugin whose `.claude-plugin/plugin.json` declares `"workflows": "./workflows/"`, containing `workflows/zdev-implement.js`, `workflows/zdev-verify.js`, `workflows/zdev-audit.js`, `workflows/zdev-loop.js`, and `workflows/zdev-goal.js` with matching `meta.name` values, plus `contracts/task-workflows.md` | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`. Each `agent()` call selects a concise scoped role and passes a stored work-context locator. The detailed derived-work contract is loaded only when a split is needed. |
 | OpenCode | `commands/zdev-implement.md`, `commands/zdev-verify.md`, `commands/zdev-audit.md`, `commands/zdev-parallel.md`, `commands/zdev-loop.md`, and `commands/zdev-goal.md` under the selected OpenCode scope | `agents/zdev-planner.md`, `agents/zdev-routine-implementer.md`, `agents/zdev-implementer.md`, `agents/zdev-verifier.md`, and `agents/zdev-advanced-implementer.md`; one-task commands use the native task tool and compact file/snapshot locators. The parallel command stops before mutation because foreground batches do not return coordinator control per completed child. The documented directory is plural `commands/`. |
 | Pi | `prompts/zdev-implement.md`, `prompts/zdev-verify.md`, `prompts/zdev-audit.md`, `prompts/zdev-parallel.md`, `prompts/zdev-loop.md`, and `prompts/zdev-goal.md` | `extensions/zdev-subagent.ts` keeps single configured roles and adds bounded, task-keyed planner and source-implementer batches with explicit working directories. Calls carry compact locators rather than the rendered workflow. |
@@ -77,6 +84,32 @@ split Codex skill directories created by 1.1.0, two singular `command/` files
 under OpenCode, and `prompts/zdev-task.md` under Pi. Empty legacy directories
 are pruned. A non-forced install and readiness check report the old integration
 as a conflict. No unrelated shared-root file is removed.
+
+## Codex serial research coordination
+
+The research reference owns the ordered run route. One coordinator retains
+resolved concrete worker profiles, reads run context before costly work,
+recovers unfinished effects, admits and commits generated tasks, and dispatches
+one task at a time. Supporting tasks retain ordinary fresh verification and
+completion. Each preparation/support/rework/repair/rerun/confirmation dispatch
+is counted; measurement uses the bound local lifecycle. Finalize alone owns
+managed hypothesis retention/restoration, task completion and commit.
+
+A proposed keep uses the checkpoint's verification snapshot and a fresh
+independent verifier's strict semantic result. The coordinator compares the
+snapshot and constructs the public envelope before finalize. Discards and
+terminal failures use coordinator checks and retain lessons for the next
+proposal. Shared failures halt affected experiments, permit counted supporting
+repair and require actual rebaseline after resolution. Resume preserves run
+identity, scope, target, deadline and costs.
+
+Native continuation follows exposed `get_goal`, `create_goal` and `update_goal`
+capabilities and lifecycle rules. Clear inspection with unavailable creation
+permits at most one foreground work-item iteration; uncertain state blocks.
+No transient blocker or queue/allowance exhaustion establishes that an
+unfinished native objective is complete. Deterministic local scenarios are
+contract/API evidence; authenticated live Codex execution remains separate
+acceptance work.
 
 ## Common execution contract
 

@@ -6600,9 +6600,13 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
         include_str!("../skills/zdev/references/discuss.md")
     );
     assert_eq!(
-        fs::read_to_string(destination.join("zdev/references/task-format.md"))
-            .expect("task format reference"),
-        include_str!("../templates/zdev/references/task-format.md")
+        normalize_task_workflows_locator(
+            fs::read(destination.join("zdev/references/task-format.md"))
+                .expect("task format reference")
+        ),
+        normalize_task_workflows_locator(
+            include_bytes!("../skills/zdev/references/task-format.md").to_vec()
+        )
     );
 
     let unchanged = json_output(
@@ -7468,6 +7472,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/references/parallel.md",
             "zdev/references/plan-task.md",
             "zdev/references/recovery.md",
+            "zdev/references/research.md",
             "zdev/references/setup.md",
             "zdev/references/shape-work.md",
             "zdev/references/t3-code.md",
@@ -9186,6 +9191,85 @@ fn native_loop_harnesses_install_one_skill_and_their_area_adapter() {
 }
 
 #[test]
+fn codex_installs_a_separate_serial_research_route_with_resolved_contracts() {
+    let repository = repository();
+    let root = repository.path();
+    let config_home = root.join("research-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+
+    for (harness, skill_root) in [
+        ("codex", "zdev"),
+        ("claude", "skills/zdev"),
+        ("opencode", "skills/zdev-opencode"),
+        ("pi", "skills/zdev-pi"),
+        ("omp", "skills/zdev"),
+        ("agy", "skills/zdev"),
+    ] {
+        let destination = root.join(format!("research-{harness}"));
+        json_output_with_env(
+            root,
+            &[
+                "skill",
+                "install",
+                harness,
+                "--to",
+                destination.to_str().unwrap(),
+            ],
+            &environment,
+        );
+        let skill = fs::read_to_string(destination.join(skill_root).join("SKILL.md")).unwrap();
+        let research = destination.join(skill_root).join("references/research.md");
+        if harness == "codex" {
+            assert!(skill.contains("**Research run**"));
+            assert!(skill.contains("references/research.md"));
+            let contract = fs::read_to_string(research).unwrap();
+            assert!(
+                contract.contains(
+                    &serde_json::to_string(
+                        &destination
+                            .canonicalize()
+                            .unwrap()
+                            .join("zdev/references/task-workflows.md")
+                            .to_str()
+                            .unwrap()
+                    )
+                    .unwrap()
+                )
+            );
+            assert!(!contract.contains("{{"));
+            assert!(contract.contains("begin --path <exact-file>"));
+            assert!(contract.contains("verification_snapshot"));
+            assert!(contract.contains("one foreground work-item"));
+            let ordinary =
+                fs::read_to_string(destination.join("zdev/references/area-loop.md")).unwrap();
+            assert!(
+                ordinary
+                    .contains("This ordinary loop does not generate work or dispatch hypotheses")
+            );
+            assert!(ordinary.contains("Open `empty` or `exhausted` returns `PASS`"));
+        } else {
+            assert!(!research.exists());
+            assert!(!skill.contains("**Research run**"));
+            assert!(skill.contains("this harness has no installed research execution route"));
+        }
+        assert_eq!(
+            json_output_with_env(
+                root,
+                &[
+                    "skill",
+                    "check",
+                    harness,
+                    "--to",
+                    destination.to_str().unwrap()
+                ],
+                &environment,
+            )["status"],
+            "ok"
+        );
+    }
+}
+
+#[test]
 fn non_claude_worker_handoffs_are_compact_and_wrapper_tolerant() {
     for prompt in [
         include_str!("../templates/zdev/opencode/commands/zdev-implement.md"),
@@ -9219,7 +9303,11 @@ fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
             .count(),
         1
     );
-    assert_eq!(installed, contract);
+    let section = "## Optional assigned source worktree";
+    assert_eq!(
+        installed.split_once(section).unwrap().1,
+        contract.split_once(section).unwrap().1
+    );
     assert!(implementation.contains("Optional assigned source worktree"));
     assert_eq!(
         recovery
@@ -10545,7 +10633,9 @@ fn executable_templates_realize_deterministically_and_match_generated_fixtures()
                 fs::read(destination.join(&path)).expect("rendered integration file"),
             );
             if path.ends_with("SKILL.md")
-                || (path.contains("/references/") && !path.ends_with("/references/task-format.md"))
+                || (path.contains("/references/")
+                    && !path.ends_with("/references/task-format.md")
+                    && !path.ends_with("/references/research.md"))
             {
                 continue;
             }
@@ -13792,7 +13882,7 @@ fn research_mixed_queue_retains_observations_and_rejected_completion() {
         goal["native_goal"]
             .as_str()
             .unwrap()
-            .contains("Automatic experiment execution is not yet supported")
+            .contains("Ordinary dispatch does not execute hypotheses")
     );
     let context = json_output(root, &["work-context", "work"]);
     assert_eq!(
@@ -13821,7 +13911,7 @@ fn research_mixed_queue_retains_observations_and_rejected_completion() {
     assert!(!blocked.status.success());
     assert!(
         String::from_utf8_lossy(&blocked.stderr)
-            .contains("Automatic hypothesis execution is not yet supported")
+            .contains("Ordinary dispatch does not execute hypotheses")
     );
     let first = research_record(&settings, revision, "interrupted", json!([12.0, 14.0]));
     let mut unstarted = first.clone();
@@ -15267,6 +15357,201 @@ fn research_run_action(root: &Path, identity: &str, action: &str, extra: &[&str]
 }
 
 #[test]
+fn serial_research_keeps_discards_fails_and_generates_from_durable_lessons() {
+    let repository = local_experiment_fixture(
+        "case \"$(cat seed.txt)\" in keep) printf 8;; discard) printf 14;; fail) exit 1;; *) printf 11;; esac",
+    );
+    let root = repository.path();
+    let started = start_research_run(root, &["--time-limit-seconds", "3600"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    let mut commits = Vec::new();
+
+    for (task, candidate, decision, lesson) in [
+        (
+            "work-001",
+            "keep",
+            "keep",
+            "The smaller representation reduces evaluation cost.",
+        ),
+        (
+            "work-002",
+            "discard",
+            "discard",
+            "The extra cache loses against the accepted representation.",
+        ),
+        (
+            "work-003",
+            "fail",
+            "failed-to-run",
+            "The alternate representation crashes the evaluator.",
+        ),
+    ] {
+        let admitted = json_output(root, &["work-context", "work", "--task", task, "--store"]);
+        assert_eq!(admitted["task_id"], task);
+        json_output(
+            root,
+            &[
+                "research",
+                "experiment",
+                "work",
+                task,
+                "begin",
+                "--path",
+                "seed.txt",
+            ],
+        );
+        fs::write(root.join("seed.txt"), format!("{candidate}\n")).unwrap();
+        let mut measured = Value::Null;
+        for _ in 0..if decision == "failed-to-run" { 2 } else { 1 } {
+            measured = json_output(root, &["research", "experiment", "work", task, "evaluate"]);
+        }
+        let mut arguments = vec![
+            "research",
+            "experiment",
+            "work",
+            task,
+            "finalize",
+            "--decision",
+            decision,
+            "--lesson",
+            lesson,
+        ];
+        let verification = if decision == "keep" {
+            research_run_action(
+                root,
+                identity,
+                "reserve",
+                &[
+                    "--request",
+                    "verify-keep",
+                    "--task",
+                    task,
+                    "--kind",
+                    "confirmation",
+                ],
+            );
+            let verification = local_verifier(
+                root,
+                measured["checkpoint"]["verification_snapshot"]
+                    .as_str()
+                    .unwrap(),
+            );
+            research_run_action(root, identity, "settle", &["--request", "verify-keep"]);
+            assert_eq!(measured["assessment"]["improved"], true);
+            Some(verification)
+        } else {
+            assert_eq!(measured["assessment"]["improved"], false);
+            None
+        };
+        if let Some(verification) = &verification {
+            arguments.extend(["--verification", verification.to_str().unwrap()]);
+        }
+        let finalized = json_output(root, &arguments);
+        let commit = finalized["checkpoint"]["commit"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(git(root, &["rev-parse", "HEAD"]), commit);
+        assert!(!commits.contains(&commit));
+        commits.push(commit.clone());
+        assert_eq!(fs::read_to_string(root.join("seed.txt")).unwrap(), "keep\n");
+        assert_eq!(
+            json_output(root, &["task", "show", "work", task])["status"],
+            "done"
+        );
+        // Each helper launches a fresh CLI process; recovery reuses the authorized completion.
+        json_output(root, &["research", "experiment", "work", task, "recover"]);
+        assert_eq!(git(root, &["rev-parse", "HEAD"]), commit);
+        let context = json_output(root, &["research", "run", "work", "context"]);
+        assert!(
+            context["next_action"]
+                .as_str()
+                .unwrap()
+                .contains("generate and admit")
+        );
+        assert_eq!(
+            context["tasks"]["tasks"]
+                .as_array()
+                .unwrap()
+                .last()
+                .unwrap()["research_results"]
+                .as_array()
+                .unwrap()
+                .last()
+                .unwrap()["lesson"],
+            lesson
+        );
+        assert_eq!(json_output(root, &["goal", "work"])["lifecycle"], "open");
+
+        let mut next = hypothesis_draft(if task == "work-001" {
+            "discard"
+        } else if task == "work-002" {
+            "fail"
+        } else {
+            "next"
+        });
+        next["hypothesis"]["context_tasks"] = json!([task]);
+        let tasks = if task == "work-003" {
+            next["blocked_by"] = json!(["support"]);
+            json!([{"key":"support", "title":"Repair evaluator diagnostics", "outcome":"Explain candidate evaluation failures.", "done_when":["Diagnostics identify the failure."]}, next])
+        } else {
+            json!([next])
+        };
+        let bundle =
+            serde_json::to_vec(&json!({"schema_version":1, "area":"work", "tasks":tasks})).unwrap();
+        let request = format!("after-{task}");
+        let admission_args = [
+            "research",
+            "run",
+            "work",
+            "admit",
+            "--run",
+            identity,
+            "--request",
+            &request,
+            "--from",
+            "-",
+        ];
+        let admission = json_output_with_stdin(root, &admission_args, &bundle);
+        let retry = json_output_with_stdin(root, &admission_args, &bundle);
+        assert_eq!(
+            admission["run"]["admissions"][&request]["tasks"],
+            retry["run"]["admissions"][&request]["tasks"]
+        );
+        let task_paths = json_output(root, &["tasks", "list", "work"])["tasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|task| task["status"] == "open")
+            .map(|task| task["path"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        let mut add_args = vec!["add", ".zdev/work/TASKS.md"];
+        add_args.extend(task_paths.iter().map(String::as_str));
+        git(root, &add_args);
+        json_output(
+            root,
+            &["commit", "-m", "Record the next scoped research proposal"],
+        );
+    }
+    let before_stop = json_output(root, &["research", "run", "work", "context"]);
+    research_run_action(root, identity, "stop", &[]);
+    let resumed = research_run_action(root, identity, "resume", &[]);
+    assert_eq!(resumed["run"]["id"], started["run"]["id"]);
+    assert_eq!(resumed["run"]["deadline"], started["run"]["deadline"]);
+    assert_eq!(resumed["consumed"], before_stop["consumed"]);
+    assert_eq!(resumed["consumed"]["work_attempts"], 8);
+    assert_eq!(resumed["tasks"]["tasks"].as_array().unwrap().len(), 5);
+    assert_eq!(
+        resumed["tasks"]["tasks"][4]["blocked_by"],
+        json!(["work-004"])
+    );
+    assert_eq!(
+        resumed["tasks"]["tasks"][4]["hypothesis"]["context_tasks"],
+        json!(["work-003"])
+    );
+}
+
+#[test]
 fn research_run_admits_mixed_work_recovers_publication_and_refills_an_exhausted_queue() {
     let repository = local_experiment_fixture("printf 14");
     let root = repository.path();
@@ -15840,6 +16125,40 @@ fn research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failur
     );
     assert_eq!(supporting["stop_reason"], "blocker");
     assert_eq!(supporting["consumed"]["work_attempts"], 2);
+    research_run_action(root, identity, "settle", &["--request", "host-repair"]);
+    let repeated = research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "host-repair",
+            "--task",
+            "work-002",
+            "--kind",
+            "supporting",
+        ],
+    );
+    assert_eq!(repeated["consumed"]["work_attempts"], 2);
+    assert_eq!(
+        repeated["run"]["reservations"]["host-repair"]["settled"],
+        true
+    );
+    let rework = research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "host-repair-rework",
+            "--task",
+            "work-002",
+            "--kind",
+            "supporting",
+        ],
+    );
+    assert_eq!(rework["stop_reason"], "blocker");
+    assert_eq!(rework["consumed"]["work_attempts"], 3);
     json_output(
         root,
         &[
@@ -15853,7 +16172,12 @@ fn research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failur
             "Availability checked.",
         ],
     );
-    research_run_action(root, identity, "settle", &["--request", "host-repair"]);
+    research_run_action(
+        root,
+        identity,
+        "settle",
+        &["--request", "host-repair-rework"],
+    );
     research_run_action(root, identity, "resolve", &[]);
     assert!(
         !run_zdev(

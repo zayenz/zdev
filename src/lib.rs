@@ -1552,7 +1552,7 @@ fn dispatch_spec(
     }
     if shown.pointer("/goal/task/hypothesis").is_some() {
         return Err(ZdevError::new(
-            "Automatic hypothesis execution is not yet supported. Use the research record contract in the task-format reference; ordinary supporting tasks retain their implementation workflow",
+            "Ordinary dispatch does not execute hypotheses. In Codex, an explicitly authorized research run uses the installed research reference; other harnesses can use the local experiment contract in the task-format reference. Ordinary supporting tasks retain their implementation workflow",
         ));
     }
     let admission = compare_work_context(root, area, snapshot)?.value;

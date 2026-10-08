@@ -4,6 +4,7 @@ mod config;
 mod goal;
 mod integrations;
 mod project;
+mod research;
 mod tasks;
 
 use std::collections::BTreeMap;
@@ -430,6 +431,13 @@ enum CleanupCommand {
 
 #[derive(Debug, Subcommand)]
 enum AreaCommand {
+    /// Inspect research settings, or store validated JSON settings without executing an evaluator
+    Research {
+        area: String,
+        /// JSON settings file, or - for standard input
+        #[arg(long = "from", value_name = "PATH_OR_DASH")]
+        source: Option<PathBuf>,
+    },
     /// Create an area for one objective on an isolated branch or project trunk
     ///
     /// Writes area.toml, brief.md, TASKS.md, and an empty tasks directory under
@@ -667,6 +675,14 @@ enum DerivedTasksCommand {
 
 #[derive(Debug, Subcommand)]
 enum TaskCommand {
+    /// Append validated hypothesis evidence, or inspect its declaration and result history
+    Research {
+        area: String,
+        task: String,
+        /// JSON result file, or - for standard input
+        #[arg(long = "from", value_name = "PATH_OR_DASH")]
+        source: Option<PathBuf>,
+    },
     /// Print one task's complete Markdown file
     Show {
         /// Area tag that owns the task
@@ -995,6 +1011,9 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             } => project::configure_trunk(&root, branch.as_deref(), *allow_divergent),
         },
         Command::Area { command } => match command {
+            AreaCommand::Research { area, source } => {
+                project::configure_research(&root, area, source.as_deref())
+            }
             AreaCommand::Create {
                 tag,
                 title,
@@ -1098,6 +1117,9 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             TasksCommand::Index { area } => tasks::index(&root, area),
         },
         Command::Task { command } => match command {
+            TaskCommand::Research { area, task, source } => {
+                tasks::research_result(&root, area, task, source.as_deref())
+            }
             TaskCommand::Show { area, task } => tasks::show(&root, area, task),
             TaskCommand::Done {
                 area,
@@ -1472,6 +1494,11 @@ fn dispatch_spec(
         return Err(ZdevError::new(format!(
             "Stored work context {snapshot} does not admit ready safe task {task}"
         )));
+    }
+    if shown.pointer("/goal/task/hypothesis").is_some() {
+        return Err(ZdevError::new(
+            "Automatic hypothesis execution is not yet supported. Use the research record contract in the task-format reference; ordinary supporting tasks retain their implementation workflow",
+        ));
     }
     let admission = compare_work_context(root, area, snapshot)?.value;
     if admission["equal"].as_bool() != Some(true) {
@@ -2078,6 +2105,12 @@ fn status_output_selected(
             "{}\nLifecycle: {lifecycle}\nQueue: {queue}\nCounts: {} total; {} ready; {} blocked; {} done",
             metadata.title, tasks.total, tasks.ready, tasks.blocked, tasks.done,
         );
+        if let Some(settings) = &metadata.research {
+            text.push_str(&format!(
+                "\nResearch metric: {}",
+                settings.comparison.metric
+            ));
+        }
         if let (Some(next), Some(complexity)) = (&tasks.next, tasks.next_complexity) {
             text.push_str(&format!(
                 "\nNext: {next} (complexity: {})",

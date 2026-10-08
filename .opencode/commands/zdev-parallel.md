@@ -7,7 +7,7 @@ Load `references/parallel.md` from the installed `zdev-opencode` skill. Parse
 but do not perform admission that creates branches or worktrees.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
+"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
 absolute path in every worker payload.
 
 Before any worktree or source mutation, inspect the Task tool description

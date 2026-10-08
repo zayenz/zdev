@@ -6,6 +6,11 @@ Use this method for each task returned by `zdev next`. Use `zdev next --any`
 only when the user explicitly asks for any ready or unblocked task across
 areas; do not infer project-wide selection from an omitted area.
 
+If the selected task has `hypothesis`, stop before ordinary worker dispatch.
+Automatic experiment execution is not yet supported. Use the research record
+contract in the installed task-format reference for authorized settings and
+evidence operations. Ordinary supporting tasks in the same area keep this route.
+
 ## Do
 
 1. Run `zdev work-context <area> --store --format json`, validate the compact

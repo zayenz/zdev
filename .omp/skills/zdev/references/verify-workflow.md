@@ -5,6 +5,11 @@ ready task. The coordinating session owns preflight and envelope validation;
 one fresh configured verifier owns the initial independent review. Substantive
 findings then receive the bounded independent check in the task workflow.
 
+If the explicit task has `hypothesis`, return `BLOCKER zdev-verify` before
+starting a verifier: automatic experiment execution is not yet supported.
+The installed task-format reference defines research evidence, including the
+independent review attestation required for an accepted result.
+
 ## Preflight and handoff
 
 Parse exactly one area and task ID. Run

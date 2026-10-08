@@ -4,6 +4,23 @@ Zdev keeps development work in small Markdown tasks and leaves agent execution
 to your coding harness. This guide takes one repository from installation to a
 completed zdev task.
 
+Research areas can mix ordinary tasks and hypothesis tasks. Configure an open
+area with `zdev area research <area> --from <settings.json>`, then review/import
+hypotheses through the normal task-bundle workflow. Append measured evidence
+with `zdev task research <area> <task> --from <result.json>`; omit `--from` to
+inspect settings or task evidence. The
+[research record contract](../skills/zdev/references/task-format.md#research-settings-and-hypothesis-evidence)
+contains complete JSON formats and examples.
+
+Hypotheses keep the normal `open`/`done` status. Interrupted evidence leaves a
+hypothesis open. Accepted, rejected, inconclusive, and failed-to-run evidence
+have distinct completion rules. A valid rejected experiment can complete
+without improving the metric. Completion does not accept candidate code or
+close the area. These commands validate supplied evidence without launching
+evaluators, retaining/restoring code, or proving recorded Git attestations.
+Automatic experiment execution is not yet supported; ordinary supporting tasks
+in research areas retain their existing implementation workflow.
+
 ## 1. Install zdev
 
 Versioned binaries are available from the

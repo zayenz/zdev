@@ -26,12 +26,21 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](skill://zdev/references/area-loop.md) |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](skill://zdev/references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
+| **Research records** — configure research settings or record/inspect hypothesis evidence | [references/task-format.md](skill://zdev/references/task-format.md#research-settings-and-hypothesis-evidence) |
 | **Set up zdev** — initialize durable state or install/check a harness integration | [references/setup.md](skill://zdev/references/setup.md) |
 
 Use `zdev next --any --format json` only when the user explicitly asks for any
 ready or unblocked task across areas. A generic request to continue, select the
 next task, or work without naming an area keeps the ordinary area-specific
 selection rules.
+
+An area with research settings can mix ordinary tasks and hypotheses. Inspect
+the selected task's `hypothesis` field before ordinary planning, implementation,
+verification, loop, or parallel dispatch. Automatic experiment execution is
+not yet supported; stop before workers and explain the research record contract.
+`area research` and `task research` validate supplied settings and evidence;
+they do not execute evaluators or establish recorded Git operations. Ordinary
+supporting tasks keep their existing routes.
 
 Load the references named by the selected row and read each completely once.
 Read the applicable coding guidance sections when the route involves code. Do
@@ -343,7 +352,7 @@ It may use the packaged prompts internally for a complete task cycle,
 verification, audit, or native area continuation. “Goal” and “loop” select the
 same continuation route.
 The exact installed task-workflows contract path for this installation is
-"/Users/zayenz/projects/zdev/.omp/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
+"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.omp/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.
 
 Route authored routine, standard/default, and advanced work to

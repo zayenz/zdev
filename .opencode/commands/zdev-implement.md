@@ -6,6 +6,16 @@ The coordinating session owns task selection, branch safety, Git ownership,
 lifecycle changes, staging, commits, and delegation. Workers stay within the
 selected task and return one role-specific result.
 
+Before ordinary planning, implementation, verification, loop, or parallel
+dispatch, inspect the selected task for `hypothesis`. If present, stop before
+starting workers and report that automatic experiment execution is not yet
+supported. Read the research settings/result contract in the installed
+task-format reference for authorized record operations. Check every task in a
+parallel batch, including resumed assignments. Ordinary supporting tasks in a
+research area keep this workflow. Hypothesis completion requires validated
+terminal evidence; interrupted evidence stays open and a rejected result can
+complete without improving the metric. Never treat completion as retained code.
+
 An isolated area uses its stored branch and managed base relationship. An
 explicit trunk area dynamically uses configured `project.trunk`, may share it
 with other explicit trunk areas, and never needs a rebase or freshness step.
@@ -433,7 +443,7 @@ independent verification, or an invalid worker envelope returns `BLOCKER zdev-ve
 without mutation.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
+"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
 path in every subagent payload.
 
 Use `$ARGUMENTS` as the area. The primary agent is the coordinator. After

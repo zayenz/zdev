@@ -11,6 +11,8 @@ struct GoalArea {
     title: String,
     objective: String,
     path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    research: Option<super::research::Settings>,
 }
 
 #[derive(Serialize)]
@@ -48,6 +50,10 @@ struct GoalTask {
     blocked_by: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     slice: Option<GoalSlice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hypothesis: Option<super::research::Hypothesis>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    research_results: Vec<super::research::ResultRecord>,
 }
 
 #[derive(Serialize)]
@@ -95,6 +101,12 @@ pub(super) fn show_selected(
         counts.blocked,
         counts.done,
     );
+    if let Some(settings) = &metadata.research {
+        text.push_str(&format!(
+            "\nResearch settings:\n{}",
+            to_string_pretty(settings).unwrap()
+        ));
+    }
     let (task, native_goal) = if metadata.lifecycle == project::AreaLifecycle::Open
         && let Some(task) = read.focus
     {
@@ -118,6 +130,14 @@ pub(super) fn show_selected(
             task.complexity.as_str(),
             task.outcome
         ));
+        if let Some(hypothesis) = &task.hypothesis {
+            text.push_str(&format!(
+                "\nKind: hypothesis\nMechanism: {}\nContext tasks: {}\nResearch results:\n{}",
+                hypothesis.mechanism,
+                hypothesis.context_tasks.join(", "),
+                to_string_pretty(&task.research_results).unwrap()
+            ));
+        }
         if let Some(context) = &task.context {
             text.push_str(&format!("\n\nContext:\n{context}"));
         }
@@ -139,10 +159,17 @@ pub(super) fn show_selected(
             Some(slice) => format!("{area_record}, {}, and {task_path}", slice.path),
             None => format!("{area_record} and {task_path}"),
         };
-        let native_goal = format!(
-            "Complete zdev task {} in area {area}. Treat {authoritative} as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.",
-            task.id
-        );
+        let native_goal = if task.hypothesis.is_some() {
+            format!(
+                "Inspect hypothesis task {} in area {area}. Treat {authoritative} as authoritative and read the research record contract in the installed task-format reference. Automatic experiment execution is not yet supported. Supplied terminal evidence governs completion; completion does not itself accept code or close the area.",
+                task.id
+            )
+        } else {
+            format!(
+                "Complete zdev task {} in area {area}. Treat {authoritative} as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.",
+                task.id
+            )
+        };
         text.push_str(&format!("\n\nNative goal:\n{native_goal}"));
         (
             Some(GoalTask {
@@ -158,6 +185,8 @@ pub(super) fn show_selected(
                 validation: task.validation,
                 blocked_by: task.blocked_by,
                 slice,
+                hypothesis: task.hypothesis,
+                research_results: task.research_results,
             }),
             Some(native_goal),
         )
@@ -178,6 +207,7 @@ pub(super) fn show_selected(
             title: metadata.title,
             objective: metadata.objective,
             path: relative(root, &area_path),
+            research: metadata.research,
         },
         lifecycle,
         queue,

@@ -3,16 +3,16 @@
 # Tasks: auto
 
 - Total: 10
-- Ready: 1
-- Blocked: 9
-- Done: 0
+- Ready: 2
+- Blocked: 7
+- Done: 1
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
-| [auto-001](tasks/001-declare-research-areas-and-record-hypothesis-evidence.md) | Declare research areas and record hypothesis evidence | ready | — |
-| [auto-002](tasks/002-provide-repeatable-measurements-and-small-statistical-helper.md) | Provide repeatable measurements and small statistical helpers | blocked | auto-001 |
+| [auto-001](tasks/001-declare-research-areas-and-record-hypothesis-evidence.md) | Declare research areas and record hypothesis evidence | done | — |
+| [auto-002](tasks/002-provide-repeatable-measurements-and-small-statistical-helper.md) | Provide repeatable measurements and small statistical helpers | ready | auto-001 |
 | [auto-003](tasks/003-complete-one-local-hypothesis-safely.md) | Complete one local hypothesis safely | blocked | auto-001, auto-002 |
-| [auto-004](tasks/004-authorize-generated-work-and-account-for-research-run-limits.md) | Authorize generated work and account for research run limits | blocked | auto-001 |
+| [auto-004](tasks/004-authorize-generated-work-and-account-for-research-run-limits.md) | Authorize generated work and account for research run limits | ready | auto-001 |
 | [auto-005](tasks/005-run-serial-research-through-codex.md) | Run serial research through Codex | blocked | auto-003, auto-004 |
 | [auto-006](tasks/006-run-serial-research-through-claude-code.md) | Run serial research through Claude Code | blocked | auto-003, auto-004 |
 | [auto-007](tasks/007-support-isolated-candidate-admission-and-current-baseline-re.md) | Support isolated candidate admission and current-baseline reconciliation | blocked | auto-003, auto-004 |

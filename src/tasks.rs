@@ -13,6 +13,7 @@ use super::project::{
     load_area, read_config, require_checked_out_area_branch, require_task_work_area_link,
     slice_briefs,
 };
+use super::research::{Hypothesis, ResultRecord, validate_evidence};
 use super::{
     CHANGE_ID_TRAILER, CommandOutput, SCHEMA_VERSION, ZdevError, ZdevStateLock, generate_change_id,
     git_operation, git_output, relative, validate_brief, validate_nonempty_line, validate_segment,
@@ -103,6 +104,10 @@ struct TaskHeader {
     slice: Option<String>,
     #[serde(default)]
     blocked_by: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    hypothesis: Option<Hypothesis>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    research_results: Vec<ResultRecord>,
 }
 
 #[derive(Clone, Debug)]
@@ -192,6 +197,8 @@ struct TaskDraft {
     done_when: Vec<String>,
     #[serde(default)]
     validation: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    hypothesis: Option<Hypothesis>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -259,6 +266,10 @@ struct TaskView<'a> {
     slice: Option<&'a str>,
     slice_brief: Option<String>,
     path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hypothesis: Option<&'a Hypothesis>,
+    #[serde(skip_serializing_if = "<[ResultRecord]>::is_empty")]
+    research_results: &'a [ResultRecord],
 }
 
 fn read_task_bundle(source: &Path) -> Result<TaskBundle, ZdevError> {
@@ -286,12 +297,41 @@ fn validate_task_bundle(root: &Path, bundle: &TaskBundle, area: &str) -> Result<
         return Err(ZdevError::new("Task bundle contains no tasks"));
     }
     let slices = slice_briefs(root, area)?;
+    let research = load_area(root, area)?.0.research;
+    let existing = if bundle.tasks.iter().any(|task| task.hypothesis.is_some())
+        && root.join(".zdev").join(area).join("tasks").is_dir()
+    {
+        load_tasks(root, area)?
+    } else {
+        Vec::new()
+    };
+    let context_ids = existing
+        .iter()
+        .map(|task| task.header.id.as_str())
+        .chain(bundle.tasks.iter().map(|task| task.key.as_str()))
+        .collect::<BTreeSet<_>>();
     let slice_keys = slices
         .iter()
         .map(|slice| slice.key.as_str())
         .collect::<BTreeSet<_>>();
     let mut seen_keys = BTreeSet::new();
     for task in &bundle.tasks {
+        if let Some(hypothesis) = &task.hypothesis {
+            if research.is_none() {
+                return Err(ZdevError::new(
+                    "Hypothesis tasks require research settings on their area",
+                ));
+            }
+            hypothesis.validate()?;
+            for context in &hypothesis.context_tasks {
+                if context == &task.key || !context_ids.contains(context.as_str()) {
+                    return Err(ZdevError::new(format!(
+                        "Hypothesis {} has unknown or self context task {context}",
+                        task.key
+                    )));
+                }
+            }
+        }
         validate_segment(&task.key, "Task key")?;
         validate_nonempty_line(&task.title, "Task title")?;
         validate_nonempty_line(&task.outcome, "Task outcome")?;
@@ -404,6 +444,13 @@ fn render_task_bundle_approval_with_selection_fields(
         ));
         if let Some(complexity) = task.complexity {
             document.push_str(&format!("\n\n### Complexity\n{}", complexity.as_str()));
+        }
+        if let Some(hypothesis) = &task.hypothesis {
+            document.push_str(&format!(
+                "\n\n### Hypothesis\n{}\n\n### Context tasks (not dependencies)\n{}",
+                hypothesis.mechanism,
+                approval_list(&hypothesis.context_tasks)
+            ));
         }
         if include_selection_fields {
             document.push_str(&format!(
@@ -966,6 +1013,11 @@ fn derived_mechanical_ineligibility(
     if let Err(error) = require_task_work_area_link(root, &proposal.area) {
         return Ok(Some(error.to_string()));
     }
+    if proposal.proposal == DerivedProposalKind::InvestigationFollowUp
+        && let Err(error) = require_hypothesis_completion(root, &proposal.area, source)
+    {
+        return Ok(Some(error.to_string()));
+    }
     if let Some(ownership) = &proposal.split_ownership {
         let staged = git_nul_paths(root, &["diff", "--cached", "--name-only", "-z"])?;
         if !staged.is_empty() {
@@ -1401,6 +1453,8 @@ pub(super) fn apply_derived(
                 DerivedProposalKind::ImplementationSplit => source_task.header.slice.clone(),
             },
             blocked_by: blockers,
+            hypothesis: resolve_hypothesis(draft.hypothesis.as_ref(), &allocated),
+            research_results: Vec::new(),
         };
         let path = area_dir.join("tasks").join(format!(
             "{number:03}-{}.md",
@@ -1425,6 +1479,7 @@ pub(super) fn apply_derived(
     let mut source_header = source_task.header.clone();
     let source_body = match proposal.proposal {
         DerivedProposalKind::InvestigationFollowUp => {
+            require_hypothesis_completion(root, area, source_task)?;
             source_header.status = TaskStatus::Done;
             let mut body = replace_markdown_section(
                 &source_task.body,
@@ -1753,6 +1808,8 @@ pub(super) fn import(
             priority: draft.priority,
             slice: draft.slice.clone(),
             blocked_by: blockers,
+            hypothesis: resolve_hypothesis(draft.hypothesis.as_ref(), &allocated),
+            research_results: Vec::new(),
         };
         let path = area_dir.join("tasks").join(format!(
             "{next:03}-{}.md",
@@ -2247,7 +2304,7 @@ fn render_draft(header: &TaskHeader, draft: &TaskDraft) -> Result<String, ZdevEr
 }
 
 fn load_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
-    let (_, area_dir) = load_area(root, area)?;
+    let (metadata, area_dir) = load_area(root, area)?;
     let tasks_dir = area_dir.join("tasks");
     if !tasks_dir.is_dir() {
         return Err(ZdevError::new(format!(
@@ -2271,6 +2328,7 @@ fn load_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
     validate_task_slices(root, area, &tasks)?;
     tasks.sort_by(compare_tasks_by_id);
     validate_graph(&tasks)?;
+    validate_research_tasks(&tasks, metadata.research.is_some())?;
     Ok(tasks)
 }
 
@@ -2304,11 +2362,65 @@ fn parse_task(content: &str, path: &Path, area: &str) -> Result<Task, ZdevError>
         .ok_or_else(|| ZdevError::new(format!("Task lacks a title: {}", path.display())))?
         .to_owned();
     validate_task_body(body, header.status, path)?;
+    if let Some(hypothesis) = &header.hypothesis {
+        hypothesis.validate()?;
+        validate_evidence(
+            &header.research_results,
+            header.status == TaskStatus::Done,
+            None,
+        )?;
+    } else if !header.research_results.is_empty() {
+        return Err(ZdevError::new(
+            "Ordinary tasks cannot contain research results",
+        ));
+    }
     Ok(Task {
         header,
         title,
         body: body.to_owned(),
         path: path.to_path_buf(),
+    })
+}
+
+fn validate_research_tasks(tasks: &[Task], enabled: bool) -> Result<(), ZdevError> {
+    for task in tasks {
+        if let Some(hypothesis) = &task.header.hypothesis {
+            if !enabled {
+                return Err(ZdevError::new(
+                    "Hypothesis tasks require research settings on their area",
+                ));
+            }
+            for context in &hypothesis.context_tasks {
+                if context == &task.header.id
+                    || !tasks.iter().any(|task| &task.header.id == context)
+                {
+                    return Err(ZdevError::new(format!(
+                        "Hypothesis {} has unknown or self context task {context}",
+                        task.header.id
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn resolve_hypothesis(
+    hypothesis: Option<&Hypothesis>,
+    allocated: &BTreeMap<&str, String>,
+) -> Option<Hypothesis> {
+    hypothesis.map(|hypothesis| Hypothesis {
+        mechanism: hypothesis.mechanism.clone(),
+        context_tasks: hypothesis
+            .context_tasks
+            .iter()
+            .map(|context| {
+                allocated
+                    .get(context.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| context.clone())
+            })
+            .collect(),
     })
 }
 
@@ -2560,6 +2672,8 @@ fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
             slice: task.header.slice.as_deref(),
             slice_brief: task_slice_brief_path(root, task),
             path: relative(root, &task.path),
+            hypothesis: task.header.hypothesis.as_ref(),
+            research_results: &task.header.research_results,
         })
         .collect()
 }
@@ -2586,7 +2700,11 @@ pub(super) fn list(root: &Path, area: Option<&str>) -> Result<CommandOutput, Zde
                     task.state,
                     task.title,
                     task.complexity.as_str()
-                )
+                ) + if task.hypothesis.is_some() {
+                    "  hypothesis"
+                } else {
+                    ""
+                }
             })
             .collect::<Vec<_>>()
             .join("\n")
@@ -2763,6 +2881,8 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, task),
         path: relative(root, &task.path),
+        hypothesis: task.header.hypothesis.as_ref(),
+        research_results: &task.header.research_results,
     };
     let mut text = format!(
         "Area: {area}\nLifecycle: open\nQueue: ready\n\n{}  {}\nComplexity: {}\n{}",
@@ -2771,6 +2891,9 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         task.complexity().as_str(),
         task.path.display()
     );
+    if task.header.hypothesis.is_some() {
+        text.push_str("\nKind: hypothesis (research record contract; automatic execution is not yet supported)");
+    }
     if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
         text.push_str(&format!("\nSlice: {slice}\nSlice brief: {path}"));
     }
@@ -2914,6 +3037,8 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, &task),
         path: relative(root, &task.path),
+        hypothesis: task.header.hypothesis.as_ref(),
+        research_results: &task.header.research_results,
     };
     let mut text = format!(
         "Selection: ready\n\n{}  {}\nComplexity: {}\nArea: {}\nRequired branch: {}{}\nTask: {}",
@@ -2925,6 +3050,9 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         branch_note,
         view.path
     );
+    if task.header.hypothesis.is_some() {
+        text.push_str("\nKind: hypothesis (research record contract; automatic execution is not yet supported)");
+    }
     if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
         text.push_str(&format!("\nSlice: {slice}\nSlice brief: {path}"));
     }
@@ -2996,25 +3124,27 @@ pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, Z
         ),
         _ => format!("Complexity: {}\n\n{content}", task.complexity().as_str()),
     };
-    Ok(CommandOutput::new(
-        text,
-        json!({
-            "schema_version": SCHEMA_VERSION,
-            "area": area,
-            "id": task.header.id,
-            "title": task.title,
-            "status": task.header.status.as_str(),
-            "state": task_state(task, &tasks),
-            "complexity": task.complexity(),
-            "afk": task.header.afk,
-            "priority": task.priority(),
-            "blocked_by": task.header.blocked_by,
-            "slice": task.header.slice,
-            "slice_brief": slice_brief,
-            "path": relative(root, &task.path),
-            "body": task.body,
-        }),
-    ))
+    let mut value = json!({
+        "schema_version": SCHEMA_VERSION,
+        "area": area,
+        "id": task.header.id,
+        "title": task.title,
+        "status": task.header.status.as_str(),
+        "state": task_state(task, &tasks),
+        "complexity": task.complexity(),
+        "afk": task.header.afk,
+        "priority": task.priority(),
+        "blocked_by": task.header.blocked_by,
+        "slice": task.header.slice,
+        "slice_brief": slice_brief,
+        "path": relative(root, &task.path),
+        "body": task.body,
+    });
+    if let Some(hypothesis) = &task.header.hypothesis {
+        value["hypothesis"] = json!(hypothesis);
+        value["research_results"] = json!(task.header.research_results);
+    }
+    Ok(CommandOutput::new(text, value))
 }
 
 fn task_slice_brief_path(root: &Path, task: &Task) -> Option<String> {
@@ -3035,6 +3165,72 @@ fn find_task<'a>(tasks: &'a [Task], id: &str) -> Result<&'a Task, ZdevError> {
         .iter()
         .find(|task| task.header.id == id)
         .ok_or_else(|| ZdevError::new(format!("Unknown task: {id}")))
+}
+
+fn require_hypothesis_completion(root: &Path, area: &str, task: &Task) -> Result<(), ZdevError> {
+    if task.header.hypothesis.is_some() {
+        let settings = load_area(root, area)?
+            .0
+            .research
+            .ok_or_else(|| ZdevError::new("Hypothesis completion requires research settings"))?;
+        validate_evidence(&task.header.research_results, true, Some(&settings))?;
+    }
+    Ok(())
+}
+
+pub(super) fn research_result(
+    root: &Path,
+    area: &str,
+    id: &str,
+    source: Option<&Path>,
+) -> Result<CommandOutput, ZdevError> {
+    if let Some(source) = source {
+        let result: ResultRecord = super::research::read_json(source)?;
+        let _lock = ZdevStateLock::acquire(root)?;
+        require_task_work_area_link(root, area)?;
+        let metadata = load_area(root, area)?.0;
+        if metadata.lifecycle != AreaLifecycle::Open {
+            return Err(ZdevError::new("Cannot record research in a closed area"));
+        }
+        let settings = metadata
+            .research
+            .ok_or_else(|| ZdevError::new("Area has no research settings"))?;
+        let tasks = load_tasks(root, area)?;
+        let task = find_task(&tasks, id)?;
+        if task.header.hypothesis.is_none() || task_state(task, &tasks) != "ready" {
+            return Err(ZdevError::new(
+                "Research results require a ready open hypothesis task",
+            ));
+        }
+        if result.comparison != settings.comparison
+            || result.attempt_limit != settings.attempt_limit
+        {
+            return Err(ZdevError::new(
+                "Research result differs from current research settings",
+            ));
+        }
+        let mut header = task.header.clone();
+        header.research_results.push(result);
+        validate_evidence(&header.research_results, false, None)?;
+        let content = format!(
+            "+++\n{}+++\n{}",
+            toml::to_string(&header).unwrap(),
+            task.body
+        );
+        publish_task_and_index(root, area, task, &content)?;
+    }
+    let tasks = load_tasks(root, area)?;
+    let task = find_task(&tasks, id)?;
+    let hypothesis = task
+        .header
+        .hypothesis
+        .as_ref()
+        .ok_or_else(|| ZdevError::new("Task is not a hypothesis"))?;
+    let value = json!({"schema_version": SCHEMA_VERSION, "area": area, "task_id": id, "hypothesis": hypothesis, "research_results": task.header.research_results});
+    Ok(CommandOutput::new(
+        serde_json::to_string_pretty(&value).unwrap(),
+        value,
+    ))
 }
 
 pub(super) fn complete(
@@ -3063,6 +3259,7 @@ pub(super) fn complete(
             "Cannot complete task {id}: it is blocked. Complete its blockers first"
         )));
     }
+    require_hypothesis_completion(root, area, task)?;
     let mut header = task.header.clone();
     header.status = TaskStatus::Done;
     let mut body = replace_markdown_section(&task.body, "Done when", &task.path, |section| {
@@ -3105,6 +3302,11 @@ pub(super) fn reopen(root: &Path, area: &str, id: &str) -> Result<CommandOutput,
         return Ok(CommandOutput::new(
             format!("Task {id} is already open"),
             json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "area": area, "task": id}),
+        ));
+    }
+    if task.header.hypothesis.is_some() {
+        return Err(ZdevError::new(
+            "A completed hypothesis cannot be reopened; create a new context-linked retry",
         ));
     }
     if tasks.iter().any(|candidate| {
@@ -3160,11 +3362,15 @@ fn publish_task_and_index(
         .map_err(|error| ZdevError::io(format!("Cannot read {}", index_path.display()), error))?;
     let mut tasks = load_tasks(root, area)?;
     let updated = parse_task(content, &current.path, area)?;
+    if updated.header.status == TaskStatus::Done {
+        require_hypothesis_completion(root, area, &updated)?;
+    }
     let slot = tasks
         .iter_mut()
         .find(|task| task.header.id == current.header.id)
         .ok_or_else(|| ZdevError::new(format!("Unknown task: {}", current.header.id)))?;
     *slot = updated;
+    validate_research_tasks(&tasks, load_area(root, area)?.0.research.is_some())?;
     let index = render_index(area, &tasks)?;
 
     write_atomic(&current.path, content.as_bytes())?;
@@ -3216,19 +3422,24 @@ fn render_index(area: &str, tasks: &[Task]) -> Result<String, ZdevError> {
             .file_name()
             .and_then(OsStr::to_str)
             .unwrap_or("task.md");
+        let title = if task.header.hypothesis.is_some() {
+            format!("{} (hypothesis)", task.title)
+        } else {
+            task.title.clone()
+        };
         if has_slices {
             let slice = task.header.slice.as_deref().unwrap_or("—");
             result.push_str(&format!(
                 "| [{}](tasks/{filename}) | {} | {slice} | {} | {blockers} |\n",
                 task.header.id,
-                table_text(&task.title),
+                table_text(&title),
                 task_state(task, tasks),
             ));
         } else {
             result.push_str(&format!(
                 "| [{}](tasks/{filename}) | {} | {} | {blockers} |\n",
                 task.header.id,
-                table_text(&task.title),
+                table_text(&title),
                 task_state(task, tasks),
             ));
         }
@@ -3253,6 +3464,8 @@ pub(super) struct GoalTaskRead {
     pub validation: String,
     pub blocked_by: Vec<String>,
     pub slice: Option<String>,
+    pub hypothesis: Option<Hypothesis>,
+    pub research_results: Vec<ResultRecord>,
 }
 
 pub(super) struct GoalTasksRead {
@@ -3311,6 +3524,8 @@ pub(super) fn goal_tasks(
                     .to_owned(),
                 blocked_by: task.header.blocked_by.clone(),
                 slice: task.header.slice.clone(),
+                hypothesis: task.header.hypothesis.clone(),
+                research_results: task.header.research_results.clone(),
             })
         })
         .transpose()?;

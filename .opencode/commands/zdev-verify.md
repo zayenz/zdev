@@ -9,6 +9,11 @@ ready task. The coordinating session owns preflight and envelope validation;
 one fresh configured verifier owns the initial independent review. Substantive
 findings then receive the bounded independent check in the task workflow.
 
+If the explicit task has `hypothesis`, return `BLOCKER zdev-verify` before
+starting a verifier: automatic experiment execution is not yet supported.
+The installed task-format reference defines research evidence, including the
+independent review attestation required for an accepted result.
+
 ## Preflight and handoff
 
 Parse exactly one area and task ID. Run
@@ -97,7 +102,7 @@ or unavailable independent verification returns
 `BLOCKER zdev-verify <area> <task-id>` with no mutation.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
+"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
 path in the verifier payload.
 
 Parse `$ARGUMENTS` as `<area> <task-id>`. The primary agent performs preflight

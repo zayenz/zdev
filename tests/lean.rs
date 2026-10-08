@@ -13660,3 +13660,506 @@ fn codex_dispatch_spec_rejects_stale_dispatch_snapshots_for_plan_and_implementat
         before_config
     );
 }
+
+fn research_settings(revision: &str) -> Value {
+    json!({
+        "comparison": {
+            "metric": "elapsed milliseconds", "direction": "minimize",
+            "evaluator_identity": "fixture-v1", "conditions": "fixed input; one measurement slot",
+            "baseline_revision": revision, "baseline_samples": [10.0, 12.0],
+            "repetitions": 2, "aggregation": "median", "minimum_gain": 1.0,
+            "required_checks": ["equivalent output"]
+        },
+        "evaluator_command": "./evaluate", "permitted_changes": ["src/cache.rs"], "attempt_limit": 2
+    })
+}
+
+fn research_observation(revision: &str, samples: Value) -> Value {
+    json!({"starting_revision": revision, "candidate_revision": "b".repeat(40),
+        "outcome": "measured", "samples": samples,
+        "checks": [{"name": "equivalent output", "passed": true}], "elapsed_seconds": 0.5})
+}
+
+fn research_record(settings: &Value, revision: &str, decision: &str, samples: Value) -> Value {
+    json!({"comparison": settings["comparison"], "attempt_limit": settings["attempt_limit"],
+        "observations": [research_observation(revision, samples)], "decision": decision,
+        "lesson": "The fixed workload exposes the cache cost."})
+}
+
+fn configure_research_fixture(root: &Path, settings: &Value) {
+    json_output_with_stdin(
+        root,
+        &["area", "research", "work", "--from", "-"],
+        &serde_json::to_vec(settings).unwrap(),
+    );
+}
+
+fn import_research_fixture(root: &Path, tasks: Value) {
+    let bundle =
+        serde_json::to_vec(&json!({"schema_version": 1, "area": "work", "tasks": tasks})).unwrap();
+    let review = json_output_with_stdin(root, &["tasks", "review", "work", "--from", "-"], &bundle);
+    json_output(
+        root,
+        &[
+            "tasks",
+            "import",
+            "work",
+            "--reviewed",
+            review["review"].as_str().unwrap(),
+        ],
+    );
+}
+
+fn hypothesis_draft(key: &str) -> Value {
+    json!({"key": key, "title": key, "outcome": "Measure the proposed cache change.",
+        "done_when": ["Retain the measurements and lesson."], "validation": ["Fixed workload and correctness check."],
+        "hypothesis": {"mechanism": "Caching removes repeated parsing.", "context_tasks": []}})
+}
+
+#[test]
+fn research_mixed_queue_retains_observations_and_rejected_completion() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    let revision = git(root, &["rev-parse", "HEAD"]);
+    let revision = revision.trim();
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "work", "main");
+    let settings = research_settings(revision);
+    configure_research_fixture(root, &settings);
+    assert_eq!(
+        json_output(root, &["area", "research", "work"])["research"],
+        settings
+    );
+    let mut hypothesis = hypothesis_draft("cache");
+    hypothesis["hypothesis"]["context_tasks"] = json!(["setup"]);
+    import_research_fixture(
+        root,
+        json!([
+            {"key": "setup", "title": "Prepare workload", "outcome": "A fixed workload exists.", "done_when": ["The workload exists."]},
+            hypothesis
+        ]),
+    );
+    let listed = json_output(root, &["tasks", "list", "work"]);
+    assert!(listed["tasks"][0].get("hypothesis").is_none());
+    assert_eq!(
+        listed["tasks"][1]["hypothesis"]["context_tasks"],
+        json!(["work-001"])
+    );
+    assert_eq!(listed["tasks"][1]["blocked_by"], json!([]));
+    let text = run_zdev(root, &["tasks", "list", "work"]);
+    assert!(String::from_utf8_lossy(&text.stdout).contains("hypothesis"));
+    let ordinary = json_output(root, &["work-context", "work", "--store"]);
+    let dispatch = json_output(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-001",
+            "--snapshot",
+            ordinary["snapshot"].as_str().unwrap(),
+        ],
+    );
+    assert_eq!(dispatch["dispatches"][0]["role"], "implementer");
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "work",
+            "work-001",
+            "--summary",
+            "Prepared",
+            "--validation",
+            "Checked",
+        ],
+    );
+    let next = json_output(root, &["next", "work"]);
+    assert_eq!(next["task"]["id"], "work-002");
+    assert!(next["task"].get("hypothesis").is_some());
+    let goal = json_output(root, &["goal", "work"]);
+    assert_eq!(goal["area"]["research"], settings);
+    assert!(
+        goal["native_goal"]
+            .as_str()
+            .unwrap()
+            .contains("Automatic experiment execution is not yet supported")
+    );
+    let context = json_output(root, &["work-context", "work"]);
+    assert_eq!(
+        context["goal"]["task"]["hypothesis"],
+        next["task"]["hypothesis"]
+    );
+    assert_eq!(context["status"]["area"]["research"], settings);
+    let stored = json_output(root, &["work-context", "work", "--store"]);
+    let blocked = run_zdev(
+        root,
+        &[
+            "config",
+            "profile",
+            "dispatch-spec",
+            "implement",
+            "--harness",
+            "codex",
+            "--area",
+            "work",
+            "--task",
+            "work-002",
+            "--snapshot",
+            stored["snapshot"].as_str().unwrap(),
+        ],
+    );
+    assert!(!blocked.status.success());
+    assert!(
+        String::from_utf8_lossy(&blocked.stderr)
+            .contains("Automatic hypothesis execution is not yet supported")
+    );
+    let first = research_record(&settings, revision, "interrupted", json!([12.0, 14.0]));
+    let mut unstarted = first.clone();
+    unstarted["observations"] = json!([]);
+    unstarted["lesson"] = json!("Interrupted before preparing the candidate.");
+    json_output_with_stdin(
+        root,
+        &["task", "research", "work", "work-002", "--from", "-"],
+        &serde_json::to_vec(&unstarted).unwrap(),
+    );
+    json_output_with_stdin(
+        root,
+        &["task", "research", "work", "work-002", "--from", "-"],
+        &serde_json::to_vec(&first).unwrap(),
+    );
+    let unfinished = run_zdev(
+        root,
+        &[
+            "task",
+            "done",
+            "work",
+            "work-002",
+            "--summary",
+            "Measured",
+            "--validation",
+            "Checked",
+        ],
+    );
+    assert!(!unfinished.status.success());
+    assert!(String::from_utf8_lossy(&unfinished.stderr).contains("terminal result"));
+    let mut last = research_record(&settings, revision, "rejected", json!([13.0, 15.0]));
+    last["retained_candidate"] = json!("refs/experiments/cache");
+    last["restored_revision"] = json!(revision);
+    json_output_with_stdin(
+        root,
+        &["task", "research", "work", "work-002", "--from", "-"],
+        &serde_json::to_vec(&last).unwrap(),
+    );
+    let evidence = json_output(root, &["task", "research", "work", "work-002"]);
+    assert_eq!(
+        evidence["research_results"],
+        json!([unstarted, first, last])
+    );
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "work",
+            "work-002",
+            "--summary",
+            "Rejected cache",
+            "--validation",
+            "Measurements retained",
+        ],
+    );
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-002"])["research_results"],
+        evidence["research_results"]
+    );
+    assert_eq!(json_output(root, &["status", "work"])["queue"], "exhausted");
+    assert_eq!(json_output(root, &["status", "work"])["lifecycle"], "open");
+    assert!(
+        !run_zdev(root, &["task", "reopen", "work", "work-002"])
+            .status
+            .success()
+    );
+    // History stays valid when later research uses a new evaluator and baseline.
+    let mut changed = settings.clone();
+    changed["comparison"]["evaluator_identity"] = json!("fixture-v2");
+    changed["comparison"]["baseline_samples"] = json!([20.0, 22.0]);
+    configure_research_fixture(root, &changed);
+    assert!(run_zdev(root, &["check", "work"]).status.success());
+    let path = root.join(".zdev/work/tasks/002-cache.md");
+    let bytes = fs::read_to_string(&path).unwrap();
+    fs::write(
+        &path,
+        bytes.replace("decision = \"rejected\"", "decision = \"interrupted\""),
+    )
+    .unwrap();
+    assert!(!run_zdev(root, &["check", "work"]).status.success());
+}
+
+#[test]
+fn research_invalid_results_preserve_bytes_and_terminal_rules() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    let revision = git(root, &["rev-parse", "HEAD"]);
+    let revision = revision.trim();
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "work", "main");
+    let settings = research_settings(revision);
+    let bundle = json!({"schema_version": 1, "area": "work", "tasks": [hypothesis_draft("cache")]});
+    assert!(
+        !json_output_with_stdin_status(
+            root,
+            &["tasks", "review", "work", "--from", "-"],
+            &serde_json::to_vec(&bundle).unwrap()
+        )
+        .status
+        .success()
+    );
+    configure_research_fixture(root, &settings);
+    import_research_fixture(
+        root,
+        json!([
+            hypothesis_draft("cache"),
+            hypothesis_draft("inconclusive"),
+            hypothesis_draft("failed")
+        ]),
+    );
+    let task_path = root.join(".zdev/work/tasks/001-cache.md");
+    let index_path = root.join(".zdev/work/TASKS.md");
+    let task_bytes = fs::read(&task_path).unwrap();
+    let index_bytes = fs::read(&index_path).unwrap();
+    let mut accepted = research_record(&settings, revision, "accepted", json!([7.0, 9.0]));
+    accepted["retained_candidate"] = json!("refs/experiments/cache");
+    accepted["verification"] = json!({"reviewer": "independent reviewer", "passed": true, "summary": "Checked candidate and fixed workload."});
+    let mut invalid = Vec::new();
+    let mut value = accepted.clone();
+    value["verification"]["passed"] = json!(false);
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["observations"][0]["starting_revision"] = json!("c".repeat(40));
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["extra"] = json!(true);
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["observations"][0]["samples"] = json!([]);
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["comparison"]["conditions"] = json!("different workload");
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["observations"][0]["checks"][0]["passed"] = json!(false);
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["observations"][0]["checks"] = json!([]);
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value.as_object_mut().unwrap().remove("retained_candidate");
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value.as_object_mut().unwrap().remove("verification");
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["observations"][0]["samples"] = json!([10.5, 11.0]);
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["decision"] = json!("rejected");
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["decision"] = json!("inconclusive");
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["observations"][0]["outcome"] = json!("crashed");
+    value["observations"][0]["failure"] = json!("Evaluator crashed after partial output.");
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["decision"] = json!("failed_to_run");
+    let observation = value["observations"][0].clone();
+    value["observations"]
+        .as_array_mut()
+        .unwrap()
+        .push(observation);
+    invalid.push(value);
+    let mut value = accepted.clone();
+    value["decision"] = json!("inconclusive");
+    value["observations"][0]["outcome"] = json!("timed_out");
+    value["observations"][0]["samples"] = json!([]);
+    value["observations"][0]["failure"] = json!("Timed out without measurements.");
+    let observation = value["observations"][0].clone();
+    value["observations"]
+        .as_array_mut()
+        .unwrap()
+        .push(observation);
+    invalid.push(value);
+    for value in invalid {
+        let rejected = json_output_with_stdin_status(
+            root,
+            &["task", "research", "work", "work-001", "--from", "-"],
+            &serde_json::to_vec(&value).unwrap(),
+        );
+        assert!(
+            !rejected.status.success(),
+            "unexpected accepted input: {value}"
+        );
+        assert_eq!(fs::read(&task_path).unwrap(), task_bytes);
+        assert_eq!(fs::read(&index_path).unwrap(), index_bytes);
+    }
+    let nonfinite = serde_json::to_string(&accepted)
+        .unwrap()
+        .replace("7.0", "1e999");
+    assert!(
+        !json_output_with_stdin_status(
+            root,
+            &["task", "research", "work", "work-001", "--from", "-"],
+            nonfinite.as_bytes()
+        )
+        .status
+        .success()
+    );
+    assert!(
+        !json_output_with_stdin_status(
+            root,
+            &["task", "research", "work", "work-001", "--from", "-"],
+            b"{"
+        )
+        .status
+        .success()
+    );
+    assert_eq!(fs::read(&task_path).unwrap(), task_bytes);
+    assert_eq!(fs::read(&index_path).unwrap(), index_bytes);
+    // Deriving a follow-up must not complete a hypothesis without evidence.
+    commit_all(root, "research records");
+    let derived = json!({"schema_version": 1, "proposal": "investigation_follow_up", "area": "work", "source_task": "work-001",
+        "source_result": {"status": "complete", "summary": "No measurements", "validation": ["Claimed"]},
+        "tasks": [{"key": "follow", "title": "Follow", "outcome": "Follow up", "done_when": ["Done"]}]});
+    let bypass = json_output_with_stdin_status(
+        root,
+        &["tasks", "derive", "apply", "work", "--from", "-"],
+        format!("PROPOSE zdev-derived work work-001\n{}", derived).as_bytes(),
+    );
+    assert!(!bypass.status.success());
+    assert!(
+        String::from_utf8_lossy(&bypass.stderr).contains("terminal result"),
+        "{}",
+        String::from_utf8_lossy(&bypass.stderr)
+    );
+    assert_eq!(fs::read(&task_path).unwrap(), task_bytes);
+    json_output_with_stdin(
+        root,
+        &["task", "research", "work", "work-001", "--from", "-"],
+        &serde_json::to_vec(&accepted).unwrap(),
+    );
+    let mut changed = settings.clone();
+    changed["comparison"]["conditions"] = json!("new workload");
+    configure_research_fixture(root, &changed);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "task",
+                "done",
+                "work",
+                "work-001",
+                "--summary",
+                "Accepted",
+                "--validation",
+                "Checked"
+            ]
+        )
+        .status
+        .success()
+    );
+    configure_research_fixture(root, &settings);
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "work",
+            "work-001",
+            "--summary",
+            "Accepted",
+            "--validation",
+            "Independent review recorded",
+        ],
+    );
+    for (id, decision, outcome) in [
+        ("work-002", "inconclusive", "measured"),
+        ("work-003", "failed_to_run", "timed_out"),
+    ] {
+        let mut record = research_record(&settings, revision, decision, json!([12.0, 14.0]));
+        if outcome != "measured" {
+            record["observations"][0]["outcome"] = json!(outcome);
+            record["observations"][0]["samples"] = json!([]);
+            record["observations"][0]["failure"] = json!("Evaluator exceeded its time limit.");
+        }
+        let observation = record["observations"][0].clone();
+        record["observations"]
+            .as_array_mut()
+            .unwrap()
+            .push(observation);
+        json_output_with_stdin(
+            root,
+            &["task", "research", "work", id, "--from", "-"],
+            &serde_json::to_vec(&record).unwrap(),
+        );
+        json_output(
+            root,
+            &[
+                "task",
+                "done",
+                "work",
+                id,
+                "--summary",
+                "Attempts exhausted",
+                "--validation",
+                "Evidence retained",
+            ],
+        );
+    }
+    // Maximization uses the opposite gain direction, and mean uses all samples.
+    let mut maximize = settings.clone();
+    maximize["comparison"]["direction"] = json!("maximize");
+    maximize["comparison"]["aggregation"] = json!("mean");
+    configure_research_fixture(root, &maximize);
+    import_research_fixture(root, json!([hypothesis_draft("maximize")]));
+    let mut winning = accepted.clone();
+    winning["comparison"] = maximize["comparison"].clone();
+    assert!(
+        !json_output_with_stdin_status(
+            root,
+            &["task", "research", "work", "work-004", "--from", "-"],
+            &serde_json::to_vec(&winning).unwrap()
+        )
+        .status
+        .success()
+    );
+    winning["observations"][0]["samples"] = json!([14.0, 16.0]);
+    json_output_with_stdin(
+        root,
+        &["task", "research", "work", "work-004", "--from", "-"],
+        &serde_json::to_vec(&winning).unwrap(),
+    );
+    json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "work",
+            "work-004",
+            "--summary",
+            "Higher is better",
+            "--validation",
+            "Independent review recorded",
+        ],
+    );
+    assert!(run_zdev(root, &["check", "work"]).status.success());
+}

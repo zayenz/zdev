@@ -18,6 +18,241 @@ checked out and safe, but never requires freshness or rebase ceremony.
 Task dependencies never cross areas. Use an area parent for branch ancestry
 and `blocked_by` for task sequencing within one area.
 
+## Research settings and hypothesis evidence
+
+A research area mixes ordinary tasks with hypothesis tasks. `open` and `done`
+still describe task completion. A hypothesis decision describes the experiment;
+it does not change the area's lifecycle or replace task dependencies.
+
+This version configures research and validates supplied evidence. It does not
+launch evaluators, compute statistical confidence, verify Git attestations,
+retain or restore candidate code, or run serial or parallel experiments.
+Automatic implementation, planning, and verification dispatch reject hypotheses
+before emitting workers. Ordinary supporting tasks keep their existing routes.
+Read this contract when a selected task has `hypothesis` frontmatter; do not
+send it through the ordinary implementation or parallel workflow.
+
+### Configure one authoritative area policy
+
+Use the area's checked-out safe branch and an open area:
+
+```sh
+revision=$(git rev-parse HEAD)
+cat > research-settings.json <<EOF_SETTINGS
+{
+  "comparison": {
+    "metric": "elapsed milliseconds",
+    "direction": "minimize",
+    "evaluator_identity": "fixed-workload-v1",
+    "conditions": "fixed input; one measurement slot; warm cache",
+    "baseline_revision": "${revision}",
+    "baseline_samples": [10.0, 12.0],
+    "repetitions": 2,
+    "aggregation": "median",
+    "minimum_gain": 1.0,
+    "required_checks": ["equivalent output"]
+  },
+  "evaluator_command": "./evaluate-fixed-workload",
+  "permitted_changes": ["src/cache.rs"],
+  "attempt_limit": 2
+}
+EOF_SETTINGS
+zdev area research work --from research-settings.json
+zdev area research work --format json
+```
+
+Replace the illustrative baseline samples with measured values before using
+them. `--from -` reads JSON from standard input. Omitting `--from` inspects the
+stored settings. These commands never create commits or run the evaluator.
+
+The `research` table in `.zdev/<area>/area.toml` is the sole executable policy.
+The brief supplies the objective, experimental reasoning, and shared boundaries.
+All JSON objects reject unknown fields. Settings require every shown field:
+
+| Field | Rule |
+| --- | --- |
+| `comparison.metric` | One non-empty scalar metric name, including its units. |
+| `direction` | `minimize` or `maximize`. |
+| `evaluator_identity` | A stable identity for the evaluator version. A changed command requires a new identity. |
+| `conditions` | A non-empty identity/description of the workload and comparison conditions. Change it when those conditions change. |
+| `baseline_revision` | Full lowercase 40- or 64-digit Git object ID. |
+| `baseline_samples` | Finite numeric values, exactly `repetitions` entries. |
+| `repetitions` | Positive count; use one for a deterministic metric. |
+| `aggregation` | `mean` or `median`; median averages the two middle values for an even count. |
+| `minimum_gain` | Finite nonnegative absolute gain in the metric's units. Acceptance also requires strictly positive gain. |
+| `required_checks` | At least one unique non-empty correctness check name. |
+| `evaluator_command` | Non-empty command; only the area setting supplies this command. |
+| `permitted_changes` | At least one unique non-empty scope boundary. These are human-reviewed boundaries, not a path sandbox. |
+| `attempt_limit` | Positive finite limit per hypothesis. Each observation counts as one attempt. |
+
+Fields below `comparison.metric` through `required_checks` in the table also
+belong to `comparison`. Each candidate preparation or repair attempt, measurement
+rerun, confirmation, and reconciliation consumes an attempt; record its
+observation even if it fails. `elapsed_seconds` records its cost. This version
+validates the supplied count and cost; it cannot enforce accounting for
+unrecorded work. Run-wide limits and authorization belong to the later research
+execution workflow.
+
+A changed evaluator, workload, or other comparison condition requires a newly
+measured baseline under those conditions. Reconfigure the area with that full
+policy. Historical task evidence stays readable; it never becomes an alternate
+source of evaluator commands. An unfinished hypothesis cannot complete with
+evidence that differs from the current comparison or attempt limit.
+
+### Review and import a mixed task bundle
+
+Add `hypothesis` to an ordinary version-1 task draft:
+
+```json
+{
+  "schema_version": 1,
+  "area": "work",
+  "tasks": [
+    {
+      "key": "setup",
+      "title": "Prepare the fixed workload",
+      "outcome": "The evaluator uses a fixed representative input.",
+      "done_when": ["The workload and correctness check are available."],
+      "validation": ["Exercise the fixed input."]
+    },
+    {
+      "key": "cache",
+      "title": "Measure caching repeated parsing",
+      "outcome": "Retain a measured cache comparison and lesson.",
+      "blocked_by": ["setup"],
+      "done_when": ["Retain valid terminal evidence and a lesson."],
+      "validation": ["Use the configured evaluator and correctness check."],
+      "hypothesis": {
+        "mechanism": "Caching removes repeated parsing from the hot path.",
+        "context_tasks": ["setup"]
+      }
+    }
+  ]
+}
+```
+
+Save the bundle as `tasks.json`, review it with `zdev tasks review work --from
+tasks.json`, and import its exact approved identity with `zdev tasks import
+work --reviewed <review-id>`. Complete the ordinary setup task after its checks
+pass, for example `zdev task done work work-001 --summary "Prepared the workload"
+--validation "Fixed workload checked"`, before recording the blocked hypothesis. The review includes the hypothesis mechanism and
+context links, and its fingerprint covers them. Hypotheses require configured
+research settings. There is no separate experiment ledger.
+
+`hypothesis.mechanism` is required and non-empty. `context_tasks` defaults to
+`[]`; links may name existing IDs or keys from this bundle and resolve to durable
+same-area IDs on import. Unknown, duplicate, and self links are rejected.
+Context links do not block work. `blocked_by` remains the dependency list;
+an observation's `starting_revision` records the actual code starting point.
+These three relationships serve different purposes.
+
+`tasks list`, `task show`, `next`, `goal`, and full `work-context` identify
+hypotheses in text and JSON. Goal/status expose the area's settings; goal and
+task projections expose task-owned evidence. Absent research fields are omitted
+from ordinary records and projections.
+
+### Append observations and a decision
+
+Use `zdev task research work work-002 --from result.json` to append one strict
+JSON record. Use the same command without `--from` to inspect the declaration
+and ordered result history. Writes require a ready open hypothesis on its safe
+area branch. For the policy above, a rejected record looks like:
+
+```sh
+cat > result.json <<EOF_RESULT
+{
+  "comparison": {
+    "metric": "elapsed milliseconds",
+    "direction": "minimize",
+    "evaluator_identity": "fixed-workload-v1",
+    "conditions": "fixed input; one measurement slot; warm cache",
+    "baseline_revision": "${revision}",
+    "baseline_samples": [10.0, 12.0],
+    "repetitions": 2,
+    "aggregation": "median",
+    "minimum_gain": 1.0,
+    "required_checks": ["equivalent output"]
+  },
+  "attempt_limit": 2,
+  "observations": [
+    {
+      "starting_revision": "${revision}",
+      "candidate_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "outcome": "measured",
+      "samples": [12.0, 14.0],
+      "checks": [{"name": "equivalent output", "passed": true}],
+      "elapsed_seconds": 0.5
+    }
+  ],
+  "decision": "rejected",
+  "lesson": "The cache overhead outweighs parsing saved on this workload.",
+  "retained_candidate": "refs/experiments/cache",
+  "restored_revision": "${revision}"
+}
+EOF_RESULT
+zdev task research work work-002 --from result.json
+zdev task research work work-002 --format json
+zdev task done work work-002 --summary "Rejected the cache hypothesis" --validation "Comparison and restoration recorded"
+```
+
+Replace the illustrative candidate revision and retention reference with the
+actual retained candidate. Record observations before restoring candidate code.
+Keep the candidate in accessible Git history or a retained reference. Restore
+only its code changes; preserve the hypothesis, observations, lesson, and
+unrelated local changes. The binary validates these supplied records and does
+not perform or independently prove those Git operations.
+
+Every result requires `comparison`, `attempt_limit`, `observations`, `decision`,
+and a concise non-empty `lesson`. `comparison` records historical facts using
+the area comparison shape, and must equal current settings when appended.
+`attempt_limit` records the current allowance. The task frontmatter stores an
+ordered `research_results` array; each append preserves all prior records.
+Observations are attempts, and samples within one observation are repetitions.
+Sum observation counts across the task for consumed attempts. Sum their finite,
+nonnegative `elapsed_seconds` for recorded elapsed cost.
+
+Each observation requires the two full revision IDs, `outcome`, `samples`,
+`checks`, and `elapsed_seconds`. Check objects contain exactly `name` and
+`passed`; names are unique. A `measured` observation requires exactly
+`repetitions` finite samples and forbids `failure`. `crashed` and `timed_out`
+require a non-empty `failure` description; they may preserve finite partial
+samples but never count as usable comparisons. Failed or missing required
+checks also make an observation unusable. A usable observation must start from
+the compared baseline revision and pass every recorded and required check.
+Non-finite samples, costs, aggregates, and gains are rejected.
+
+| Decision | Evidence and completion |
+| --- | --- |
+| `observed` | At least one recorded observation; remains open. |
+| `interrupted` | Remains open and may append evidence after resuming; observations may be empty when interrupted before the first attempt. |
+| `accepted` | Latest observation is usable under this record's comparison; directional gain meets the threshold; `verification` records a passed independent review, and `retained_candidate` records retained code. |
+| `rejected` | Latest observation is usable; non-empty `retained_candidate` preserves the candidate and `restored_revision` equals the baseline. Improvement is not required for completion. |
+| `inconclusive` | All allotted attempts are consumed; at least one observation is usable, but the experiment has no usable decision. |
+| `failed_to_run` | All allotted attempts are consumed and none produced a usable observation. |
+
+`verification`, when present, contains exactly `reviewer` (non-empty), `passed`
+(boolean), and `summary` (non-empty). Acceptance requires `passed: true` and an
+independent review; the binary checks the supplied attestation and cannot prove
+the review happened. `retained_candidate` is a non-empty Git retention reference
+or description. `restored_revision` must equal the full compared baseline ID.
+
+The four last decisions are terminal. A concluding record may have an empty
+`observations` array and use the latest earlier observation, provided its
+comparison facts match. Terminal decisions cannot receive further evidence.
+Completion requires terminal evidence and the usual summary/validation; it
+checks the evidence before changing status, checkboxes, or the generated index.
+Accepted results require independent review and retained-code evidence before
+completion; rejected results require retention and restoration evidence.
+Record-only completion commits are valid research work.
+
+Completion is separate from code acceptance and area closure. A rejected
+hypothesis being `done` does not establish its candidate code. Create or admit
+a later task that requires retained candidate code only after acceptance. A
+justified retry is a new hypothesis linked through `context_tasks`; completed
+hypotheses cannot be reopened. Later proposals read earlier lessons before
+choosing a mechanism. Ordinary tasks retain their existing completion and
+reopening rules.
+
 ## General area convention
 
 `general` is the conventional tag for recurring one-off work. It is an ordinary

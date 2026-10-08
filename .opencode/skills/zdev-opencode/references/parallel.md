@@ -3,6 +3,11 @@
 Parallel execution is an explicit, finite route. A discussion, ready queue,
 goal, loop, or ordinary Implement request does not select it.
 
+Inspect every requested or resumed task for `hypothesis` before creating source
+worktrees or dispatching workers. This route admits ordinary tasks only;
+automatic experiment execution is not yet supported. The installed task-format
+reference defines the available research record operations.
+
 
 ## Unsupported adapter
 

@@ -62,6 +62,8 @@ pub(super) struct AreaMetadata {
     pub(super) tag: String,
     pub(super) title: String,
     pub(super) objective: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) research: Option<super::research::Settings>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(super) execution_profiles: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "AreaMode::is_isolated")]
@@ -632,6 +634,7 @@ pub(super) fn create_area(
         tag: tag.to_owned(),
         title: title.to_owned(),
         objective: objective.to_owned(),
+        research: None,
         execution_profiles: BTreeMap::new(),
         mode,
         branch,
@@ -677,6 +680,9 @@ pub(super) fn load_area(root: &Path, tag: &str) -> Result<(AreaMetadata, PathBuf
         .map_err(|error| ZdevError::new(format!("Invalid {}: {error}", metadata_path.display())))?;
     if metadata.schema_version != SCHEMA_VERSION || metadata.tag != tag {
         return Err(ZdevError::new(format!("Invalid area identity for {tag}")));
+    }
+    if let Some(settings) = &metadata.research {
+        settings.validate()?;
     }
     for (harness, profile) in &metadata.execution_profiles {
         super::config::validate_area_profile_reference(harness, profile).map_err(|error| {
@@ -994,6 +1000,47 @@ pub(super) fn validate_slices(root: &Path, area: &str) -> Result<(), ZdevError> 
 fn write_area_metadata(root: &Path, area: &AreaMetadata) -> Result<(), ZdevError> {
     let path = area_path(root, &area.tag)?.join("area.toml");
     write_atomic(&path, toml::to_string_pretty(area).unwrap().as_bytes())
+}
+
+pub(super) fn configure_research(
+    root: &Path,
+    tag: &str,
+    source: Option<&Path>,
+) -> Result<CommandOutput, ZdevError> {
+    let settings = if let Some(source) = source {
+        let settings: super::research::Settings = super::research::read_json(source)?;
+        settings.validate()?;
+        let _lock = ZdevStateLock::acquire(root)?;
+        require_task_work_area_link(root, tag)?;
+        let (mut area, _) = load_area(root, tag)?;
+        if area.lifecycle != AreaLifecycle::Open {
+            return Err(ZdevError::new("Cannot configure research in a closed area"));
+        }
+        if let Some(previous) = &area.research
+            && previous.evaluator_command != settings.evaluator_command
+            && previous.comparison.evaluator_identity == settings.comparison.evaluator_identity
+        {
+            return Err(ZdevError::new(
+                "Changed evaluator command requires a new evaluator identity and measured baseline",
+            ));
+        }
+        area.research = Some(settings);
+        write_area_metadata(root, &area)?;
+        area.research
+    } else {
+        load_area(root, tag)?.0.research
+    };
+    let text = match &settings {
+        Some(settings) => format!(
+            "Research settings for {tag}:\n{}",
+            serde_json::to_string_pretty(settings).unwrap()
+        ),
+        None => format!("Area {tag} has no research settings"),
+    };
+    Ok(CommandOutput::new(
+        text,
+        json!({"schema_version": SCHEMA_VERSION, "area": tag, "research": settings}),
+    ))
 }
 
 pub(super) fn configure_area_profile(

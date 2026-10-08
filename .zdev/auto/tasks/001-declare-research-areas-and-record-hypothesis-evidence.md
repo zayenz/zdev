@@ -3,7 +3,7 @@ schema_version = 1
 id = "auto-001"
 key = "research-records"
 area = "auto"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -26,11 +26,21 @@ Start with AreaMetadata in src/project.rs, TaskHeader/TaskDraft and task complet
 
 ## Done when
 
-- [ ] A documented CLI path creates and inspects research settings and hypothesis tasks in a mixed queue; text, JSON, and work-context identify them.
-- [ ] Task-owned results preserve repeated observations, comparison conditions, decision, and lesson; malformed results and missing required completion evidence are rejected.
-- [ ] The public contract defines baseline/evaluator identity, acceptance rules, budgets, and terminal versus interrupted evidence, with no duplicate source of executable settings.
-- [ ] Ordinary tasks retain their existing completion rules; research routing exposes the correct contract without claiming unfinished execution support.
+- [x] A documented CLI path creates and inspects research settings and hypothesis tasks in a mixed queue; text, JSON, and work-context identify them.
+- [x] Task-owned results preserve repeated observations, comparison conditions, decision, and lesson; malformed results and missing required completion evidence are rejected.
+- [x] The public contract defines baseline/evaluator identity, acceptance rules, budgets, and terminal versus interrupted evidence, with no duplicate source of executable settings.
+- [x] Ordinary tasks retain their existing completion rules; research routing exposes the correct contract without claiming unfinished execution support.
 
 ## Validation
 
 - Add focused black-box cases in tests/lean.rs for a mixed area, result round-trip and invalid completion; run matching Rust checks from CONTRIBUTING.md. Document the contract in repository docs and canonical skill templates.
+
+## Result
+
+Added optional research settings, mixed hypothesis tasks, appended validated evidence, completion gates, public projections and documented execution guards. Independently verified every task condition.
+
+Validation:
+
+- Independent verifier passed at unchanged snapshot Wfd5ec8623261c4ed.
+- cargo test --locked: 165 black-box tests and 3 unit tests passed, including deterministic fixture matching and focused research scenarios.
+- cargo fmt, strict clippy, cargo build, git diff --check, and zdev check auto passed.

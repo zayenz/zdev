@@ -20,6 +20,7 @@ Codex serial research has a separate [research route](user-guide.md#serial-resea
 An explicit research-run authorization permits scoped generation after queue
 exhaustion and uses durable run accounting. The ordinary area loop below still
 stops at queue exhaustion and guards hypotheses.
+
 ## Public routes and activation
 
 The canonical route is `zdev-loop`; `zdev-goal` is an alias with the same behavior:

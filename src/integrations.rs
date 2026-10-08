@@ -83,7 +83,8 @@ const NATIVE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/native-a
 const CLAUDE_AREA_LOOP_TEMPLATE: &str = include_str!("../templates/zdev/claude-area-loop.md");
 const T3_CODE_ROUTING: &str = include_str!("../templates/zdev/t3-code-routing.md");
 const T3_CODE_ORCHESTRATION: &str = include_str!("../templates/zdev/references/t3-code.md");
-const CODEX_RESEARCH_TEMPLATE: &str = include_str!("../templates/zdev/references/research.md");const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
+const CODEX_RESEARCH_TEMPLATE: &str = include_str!("../templates/zdev/references/research.md");
+const CODEX_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/codex-skill.md");
 const CODEX_OPENAI_YAML: &str = include_str!("../templates/zdev/codex/agents/openai.yaml");
 const CLAUDE_SKILL_TEMPLATE: &str = include_str!("../templates/zdev/claude-skill.md");
 const CLAUDE_PLUGIN_TEMPLATE: &str = include_str!("../templates/zdev/claude/plugin.json");

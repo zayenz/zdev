@@ -4,7 +4,7 @@ export const meta = {
 }
 
 const runOneTask = async (args, agent) => {
-const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->"
+const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->\n\n## Coding guidance\n\nCoding guidance file: \"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/skills/zdev/references/coding.md\"\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it."
 const workerContract = repositoryGuidance
 const taskWorkflowContractPath = "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/contracts/task-workflows.md"
 const normalizeAreaArg = value => {
@@ -817,7 +817,7 @@ const verify = async () => {
     `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Read any clarified records from the verification snapshot and check their updated requirements while retaining the original baseline for attribution. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Keep verification read-only: use a check or dry-run form for generators and other commands expected to rewrite tracked files. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each unexpected validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Do not repair or discard validation writes.\n\nTechnical adjustments: ${JSON.stringify(technicalAdjustments)}\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
     workerOptions('verifier', { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` }),
   ))?.trim()
-  const semantic = parseVerifierResult(raw)
+  let semantic = parseVerifierResult(raw)
   const comparedRaw = (await agent(
     `Act only as deterministic post-verification coordination. Run zdev work-context ${area} --compare ${snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
     { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'haiku' },
@@ -825,10 +825,26 @@ const verify = async () => {
   const compared = parseComparison(comparedRaw, area, snapshot)
   if (!semantic || !compared) return null
   if (!compared.equal && !reportsValidationWrite(semantic)) return null
-  const normalized = compared.equal && onlyValidationWrites(semantic)
-    ? { ...semantic, verdict: 'pass', findings: [], escalation: 'none' }
-    : semantic
-  const result = publicVerifier(normalized, snapshot, currentAdvisory)
+  if (semantic.findings.some(item => item.startsWith(validationWriteMarker)) && !reportsValidationWrite(semantic)) {
+    return null
+  }
+  if (compared.equal && reportsValidationWrite(semantic)) {
+    semantic = { ...semantic, findings: semantic.findings.filter(item => !item.startsWith(validationWritePrefix)) }
+    if (semantic.findings.length === 0) semantic = { ...semantic, verdict: 'pass', escalation: 'none' }
+  }
+  if (semantic.verdict === 'rework' && !onlyValidationWrites(semantic)) {
+    if (!compared.equal) return null
+    const checked = await agent(
+      `${workerContract}\n\nCheck the substantive findings in this candidate review of task ${taskId}, independently of their author. Load context with zdev work-context ${area} --show ${snapshot} --format json. Follow Review in the supplied coding guidance. Inspect the cited code, callers, applicable rules, consequences, severity, and counterevidence; do not repeat the whole review or rerun validation. Preserve the original validation conclusions. Return the reconciled four-field semantic verifier object: rework for supported corrections, pass only when all substantive findings are disproved and the original review otherwise established completion, or blocker for unresolved claims or missing evidence. Explain removed or corrected claims in summary. Do not add new findings, validation_write markers, or escalate beyond the candidate. Do not delegate or edit.\n\nCandidate review: ${JSON.stringify(semantic)}`,
+      workerOptions('verifier', { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: check findings` }),
+    )
+    const vetted = parseVerifierResult(typeof checked === 'string' ? checked.trim() : checked)
+    const unchanged = await compareSnapshot(snapshot, `zdev ${taskId}: confirm findings snapshot unchanged`)
+    if (!vetted || !unchanged?.equal || vetted.findings.some(item => item.startsWith(validationWriteMarker))
+      || (vetted.escalation !== 'none' && vetted.escalation !== semantic.escalation)) return null
+    semantic = vetted
+  }
+  const result = publicVerifier(semantic, snapshot, currentAdvisory)
   if (!result) return null
   return {
     raw: JSON.stringify(result),
@@ -906,7 +922,7 @@ return blocker(area, taskId, 'completion and commit', 'coordinator returned an i
 
 }
 
-const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->"
+const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->\n\n## Coding guidance\n\nCoding guidance file: \"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/skills/zdev/references/coding.md\"\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it."
 const taskWorkflowContractPath = "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/contracts/task-workflows.md"
 const researchReferencePath = "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/skills/zdev/references/research.md"
 const codingReferencePath = "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/skills/zdev/references/coding.md"

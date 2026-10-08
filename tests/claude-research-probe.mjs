@@ -40,6 +40,7 @@ const dispatched = new Set()
 const proposals = []
 let injected = false
 let supportReviews = 0
+let supportFindingChecks = 0
 let supportWork = 0
 let generation = 0
 let resumed = false
@@ -95,6 +96,7 @@ const agent = async (prompt, options) => {
     if (planRecovery && resumed && role === 'advanced-implementer' && !prompt.includes(JSON.stringify(planner))) throw new Error('Resume changed or omitted the retained semantic plan')
     const supporting = zdev(['task', 'show', 'work', task]).hypothesis === undefined
     if (role === 'verifier') {
+      if (supporting && options.label.endsWith('check findings')) { supportFindingChecks++; return verifier('rework') }
       if (supporting && scenario === 'mixed' && supportReviews++ === 0) return verifier('rework')
       if (!supporting && scenario === 'acceptance-rework' && !injected) { injected = true; return verifier('rework') }
       if (scenario === 'stale' && !injected) { injected = true; fs.writeFileSync(`${root}/seed.txt`, 'keep changed after snapshot\n') }
@@ -221,7 +223,7 @@ const agent = async (prompt, options) => {
   }
   // Calls from the composed ordinary body keep its command and completion contracts.
   if (/select ready task|capture verification snapshot|refresh before rework|refresh after implementation blocker/.test(options.label)) return JSON.stringify(compact(activeTask))
-  if (options.label.includes('confirm verifier')) {
+  if (options.label.includes('confirm verifier') || options.label.includes('confirm findings snapshot')) {
     const snapshot = prompt.match(/--compare (W[0-9a-f]{16})/)[1]
     return JSON.stringify(zdev(['work-context', 'work', '--compare', snapshot]))
   }
@@ -626,7 +628,7 @@ if (scenario === 'mixed') {
   if (JSON.stringify(decisions) !== JSON.stringify(['rejected', 'accepted', 'failed_to_run', 'accepted'])) throw new Error(`Mixed decisions ${JSON.stringify(decisions)}: ${JSON.stringify(first)}`)
   if (first.stop_reason !== 'target' || fs.readFileSync(`${root}/seed.txt`, 'utf8') !== 'close\n') throw new Error('Mixed continuation did not retain target candidate')
   if (!proposals.at(-1).some(lesson => lesson.includes('failed-to-run')) || !proposals.at(-1).some(lesson => lesson.includes('discard'))) throw new Error('Next proposal lost durable failed/rejected lessons')
-  if (workers.filter(worker => worker.task === 'work-002' && worker.role === 'planner').length !== 1 || supportWork !== 2 || supportReviews !== 2) throw new Error('Ordinary advanced plan/rework/verification changed')
+  if (workers.filter(worker => worker.task === 'work-002' && worker.role === 'planner').length !== 1 || supportWork !== 2 || supportReviews !== 2 || supportFindingChecks !== 1) throw new Error('Ordinary advanced plan/rework/verification changed')
   if (workers.some(worker => worker.task === 'work-001' && worker.role === 'verifier')) throw new Error('Discard launched an unnecessary verifier')
 }
 if (scenario === 'implementation-blocker' && workers.filter(worker => worker.role === 'implementer').length !== 2) throw new Error('Actionable hypothesis blocker did not use a counted replacement')

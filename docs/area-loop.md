@@ -10,8 +10,10 @@ Inside a T3 Code main thread running Codex or Claude Code, an explicit request
 to use [T3 orchestration](t3-code.md) selects completion-driven continuation.
 Each child result wakes the coordinator; after a verified commit it selects
 fresh work and dispatches the next worker before yielding. This route uses
-neither a Codex native goal nor a Claude JavaScript loop. The task and stop
-semantics below remain common; the per-harness native adapters apply to ordinary
+T3's visible parent `/goal`, backed by the coordinator provider, and avoids
+Claude's JavaScript loop. Goal turns and child wakes reconcile the same pending
+worker before dispatch. The task and stop semantics below remain common;
+the per-harness native adapters apply to ordinary
 requests.
 
 ## Public routes and activation

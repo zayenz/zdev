@@ -23,10 +23,19 @@ Invoke the root zdev skill and select T3 explicitly:
 > Use zdev with T3 orchestration to implement the next task in area scheduling,
 > using Codex for implementation and Claude Code for verification.
 
-To continue through the area's ready work:
+To continue through the area's ready work, use T3's composer `/goal` command.
+Check `/goal` first if this thread might already have an unfinished goal;
+setting a new condition replaces it. Start the zdev goal with this condition:
 
-> Use zdev with T3 orchestration to loop through area scheduling, using Codex
-> for implementation and Claude Code for verification.
+```text
+/goal Use zdev with T3 orchestration to loop through area scheduling, using Codex for implementation and Claude Code for verification. Complete one independently verified task and commit per iteration, then select from fresh context. This run is finished when validated context is closed, open/empty, or open/exhausted, or a confirmed blocker or required user decision has been reported with its reason and preserved state. Stop at the first confirmed blocker and preserve unfinished work. All owned workers must be terminal before the final report. Report selected and completed tasks and the canonical zdev loop result.
+```
+
+Replace `scheduling` and the worker choices with yours; add optional focus text
+to the same condition. The main coordinator can run either harness. T3 displays
+the goal and progress while its Codex or Claude provider drives continuation.
+A plain natural-language loop request uses exposed native goal tools when
+available; otherwise the skill supplies this exact command before starting work.
 
 “Goal” and “loop” mean the same operation. Optional focus text guides selection
 from the complete ready frontier. The route also supports explicit verification,
@@ -47,9 +56,10 @@ Several available instances of a requested harness require an account choice.
 Zdev resolves each role's existing profile against that worker's harness, with
 the same area, run, and one-off profile precedence. The selected instance, model,
 and effort form the frozen run baseline. One-off choices last through retries
-and replacements of their logical step, then expire. Models and effort options must match T3's
-live catalog; missing or ambiguous settings report a blocker. Choose a supported
-concrete model in the request or update the existing zdev profile when needed.
+and replacements of their logical step, then expire. Models and effort options
+must match T3's live catalog; missing or ambiguous settings report a blocker.
+Choose a supported concrete model in the request or update the existing zdev
+profile when needed.
 There is no separate T3 worker-profile namespace.
 
 T3's role tags describe the work. Zdev's supplied role contracts define the
@@ -59,23 +69,40 @@ keeps lifecycle, staging, and commits; every verification round is a fresh child
 
 ## Goal and loop
 
-The coordinator selects a task and delegates its first worker. For long steps,
-it yields while T3 runs the child. Completion wakes the main thread, which
-validates the result and dispatches implementation, verification, or rework.
+One visible parent goal continues the T3 coordinator. It selects a task and
+delegates its first worker. For long steps, it yields while T3 runs the child.
+Native goal continuations and child-completion wakes enter the same coordinator,
+which checks its pending handle and phase before dispatch. An active worker
+stays active; another goal turn never creates a duplicate worker. A completed
+result is validated before implementation, verification, or rework follows.
 After a verifier pass and snapshot comparison, the coordinator completes and
 commits exactly one task.
 
 It then reads fresh context and dispatches the next ready task's first worker
-before yielding. This keeps the continuation chain alive. T3 does not itself
-evaluate zdev's area condition or wake an idle coordinator just because work is
-ready. If continuation is unavailable after a committed task, the coordinator
-returns `CONTINUE` with the next task instead of claiming a background loop.
+before yielding. The parent's native goal can also continue across this boundary.
+T3 mirrors the provider's goal state; it does not evaluate zdev's area condition
+itself. If goal continuation is lost after a committed task, the coordinator
+returns `CONTINUE` with the fresh next task and the lost continuation.
 
 The loop stops on empty/exhausted work, explicit area closure, a genuine blocker,
 unsafe state, a required user decision, or the user's stop request. Queue
 exhaustion leaves the area open. Repairs stay within the current task and get
-fresh verification. Explicit stops cancel owned child work and preserve any
-unfinished changes; late completion events do not restart the run.
+fresh verification. Terminal blockers cancel owned pending work and confirm
+termination before the final report and goal settlement. Unconfirmed execution
+is reported as pending and preserved. A goal shown as complete says that the
+run ended; the canonical zdev result still distinguishes `PASS` from `BLOCKER`. It never
+substitutes for an independent verifier or snapshot comparison.
+
+T3's Stop also stops delegated descendants. Codex Stop pauses its goal; Claude
+Stop ends the turn but keeps the goal set and may check it after your next
+message. The zdev route retains the stop and requires an explicit request to
+resume, even after a late wake or unrelated message. To remove a stopped Claude
+goal, use T3's Clear control or `/goal clear`. Unfinished changes stay preserved.
+Pause, usage limits, budget limits, or unexpected goal clearing also prevent
+new dispatch until execution is reconciled and you explicitly resume.
+
+T3 documents these provider-specific controls in its
+[goal guide](https://github.com/pingdotgg/t3code/blob/d720210996a514368ba99f4860063110033d93fa/docs/user/composer.md#goals).
 
 Wait timeouts leave children running. Recovery inspects existing executions,
 task records, and Git state before replacing work. Restart behavior depends on
@@ -97,10 +124,12 @@ In a disposable repository with authenticated providers, check:
 
 - One task through implementation, independent verification, and one commit.
 - A repair followed by a fresh verifier, and changed-state rejection.
-- A two-task loop in both Codex and Claude coordinator threads, with the next
-  worker dispatched at each task boundary.
-- A timeout, explicit stop, and server restart without duplicate implementation
-  or accepting a stale verification result.
+- A two-task visible goal in both Codex and Claude coordinator threads, including
+  a goal continuation while a worker is pending and duplicate completion wakes.
+- Empty/exhausted success and a confirmed blocker that ends the goal while
+  retaining the correct `PASS` or `BLOCKER` result.
+- A timeout, Stop, Claude's next unrelated message, usage/budget limits, and
+  server restart without duplicate work, unwanted resume, or stale verification.
 
 See the [research and rollout plan](t3-code-plan.md) for the source evidence and
 later integration stages.

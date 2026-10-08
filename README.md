@@ -200,7 +200,8 @@ Inside T3 Code, Codex and Claude Code can also coordinate workers through T3's
 MCP. Select it explicitly: “Use zdev with T3 orchestration to loop through area
 scheduling, using Codex for implementation and Claude Code for verification.”
 This uses the same task records and verification gates, with sequential T3-owned
-workers and completion wakes instead of a native goal or Claude workflow.
+workers. Goal/loop uses the main thread's visible T3 `/goal`, while completion
+wakes deliver worker results; it does not use Claude's packaged workflow.
 See [T3 Code coordination](docs/t3-code.md) for installation and limits.
 
 ## Area reports

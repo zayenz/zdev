@@ -5,8 +5,10 @@ An explicit request to use zdev **with T3 orchestration** selects
 selecting native dispatch, worker profiles, or continuation. It supports
 implementation, verification, plan-only work, audits, and goal/loop in a T3
 main thread running Codex or Claude Code. Keep this selection for the logical
-run, its completion wakes, and explicitly requested recovery. Ordinary requests
-use the native harness route unless they continue that selected T3 run.
+run, its native goal continuations, completion wakes, and explicitly requested
+recovery. Goal/loop uses the visible parent `/goal` described in that reference;
+a leading `/goal` does not switch workers back to native dispatch. Ordinary
+requests use the native harness route unless they continue that selected T3 run.
 
 For the selected T3 route, the reference replaces the native dispatch, scoped
 profile resolution, and goal/workflow instructions below. The shared zdev

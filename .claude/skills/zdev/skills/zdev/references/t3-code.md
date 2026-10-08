@@ -5,8 +5,9 @@
 Use this route only after the root skill selected T3 orchestration. The main
 thread must run in T3 Code with Codex or Claude Code. The coordinating agent
 uses its own file and shell tools for zdev commands and Git, and T3's MCP for
-worker execution. Run no native Codex goal, Claude JavaScript workflow, or
-native worker dispatch alongside this route.
+worker execution. Goal/loop uses one matching parent goal displayed by T3;
+its native provider continues this same coordinator. Run no separate native
+zdev loop, Claude JavaScript workflow, or native worker dispatch alongside it.
 
 Resolve the selected ordinary zdev intent. Load `task-workflows.md` for
 implementation, verification, and planning, plus `implement.md`, `verify.md`,
@@ -97,8 +98,8 @@ slice and task paths, baseline snapshot and current snapshot when different,
 this reference's assigned **Worker roles** section, and relevant shared contract
 locators. Include the accepted semantic plan or exact repair findings when
 needed. A child receives no parent conversation history. It acts only as that
-worker and returns its required envelope as the final answer; it neither starts
-a zdev coordinator nor delegates nested work.
+worker and returns its required envelope as the final answer; it starts no
+coordinator, native goal, or loop and delegates no nested work.
 
 Use `delegate_task` for every worker, even when its harness matches the main
 thread. T3 role tags are `design` for planners, `implementation` for implementers,
@@ -167,23 +168,74 @@ eligible set by the user's guidance, and admit the selected ID with
 `work-context --task <task-id> --store`. Re-select after every committed
 iteration. Focus is guidance, not a filter or stored preference.
 
-Start the ordinary one-task implementation sequence. Advanced tasks first
-receive a read-only plan. Implementation completion dispatches a fresh verifier;
+After establishing the visible coordinator goal below, start the ordinary
+one-task implementation sequence. Advanced tasks first receive a read-only plan.
+Implementation completion dispatches a fresh verifier;
 rework dispatches a repair and then another fresh verifier. Each accepted async
 dispatch lets the coordinator yield, and T3's completion wake resumes the next
 phase. Preserve area, focus, frozen selections, task ID, baseline, pending
 handles, phase, accepted plan, escalation, and completed task/commit pairs in
-the coordinator conversation across wakes.
+the coordinator conversation across wakes and native goal continuations.
+
+### Use the visible coordinator goal
+
+Use T3's `/goal` surface for the parent coordinator only. T3 mirrors Codex or
+Claude's native goal state; it supplies no provider-independent goal API.
+Keep the T3 worker route selected throughout that goal. Workers receive their
+task-sized contracts and never start goals or loops themselves.
+
+Establish a matching active goal before the first loop worker. Inspect it with
+exposed native goal tools when available, or the current T3 goal projection or
+native activation receipt in the transcript. An unrelated unfinished goal is a
+blocker: do not replace, clear, or layer the loop over it. Reuse the same goal
+only when its area, focus, worker choices, and stop condition match this run.
+A user-entered `/goal` may already have established it before this skill runs.
+Account for subsequent Stop, pause, clear, completion, and limit receipts; an
+old activation alone does not establish the current goal state.
+An active condition missing the required stop rule is incompatible; report it
+before work rather than editing or replacing that goal.
+
+When clear, exposed native inspection and creation tools may establish the
+goal; set no token budget unless the user requested one. If activation is
+unavailable to the agent, return the exact ready-to-send
+`/goal` condition for the user to enter in T3, before dispatch or mutation.
+Do not simulate a composer command with shell execution or thread messaging,
+claim that a prose request activated a native goal, or fall back silently to
+the old event-only loop. Return a canonical BLOCKER with failed stage goal
+activation, the prepared command, and unchanged state. One-task implementation,
+verification, and audit do not require this goal.
+
+The condition must select zdev **with T3 orchestration**, retain the named area,
+optional focus and worker choices, and require one independently verified task
+and commit per iteration. Its run is finished only when fresh validated context
+is closed, open/empty, or open/exhausted, or a confirmed blocker or required
+user decision has been reported with its reason and preserved state. All owned
+workers must be terminal before that final report. Include this stop rule in
+the condition itself, so a blocker ends continuation instead of prompting
+repeated attempts. Goal completion describes the run ending; the public zdev
+result still distinguishes PASS from BLOCKER and never closes an exhausted area.
+
+On every native continuation or child-completion wake, reconcile retained
+handles and phase before any new dispatch. If a worker is still active, retain
+it and await its completion; a goal check is not a retry or replacement.
+Ignore duplicate results and perform each phase once. Surface selected and
+completed tasks, pending role, task/commit pairs, and final context in the
+coordinator transcript so native evaluation sees the actual stop evidence.
+An active owned child means the run is not finished. Fresh safe ready work
+continues the run only when no terminal blocker or required user decision exists.
+
+### Continue task phases
 
 After one exact implementation PASS with its commit, collect fresh work-context
 in that same coordinator turn. If open work remains ready and safe, dispatch
 the next task's first worker before yielding. A successful derived-work commit
 is also an iteration boundary; refresh the ordinary graph without counting a
-split source as completed. T3 does not evaluate zdev's area condition and has
-no idle-ready-work wake: ending after a commit without the next dispatch stalls
-the loop. Never use a scheduled task or a second native goal to conceal that
-gap. If continuation cannot be maintained, return honest `CONTINUE` only after
-a committed iteration with fresh safe ready work, naming the next task.
+split source as completed. The matching native goal may also continue the
+coordinator across task boundaries; both entry paths use the same phase and
+handle checks. Never add a scheduled task or second goal. If that goal becomes
+unavailable after a committed iteration with fresh safe ready work, return
+honest `CONTINUE`, naming the next task and the lost continuation. Do not mark
+that ready-work state as goal completion or promise background execution.
 
 Validated closed context returns PASS without Git gates. Open empty/exhausted
 returns PASS after normal safety checks; the area stays open. A real blocker,
@@ -197,15 +249,33 @@ Use canonical `PASS zdev-loop <area>`, `CONTINUE zdev-loop <area>`, or
 the stale Advisory once when observed, Tasks completed, Commits, and Stop
 reason. CONTINUE adds Next task. BLOCKER adds Current task, Failed stage,
 Reason, and Preserved state. Count only successfully completed task/commit
-pairs; never treat exhaustion as explicit area closure.
+pairs; never treat exhaustion as explicit area closure. On terminal PASS or
+BLOCKER, settle the matching active goal with an exposed native completion tool
+when available; otherwise end the turn with the stop evidence for its native
+evaluator. Never complete an unrelated, paused, or budget-limited goal. T3's
+goal badge alone is not verification or completion evidence for a zdev task.
 
 ## Stop and recover
 
-On explicit stop, pause, or cancellation, stop new dispatch and use
-`task_cancel` for owned active work. Its result can be `cancel_requested`;
-inspect status until termination is confirmed before any replacement worker or
-cleanup. Keep ambiguous execution and all unfinished source changes preserved.
+On explicit stop, pause, cancellation, or a terminal blocker or user decision,
+stop new dispatch and use `task_cancel` for owned active work. Its result can be
+`cancel_requested`; inspect status until termination is confirmed before any
+replacement worker or cleanup, final stop report, or goal settlement. If
+termination cannot be confirmed, report the pending handles and uncertainty
+without claiming the run finished; retain the stop, preserve the state, and
+explain T3's Stop control. Keep ambiguous execution and all unfinished source
+changes preserved.
 T3 child cancellation and runtime recovery do not complete a zdev task.
+
+T3's Stop control also stops delegated descendants. Codex Stop pauses its native
+goal; Claude Stop ends the turn but retains its goal, which may be checked after
+the next message. Retain that the zdev run was stopped. An unrelated message,
+native goal check, or late wake does not authorize resuming it: only an explicit
+request does. Explain that Claude's retained goal can be removed with T3's Clear
+control or `/goal clear`; do not issue that command on the user's behalf.
+Budget or usage limits and an unexpectedly paused, cleared, or completed goal
+also prevent new dispatch. Report the observed state and reconcile active
+children before a later explicitly authorized resume.
 
 After a server restart or uncertain delivery, inspect retained handles and
 their child execution before a new dispatch. Read fresh zdev context and Git

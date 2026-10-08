@@ -15,9 +15,10 @@ zdev can stop after the pilot.
 
 The coordinator route is now packaged in both root skills and selected by an
 explicit request **with T3 orchestration**. It includes mixed-harness profile
-resolution and completion-driven goal/loop continuation. Ordinary native routes
-remain the default. No installer flag, scheduler, or additional stored state was
-needed. See [usage and current limits](t3-code.md).
+resolution and goal/loop continuation through one visible T3 parent goal.
+Native goal turns and child wakes reconcile the same coordinator state. Ordinary
+native routes remain the default. No installer flag, scheduler, or additional
+stored state was needed. See [usage and current limits](t3-code.md).
 
 Packaging preceded the live pilot so the same instructions can be tested from
 either coordinator. Source-contract and repository checks do not establish live
@@ -175,12 +176,21 @@ the T3 route explicitly, for example: "Use zdev with T3 orchestration to loop
 through area X." The root skill loads this route before choosing a native Codex
 goal or Claude workflow.
 
-The T3 route continues through child-completion events:
+Start the loop with T3's visible `/goal`, carrying the zdev stop condition and
+worker choices; [the usage guide](t3-code.md) supplies the exact command. Exposed
+native tools may establish it after inspecting clear goal state. Without an
+activation surface, the skill prepares the command before dispatch. T3 exposes
+this UI for both Codex and Claude, while the provider owns continuation.
+[Goal UI implementation](https://github.com/pingdotgg/t3code/pull/15592),
+[goal state contract](https://github.com/pingdotgg/t3code/blob/d720210996a514368ba99f4860063110033d93fa/packages/contracts/src/orchestrationV2.ts).
+
+Native goal turns and child-completion events resume the same coordinator:
 
 1. Select a task from fresh work-context and dispatch its first worker, then
    yield while that worker runs.
-2. A completion notification resumes the coordinator. It reads the exact result
-   through `task_status`, validates it, and dispatches the next phase: planning,
+2. Any continuation reconciles the retained task handle before dispatch. An
+   active child remains pending. A completion reads the exact result through
+   `task_status`, validates it, and dispatches the next phase: planning,
    implementation, verification, or repair as appropriate.
 3. After a valid verifier pass, compare context and complete and commit the task.
 4. In that same coordinator turn, collect fresh context. If another task is ready
@@ -192,31 +202,27 @@ task and snapshot, worker handles, and completed task/commit pairs in its
 conversation. Task records and commits remain the durable progress checkpoints.
 Do not introduce a separate loop record or scheduling service.
 
-| Current or proposed route | What drives continuation |
+| Route | What drives continuation |
 | --- | --- |
 | Current Codex | The native goal runtime keeps invoking the coordinator against an area-sized stop condition; native workers handle task phases. |
 | Current Claude Code | The packaged JavaScript workflow repeats the one-task body and retains workflow variables; its `agent()` calls dispatch native workers. |
-| Proposed T3 Code | Shared coordinator instructions interpret child results, while T3 persists execution and delivers the completion events that resume the coordinator. Workers can use different harnesses. |
+| T3 Code | One visible native parent goal continues the main coordinator; T3 owns child execution and completion delivery. Both entry paths use the same pending handles and phases. Workers can use different harnesses. |
 
-The T3 route creates neither a Codex native goal nor a Claude JavaScript loop.
-It must not start a second competing continuation mechanism. The main harness
-still executes the coordinator's reasoning and tools; changing that harness does
-not change the task-phase and stopping rules.
-
-There is a specific continuation limit: T3 does not evaluate the zdev area
-predicate or wake an idle coordinator merely because its area has ready tasks.
-The event chain continues only while the coordinator dispatches the next worker
-or is already executing the local completion and selection steps. If it ends a
-turn after a commit without dispatching another worker, no child completion will
-wake it. Qualification must exercise several task boundaries and show that both
-coordinator harnesses follow this rule. A timer would obscure this gap rather
-than establish reliable continuation.
+The T3 route uses the parent native goal displayed by T3 and never starts a
+separate Claude JavaScript loop, second goal, or timer. T3 mirrors goal state;
+the main provider still executes continuation and evaluation. A fully
+provider-independent loop runtime would require an upstream T3 feature.
+Qualification must exercise task boundaries and overlapping goal turns and
+child wakes without duplicate workers. Goal completion is run termination,
+including the explicit blocker stop condition, not a zdev verification pass.
 
 Stop on a genuine blocker, unsafe state, required user decision, explicit stop,
 or fresh empty, exhausted, or closed context. Empty or exhausted work does not
 close the area. Rework stays within the current task and gets another fresh
 verifier. A stopped run must account for active workers and preserve unfinished
-changes before any later replacement dispatch.
+changes before any later replacement dispatch. Codex Stop pauses its goal;
+Claude Stop retains it and may evaluate it after the next message. A stopped
+zdev run therefore needs explicit resume regardless of a later native check.
 
 Restart behavior uses T3's configured execution recovery and zdev's existing
 recovery checks. Inspect the existing child and fresh Git/task state before

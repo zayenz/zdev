@@ -365,7 +365,7 @@ Codex supports the explicit **Parallel** route in `references/parallel.md`.
 Codex also supports the read-only **Plan one task** route in
 `references/plan-task.md`.
 The exact installed task-workflows contract path for this installation is
-"/Users/zayenz/.codex/worktrees/f7c2/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
+"/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.
 
 Use one Codex collaboration agent to implement a task and a different agent to

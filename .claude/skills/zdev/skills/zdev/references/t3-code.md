@@ -18,7 +18,7 @@ native dispatch-spec route. Other intents keep their shared instructions;
 any requested reviewer uses the T3 dispatch and profile rules here.
 
 The installed task-workflows contract locator is
-"/Users/zayenz/.codex/worktrees/f7c2/zdev/.claude/skills/zdev/contracts/task-workflows.md". Resolve a relative locator against the
+"/Users/zayenz/projects/zdev/.claude/skills/zdev/contracts/task-workflows.md". Resolve a relative locator against the
 authoritative checkout. Give workers its absolute path and this reference's
 absolute path; they load only their assigned worker role and applicable
 contract sections.
@@ -316,3 +316,9 @@ Keep coordination, `.zdev`, staging, commits, and delegation with the parent.
 
 Before inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.
 <!-- zdev:generated-repository-guidance:end -->
+
+## Coding guidance
+
+Coding guidance file: "/Users/zayenz/projects/zdev/.claude/skills/zdev/skills/zdev/references/coding.md"
+
+Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

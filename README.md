@@ -218,7 +218,6 @@ directory. It is separate from the binary's existing `zdev skill install`
 workflow. Its [generation guide](skills/zdev-area-report/references/generation.md)
 describes dependency setup and the `init` and `build` commands.
 
-
 ## Adapted skills
 
 The zdev skill adapts methods from three upstream skill projects:

@@ -3,7 +3,7 @@ schema_version = 1
 id = "auto-002"
 key = "measurement-tools"
 area = "auto"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -26,11 +26,21 @@ Use the public research contract established by research-records. Read the brief
 
 ## Done when
 
-- [ ] Public measurement utilities repeat a command with timeout/error handling, preserve raw numeric samples, and report mean, median, and spread.
-- [ ] Comparisons respect direction, threshold, comparable baseline conditions, and optional documented confidence/significance methods.
-- [ ] Missing, nonfinite, malformed, failed, and timed-out measurements produce explicit invalid evidence.
-- [ ] Collected observations feed the task-owned result contract and expose evaluation cost for run accounting.
+- [x] Public measurement utilities repeat a command with timeout/error handling, preserve raw numeric samples, and report mean, median, and spread.
+- [x] Comparisons respect direction, threshold, comparable baseline conditions, and optional documented confidence/significance methods.
+- [x] Missing, nonfinite, malformed, failed, and timed-out measurements produce explicit invalid evidence.
+- [x] Collected observations feed the task-owned result contract and expose evaluation cost for run accounting.
 
 ## Validation
 
 - Use deterministic evaluator fixtures for collection/failure behavior and known small samples checked against a trusted reference for statistics. Run focused tests and matching Rust checks; document commands and assumptions.
+
+## Result
+
+Added repeatable evaluator measurements, explicit failure observations, sample summaries and costs, directional comparisons, and optional exact paired sign testing.
+
+Validation:
+
+- Independent verifier PASS against unchanged W29a27ea1c9770376; all done conditions met.
+- cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked (167 integration and 3 unit); cargo build --locked; git diff --check passed.
+- Focused research tests, NIST sign-test reference, temporary-repository CLI failure and descendant-cleanup scenarios, five installed fixture checks, and zdev check auto passed.

@@ -24,9 +24,10 @@ A research area mixes ordinary tasks with hypothesis tasks. `open` and `done`
 still describe task completion. A hypothesis decision describes the experiment;
 it does not change the area's lifecycle or replace task dependencies.
 
-This version configures research and validates supplied evidence. It does not
-launch evaluators, compute statistical confidence, verify Git attestations,
-retain or restore candidate code, or run serial or parallel experiments.
+This version configures research, collects evaluator measurements, and validates
+supplied evidence using directional thresholds and an optional exact paired
+sign test. It does not verify Git attestations, retain or restore candidate
+code, or coordinate serial or parallel experiments.
 Automatic implementation, planning, and verification dispatch reject hypotheses
 before emitting workers. Ordinary supporting tasks keep their existing routes.
 Read this contract when a selected task has `hypothesis` frontmatter; do not
@@ -54,7 +55,8 @@ cat > research-settings.json <<EOF_SETTINGS
   },
   "evaluator_command": "./evaluate-fixed-workload",
   "permitted_changes": ["src/cache.rs"],
-  "attempt_limit": 2
+  "attempt_limit": 2,
+  "timeout_seconds": 60.0
 }
 EOF_SETTINGS
 zdev area research work --from research-settings.json
@@ -67,7 +69,7 @@ stored settings. These commands never create commits or run the evaluator.
 
 The `research` table in `.zdev/<area>/area.toml` is the sole executable policy.
 The brief supplies the objective, experimental reasoning, and shared boundaries.
-All JSON objects reject unknown fields. Settings require every shown field:
+All JSON objects reject unknown fields. Settings require the shown fields except `timeout_seconds`, which defaults to 60:
 
 | Field | Rule |
 | --- | --- |
@@ -81,11 +83,13 @@ All JSON objects reject unknown fields. Settings require every shown field:
 | `aggregation` | `mean` or `median`; median averages the two middle values for an even count. |
 | `minimum_gain` | Finite nonnegative absolute gain in the metric's units. Acceptance also requires strictly positive gain. |
 | `required_checks` | At least one unique non-empty correctness check name. |
+| `significance` | Optional `{"method":"paired_sign","alpha":0.05}`; see the assumptions below. |
 | `evaluator_command` | Non-empty command; only the area setting supplies this command. |
 | `permitted_changes` | At least one unique non-empty scope boundary. These are human-reviewed boundaries, not a path sandbox. |
 | `attempt_limit` | Positive finite limit per hypothesis. Each observation counts as one attempt. |
+| `timeout_seconds` | Positive finite timeout per evaluator invocation, in seconds; defaults to 60. |
 
-Fields below `comparison.metric` through `required_checks` in the table also
+Fields below `comparison.metric` through `significance` in the table also
 belong to `comparison`. Each candidate preparation or repair attempt, measurement
 rerun, confirmation, and reconciliation consumes an attempt; record its
 observation even if it fails. `elapsed_seconds` records its cost. This version
@@ -151,6 +155,92 @@ hypotheses in text and JSON. Goal/status expose the area's settings; goal and
 task projections expose task-owned evidence. Absent research fields are omitted
 from ordinary records and projections.
 
+### Collect and compare measurements
+
+`zdev research measure` runs the area's `evaluator_command` through `sh -c` in
+`--root`, once per configured repetition. Standard input is closed. Each
+invocation receives `ZDEV_REPETITION`, a one-based index; paired noisy studies
+must use this index to select the same predeclared block/seed as the baseline.
+The command must print exactly one finite numeric scalar on stdout (up to 4096
+bytes). Whitespace around the number is allowed. Diagnostics belong on stderr;
+they are not retained by this utility. Evaluators may create their own files.
+
+```sh
+printf '[{"name":"equivalent output","passed":true}]' > checks.json
+zdev research measure work --starting-revision "$revision" --candidate-revision "$(git rev-parse HEAD)" --checks checks.json --format json > measurement.json
+```
+
+`--checks -` reads a JSON array from stdin. Checks attest to correctness tests
+already run by the caller; the utility does not execute or prove those checks,
+revision identities, or physical comparison conditions. The caller must supply
+truthful facts. Missing or failed required checks and a starting revision that
+differs from the baseline make the assessment unusable.
+
+The output contains `comparison`, a task-compatible `observation`, `summary`,
+and `assessment`, plus `schema_version` and `area`. Copy `comparison` and put
+`observation` in the owning task result's `observations` array. `summary` reports
+mean, median, minimum, maximum, and `spread` (maximum minus minimum).
+`assessment` reports `usable`, `improved`, directional `gain`, and, when selected,
+the recomputed significance test. These derived values are not another ledger;
+raw samples and comparison policy remain the stored evidence.
+
+Collection stops at the first failure and retains finite earlier samples.
+Nonzero exits/launch failures produce `crashed`, timeout produces `timed_out`,
+and empty, malformed, nonfinite output or nonfinite summary/gain produces
+`invalid`. Failures contain a description; summary is null and improvement is
+false. Valid JSON evidence, including failure, exits successfully; command/input
+errors exit unsuccessfully. `elapsed_seconds` includes collection and waiting;
+`evaluation_runs` counts invocations attempted before stopping, so failed work
+also consumes resources. On Unix each invocation kills remaining descendants in the evaluator's process
+group when its shell exits, or kills the group and reaps the shell on timeout.
+Processes that detach into another group are outside that cleanup. Evaluators
+must finish their work before exiting.
+
+`zdev research compare work --from result.json --format json` checks a result
+record's comparison and attempt allowance against current area policy, then
+summarizes and assesses its latest observation. It rejects changed evaluator,
+workload, baseline, or policy facts. Both utilities leave task records and Git
+state alone. They do not retain candidates, restore code, or run a research loop.
+
+### Optional exact paired sign test
+
+Set `comparison.significance` to `{"method":"paired_sign","alpha":0.05}` only
+when the baseline and candidate samples are naturally paired by index. The
+method requires 2 through 1024 repetitions and finite `0 < alpha < 1`. Omitting
+it uses only the directional aggregate and minimum gain. Deterministic metrics
+can use one repetition without inference.
+
+For each pair, compute baseline minus candidate when minimizing, candidate
+minus baseline when maximizing, then subtract `minimum_gain`. Positive
+adjusted differences are wins. Exact zero differences are ties and are excluded.
+With `n` non-tied pairs and `w` wins, the one-sided p-value is
+`P(Binomial(n, 0.5) >= w)`. All ties give p = 1 and fail the test. The reported
+`pairs`, `ties`, `wins`, `p_value`, `alpha`, `method`, and `passed` explain the
+calculation. Passing requires p <= alpha. Acceptance still requires strictly
+positive aggregate gain meeting the threshold, comparable evidence, correctness
+checks, retained code, and independent review.
+
+The null is that, conditional on a non-tie, positive and negative adjusted
+differences are equally probable; the alternative favors positive differences.
+Assume independent pairs with the same sign probability and a predeclared
+pairing, threshold, sample count, and alpha. With continuous differences this
+is a test of median paired gain at the threshold. It is not a confidence
+interval or a guarantee about expected mean gain. For quantized data, excluding
+ties tests the conditional sign probability, not the probability of exceeding
+the threshold over all runs. Do not interpret it as the latter, and do not use
+it to manufacture confidence for a deterministic metric.
+
+This follows the [NIST Dataplot sign-test reference](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/signtest.htm).
+Its worked example has 3 positive, 4 negative, and 3 tied differences: the
+one-sided upper-tail probability is 99/128 = 0.7734375 (printed as 0.7734).
+Focused tests also check ten wins (1/1024), all ties, directions, and thresholds.
+Run `cargo test --locked research_` to exercise those samples and deterministic
+evaluator failure fixtures. This small exact method makes no normality or
+symmetry assumption, loses magnitude information, and may have low power.
+Repeated search, adaptive reruns, and selecting promising candidates can inflate
+false positives; the area must define confirmation or held-out procedures when
+needed. A p-value alone establishes neither correctness nor generalization.
+
 ### Append observations and a decision
 
 Use `zdev task research work work-002 --from result.json` to append one strict
@@ -209,12 +299,16 @@ the area comparison shape, and must equal current settings when appended.
 ordered `research_results` array; each append preserves all prior records.
 Observations are attempts, and samples within one observation are repetitions.
 Sum observation counts across the task for consumed attempts. Sum their finite,
-nonnegative `elapsed_seconds` for recorded elapsed cost.
+nonnegative `elapsed_seconds` for recorded elapsed cost. Optional
+`evaluation_runs` counts attempted evaluator invocations, including a failed
+launch. It must cover retained samples, not exceed repetitions, and equal
+repetitions for measured observations. Older observations may omit it; their
+invocation cost is unknown, rather than zero.
 
 Each observation requires the two full revision IDs, `outcome`, `samples`,
 `checks`, and `elapsed_seconds`. Check objects contain exactly `name` and
 `passed`; names are unique. A `measured` observation requires exactly
-`repetitions` finite samples and forbids `failure`. `crashed` and `timed_out`
+`repetitions` finite samples and forbids `failure`. `crashed`, `timed_out`, and `invalid`
 require a non-empty `failure` description; they may preserve finite partial
 samples but never count as usable comparisons. Failed or missing required
 checks also make an observation unusable. A usable observation must start from

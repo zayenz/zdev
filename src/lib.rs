@@ -120,6 +120,11 @@ enum Command {
         #[command(subcommand)]
         command: AreaCommand,
     },
+    /// Collect evaluator samples or compare recorded evidence using area policy
+    Research {
+        #[command(subcommand)]
+        command: ResearchCommand,
+    },
     /// Create and inspect lightweight briefs within an area
     Slice {
         #[command(subcommand)]
@@ -427,6 +432,27 @@ enum CleanupCommand {
     /// worktree. If the cleanup commit fails, the .zdev deletion remains staged
     /// for inspection and recovery.
     Squash,
+}
+
+#[derive(Debug, Subcommand)]
+enum ResearchCommand {
+    /// Execute the area's evaluator and emit a task-compatible observation
+    Measure {
+        area: String,
+        #[arg(long)]
+        starting_revision: String,
+        #[arg(long)]
+        candidate_revision: String,
+        /// JSON array of correctness check attestations; - reads stdin
+        #[arg(long, value_name = "PATH_OR_DASH")]
+        checks: PathBuf,
+    },
+    /// Compare the latest observation in a result record against current area settings
+    Compare {
+        area: String,
+        #[arg(long = "from", value_name = "PATH_OR_DASH")]
+        source: PathBuf,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -747,6 +773,7 @@ impl Cli {
             Command::Status { .. } => "status",
             Command::Check { .. } => "check",
             Command::Skill { .. } => "skill",
+            Command::Research { .. } => "research",
             Command::Commit { .. } => "commit",
             Command::ChangeId => "change-id",
             Command::Change { .. } => "change",
@@ -892,6 +919,17 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
     let root = resolve_root(cli.root.as_deref())?;
     match &cli.command {
         Command::Instructions => unreachable!(),
+        Command::Research { command } => match command {
+            ResearchCommand::Measure {
+                area,
+                starting_revision,
+                candidate_revision,
+                checks,
+            } => research::measure(&root, area, starting_revision, candidate_revision, checks),
+            ResearchCommand::Compare { area, source } => {
+                research::compare_observation(&root, area, source)
+            }
+        },
         Command::Init { record } => project::initialize(&root, *record),
         Command::Cleanup { command } => match command {
             CleanupCommand::Squash => project::cleanup_squash(&root),

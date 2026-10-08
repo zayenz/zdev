@@ -13670,7 +13670,7 @@ fn research_settings(revision: &str) -> Value {
             "repetitions": 2, "aggregation": "median", "minimum_gain": 1.0,
             "required_checks": ["equivalent output"]
         },
-        "evaluator_command": "./evaluate", "permitted_changes": ["src/cache.rs"], "attempt_limit": 2
+        "evaluator_command": "./evaluate", "permitted_changes": ["src/cache.rs"], "attempt_limit": 2, "timeout_seconds": 60.0
     })
 }
 
@@ -14162,4 +14162,217 @@ fn research_invalid_results_preserve_bytes_and_terminal_rules() {
         ],
     );
     assert!(run_zdev(root, &["check", "work"]).status.success());
+}
+
+#[test]
+fn research_measure_collects_samples_and_retains_execution_failures() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    let revision = git(root, &["rev-parse", "HEAD"]);
+    let revision = revision.trim();
+    let mut settings = research_settings(revision);
+    settings["evaluator_command"] = json!("echo $((ZDEV_REPETITION + 6))");
+    settings["timeout_seconds"] = json!(0.05);
+    configure_research_fixture(root, &settings);
+    let args = [
+        "research",
+        "measure",
+        "work",
+        "--starting-revision",
+        revision,
+        "--candidate-revision",
+        revision,
+        "--checks",
+        "-",
+    ];
+    let checks = br#"[{"name":"equivalent output","passed":true}]"#;
+    let measured = json_output_with_stdin(root, &args, checks);
+    assert_eq!(measured["observation"]["samples"], json!([7.0, 8.0]));
+    assert_eq!(measured["observation"]["evaluation_runs"], 2);
+    assert_eq!(
+        measured["summary"],
+        json!({"mean":7.5,"median":7.5,"minimum":7.0,"maximum":8.0,"spread":1.0})
+    );
+    assert_eq!(measured["assessment"]["improved"], true);
+    assert!(measured["observation"]["elapsed_seconds"].as_f64().unwrap() > 0.0);
+    // Utility output can be appended to the owning task without rewriting observations.
+    import_research_fixture(root, json!([hypothesis_draft("measure")]));
+    let result = json!({"comparison":measured["comparison"],"attempt_limit":2,
+        "observations":[measured["observation"]],"decision":"observed","lesson":"Collected fixed samples."});
+    json_output_with_stdin(
+        root,
+        &["task", "research", "work", "work-001", "--from", "-"],
+        &serde_json::to_vec(&result).unwrap(),
+    );
+    for (index, command, outcome) in [
+        (
+            1,
+            r#"if [ "$ZDEV_REPETITION" = 1 ]; then echo 7; else echo bad; fi"#,
+            "invalid",
+        ),
+        (2, "exit 9", "crashed"),
+        (3, "sleep 10", "timed_out"),
+        (4, "printf ''", "invalid"),
+        (5, "echo NaN", "invalid"),
+        (6, "echo infinity", "invalid"),
+        (7, "printf '1\\n2\\n'", "invalid"),
+    ] {
+        settings["evaluator_command"] = json!(command);
+        settings["comparison"]["evaluator_identity"] = json!(format!("failure-{index}"));
+        configure_research_fixture(root, &settings);
+        let failure = json_output_with_stdin(root, &args, checks);
+        assert_eq!(failure["observation"]["outcome"], outcome);
+        assert_eq!(failure["assessment"]["improved"], false);
+        assert_eq!(failure["summary"], Value::Null);
+        assert!(
+            !failure["observation"]["failure"]
+                .as_str()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            failure["observation"]["evaluation_runs"],
+            if index == 1 { 2 } else { 1 }
+        );
+        if index == 1 {
+            assert_eq!(failure["observation"]["samples"], json!([7.0]));
+        }
+        if index == 3 {
+            assert!(failure["observation"]["elapsed_seconds"].as_f64().unwrap() < 2.0);
+        }
+    }
+    settings["evaluator_command"] = json!("echo 7");
+    settings["comparison"]["evaluator_identity"] = json!("deterministic");
+    settings["comparison"]["repetitions"] = json!(1);
+    settings["comparison"]["baseline_samples"] = json!([10.0]);
+    settings.as_object_mut().unwrap().remove("timeout_seconds");
+    configure_research_fixture(root, &settings);
+    let deterministic = json_output_with_stdin(root, &args, checks);
+    assert_eq!(deterministic["observation"]["evaluation_runs"], 1);
+    assert_eq!(deterministic["summary"]["spread"], 0.0);
+    assert_eq!(deterministic["assessment"]["improved"], true);
+    assert!(deterministic["assessment"].get("significance").is_none());
+    settings["evaluator_command"] = json!(
+        "(while [ ! -e evaluator-returned ]; do sleep 0.01; done; touch evaluator-leak) & echo 7"
+    );
+    settings["comparison"]["evaluator_identity"] = json!("background-child");
+    configure_research_fixture(root, &settings);
+    json_output_with_stdin(root, &args, checks);
+    fs::write(root.join("evaluator-returned"), "returned").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(350));
+    assert!(
+        !root.join("evaluator-leak").exists(),
+        "evaluator descendants must stop after the invocation exits"
+    );
+}
+
+#[test]
+fn research_comparison_applies_direction_threshold_and_exact_paired_sign_policy() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+    let revision = git(root, &["rev-parse", "HEAD"]);
+    let revision = revision.trim();
+    let mut settings = research_settings(revision);
+    settings["comparison"]["baseline_samples"] = json!(vec![10.0; 10]);
+    settings["comparison"]["repetitions"] = json!(10);
+    settings["comparison"]["minimum_gain"] = json!(0.0);
+    settings["comparison"]["significance"] = json!({"method":"paired_sign","alpha":0.05});
+    configure_research_fixture(root, &settings);
+    let assess = |settings: &Value, samples: Value| {
+        let record = research_record(settings, revision, "observed", samples);
+        json_output_with_stdin(
+            root,
+            &["research", "compare", "work", "--from", "-"],
+            &serde_json::to_vec(&record).unwrap(),
+        )
+    };
+    // NIST Dataplot sign-test worked example: 3 positive, 4 negative, 3 ties.
+    // https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/signtest.htm
+    // P(Binomial(7, 1/2) >= 3) = 99/128, printed there as 0.7734.
+    let nist = assess(&settings, json!([9, 9, 9, 11, 11, 11, 11, 10, 10, 10]));
+    assert_eq!(nist["assessment"]["significance"]["p_value"], 99.0 / 128.0);
+    assert_eq!(nist["assessment"]["significance"]["pairs"], 7);
+    assert_eq!(nist["assessment"]["significance"]["ties"], 3);
+    assert_eq!(nist["assessment"]["improved"], false);
+    import_research_fixture(root, json!([hypothesis_draft("significance")]));
+    let mut accepted = research_record(
+        &settings,
+        revision,
+        "accepted",
+        json!([8, 8, 8, 8, 8, 8, 8, 11, 11, 11]),
+    );
+    accepted["verification"] =
+        json!({"reviewer":"independent reviewer","passed":true,"summary":"Checked candidate."});
+    accepted["retained_candidate"] = json!("refs/experiments/significance");
+    let insufficient = json_output_with_stdin_status(
+        root,
+        &["task", "research", "work", "work-001", "--from", "-"],
+        &serde_json::to_vec(&accepted).unwrap(),
+    );
+    assert!(!insufficient.status.success());
+    assert!(String::from_utf8_lossy(&insufficient.stderr).contains("significance rule"));
+    let winning = assess(&settings, json!(vec![8.0; 10]));
+    assert_eq!(
+        winning["assessment"]["significance"]["p_value"],
+        1.0 / 1024.0
+    );
+    assert_eq!(winning["assessment"]["improved"], true);
+    let tied = assess(&settings, json!(vec![10.0; 10]));
+    assert_eq!(tied["assessment"]["significance"]["p_value"], 1.0);
+    assert_eq!(tied["assessment"]["improved"], false);
+    settings["comparison"]["minimum_gain"] = json!(2.0);
+    settings["comparison"]["direction"] = json!("maximize");
+    configure_research_fixture(root, &settings);
+    assert_eq!(
+        assess(&settings, json!(vec![12.0; 10]))["assessment"]["improved"],
+        false
+    );
+    assert_eq!(
+        assess(&settings, json!(vec![13.0; 10]))["assessment"]["improved"],
+        true
+    );
+    settings["comparison"]
+        .as_object_mut()
+        .unwrap()
+        .remove("significance");
+    configure_research_fixture(root, &settings);
+    assert_eq!(
+        assess(&settings, json!(vec![12.0; 10]))["assessment"]["improved"],
+        true
+    );
+    assert_eq!(
+        assess(&settings, json!(vec![11.0; 10]))["assessment"]["improved"],
+        false
+    );
+    let mut invalid = research_record(&settings, revision, "observed", json!(vec![13.0; 10]));
+    invalid["observations"][0]["starting_revision"] = json!("a".repeat(40));
+    let stale = json_output_with_stdin(
+        root,
+        &["research", "compare", "work", "--from", "-"],
+        &serde_json::to_vec(&invalid).unwrap(),
+    );
+    assert_eq!(stale["assessment"]["usable"], false);
+    invalid["observations"][0]["starting_revision"] = json!(revision);
+    invalid["observations"][0]["checks"] = json!([]);
+    let unchecked = json_output_with_stdin(
+        root,
+        &["research", "compare", "work", "--from", "-"],
+        &serde_json::to_vec(&invalid).unwrap(),
+    );
+    assert_eq!(unchecked["assessment"]["improved"], false);
+    invalid["comparison"]["conditions"] = json!("different workload");
+    let mismatch = json_output_with_stdin_status(
+        root,
+        &["research", "compare", "work", "--from", "-"],
+        &serde_json::to_vec(&invalid).unwrap(),
+    );
+    assert!(!mismatch.status.success());
 }

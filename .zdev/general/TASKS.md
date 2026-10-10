@@ -2,8 +2,8 @@
 
 # Tasks: general
 
-- Total: 22
-- Ready: 0
+- Total: 23
+- Ready: 1
 - Blocked: 0
 - Done: 22
 
@@ -31,3 +31,4 @@
 | [general-020](tasks/020-support-scoped-execution-profiles-in-opencode-pi-and-oh-my-p.md) | Support scoped execution profiles in OpenCode, Pi, and Oh My Pi | done | general-018 |
 | [general-021](tasks/021-configure-an-execution-profile-per-area.md) | Configure harness-specific execution profiles per area | done | — |
 | [general-022](tasks/022-show-profile-details-in-human-readable-output.md) | Show profile details in human-readable output | done | — |
+| [general-023](tasks/023-honor-blanket-authorization-across-parallel-batches.md) | Honor blanket authorization across parallel batches | ready | — |

@@ -1,4 +1,9 @@
-# zdev
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/zdev-logo-light.svg">
+    <img src="assets/zdev-logo.svg" alt="zdev" width="360">
+  </picture>
+</h1>
 
 Zdev coordinates repository work with coding guidance, durable tasks, and
 independent review. A coding harness explores the code, implements a task, and

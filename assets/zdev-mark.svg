@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 176 140" role="img" aria-labelledby="title">
+  <title id="title">zdev dependency graph</title>
+  <g fill="#4cbb17">
+    <path d="M40 16C64 16 68 18 68 34C68 50 64 52 40 52C16 52 12 50 12 34C12 18 16 16 40 16Z"/>
+    <path d="M40 16C64 16 68 18 68 34C68 50 64 52 40 52C16 52 12 50 12 34C12 18 16 16 40 16Z" transform="translate(96 0)"/>
+    <path d="M40 16C64 16 68 18 68 34C68 50 64 52 40 52C16 52 12 50 12 34C12 18 16 16 40 16Z" transform="translate(0 72)"/>
+    <path d="M40 16C64 16 68 18 68 34C68 50 64 52 40 52C16 52 12 50 12 34C12 18 16 16 40 16Z" transform="translate(96 72)"/>
+  </g>
+  <g fill="none" stroke="#25362e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M76 34H98M92 28L98 34L92 40"/>
+    <path d="M40 60V80M34 74L40 80L46 74"/>
+    <path d="M136 60V80M130 74L136 80L142 74"/>
+    <path d="M76 106H98M92 100L98 106L92 112"/>
+  </g>
+</svg>

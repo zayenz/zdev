@@ -27,12 +27,27 @@ Reported during feature/interfaces: the maintainer approved parallel implementat
 
 ## Done when
 
-- [ ] The canonical parallel workflow distinguishes one-batch approval from explicit approval for compatible future batches in the same ongoing run.
-- [ ] A goal/loop with blanket approval can choose, admit and start later compatible batches without another permission question while preserving all stated execution limits.
-- [ ] Single-batch approval still stops before an unauthorized next batch, and a changed user-owned choice still requires clarification.
-- [ ] All affected generated harness guidance and continuation/recovery descriptions agree with the canonical contract.
+- [x] The canonical parallel workflow distinguishes one-batch approval from explicit approval for compatible future batches in the same ongoing run.
+- [x] A goal/loop with blanket approval can choose, admit and start later compatible batches without another permission question while preserving all stated execution limits.
+- [x] Single-batch approval still stops before an unauthorized next batch, and a changed user-owned choice still requires clarification.
+- [x] All affected generated harness guidance and continuation/recovery descriptions agree with the canonical contract.
 
 ## Validation
 
 - Use existing workflow/rendering checks for a blanket-approved multi-batch goal, a single-batch approval, and a later batch that exceeds the approved worker limit or changes the destination. Add only focused coverage where an executable boundary changes.
 - Regenerate affected artifacts, run the general-area standard validation and git diff --check.
+
+## Implementation
+
+Implemented in `706111e` as part of the 2.0 release repairs. Canonical parallel,
+goal/loop and recovery guidance retain explicit blanket scope and require fresh
+finite-batch admission. Generated integrations were refreshed and checked.
+Independent source review found no required corrections. The release gate,
+including formatting, strict Clippy, all tests and packaged-binary smoke checks,
+passed on 2026-10-13. The full Rust suite took 136.99 seconds with scripted local
+workers and no LLM calls.
+
+The record remains open until this change is integrated into `main`. The release
+checkout has a detached HEAD, while this trunk area's lifecycle commands require
+the configured `main` branch. Complete the task through zdev after integration;
+the implementation and validation are finished.

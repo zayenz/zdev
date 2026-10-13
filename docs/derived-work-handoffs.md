@@ -1,13 +1,20 @@
 # Derived work handoffs
 
 Zdev may publish a small follow-up bundle without asking the user to approve
-work they have already approved. This exception applies only to direct work
+work they have already authorized. This applies to direct work
 inside the current task's area brief, outcome, boundaries, and testing policy.
 It adds no task state, lineage metadata, or worker authority over `.zdev`.
 
 The coordinator owns the decision and the mutation. Each worker may return one
 proposal with its result. The worker never imports tasks, edits the source
 task, completes work, stages files, or commits.
+
+An AFK task may split when smaller tasks make implementation or verification
+easier, with no new user approval for the same outcome, boundaries, and testing.
+Set unattended children explicitly to `afk: true`, since TaskDraft defaults to
+false. Keep human-dependent checks attended and late in the dependency graph.
+The source keeps its original done conditions. Watch for repeated splitting
+without implementation progress under the skill's death-loop guidance.
 
 ## Transient proposal
 

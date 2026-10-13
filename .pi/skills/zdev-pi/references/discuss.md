@@ -53,8 +53,9 @@ any reported issue, then summarize the resulting brief and remaining
 non-blocking details. When the
 user explicitly requested task creation and no material product or testing
 choice remains, continue directly with **Create tasks** and show the exact
-rendered task bundle for approval; no separate research interaction is needed.
+rendered task bundle for review, using the user's retained approval or delegated
+authority; no separate research interaction is needed.
 
 Recommend one next interaction when the result points clearly to it. Then stop
-unless the user already requested more work. Import tasks only after the user
-approves the exact rendered bundle.
+unless the user already requested more work. Follow **Create tasks** for import;
+reuse delegated creation/import authority without another confirmation.

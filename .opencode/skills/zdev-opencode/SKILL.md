@@ -1,6 +1,6 @@
 ---
 name: zdev-opencode
-description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use when the user invokes zdev or $zdev, names an existing .zdev area or task, or asks to continue stored zdev work."
+description: "Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use when the user invokes zdev or $zdev, names an existing .zdev area, task, or note, or asks to continue stored zdev work."
 compatibility: opencode
 ---
 
@@ -9,11 +9,12 @@ compatibility: opencode
 ## Activate zdev, then route intent
 
 Activate this workflow when the user invokes `zdev` or `$zdev`, names a stored
-`.zdev` area or task, or asks to continue stored zdev work. Once active, words
+`.zdev` area, task, or note, or asks to continue stored zdev work. Once active, words
 such as “audit,” “goal,” “loop,” and “implement” select the matching route.
 
 | Active zdev intent | One route |
 | --- | --- |
+| **Notes** — add a note, list notes, or make an area from a note or folder | [references/notes.md](references/notes.md) |
 | **Explore an objective** — start or revise an area and its brief; aliases: “wayfind,” “shape” | [references/shape-work.md](references/shape-work.md) |
 | **Discuss the brief** — challenge or sharpen an existing brief; alias: “grill” | [references/discuss.md](references/discuss.md) |
 | **Improve** — broadly inspect the codebase and propose candidate work | [references/improve.md](references/improve.md) |
@@ -49,12 +50,25 @@ Read the applicable coding guidance sections when the route involves code. Do
 not ask a reference to choose another route. Run requested interactions
 in their requested order; load a shared reference only at its first use. After
 the last interaction, report the result and wait. If a pending reviewed bundle
-changes, show the revision and ask for exact approval again. During authorized
-task work, coordination may instead clarify an incidental technical restriction
+changes, renew approval only when the user retained exact-bundle review. During
+authorized task work, coordination may instead clarify an incidental technical restriction
 under the active-task rules in the task workflow. Ask which interaction comes
 first only when the requested order is unclear.
 
 ## Ask only for undecided choices
+
+Approval steps in this skill are workflow defaults. Explicit user instructions
+take precedence: a user may delegate task creation and import, waive bundle
+confirmation, or authorize in-scope revisions for an entire run. Retain that
+authority across workers, recovery, and continuation until the user changes it.
+For example, “create and import the tasks without asking me” authorizes the
+coordinator to review and import the resulting bundle without a confirmation
+turn. Keep normal validation and ownership checks; ask only about material
+choices outside the delegated scope. Task creation alone does not authorize
+implementation.
+When a question is needed, name the concrete undecided choice and why its
+answer matters. Treat a default confirmation step as a choice the user can
+delegate, rather than reporting it as a capability or safety blocker.
 
 Use one focused question when its answer determines the next step. Batch only
 independent questions, give a recommended answer and its concrete trade-off,
@@ -65,26 +79,26 @@ consent, and a choice already stated for this work does not need confirmation.
 Use OpenCode's `question` tool when it can request the needed input. Ask one focused question by default and put independent questions in one call only when batching helps. Give each question concrete options, put the recommended answer first, and use plain text for free-form input or approvals the tool cannot request.
 
 Begin discussion and other read-only orientation in the current checkout.
-Reuse a branch or worktree choice the user already made for this work.
-Otherwise ask before creating or switching branches, creating a worktree, or
-making another user-owned choice. Complete useful read-only work first when it
-can make the question concrete. Existing branch-safety checks still govern task
-and lifecycle mutations.
+Reuse a branch or worktree choice the user already made for this work. When the
+user delegates workspace choices, choose a safe reversible setup and state it.
+Ask when a material workspace choice remains undecided. Existing branch-safety
+and ownership checks still govern task and lifecycle mutations.
 
 Keep interaction boundaries explicit. Exploration presents the resulting brief
 for discussion unless the user also requested task creation. An explicit,
 sufficiently specified task request may proceed to the exact task-bundle review.
-Import an approved bundle, but begin implementation only when the user's request
-also authorizes implementation; reuse that authorization when it is already
-clear.
+Import an approved or delegated bundle, but begin implementation only when the
+user's request also authorizes implementation; reuse that authorization when
+it is already clear.
 
 ## Development model
 
 An area moves from a brief to approved tasks, implementation, independent
 verification, completion, and commit. **Explore** and **Discuss** shape the
 brief, including scope and testing. **Create tasks** turns that brief into an
-exact bundle for approval. **Implement** selects one ready task, records the Git
-baseline, and changes only attributable task-owned paths. Paths named during
+exact bundle for review, with user confirmation unless delegated. **Implement**
+selects one ready task, records the Git baseline, and changes only attributable
+task-owned paths. Paths named during
 planning are starting points, not an allowlist, unless an explicit boundary
 says otherwise. Immediately before a fresh
 verifier, coordination stores and validates its work-context snapshot. The
@@ -101,9 +115,11 @@ reuse the completed task's selection.
 An investigation or implementation worker may propose a small direct follow-up
 or split through the strict transient derived-work contract in the selected
 reference or implementation entrypoint. The coordinator alone reviews and
-applies it. Clear in-scope authority uses direct apply. A decision that belongs
-to the user uses a stored review and ordinary approval. Derived tasks then use
-the normal area graph.
+applies it. Clear in-scope authority uses direct apply. An AFK task may split
+when smaller tasks make implementation or verification easier; this needs no
+additional user approval when its outcome, boundaries, and testing stay the
+same. A decision outside retained authority uses a stored review and ordinary
+approval. Derived tasks then use the normal area graph.
 
 Larger areas may organize several related increments as slice briefs under
 `.zdev/<area>/slices/`. A slice records only a title, objective, and boundaries;
@@ -126,8 +142,8 @@ only when several tasks share one narrower objective.
 When discussion leaves no unresolved product or testing choice, an explicit
 request may proceed directly to **Create tasks** and exact task-bundle review.
 This shorter planning path still requires concrete outcomes, boundaries, done
-proof, approval, branch safety, proportionate testing, independent
-verification, and committed accepted work.
+proof, approval or delegated authority, branch safety, proportionate testing,
+independent verification, and committed accepted work.
 
 Confirm `zdev` is available before using durable state. When `.zdev` is absent,
 run standalone **Improve** and **Investigate** without initialization. Load the
@@ -167,8 +183,9 @@ evidence in existing plans, summaries, and handoffs. Independently check
 substantive findings before they drive rework or reporting, as specified there;
 use the task workflow's snapshot and result rules for task verification.
 Before routing corrections, read [review.md](references/review.md) and enforce
-its bounded correction cycle. Load the language and framework supplements
-selected by **Code standards** for each relevant worker.
+its bounded correction cycle. During retries, task splitting, and goal/loop
+continuation, apply its **Death loops** guidance. Load the language and framework
+supplements selected by **Code standards** for each relevant worker.
 
 ## Scoped execution profiles
 
@@ -344,8 +361,16 @@ route.
 
 ## State and reporting
 
-Store only metadata, `brief.md`, optional slice briefs, task files, generated
-`TASKS.md`, and indexed area research under `.zdev`. Retain research under
+Store metadata, `brief.md`, optional slice briefs, task files, generated
+`TASKS.md`, indexed area research, and free-form notes under `.zdev`. Keep
+unfinished plans, future ideas, and collected research documents in
+`.zdev/_notes/`, as individual files or folders with optional nested folders.
+Notes have no required metadata, status, or index and are not selectable work.
+Use [Notes](references/notes.md) when saving, listing, or turning them into an
+area. Read only notes relevant to the user's request; their contents do not
+override an approved brief or task or authorize implementation.
+
+Retain research under
 `.zdev/<area>/background/` only during approved area shaping or an authorized
 investigation task, and only when later tasks will reuse readable, stable,
 source-backed material. Index every retained file from `brief.md`; link only
@@ -362,7 +387,7 @@ what remains; mention commands only when they help the user continue or recover.
 ## OpenCode orchestration
 
 The exact installed task-workflows contract path for this installation is
-"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode that JSON string and include the
+"/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.
 
 Route authored routine, standard/default, and advanced work to
@@ -416,7 +441,7 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.opencode/skills/zdev-opencode/references/coding.md"
+Coding guidance file: "/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
 

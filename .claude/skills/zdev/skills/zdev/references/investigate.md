@@ -28,8 +28,8 @@ delegation merely because a profile was selected.
   loop, and remove temporary probes and harnesses.
 - **Prototype:** Build the minimum artifact that answers a design question.
   Keep it visibly throwaway and isolated from production work. Reuse a branch
-  or worktree choice already made for this prototype; otherwise ask before
-  creating or switching to a temporary branch or creating a worktree. Let the
+  or worktree choice already made for this prototype, following the shared
+  workspace-choice rules when it remains undecided. Let the
   user evaluate it, then delete it or retain its branch as the user directs;
   never merge it as production code.
 
@@ -44,6 +44,11 @@ area `brief.md` and link it selectively from relevant tasks; the brief remains
 the authoritative synthesis. Do not retain transcripts, raw tool or search
 dumps, repository source copies, temporary prototypes, or lifecycle metadata.
 This is ordinary task-owned output, not a report type or lifecycle record.
+
+When the user asks to preserve exploratory research outside an area, use
+[Notes](notes.md) to save it under `.zdev/_notes/`. Several documents may share
+a topic folder with nested folders; they need no area brief or per-file index.
+Saving them does not make their conclusions approved area decisions.
 
 When an authorized investigation task discovers necessary direct follow-up
 work, use the derived-work handoff defined by the implementation contract. The

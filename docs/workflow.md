@@ -179,7 +179,12 @@ raw tool or search dumps, repository source copies, temporary prototypes, or
 lifecycle metadata. The brief remains the authoritative synthesis; background
 files do not override it or a task's outcome, boundaries, and done conditions.
 Standalone investigations remain report-only unless the user asks to preserve
-their result.
+their result. Unfinished plans, future ideas, and collected research documents
+may be saved under `.zdev/_notes/` as individual files or folders, including
+nested folders. Notes need no metadata or index and remain outside the task
+queue. The skill routes add note, list notes, and make area from note through
+ordinary filesystem tools and the existing area workflow. See
+[Notes for future work](user-guide.md#keep-notes-for-future-work).
 
 Review the initial task split before import. This human checkpoint determines
 scope, sequencing, and dependencies. Later execution continues until it

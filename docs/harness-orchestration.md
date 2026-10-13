@@ -263,6 +263,12 @@ models, permission failures, timeouts, and invalid envelopes are blockers when
 they prevent safe progress; zdev does not hide them behind blind transport
 retries or turn the adapter into a scheduler.
 
+The shared review guidance watches for death loops across retries, worker
+replacement, recovery, and task splitting. A repeated failure needs a concrete
+changed approach and a checkable reason to retry. If that approach returns to
+the same failure without useful evidence, stop automatic retries and preserve
+the work. New task IDs or fresh workers do not reset the attempt history.
+
 Only a verified `pass` allows `zdev-implement` to complete the task and run
 `zdev commit`. A completion or commit failure changes the public result to
 `BLOCKER`; the report names the successful verification and exact remaining

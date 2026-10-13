@@ -7581,6 +7581,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/references/languages/python.md",
             "zdev/references/languages/rust.md",
             "zdev/references/languages/typescript.md",
+            "zdev/references/notes.md",
             "zdev/references/parallel.md",
             "zdev/references/plan-task.md",
             "zdev/references/recovery.md",
@@ -7625,6 +7626,7 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/languages/python.md",
             "skills/zdev/references/languages/rust.md",
             "skills/zdev/references/languages/typescript.md",
+            "skills/zdev/references/notes.md",
             "skills/zdev/references/parallel.md",
             "skills/zdev/references/plan-task.md",
             "skills/zdev/references/recovery.md",
@@ -8824,6 +8826,10 @@ const splitLoop = await exercise(
 if (!splitLoop.result.includes('Tasks completed: work-002')) throw new Error(splitLoop.result)
 if (splitLoop.result.includes('Tasks completed: work-001')) throw new Error(splitLoop.result)
 if (!splitLoop.result.includes('Commits: ' + commit1 + ', ' + commit2)) throw new Error(splitLoop.result)
+const childImplementation = splitLoop.calls.find(call => call.label === 'zdev work-002: implement (standard)')
+if (!childImplementation?.prompt.includes('Derived proposal: implementation_split')
+  || !childImplementation.prompt.includes('Task-record commits alone do not prove implementation progress.'))
+  throw new Error('derived child lost prior split history for death-loop detection')
 "#
     );
     let output = Command::new("node")
@@ -11878,6 +11884,7 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev-pi/references/languages/python.md",
             "skills/zdev-pi/references/languages/rust.md",
             "skills/zdev-pi/references/languages/typescript.md",
+            "skills/zdev-pi/references/notes.md",
             "skills/zdev-pi/references/parallel.md",
             "skills/zdev-pi/references/plan-task.md",
             "skills/zdev-pi/references/recovery.md",
@@ -12031,6 +12038,7 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev/references/languages/python.md",
             "skills/zdev/references/languages/rust.md",
             "skills/zdev/references/languages/typescript.md",
+            "skills/zdev/references/notes.md",
             "skills/zdev/references/parallel.md",
             "skills/zdev/references/plan-task.md",
             "skills/zdev/references/recovery.md",

@@ -23,6 +23,6 @@ unavailable prerequisite. Do not block on partial progress or another file.
 Return one JSON object with `schema_version: 1`, `kind: "implementer"`, `area`,
 `task_id`, `verdict` (`ready` or `blocker`), `summary`, string arrays `evidence`
 and `findings`, and `escalation: "none"`. Put changed files and validation in
-`evidence`. Coordination owns `.zdev`, verification, lifecycle, and commits. If
-the work unexpectedly needs a split, load the supplied route-contract path and
+`evidence`. Coordination owns `.zdev`, verification, lifecycle, and commits. When
+smaller tasks would help implementation or verification, load the supplied route-contract path and
 use its typed blocker; do not run derive commands.

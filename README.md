@@ -69,6 +69,12 @@ Zdev creates `area.toml`, `brief.md`, `TASKS.md`, and a `tasks/` directory under
 `.zdev/scheduling/`. The individual task files are authoritative; `TASKS.md` is
 generated from them.
 
+Keep unfinished plans, future ideas, and collected research under
+`.zdev/_notes/`, as individual files or folders of related documents. The skill
+supports **add note**, **list notes**, and **make area from note**. Notes have no
+required format and stay outside the task queue. See
+[Notes for future work](docs/user-guide.md#keep-notes-for-future-work).
+
 ### Add and select tasks
 
 The skill normally produces a task bundle for the binary to import. Other tools
@@ -83,6 +89,11 @@ reviewer check non-trivial work, and shows you the final Markdown. Once you
 approve it, the harness imports that exact version. It carries the review ID
 for you. For tracked records, the import can commit the tasks and an approved
 brief update together.
+
+You can delegate task creation and import with “create and import the tasks
+without asking me.” The harness reviews and validates the bundle, then imports
+it within that authority. AFK tasks may split into useful in-scope tasks without
+another approval; scope and acceptance criteria still apply.
 
 See [Import reviewed tasks](docs/user-guide.md#6-import-reviewed-tasks) for the
 review commands and approval rules. Direct `--from` import remains available
@@ -181,6 +192,10 @@ need checked locations and concrete consequences; optional suggestions do not
 block acceptance. Ordinary implementation allows one correction pass followed
 by a focused recheck. If required corrections remain, the harness preserves the
 work and reports the decision needed to continue.
+The guidance also watches for death loops: repeated failed fixes, unchanged
+retries, or task splitting without implementation progress. A retry needs a
+concrete changed approach; repeated failure preserves the work and reports
+what is needed to continue.
 
 The skill is the normal way to use zdev from a coding harness. It is installed
 by the same binary and uses the same `.zdev` task record.

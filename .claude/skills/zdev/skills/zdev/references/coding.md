@@ -49,6 +49,8 @@ types, plurals for collections, and singulars for elements.
 Use the fewest words that remain clear in context. Omit context supplied by the
 receiver or enclosing code. Use established abbreviations and corresponding
 names for paired operations. Name conditions and constants for their meaning.
+Check names at their callers. Explain consequential interface choices when
+needed; ordinary identifiers need careful review, not individual check lines.
 
 ### Data and contracts
 
@@ -61,6 +63,8 @@ unrepresentable where practical.
 Represent absence and failure explicitly, preserving meaningful distinctions.
 Prefer immutable transformations to shared mutable bookkeeping. Pass only the
 data a function needs; keep results as data until rendering.
+When mutation is intrinsic to the algorithm, make ownership, lifetime, and
+invalidation rules explicit.
 
 Make inputs, results, effects, and prerequisites clear. Express guarantees in
 types; test doubles must honor them too. Validate external data at entry.
@@ -88,6 +92,8 @@ Separate domain decisions from storage and presentation where useful. Distinct
 responsibilities do not automatically need separate layers or files. Make
 dependencies explicit and give shared mutable state an owner. Keep declarations
 near use and checks beside the values they validate.
+Use the project's actual dependency direction. A cohesive state machine may
+combine control flow and updates when its contract and invariants stay clear.
 
 Use early returns to discharge cases and expose the main path. Prefer switch or
 match to chains of alternatives on the same value. Handle every typed
@@ -98,6 +104,8 @@ meanings. Preserve cleanup and resource-lifetime guarantees.
 
 Improve names and structure before adding explanatory comments. Comment
 constraints, invariants, and necessary exceptions; link relevant specifications.
+Keep examples focused on teaching the interface. Put necessary regression
+assertions in the existing tests rather than turning examples into test harnesses.
 
 ### Language and framework guidance
 
@@ -135,12 +143,17 @@ Supplement checks use the existing completion and review procedure; loading
 several supplements adds no review rounds. Use project tool versions and
 configuration. Report unavailable required tools or unsupported checks as
 missing evidence; do not silently replace the toolchain or claim a pass.
+Before declaring a tool unavailable, check PATH and known project or installed
+toolchain locations once. Use its actual project configuration and build flags.
 
 ## Completion
 
 1. Check relevant tests before a refactor. Keep test effort proportional to
    useful confidence and maintenance cost. Test behavior and relevant failures;
    a regression test must catch the original bug.
+   A bug fix does not automatically need a permanent regression test. Use nearby
+   test style when one adds useful confidence; existing checks or a temporary
+   reproduction may be enough at the agreed testing level.
 2. Read the finished change from its entry point. Check requirements, names,
    structure, callers, and both sides of changed contracts against this guidance.
 3. Run agreed formatting, linting, and validation, including relevant tests after

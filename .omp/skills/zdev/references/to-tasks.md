@@ -12,9 +12,10 @@ create the area here. A task queue should contain
 agent-ready work, not hidden human decisions.
 
 Draft directly when the brief already settles the product and testing choices.
-Require its `Testing` section to state the agreed level. When that section is
-absent or a material choice remains, route to **Discuss the brief** or **Explore
-an objective** so the user can settle it before task drafting.
+Record the agreed testing level in its `Testing` section. If the section is
+absent but user instructions and repository conventions settle the level, add
+it and continue. Ask through **Discuss the brief** or **Explore an objective**
+only when a material testing or product choice remains undecided.
 
 The conventional `general` area may use a standing minimal brief for unrelated
 one-off work. When that brief supplies shared engineering rules and the current
@@ -36,9 +37,9 @@ Each task should:
 
 The general-area fast path changes planning depth, not task quality. Every task
 still needs a useful outcome, explicit boundaries, observable done proof,
-proportionate testing and validation, exact bundle review and approval, safe
-branch state, independent implementation verification, completion evidence,
-and a commit.
+proportionate testing and validation, bundle review and approval or delegated
+authority, safe branch state, independent implementation verification,
+completion evidence, and a commit.
 
 For each newly drafted implementation task, write concise `Context` that tells
 a fresh implementer why the work exists, what current behavior or evidence
@@ -162,22 +163,34 @@ reviewer's findings, ask the same reviewer to check those findings against the
 complete revised Markdown document so knock-on effects remain visible. If the
 revision materially changes scope, boundaries, dependencies, task splitting,
 or testing strategy, ask a fresh reviewer to perform the full challenge again.
-Repeat until the applicable reviewer has no concrete revisions. An unchanged
-candidate proceeds directly to presentation. If another agent is unavailable,
-run the same review locally. A local review is enough for trivial or fully
-specified work. Say which kind of review ran.
+Use one challenge, one correction pass, and one recheck. If material issues
+remain, report those issues instead of repeating reviews indefinitely; follow
+**Death loops** in [review.md](review.md). Optional preferences do not block an
+otherwise sound bundle. An unchanged candidate proceeds directly to presentation.
+If another agent is unavailable, run the same review locally. A local review is
+enough for trivial or fully specified work. Say which kind of review ran.
 
 Before presentation, reconcile proposed tasks with existing task keys and
 completed outcomes. Resolve every concrete design or testing choice that would
 change the bundle. Only the final challenged stored artifact is shown for user
-approval; neither storage nor independent challenge grants approval.
+approval when confirmation is required; neither storage nor independent
+challenge grants authority beyond the user's request.
 
 This route owns manually authored task bundles. A strict proposal returned by
 an investigation or implementer follows the derived-work handoff in the
 implementation contract, which owns source completion, child creation, review
 when the user must decide, and its managed commit.
 
-## Present the split
+## Present or use delegated authority
+
+First check the user's existing instructions. If the user delegated task
+creation and import or waived confirmation, review the final bundle, retain its
+current identity, and import it directly. Report the resulting tasks. Revisions
+inside that authority need no fresh approval; changes outside it require a
+concrete user decision. The stored review still ensures the imported bytes
+match the reviewed candidate.
+
+Otherwise use the default confirmation step below.
 
 Run `zdev tasks review <area> --show` and show the final challenged Markdown
 unchanged, then ask: `Approve this task bundle for import?` The coordinator
@@ -189,8 +202,8 @@ document or create a transport file.
 
 ## Import
 
-After explicit approval, import the stored review with the retained identity
-without another user step:
+After explicit approval or under retained delegated authority, import the stored
+review with the retained identity without another user step:
 
 ```text
 zdev tasks import <area> --reviewed <review-id> --format json

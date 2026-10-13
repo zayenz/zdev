@@ -40,7 +40,8 @@ limits. The default run has 20 coordinator work attempts. `until interrupted`
 removes that default; supplied limits and the directional target still apply.
 This authorization allows the coordinator to generate both supporting tasks
 and hypotheses inside the brief and frozen policy without reviewing every new
-bundle. Ordinary task creation outside a run retains exact bundle approval.
+bundle. Ordinary task creation outside a run uses exact bundle approval by
+default; you can delegate creation and import without confirmation.
 
 The coordinator reads the accepted baseline and prior rejected, inconclusive
 and failed lessons before proposing work. It commits admitted task records
@@ -308,6 +309,47 @@ its ready, blocked, and done counts from those tasks, including zeros for an
 empty slice. Unsliced tasks remain valid and count only in area totals. Task
 selection reports the slice brief to read after the authoritative area brief.
 
+### Keep notes for future work
+
+Use `.zdev/_notes/` for unfinished plans, future extensions, open questions,
+and research you want to keep before deciding what work to pursue. Save one
+file per topic, or collect related documents in a folder with nested folders:
+
+```text
+.zdev/_notes/
+  search.md
+  remote-workers/
+    README.md
+    initial-plan.md
+    research/
+      harness-comparison.md
+      scheduling-options.md
+```
+
+There is no required template, metadata, status, or index. A folder README is
+optional and can describe its purpose or where to resume. Research documents
+can be saved together without first curating them into area background.
+Notes follow the repository's existing record policy and stay outside area
+discovery and task selection.
+
+Ask the skill in ordinary language:
+
+```text
+Use zdev to add a note about remote workers.
+Use zdev to save these research documents together in _notes/remote-workers/.
+Use zdev to list notes.
+Use zdev to list the contents of _notes/remote-workers/ recursively.
+Use zdev to make an area from the remote-workers note folder.
+```
+
+These are skill routes, not new CLI commands. Adding a note saves the supplied
+material; listing notes is read-only and shows topic folders as collections by
+default. Making an area from a note follows the ordinary area and brief
+workflow. Useful source notes can be linked from the brief, and selected,
+stable research can move into indexed area background. Remaining material
+stays in `_notes/`. Source notes are kept unless you request cleanup.
+Creating the area alone does not create tasks or start implementation.
+
 ### Keep one-off work in a general area
 
 If you often have small, unrelated improvements, keep them in an ordinary area
@@ -357,8 +399,9 @@ Focused coverage. Match test work to the behavior or risk in each task.
 You can ask the harness to discuss a concrete one-off request and draft its task
 bundle in the same interaction. When no product or testing choice remains, it
 may proceed directly to the exact bundle review without a separate research or
-full-brief pass. You still approve that exact bundle, work on the recorded
-branch, run proportionate tests, verify independently, complete the task, and
+full-brief pass. You approve that exact bundle or delegate creation and import.
+The harness works on the recorded branch, runs proportionate tests, verifies
+independently, completes the task, and
 commit the accepted changes. Zdev does not create or switch the branch for you.
 
 ## 5. Explore and discuss the objective
@@ -439,7 +482,7 @@ checked by the same reviewer against the prior findings and the complete
 revised document. A material change to scope, boundaries, dependencies, task
 splitting, or testing strategy receives a fresh full challenge. Storing or
 challenging a candidate does not approve it. The harness presents only the
-final challenged document for explicit approval with:
+final challenged document for explicit approval by default with:
 
 ```sh
 zdev tasks review scheduling --show
@@ -449,9 +492,18 @@ You approve the Markdown once. The harness carries the review ID and imports
 that exact version with
 `zdev tasks import scheduling --reviewed <review-id>`.
 
+You can override this confirmation step: “create and import the tasks without
+asking me” delegates that decision for the stated scope. The harness still
+reviews and validates the bundle, then imports it and reports the allocated
+tasks. That authority persists through in-scope revisions and continuation;
+only choices outside it need another decision. Creating tasks alone does not
+authorize implementation. An AFK task may also split into useful smaller tasks
+within its existing outcome, boundaries, and testing without new approval.
+
 Zdev rejects content that differs from the reviewed bundle. If it changed, the
-harness replaces the stored review, shows the new Markdown, and asks for
-approval again. It does not reconstruct or resend the approved document. For
+harness replaces the stored review and asks for approval again when you retained
+exact-bundle confirmation. Delegated in-scope revisions need no new approval.
+It does not reconstruct or resend the approved document. For
 manual input, direct import remains available: paste the JSON into `zdev tasks import
 scheduling --from -` and press Ctrl-D. `--from path/to/tasks.json` also works
 and leaves the source file in place. Zdev writes one Markdown file per task and

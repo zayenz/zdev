@@ -1,6 +1,6 @@
 ---
 name: zdev
-description: Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use when the user invokes zdev or $zdev, names an existing .zdev area or task, or asks to continue stored zdev work.
+description: Zdev manages durable software work through briefs, tasks, implementation, independent verification, and commits. Use when the user invokes zdev or $zdev, names an existing .zdev area, task, or note, or asks to continue stored zdev work.
 ---
 
 # Zdev for Oh My Pi

@@ -717,8 +717,9 @@ and store its complete Markdown review, canonical bundle, and internal
 fingerprint in Git administrative state. The small JSON result names the actual
 Markdown path and an opaque `review` identity. Present the exact document with
 `zdev tasks review <area> --show`; the user never handles the identity or
-fingerprint. After approval, use `zdev tasks import <area> --reviewed
-<review-id>`. Zdev requires that identity to remain current and revalidates the
+fingerprint. After approval or under delegated creation/import authority, use
+`zdev tasks import <area> --reviewed <review-id>`. Zdev requires that identity to
+remain current and revalidates the
 stored bundle before publication. Direct `--from` import remains valid, and
 `--approval` remains compatible with callers that already use it for direct
 input.
@@ -752,6 +753,12 @@ path. Retained and child paths are exact and pairwise disjoint. Before edits,
 the retained list is empty; after edits it equals the complete unstaged
 parent-owned path set. Unknown or duplicate fields, a second object, missing or
 extra ownership, invalid dependencies, and nested proposals are invalid.
+
+Splitting an AFK task for easier implementation or verification needs no new
+approval when scope, boundaries, and testing are unchanged. Set unattended
+children explicitly to `afk: true`; omission defaults to false. Keep the source's
+original done conditions and use **Death loops** in [review.md](review.md)
+when recursive splitting fails to produce implementation progress.
 
 The worker never runs derive commands. The coordinator applies clear direct
 work with `zdev tasks derive apply <area> --from -` and no approval. Only

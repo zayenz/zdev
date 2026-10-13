@@ -50,6 +50,7 @@ const plainCommit = value => /^`[0-9a-f]{40}`$/.test(value ?? '') ? value.slice(
 const loopAdvisory = 'stale effective-base link; managed rebase remains optional.'
 const completedTasks = []
 const commits = []
+const recentIterations = []
 let sawAdvisory = false
 let latestCompletedTask = null
 let latestCommit = null
@@ -215,7 +216,12 @@ while (true) {
       supplied = true
       return contextRaw
     }
-    return agent(prompt, options)
+    const checksProgress = options?.agentType?.includes('implementer')
+      || options?.label?.endsWith('coordinate derived split')
+    const history = checksProgress && recentIterations.length > 0
+      ? `\n\nRecent loop results, oldest first:\n${recentIterations.join('\n\n')}\nApply Death loops in the supplied review guidance before repeating a split or failed approach. Task-record commits alone do not prove implementation progress.`
+      : ''
+    return agent(prompt + history, options)
   }))?.trim() ?? ''
   const task = loopField(result, 'Task')
   if (loopField(result, 'Advisory') === loopAdvisory) sawAdvisory = true
@@ -234,6 +240,8 @@ while (true) {
     commits.push(commit)
     latestCompletedTask = task
     latestCommit = commit
+    recentIterations.push(result)
+    if (recentIterations.length > 3) recentIterations.shift()
     continue
   }
   if (task && loopHasExactLine(result, `BLOCKER zdev-implement ${loopArea} ${task}`)) {

@@ -3,8 +3,10 @@ description: Review a codebase and return checked findings
 agent: plan
 ---
 
-Audit the requested boundary without changing files, zdev state, Git state, or
-task lifecycle. An omitted or blank boundary means the current repository.
+Audit the requested boundary while keeping repository files, zdev state, Git
+state, and task lifecycle unchanged. Temporary reproducers and their outputs
+outside the repository are allowed for checking findings; remove them when
+finished. An omitted or blank boundary means the current repository.
 Use only the resolved `verifier` worker profile; there is no auditor role.
 Resolve it once at audit start under the shared scoped-profile contract and use
 the retained concrete settings for every lens and the final evidence check.
@@ -64,6 +66,6 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.opencode/skills/zdev-opencode/references/coding.md"
+Coding guidance file: "/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

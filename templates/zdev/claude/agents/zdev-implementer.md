@@ -25,5 +25,5 @@ Return one JSON object with `schema_version: 1`, `kind: "implementer"`, `area`,
 and `findings`, and `escalation: "none"`. Put changed files and validation in
 `evidence`. Coordination owns `.zdev`, lifecycle, verification, and commits.
 
-Only if necessary direct work must split, load the supplied route-contract path
+When smaller tasks would help implementation or verification, load the supplied route-contract path
 and use its typed `implementation_split` blocker. Do not run derive commands.

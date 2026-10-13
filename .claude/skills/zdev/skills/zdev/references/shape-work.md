@@ -8,18 +8,20 @@ Exploration creates or revises the area's authoritative `brief.md`, or a named
 slice brief when the user is shaping one increment within a larger area. It
 does not create tasks or a second lifecycle.
 
+For a request to save an unfinished plan or idea without shaping an area, use
+[Notes](notes.md). Making an area from a note uses that route to select source
+material, then follows this workflow for the area brief.
+
 ## Do
 
 1. Begin in the current checkout: inspect the repository and discuss the
    objective before choosing a Git workspace. For a new objective, initialize
    zdev on project trunk when needed. Reuse a branch or worktree choice already
-   made for this work. Otherwise, before creating or switching branches or
-   creating a worktree, recommend the choice that fits the current repository
-   state and ask the user. Use the default isolated area after its branch is
+   made for this work. Use the shared workspace-choice rules when it remains
+   undecided. Use the default isolated area after its branch is
    selected, or use `--trunk` only when the user explicitly wants a
    personal/project area on configured trunk. For an existing area, preserve
-   its recorded mode and resolved branch; ask before switching to it when that
-   switch was not already requested.
+   its recorded mode and resolved branch; reuse any authority to switch to it.
 2. Read the conversation, current brief, repository instructions, relevant
    source and tests, domain documentation, and applicable ADRs.
 3. Resolve repository facts directly. Ask the user only about choices that

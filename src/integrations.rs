@@ -89,6 +89,10 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
         include_str!("../templates/zdev/references/shape-work.md"),
     ),
     (
+        "references/notes.md",
+        include_str!("../templates/zdev/references/notes.md"),
+    ),
+    (
         "references/setup.md",
         include_str!("../templates/zdev/references/setup.md"),
     ),

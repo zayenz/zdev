@@ -25,7 +25,7 @@ operations. Ordinary supporting tasks in the same area keep this route.
    state, return to the root **Recover** route. Recommend the explicit managed
    rebase when the task needs newer base changes or is approaching an
    integration boundary. Reuse an already stated branch or worktree choice;
-   otherwise ask before switching branches or creating a worktree to continue.
+   use the shared workspace-choice rules when that choice remains undecided.
    When the user explicitly chooses an assigned source worktree, follow
    **Optional assigned source worktree** in the installed task-workflows
    contract. Store and refresh destination context with `--task <task-id>` and
@@ -42,9 +42,10 @@ operations. Ordinary supporting tasks in the same area keep this route.
    detail differs from it. A slice supplies narrower objective and boundary
    context but does not override the area brief's decisions or testing. Confirm
    that the brief has a concrete `Testing`
-   section that covers this task. If it is missing, return control and
-   recommend **Discuss the brief** or **Explore an objective**. If repository
-   evidence and the task do not make the intended level clear, ask the user
+   section that covers this task. If it is missing but the task, user
+   instructions, and repository conventions settle the level, coordination
+   records it in the brief and continues. If repository evidence and the task
+   do not make the intended level clear, ask the user
    with a recommended level and its cost/confidence trade-off before
    delegating implementation.
 3. Use the work-context Git strings as the checkout baseline. They cover
@@ -119,10 +120,14 @@ operations. Ordinary supporting tasks in the same area keep this route.
    task open and wait for an explicit continuation decision; retain this review
    stage across recovery and goal/loop continuation.
 
-If the implementer discovers that the approved task must be split, it may
+If smaller tasks would help implement or verify the approved outcome, the implementer may
 return one strict transient `implementation_split` proposal instead of asking
-the user to perform a separate task import. It does so inside the unchanged
-typed implementer object: verdict `blocker`, escalation `none`, no findings,
+the user to perform a separate task import. In-scope AFK splitting needs no
+new approval. Set unattended children explicitly to `afk: true`, since the
+draft default is false; preserve the source's original done conditions.
+Use **Death loops** in [review.md](review.md) if repeated splitting produces
+no implementation progress. It returns the proposal inside the unchanged typed
+implementer object: verdict `blocker`, escalation `none`, no findings,
 and the exact proposal as its sole evidence item. Before edits,
 `retained_parent_paths` is empty. After edits, it must equal the complete
 unstaged parent-owned path set, while every child has exact normalized future

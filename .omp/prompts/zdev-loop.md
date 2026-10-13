@@ -101,7 +101,7 @@ continue under the one-task contract. Never complete a different, paused, or
 budget-limited native goal.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it. Resolve a relative path
+"/Users/zayenz/projects/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it. Resolve a relative path
 against the directory containing the loaded root zdev SKILL.md and include the
 resulting absolute path in every worker payload.
 
@@ -188,7 +188,7 @@ adjustment, capture fresh work-context, and resume the same task while retaining
 the original baseline. A changed outcome, acceptance criterion, compatibility
 promise, explicit user constraint, ambiguous ownership, or material unresolved
 choice still stops for the user. This exception never changes a pending reviewed
-bundle, which requires renewed exact approval after any revision.
+bundle; its approval and delegated-authority rules remain in `to-tasks.md`.
 
 Before starting an implementer or verifier, collect fresh complete work-context
 through one of the admitted forms below and retain the complete result. The
@@ -362,9 +362,9 @@ explicit scope change, or another concrete impasse. A partial implementation,
 remaining directly actionable task work, an underestimated file count, or a
 new attributable in-scope path is not terminal. With safe refreshed state,
 return that work to the same profile or a replacement with the current diff and
-remaining requirements, then verify normally. Stop repeated attempts only when
-they make no meaningful progress for a concrete reason that cannot be resolved
-inside the task.
+remaining requirements, then verify normally. Apply **Death loops** in
+`review.md` before retrying repeated failures; worker replacement does not
+reset that history.
 
 A worker that finds an incidental technical restriction puts one transient
 adjustment proposal in its blocker evidence. It identifies the active task or
@@ -386,8 +386,14 @@ paths, and other managed records make the proposal invalid.
 
 ## Derived work handoff
 
-An implementer that needs to split necessary direct work already covered by
-the approved brief and task returns a valid implementer object with verdict `blocker`, escalation
+An implementer may split direct work already covered by the approved brief and
+task when smaller tasks improve implementation or verification. An AFK split
+is an ordinary in-scope coordination choice and needs no user confirmation.
+Set each unattended child explicitly to `afk: true`; the draft default is false.
+Human-dependent children use `afk: false` and the ordinary late-gate ordering.
+Keep the source's original done conditions. Apply **Death loops** in `review.md`
+when splitting repeats without implementation progress.
+The worker returns a valid implementer object with verdict `blocker`, escalation
 `none`, no findings, and one evidence item containing the complete transient
 proposal. That evidence string begins
 `PROPOSE zdev-derived <area> <source-task-id>\n` and continues with exactly one
@@ -628,7 +634,7 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.omp/skills/zdev/references/coding.md"
+Coding guidance file: "/Users/zayenz/projects/zdev/.omp/skills/zdev/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
 

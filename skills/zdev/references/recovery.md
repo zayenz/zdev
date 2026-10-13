@@ -14,10 +14,10 @@ Use this Recover route for an interrupted review; starting a fresh executable
 implementation would lose its review stage.
 
 Orient from the current checkout first. Reuse a branch or worktree choice
-already made for this recovery. If recovery requires switching branches or
-creating a worktree and the user has not requested that Git change, explain the
-concrete recovery choice and ask before making it. An unanswered question does
-not authorize the mutation.
+already made for this recovery, including delegated workspace choices. Use the
+shared workspace-choice rules when a material choice remains undecided.
+Carry death-loop history from the interrupted run; recovery alone does not
+justify repeating an unchanged failed attempt.
 
 ## Research run recovery
 

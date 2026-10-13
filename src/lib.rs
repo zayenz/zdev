@@ -1447,7 +1447,40 @@ fn work_context_git_stdout(root: &Path, arguments: &[&str]) -> Result<String, Zd
         .map_err(|_| ZdevError::new(format!("{command} returned invalid UTF-8")))
 }
 
+fn require_clean_submodules(root: &Path) -> Result<(), ZdevError> {
+    let entries = work_context_git_stdout(root, &["ls-files", "--stage", "-z"])?;
+    for entry in entries
+        .split('\0')
+        .filter(|entry| entry.starts_with("160000 "))
+    {
+        let (_, path) = entry
+            .split_once('\t')
+            .ok_or_else(|| ZdevError::new("git ls-files returned an invalid submodule entry"))?;
+        let submodule = root.join(path);
+        if !submodule.join(".git").exists() {
+            continue;
+        }
+        let status = work_context_git_stdout(
+            &submodule,
+            &[
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "--ignore-submodules=none",
+            ],
+        )?;
+        if !status.is_empty() {
+            return Err(ZdevError::new(format!(
+                "Cannot capture work-context with dirty submodule {}. Commit or restore its local changes first; submodule working contents are not captured",
+                submodule.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevError> {
+    require_clean_submodules(root)?;
     let paths =
         work_context_git_stdout(root, &["ls-files", "--others", "--exclude-standard", "-z"])?;
     let mut untracked = BTreeMap::new();
@@ -1471,15 +1504,20 @@ fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevEr
             // Git lists an untracked nested repository as one directory.
             let status = work_context_git_stdout(
                 &absolute,
-                &["status", "--short", "--untracked-files=all"],
+                &[
+                    "status",
+                    "--short",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                ],
             )?;
             let head = git_output(&absolute, &["rev-parse", "--verify", "HEAD"]).ok();
             json!({
                 "kind": "repository",
                 "head": head,
                 "git_status": status,
-                "git_diff_cached": work_context_git_stdout(&absolute, &["diff", "--cached"])?,
-                "git_diff": work_context_git_stdout(&absolute, &["diff"])?,
+                "git_diff_cached": work_context_git_stdout(&absolute, &["diff", "--cached", "--ignore-submodules=none"])?,
+                "git_diff": work_context_git_stdout(&absolute, &["diff", "--ignore-submodules=none"])?,
                 "git_untracked": work_context_untracked(&absolute)?,
             })
         } else {
@@ -1798,10 +1836,18 @@ fn work_context_output(
             "git rev-parse HEAD returned an invalid commit ID",
         ));
     }
-    let git_status =
-        work_context_git_stdout(root, &["status", "--short", "--untracked-files=all"])?;
-    let git_diff_cached = work_context_git_stdout(root, &["diff", "--cached"])?;
-    let git_diff = work_context_git_stdout(root, &["diff"])?;
+    let git_status = work_context_git_stdout(
+        root,
+        &[
+            "status",
+            "--short",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        ],
+    )?;
+    let git_diff_cached =
+        work_context_git_stdout(root, &["diff", "--cached", "--ignore-submodules=none"])?;
+    let git_diff = work_context_git_stdout(root, &["diff", "--ignore-submodules=none"])?;
     let git_untracked = work_context_untracked(root)?;
     let task_id = goal_task.as_deref().map(Value::from).unwrap_or(Value::Null);
     let task_text = goal_task.as_deref().unwrap_or("none");

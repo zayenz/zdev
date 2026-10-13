@@ -798,7 +798,7 @@ fn add_profile_agents(
             let content = render_template(
                 &agent_path,
                 &source,
-                ("", "", "", "", "", false, false),
+                &TemplateContracts::default(),
                 "",
                 "",
                 env!("CARGO_PKG_VERSION"),
@@ -928,10 +928,21 @@ fn template_environment() -> Environment<'static> {
     environment
 }
 
+#[derive(Default)]
+struct TemplateContracts<'a> {
+    shared_contract: &'a str,
+    audit_contract: &'a str,
+    task_workflow_contract: &'a str,
+    verify_workflow_contract: &'a str,
+    task_workflows_contract_path_json: &'a str,
+    parallel_supported: bool,
+    research_supported: bool,
+}
+
 fn render_template(
     name: &str,
     source: &str,
-    contracts: (&str, &str, &str, &str, &str, bool, bool),
+    contracts: &TemplateContracts<'_>,
     repository_guidance: &str,
     question_tool_guidance: &str,
     version: &str,
@@ -947,17 +958,17 @@ fn render_template(
         })?;
     let mut rendered = template
         .render(context! {
-            shared_contract => contracts.0,
+            shared_contract => contracts.shared_contract,
             t3_code_routing => T3_CODE_ROUTING.trim_end(),
-            audit_contract => contracts.1,
-            task_workflow_contract => contracts.2,
-            verify_workflow_contract => contracts.3,
+            audit_contract => contracts.audit_contract,
+            task_workflow_contract => contracts.task_workflow_contract,
+            verify_workflow_contract => contracts.verify_workflow_contract,
             repository_guidance,
             question_tool_guidance,
             version,
-            task_workflows_contract_path_json => contracts.4,
-            claude_research_reference_path_json => contracts.4.replace("contracts/task-workflows.md", "skills/zdev/references/research.md"),
-            claude_coding_reference_path_json => contracts.4.replace("contracts/task-workflows.md", "skills/zdev/references/coding.md"),
+            task_workflows_contract_path_json => contracts.task_workflows_contract_path_json,
+            claude_research_reference_path_json => contracts.task_workflows_contract_path_json.replace("contracts/task-workflows.md", "skills/zdev/references/research.md"),
+            claude_coding_reference_path_json => contracts.task_workflows_contract_path_json.replace("contracts/task-workflows.md", "skills/zdev/references/coding.md"),
             routine_implementer_has_model => workers.routine_implementer.has_model(),
             routine_implementer_has_effort => workers.routine_implementer.has_effort(),
             routine_implementer_model => workers.routine_implementer.model_literal(),
@@ -978,8 +989,8 @@ fn render_template(
             planner_has_effort => workers.planner.has_effort(),
             planner_model => workers.planner.model_literal(),
             planner_effort => workers.planner.effort_literal(),
-            parallel_supported => contracts.5,
-            research_supported => contracts.6,
+            parallel_supported => contracts.parallel_supported,
+            research_supported => contracts.research_supported,
         })
         .map_err(|error| {
             ZdevError::new(format!(
@@ -1030,21 +1041,19 @@ fn realize_templates(
             "Cannot render the installed task-workflows contract path: {error}"
         ))
     })?;
+    let contracts = TemplateContracts {
+        task_workflows_contract_path_json: &task_workflows_contract_path_json,
+        parallel_supported: matches!(
+            harness,
+            Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
+        ),
+        research_supported: matches!(harness, Harness::Codex | Harness::Claude),
+        ..TemplateContracts::default()
+    };
     let audit_contract = render_template(
         "audit.md",
         AUDIT_CONTRACT_TEMPLATE,
-        (
-            "",
-            "",
-            "",
-            "",
-            &task_workflows_contract_path_json,
-            matches!(
-                harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
-            ),
-            matches!(harness, Harness::Codex | Harness::Claude),
-        ),
+        &contracts,
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -1058,18 +1067,7 @@ fn realize_templates(
     let shared_contract = render_template(
         "shared-contract.md",
         &shared_contract_source,
-        (
-            "",
-            "",
-            "",
-            "",
-            &task_workflows_contract_path_json,
-            matches!(
-                harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
-            ),
-            matches!(harness, Harness::Codex | Harness::Claude),
-        ),
+        &contracts,
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -1078,18 +1076,7 @@ fn realize_templates(
     let task_workflow_contract = render_template(
         "task-workflows.md",
         TASK_WORKFLOW_CONTRACT_TEMPLATE,
-        (
-            "",
-            "",
-            "",
-            "",
-            &task_workflows_contract_path_json,
-            matches!(
-                harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
-            ),
-            matches!(harness, Harness::Codex | Harness::Claude),
-        ),
+        &contracts,
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -1098,18 +1085,7 @@ fn realize_templates(
     let verify_workflow_contract = render_template(
         "verify-workflow.md",
         VERIFY_WORKFLOW_CONTRACT_TEMPLATE,
-        (
-            "",
-            "",
-            "",
-            "",
-            &task_workflows_contract_path_json,
-            matches!(
-                harness,
-                Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
-            ),
-            matches!(harness, Harness::Codex | Harness::Claude),
-        ),
+        &contracts,
         &repository_guidance,
         harness.question_tool_guidance(),
         version,
@@ -1131,18 +1107,13 @@ fn realize_templates(
         let rendered = render_template(
             &file.path,
             &file.content,
-            (
-                &shared_contract,
-                &audit_contract,
-                &task_workflow_contract,
-                &verify_workflow_contract,
-                &task_workflows_contract_path_json,
-                matches!(
-                    harness,
-                    Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
-                ),
-                matches!(harness, Harness::Codex | Harness::Claude),
-            ),
+            &TemplateContracts {
+                shared_contract: &shared_contract,
+                audit_contract: &audit_contract,
+                task_workflow_contract: &task_workflow_contract,
+                verify_workflow_contract: &verify_workflow_contract,
+                ..contracts
+            },
             &repository_guidance,
             &question_tool_guidance,
             &version,
@@ -2202,7 +2173,10 @@ mod tests {
             let error = render_template(
                 name,
                 source,
-                ("", "", "", "", "\"/tmp/task-workflows.md\"", false, false),
+                &TemplateContracts {
+                    task_workflows_contract_path_json: "\"/tmp/task-workflows.md\"",
+                    ..TemplateContracts::default()
+                },
                 "",
                 "",
                 "",

@@ -250,9 +250,6 @@ const support = async selected => {
         const plan = parsePlannerResult(raw)
         if (plan?.verdict === 'plan') retainedPlans[selected.task_id] = plan
       }
-      if (execution === 'rolling' && role === 'verifier' && parseVerifierResult(raw)?.verdict === 'rework') {
-        await checkRollingFindings(selected, parseVerifierResult(raw), 'supporting')
-      }
       return raw
     }
     return callAgent(`${root ? `Use absolute repository cwd ${JSON.stringify(root)} for every tool.\n` : ''}${prompt}`, options)

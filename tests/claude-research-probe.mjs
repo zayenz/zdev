@@ -269,13 +269,21 @@ if (scenario.startsWith('rolling')) {
       dispatched.add(request)
       if (!options.model || options.effort === undefined) throw new Error('Native role lost frozen model/effort')
       workers.push({ role, task, request, model: options.model, effort: options.effort })
-      if (options.label.endsWith('check findings')) return JSON.stringify(safe)
+      if (options.label.endsWith('check findings')) {
+        if (!checkpoint) {
+          if (options.label.startsWith('zdev research ')) throw new Error('Supporting findings were checked twice')
+          supportFindingChecks++
+          return verifier('rework')
+        }
+        return JSON.stringify(safe)
+      }
       if (role === 'planner') return JSON.stringify(planner)
       if (role === 'verifier') {
         events.push(`verify:${task}`)
         if (checkpoint) {
           if (!checkpoint.isolated.integrated || !prompt.includes(checkpoint.verification_snapshot)) throw new Error('Verifier did not inspect fresh integrated destination')
         }
+        if (!checkpoint && scenario === 'rolling' && supportReviews++ === 0) return verifier('rework')
         return verifier()
       }
       if (!checkpoint) { supportWork++; fs.writeFileSync(`${root}/support.txt`, 'supported\n'); return worker(task) }
@@ -352,6 +360,7 @@ if (scenario.startsWith('rolling')) {
   if (!generated || !createdAfterKeep || !final.run.rebaseline?.published || !workers.some(item => item.task === 'work-004' && item.role === 'planner')) throw new Error('Rolling mixed generation/current HEAD/support rebaseline was omitted')
   if (scenario === 'rolling' && (!refill || !overlapped || events.indexOf('returned:work-003') > events.indexOf('returned:work-002')
     || events.indexOf('measure:work-001') > events.indexOf('verify:work-001'))) throw new Error(`Missing real continuous refill/measurement overlap: ${JSON.stringify(events)}`)
+  if (scenario === 'rolling' && (supportWork !== 2 || supportReviews !== 2 || supportFindingChecks !== 1)) throw new Error('Supporting correction did not use exactly one findings check')
   if (scenario === 'rolling-record-only' && (events.filter(event => event === 'measure:work-001').length !== 1 || !events.includes('reconcile:work-001'))) throw new Error('Record-only refresh relaunched a measurement or omitted public reconcile')
   if (workers.some(item => item.model !== first.frozen_profiles[item.role].value.model || item.effort !== first.frozen_profiles[item.role].value.effort)) throw new Error('Rolling role changed frozen concrete model/effort')
   for (const checkpoint of final.checkpoints.filter(item => item.index_updated)) {

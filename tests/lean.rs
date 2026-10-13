@@ -1349,6 +1349,47 @@ fn work_context_compares_untracked_nested_repository_contents() {
         json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
         false
     );
+
+    git(&nested, &["add", "notes.bin", "tracked.txt"]);
+    git(&nested, &["commit", "-m", "nested source"]);
+    git(
+        root,
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            nested.to_str().unwrap(),
+            "tracked",
+        ],
+    );
+    git(root, &["add", ".gitmodules", "tracked"]);
+    git(root, &["commit", "-m", "record submodule"]);
+    git(root, &["config", "submodule.tracked.ignore", "all"]);
+    let tracked = root.join("tracked");
+    let stored = json_output(root, &["work-context", "general", "--store"]);
+    let snapshot = stored["snapshot"].as_str().unwrap();
+    fs::write(tracked.join("tracked.txt"), "dirty before\n").unwrap();
+    let rejected = run_zdev(root, &["work-context", "general", "--store"]);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("dirty submodule"));
+    fs::write(tracked.join("tracked.txt"), "dirty after\n").unwrap();
+    assert!(
+        !run_zdev(root, &["work-context", "general", "--compare", snapshot])
+            .status
+            .success()
+    );
+    git(&tracked, &["restore", "tracked.txt"]);
+    assert_eq!(
+        json_output(root, &["work-context", "general", "--compare", snapshot])["equal"],
+        true
+    );
+    fs::write(tracked.join("untracked.txt"), "untracked source\n").unwrap();
+    assert!(
+        !run_zdev(root, &["work-context", "general", "--store"])
+            .status
+            .success()
+    );
 }
 
 #[test]
@@ -1777,12 +1818,12 @@ fn work_context_reports_git_collection_failure_without_partial_output() {
         error["error"]
             .as_str()
             .expect("error")
-            .contains("git diff --cached failed: deliberate failure")
+            .contains("failed: deliberate failure")
     );
 
     fs::write(
         &fake_git,
-        "#!/bin/sh\nif [ \"$1\" = diff ] && [ \"$#\" = 1 ]; then\n  printf '\\377'\n  exit 0\nfi\nexec \"$REAL_GIT\" \"$@\"\n",
+        "#!/bin/sh\nif [ \"$1\" = diff ] && [ \"$2\" != --cached ]; then\n  printf '\\377'\n  exit 0\nfi\nexec \"$REAL_GIT\" \"$@\"\n",
     )
     .expect("invalid UTF-8 git");
     let invalid = run_zdev_with_env(
@@ -1798,7 +1839,7 @@ fn work_context_reports_git_collection_failure_without_partial_output() {
         invalid_error["error"]
             .as_str()
             .expect("invalid UTF-8 error")
-            .contains("git diff returned invalid UTF-8")
+            .contains("returned invalid UTF-8")
     );
 }
 
@@ -5180,7 +5221,7 @@ fn failed_derived_apply_restores_tasks_index_and_retained_bytes() {
         "split_ownership": {"retained_parent_paths": ["parent.rs"], "child_future_paths": [{"key": "child", "paths": ["child.rs"]}]}
     });
     let proposal_input =
-        derived_proposal_bytes("rollback-derived", "rollback-derived-001", proposal);
+        derived_proposal_bytes("rollback-derived", "rollback-derived-001", proposal.clone());
     let reviewed = json_output_with_stdin(
         root,
         &[
@@ -5217,6 +5258,44 @@ fn failed_derived_apply_restores_tasks_index_and_retained_bytes() {
         git_stdout(root, &["status", "--porcelain=v1", "--untracked-files=all"]),
         status_before
     );
+
+    fs::remove_file(hook).unwrap();
+    json_output_with_stdin(root, &["tasks", "import", "rollback-derived", "--from", "-"],
+        &serde_json::to_vec(&json!({"schema_version": 1, "area": "rollback-derived", "tasks": [{
+            "key": "existing", "title": "Existing task", "outcome": "Preserve existing work.", "done_when": ["Preserved."]
+        }]})).unwrap());
+    let collision = root.join(".zdev/rollback-derived/tasks/003-implement-child.md");
+    fs::rename(
+        root.join(".zdev/rollback-derived/tasks/002-existing-task.md"),
+        &collision,
+    )
+    .unwrap();
+    json_output(root, &["tasks", "index", "rollback-derived"]);
+    git(root, &["add", ".zdev"]);
+    git(root, &["commit", "-m", "record renamed task"]);
+    json_output(root, &["check", "rollback-derived"]);
+    let existing_bytes = fs::read(&collision).unwrap();
+    let index_before = fs::read(&index_path).unwrap();
+    let proposal_input =
+        derived_proposal_bytes("rollback-derived", "rollback-derived-001", proposal);
+    let rejected = json_output_with_stdin_status(
+        root,
+        &[
+            "tasks",
+            "derive",
+            "apply",
+            "rollback-derived",
+            "--from",
+            "-",
+        ],
+        &proposal_input,
+    );
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("Cannot create"));
+    assert_eq!(fs::read(collision).unwrap(), existing_bytes);
+    assert_eq!(fs::read(source_path).unwrap(), source_before);
+    assert_eq!(fs::read(index_path).unwrap(), index_before);
+    assert_eq!(fs::read(root.join("parent.rs")).unwrap(), b"retained\n");
 }
 
 #[test]
@@ -5420,6 +5499,23 @@ fn state_lock_recovers_a_stale_file_without_stealing_a_live_lock() {
         "zdev failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+
+    // These transitions must respect the same lock before reading or changing records.
+    let metadata = root.join(".zdev/locking/area.toml");
+    let before = fs::read(&metadata).unwrap();
+    fs::remove_file(&lock_path).unwrap();
+    fs::create_dir(&lock_path).unwrap();
+    for arguments in [
+        vec!["area", "parent", "locking", "--remove"],
+        vec!["area", "rebase", "locking"],
+        vec!["area", "rebase", "locking", "--continue"],
+        vec!["area", "rebase", "locking", "--abort"],
+    ] {
+        let rejected = run_zdev(root, &arguments);
+        assert!(!rejected.status.success());
+        assert!(String::from_utf8_lossy(&rejected.stderr).contains("Cannot open zdev state lock"));
+        assert_eq!(fs::read(&metadata).unwrap(), before);
+    }
 }
 
 #[test]
@@ -16482,6 +16578,52 @@ fn research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failur
         fs::read(git_path(root, "evaluator-runs")).unwrap(),
         b"eeeeee"
     );
+    let mut dirty_baseline = current.clone();
+    dirty_baseline["evaluator_command"] =
+        json!("printf override > optional-code.txt; test -f optional-code.txt && printf 1");
+    dirty_baseline["comparison"]["evaluator_identity"] = json!("fixture-untracked-code");
+    configure_research_fixture(root, &dirty_baseline);
+    let prior_area = fs::read(root.join(".zdev/work/area.toml")).unwrap();
+    let rejected = run_zdev(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "rebaseline",
+            "--run",
+            identity,
+            "--request",
+            "dirty-baseline",
+        ],
+    );
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("comparison remains invalid"));
+    let rejected = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(rejected["run"]["comparison_valid"], false);
+    assert_eq!(rejected["consumed"]["commands"], 12);
+    assert_eq!(
+        rejected["run"]["reservations"]["dirty-baseline"]["settled"],
+        true
+    );
+    assert_eq!(
+        fs::read(root.join(".zdev/work/area.toml")).unwrap(),
+        prior_area
+    );
+    fs::remove_file(root.join("optional-code.txt")).unwrap();
+    dirty_baseline["evaluator_command"] = json!("printf 14");
+    dirty_baseline["comparison"]["evaluator_identity"] = json!("fixture-clean-code");
+    configure_research_fixture(root, &dirty_baseline);
+    let retried = research_run_action(
+        root,
+        identity,
+        "rebaseline",
+        &["--request", "clean-baseline"],
+    );
+    assert_eq!(retried["run"]["comparison_valid"], true);
+    assert_eq!(retried["consumed"]["commands"], 15);
+    git(root, &["add", ".zdev/work/area.toml"]);
+    git(root, &["commit", "-m", "record clean retry baseline"]);
     let snapshot = json_output(root, &["work-context", "work", "--store"]);
     json_output(root, &["research", "run", "work", "context"]);
     let compared = json_output(

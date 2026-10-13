@@ -1579,10 +1579,7 @@ pub(super) fn apply_derived(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let created = writes
-        .iter()
-        .map(|(path, _)| path.clone())
-        .collect::<Vec<_>>();
+    let mut created = Vec::new();
     let apply = (|| -> Result<(String, String, Vec<PathBuf>), ZdevError> {
         write_atomic(&source_task.path, source_content.as_bytes())?;
         for (path, content) in &writes {
@@ -1593,6 +1590,7 @@ pub(super) fn apply_derived(
                 .map_err(|error| {
                     ZdevError::io(format!("Cannot create {}", path.display()), error)
                 })?;
+            created.push(path.clone());
             file.write_all(content.as_bytes())
                 .and_then(|()| file.sync_all())
                 .map_err(|error| {

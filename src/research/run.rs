@@ -1615,6 +1615,19 @@ fn rebaseline(root: &Path, area: &str, identity: &str, request: &str) -> Result<
             ],
         )?
         .is_empty()
+        || !git_output_bytes(
+            root,
+            &[
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                "--",
+                ".",
+                ":(exclude).zdev",
+            ],
+        )?
+        .is_empty()
     {
         run.reservations.get_mut(request).unwrap().settled = true;
         save(root, &run)?;

@@ -91,6 +91,11 @@ Untracked nested repositories record their HEAD (null before the first commit),
 status, binary-capable diffs, and their own `git_untracked` map. Ignored files
 remain outside the snapshot.
 
+Initialized tracked submodules must have no local tracked or untracked changes.
+Capture and comparison reject dirty submodules because the parent diff does not
+identify their working file contents. Clean submodule commit changes remain part
+of the parent Git evidence, even when local Git configuration ignores submodules.
+
 Stored context reduces the data passed between workers. Before a later
 decision, collect fresh context or use `--compare` to check for changes.
 Workers receive the locator and load the immutable context with `--show` only

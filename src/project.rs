@@ -1406,6 +1406,7 @@ pub(super) fn configure_parent(
             "Pass a parent area or use --remove to clear it",
         ));
     }
+    let _lock = ZdevStateLock::acquire(root)?;
     let (mut area, _) = load_area(root, tag)?;
     if area.mode == AreaMode::Trunk {
         return Err(ZdevError::new("Trunk areas cannot have a parent"));
@@ -1861,6 +1862,7 @@ pub(super) fn rebase_area(
     continue_rebase: bool,
     abort: bool,
 ) -> Result<CommandOutput, ZdevError> {
+    let _lock = ZdevStateLock::acquire(root)?;
     if continue_rebase {
         return continue_managed_rebase(root, tag);
     }

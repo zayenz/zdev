@@ -33,6 +33,16 @@ This file records notable changes to zdev.
 
 ### Fixed
 
+- Failed derived-task publication removes only files created by that operation,
+  preserving existing task files when a generated filename collides.
+- Work-context capture and comparison reject dirty tracked submodules instead
+  of accepting incomplete evidence of their working contents.
+- Rebaseline rejects untracked code created during measurement before accepting
+  samples as measurements of the committed revision.
+- Parent changes and managed rebases acquire the existing state lock before
+  reading and updating area metadata.
+- Rolling supporting work uses the ordinary workflow's findings check once,
+  preserving work allowances for implementation and verification.
 - Standalone Claude verification preserves task complexity when checking the
   resolved worker dispatch.
 - Research completion commits use the standard `Zdev-Change-Id` trailer.

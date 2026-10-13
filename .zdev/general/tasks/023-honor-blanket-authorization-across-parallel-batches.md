@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-023"
 key = "honor-blanket-parallel-authorization"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -47,7 +47,12 @@ including formatting, strict Clippy, all tests and packaged-binary smoke checks,
 passed on 2026-10-13. The full Rust suite took 136.99 seconds with scripted local
 workers and no LLM calls.
 
-The record remains open until this change is integrated into `main`. The release
-checkout has a detached HEAD, while this trunk area's lifecycle commands require
-the configured `main` branch. Complete the task through zdev after integration;
-the implementation and validation are finished.
+The verified implementation is integrated into `main`.
+
+## Result
+
+Canonical parallel, goal/loop and recovery guidance reuse explicit blanket approval within its retained scope. Generated integrations agree, independent review passed, and the verified implementation is integrated into main.
+
+Validation:
+
+- All five generated integration checks passed. All 189 Rust tests verified, strict Rust 1.89 Clippy and formatting passed; workers in automated tests were scripted and invoked no LLMs.

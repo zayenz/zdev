@@ -33,6 +33,42 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
         include_str!("../templates/zdev/references/languages/rust.md"),
     ),
     (
+        "references/languages/typescript.md",
+        include_str!("../templates/zdev/references/languages/typescript.md"),
+    ),
+    (
+        "references/languages/minizinc.md",
+        include_str!("../templates/zdev/references/languages/minizinc.md"),
+    ),
+    (
+        "references/languages/java.md",
+        include_str!("../templates/zdev/references/languages/java.md"),
+    ),
+    (
+        "references/languages/kotlin.md",
+        include_str!("../templates/zdev/references/languages/kotlin.md"),
+    ),
+    (
+        "references/languages/python.md",
+        include_str!("../templates/zdev/references/languages/python.md"),
+    ),
+    (
+        "references/languages/cpp.md",
+        include_str!("../templates/zdev/references/languages/cpp.md"),
+    ),
+    (
+        "references/frameworks/react.md",
+        include_str!("../templates/zdev/references/frameworks/react.md"),
+    ),
+    (
+        "references/frameworks/react-router.md",
+        include_str!("../templates/zdev/references/frameworks/react-router.md"),
+    ),
+    (
+        "references/web.md",
+        include_str!("../templates/zdev/references/web.md"),
+    ),
+    (
         "references/discuss.md",
         include_str!("../templates/zdev/references/discuss.md"),
     ),

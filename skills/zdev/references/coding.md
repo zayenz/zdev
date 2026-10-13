@@ -67,6 +67,10 @@ types; test doubles must honor them too. Validate external data at entry.
 Handle failures where a meaningful response is possible and propagate the rest.
 Use project error handling, logging, and configuration facilities.
 
+Write explicit types when they reveal a contract, domain meaning, ownership, or
+a result that is otherwise difficult to infer. Use inference when the expression
+makes the type clear. Judge readability at the declaration and its uses.
+
 Keep reads free of observable mutation and make writes apparent. Return what
 the next operation needs; combine inseparable operations. Sort only when order
 matters, with explicit keys and stable tie-breaking where required. Keep
@@ -97,8 +101,23 @@ constraints, invariants, and necessary exceptions; link relevant specifications.
 
 ### Language and framework guidance
 
-**Rust:** Before planning, changing, or reviewing Rust code, read
-[languages/rust.md](languages/rust.md).
+Before planning, changing, or reviewing the following code or its build and
+validation configuration, read the corresponding supplement:
+
+- **Rust:** [languages/rust.md](languages/rust.md).
+- **TypeScript:** [languages/typescript.md](languages/typescript.md), including TSX.
+- **MiniZinc:** [languages/minizinc.md](languages/minizinc.md), including data and solver variants.
+- **Java:** [languages/java.md](languages/java.md).
+- **Kotlin:** [languages/kotlin.md](languages/kotlin.md).
+- **Python:** [languages/python.md](languages/python.md), including executable scripts.
+- **C++:** [languages/cpp.md](languages/cpp.md).
+
+Also load the supplements for the affected responsibilities:
+
+- **Web:** [web.md](web.md) for browser behavior, URLs, forms, or HTTP responses.
+- **React:** [frameworks/react.md](frameworks/react.md) for components, hooks, or component state.
+- **React Router framework mode:** [frameworks/react-router.md](frameworks/react-router.md)
+  for route modules, data loading, mutations, or navigation.
 
 Load project and installed language or framework guidance when the affected
 code uses it. Scope framework guidance to the responsibility being changed or
@@ -111,6 +130,11 @@ explicit preferences or recurring problems, with a pointer here stating what
 work triggers each one. Each supplement owns additional rules or justified
 exceptions; link to common rules. Discover versions, commands, and configuration
 from the environment. Keep each rule in one place.
+
+Supplement checks use the existing completion and review procedure; loading
+several supplements adds no review rounds. Use project tool versions and
+configuration. Report unavailable required tools or unsupported checks as
+missing evidence; do not silently replace the toolchain or claim a pass.
 
 ## Completion
 

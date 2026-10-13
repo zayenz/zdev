@@ -1,7 +1,7 @@
 {
   "name": "zdev",
-  "version": "1.6.0",
-  "description": "A small, durable multi-harness implement-and-verify task loop.",
+  "version": "2.0.0",
+  "description": "Repository-backed coding guidance, task coordination, and independent review.",
   "author": {
     "name": "Mikael Zayenz Lagerkvist",
     "email": "zdev@zayenz.se",
@@ -20,8 +20,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Zdev",
-    "shortDescription": "Shape and run durable zdev work.",
-    "longDescription": "Shape objectives, draft tasks, and run implementation with independent verification.",
+    "shortDescription": "Plan, implement, and review repository work.",
+    "longDescription": "Coordinate durable tasks with contextual coding guidance, language and framework standards, and independent review.",
     "developerName": "Mikael Zayenz Lagerkvist",
     "category": "Developer Tools",
     "capabilities": [

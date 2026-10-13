@@ -14,7 +14,8 @@ Both modes keep one coordinator for authoritative records and acceptance.
 Read the installed task-format reference's research sections for the exact
 policy, TaskBundle, run and local experiment contracts.
 The exact installed task-workflows contract path is
-{{ task_workflows_contract_path_json }}. Decode that string. Its sibling
+{{ task_workflows_contract_path_json }}. Decode that string and resolve a
+relative path against the directory containing the loaded root zdev SKILL.md. Its sibling
 `coding.md` supplies role guidance. Include those
 exact installed paths and this research reference in applicable worker payloads.
 

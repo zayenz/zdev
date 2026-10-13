@@ -67,6 +67,16 @@ requires serial destination verification before coordination continues the run.
 The shared route owns admission, isolation, serial integration, recovery, and
 cleanup rules; no adapter adds a persistent scheduler or batch record.
 
+For an ongoing goal or loop with explicit blanket parallel approval, the
+coordinator retains the approved area, eligible work, worker limit, destination,
+worktree and cleanup choices in its existing handoff. Later compatible finite
+batches reuse that authority while repeating fresh admission and every per-task
+verification and commit gate. One-batch approval ends with its batch; a change
+outside blanket authority needs a new decision. Claude uses its finite parallel
+workflow under coordinator control for this continuation, rather than its
+ordinary sequential loop workflow. Unsupported or bounded adapters retain their
+documented limits.
+
 Install and check render the same files from the same inputs. The worker model and
 effort come from the contract in [Worker profiles](worker-profiles.md).
 

@@ -2,6 +2,56 @@
 
 This file records notable changes to zdev.
 
+## [2.0.0] - Unreleased
+
+### Changed
+
+- Coding guidance now accompanies planning, implementation and independent
+  review. Shared rules cover design, names, contracts, structure and completion;
+  focused supplements cover Rust, TypeScript, MiniZinc, Java, Kotlin, Python,
+  C++, web behavior, React and React Router framework mode.
+- Reviews distinguish required corrections from optional suggestions. Ordinary
+  implementation uses one full review, one correction pass and one focused
+  recheck. Recovery retains that review stage.
+- Explicit blanket approval for compatible parallel batches remains valid
+  throughout an ongoing goal or loop, within the approved area and execution
+  limits. Each batch still rechecks admission and verifies each task.
+- Research workflow tests use three representative local scenarios instead of
+  a broad fault-injection matrix. Tests use scripted workers and never invoke
+  an LLM or a live coding harness.
+
+### Added
+
+- Codex and Claude Code support authorized serial and rolling research with
+  measured baselines, correctness checks, retained candidates, bounded work
+  and command allowances, and recovery from durable records.
+- Codex and Claude Code can coordinate sequential workers through T3 Code.
+- The companion area-report skill produces editable MDX and standalone HTML.
+- `zdev skill install codex --to <directory> --portable` generates a relocatable
+  bundle for Codex plugin distribution. The corresponding `skill check` accepts
+  the same flag.
+
+### Fixed
+
+- Standalone Claude verification preserves task complexity when checking the
+  resolved worker dispatch.
+- Research completion commits use the standard `Zdev-Change-Id` trailer.
+- Rolling integration accepts unchanged measured code after actual record-only
+  changes without rerunning the evaluator.
+- Shared research records remain readable when clone-local experiment refs are
+  absent. Admission checks the recorded candidate commit when available and
+  reports how to fetch missing retained code.
+- Cargo source packages include the research probe needed to compile tests.
+  Release checks compile packaged tests and install from the extracted package.
+
+### Compatibility
+
+- Existing 1.x records and worker configuration remain valid. The record schema
+  remains version 1. See [Upgrade to 2.0](docs/upgrading-to-2.0.md).
+- Refresh binary-installed integrations with
+  `zdev skill install <harness> --force` to receive the new guidance and fixes.
+  Use the same scope, destination and guidance selection as the existing install.
+
 ## [1.6.0] - 2026-09-21
 
 ### Changed

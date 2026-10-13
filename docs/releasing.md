@@ -1,6 +1,13 @@
 # Releasing zdev
 
 Push a version tag after running `scripts/check-release.sh vMAJOR.MINOR.PATCH`.
+Prepare Cargo, lockfile and Codex plugin versions together. Give the changelog
+entry its release date before tagging. The gate compiles the extracted Cargo
+package's tests and installs that package before running the standalone smoke
+test. It uses scripted workers and local CLI/Git fixtures, with no LLM calls.
+Also run the report generator's existing local test command from
+[Contributing](../CONTRIBUTING.md) when qualifying a release.
+
 The Release workflow builds and checks the binaries, creates the GitHub release,
 then calls `publish-crates.yml` to publish the same tag to crates.io. Prereleases
 are excluded from crates.io publishing. A publishing failure fails the Release

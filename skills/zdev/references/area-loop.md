@@ -8,6 +8,14 @@ Resolve the run's concrete role settings once before the first iteration and
 retain them in the goal conversation. Every continued iteration uses those
 values; do not re-resolve profile names between tasks.
 
+When the user explicitly authorizes compatible parallel batches for this whole
+run, read `references/parallel.md`. Use its finite batches, serial destination
+acceptance and per-task verification and commits. Retain blanket approval and
+concrete role settings in the goal handoff; after each batch select afresh and
+repeat admission within the same authority. The ordinary one-task instructions
+below apply when parallel continuation was not authorized. Keep this choice in
+the native goal condition instead of replacing an active goal between batches.
+
 `zdev-loop <area> [focus...]` is canonical and `zdev-goal <area> [focus...]`
 is an exact semantic alias. Parse everything after the area as optional fuzzy
 focus. Both follow this contract and emit canonical `zdev-loop` results.
@@ -46,9 +54,18 @@ before attempting native continuation:
 - Open `ready` with `branch_status.task_work.safe: true` may start the area
   continuation below. Report a stale-but-safe advisory once and continue.
 
-Use this native area condition, replacing `<area>` with the validated tag.
+For sequential work, use this native area condition, replacing `<area>` with the validated tag.
 Replace the bracketed clause with its inner focus sentence when the user
 supplied focus; otherwise remove it:
+
+For a blanket-approved parallel run, replace the first sentence with:
+"For zdev area <area>, repeatedly admit compatible finite parallel batches
+under the installed parallel contract and the retained user authorization."
+Replace the one-task-per-iteration sentence with:
+"Independently verify each completed task and commit it separately."
+Retain the fresh-selection, safety and terminal-stop clauses. When no compatible
+batch is available, use ordinary Implement only if the retained authorization
+covers that execution choice; otherwise report the required decision.
 
 ```text
 For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. [Fuzzy focus: <the user's exact focus words>. Before every iteration, inspect the complete ready frontier and choose the best-fitting task; do not treat the focus as an exact filter.] With no focus, let work-context choose the next task. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. This run is complete when fresh context is open/empty, open/exhausted, or closed, or when a confirmed blocker or required user-owned decision has been reported with its reason and preserved state. Stop at the first confirmed blocker; preserve unfinished work. Complete and commit exactly one independently verified task per iteration, and report each selected and completed task through normal progress updates.
@@ -71,8 +88,9 @@ continue under the one-task contract. Never complete a different, paused, or
 budget-limited native goal.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Decode it and include the resulting
-path in every worker payload.
+"references/task-workflows.md". Decode it. Resolve a relative path
+against the directory containing the loaded root zdev SKILL.md and include the
+resulting absolute path in every worker payload.
 
 The coordinating session owns task selection, branch safety, Git ownership,
 lifecycle changes, staging, commits, and delegation. Workers stay within the
@@ -598,6 +616,7 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/projects/zdev/skills/zdev/references/coding.md"
+Coding guidance file: "references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
+Resolve a relative coding guidance path against the directory containing the loaded root zdev SKILL.md before reading or forwarding it. Forward the resolved absolute path to workers.

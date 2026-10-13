@@ -37,6 +37,14 @@ has no `--native` variant. Everything after the area is optional fuzzy task
 selection guidance, not an exact filter or stored setting. Both names follow
 the same contract.
 
+Explicit blanket approval for compatible parallel batches selects the supported
+Parallel route throughout an ongoing run. Each finite batch reads fresh ready
+tasks and rechecks compatibility, ownership and capacity within the retained
+area, work, worker, destination, worktree and cleanup limits. The coordinator
+reuses those decided choices instead of asking again after each batch. A choice
+outside that authority needs a new decision; approval for one batch alone ends
+with that batch. Bounded harnesses retain their continuation limits.
+
 Inside an active zdev context, natural-language requests to “goal the
 `<area>` area” and “loop the `<area>` area” are synonyms for that continuing
 route. Zdev is active when the user invoked a zdev entry point, referred to a

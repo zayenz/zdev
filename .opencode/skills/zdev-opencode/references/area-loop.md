@@ -8,6 +8,12 @@ Resolve and retain the run's concrete role settings before the one admitted
 iteration. Include them in the continuation handoff; a later independent run
 resolves afresh.
 
+An explicitly approved parallel continuation uses `references/parallel.md`.
+Carry its blanket approval scope and frozen role settings into the existing
+handoff, so the next compatible finite batch reuses decided choices. Keep this
+adapter's continuation bound; report remaining work without claiming a
+background loop. Ordinary one-task continuation follows the steps below.
+
 Parse the first token of `$ARGUMENTS` as the area and the remaining text as
 optional fuzzy focus. `zdev-loop` is the canonical name; `zdev-goal` is an
 exact alias. Both commands follow this same contract and always emit the
@@ -45,7 +51,7 @@ initial work-context. Reuse it for the first dispatch, and tell the user which
 task was selected before implementation begins.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
+"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.opencode/skills/zdev-opencode/references/task-workflows.md". Decode it and include the resulting
 path in every worker payload.
 
 The coordinating session owns task selection, branch safety, Git ownership,
@@ -568,6 +574,6 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/projects/zdev/.opencode/skills/zdev-opencode/references/coding.md"
+Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.opencode/skills/zdev-opencode/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

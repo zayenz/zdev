@@ -198,7 +198,7 @@ const parseStoredContext = raw => {
     || !/^[0-9a-f]{40}$/.test(stored.head ?? '')
     || typeof stored.stale_advisory !== 'boolean') return null
   if (!/^W[0-9a-f]{16}$/.test(stored.snapshot ?? '')) return null
-  return { snapshot: stored.snapshot, head: stored.head, staleAdvisory: stored.stale_advisory }
+  return { snapshot: stored.snapshot, head: stored.head, complexity: stored.complexity, staleAdvisory: stored.stale_advisory }
 }
 const parseComparison = (raw, expectedSnapshot) => {
   const decoded = decodeJsonObject(raw)

@@ -1,7 +1,8 @@
 # zdev
 
-Zdev keeps tasks, decisions, and verified changes in your repository while a
-coding harness does the work.
+Zdev coordinates repository work with coding guidance, durable tasks, and
+independent review. A coding harness explores the code, implements a task, and
+checks the result against its requirements and the repository's standards.
 
 Coding harnesses can explore a repository, compare designs, implement code,
 and review the result. The awkward part is what has to survive between those
@@ -20,6 +21,8 @@ Linux on x86-64 and Arm64.
 > code myself. I use it a lot, and it has been useful for my work.
 
 ## Install
+
+For an existing installation, follow [Upgrade to 2.0](docs/upgrading-to-2.0.md).
 
 Versioned binaries are available from the
 [latest GitHub release](https://github.com/zayenz/zdev/releases/latest). For
@@ -162,6 +165,17 @@ The command prepares the final tree only. A normal merge or rebase that retains
 feature commits still keeps `.zdev` in reachable history.
 
 ## The skill: a harness workflow
+
+The skill supplies contextual coding advice throughout planning, implementation
+and review. Shared guidance covers design, naming, contracts, control flow and
+completion. Language and framework supplements are loaded for the affected code;
+project instructions and explicit user requirements determine how they apply.
+
+Independent review checks readability as well as behavior. Required corrections
+need checked locations and concrete consequences; optional suggestions do not
+block acceptance. Ordinary implementation allows one correction pass followed
+by a focused recheck. If required corrections remain, the harness preserves the
+work and reports the decision needed to continue.
 
 The skill is the normal way to use zdev from a coding harness. It is installed
 by the same binary and uses the same `.zdev` task record.

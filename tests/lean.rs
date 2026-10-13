@@ -7702,14 +7702,14 @@ const worker = (verdict, findings = [], escalation = 'none') => JSON.stringify({
   summary: verdict === 'pass' ? 'Checked task and validation.' : 'Correction required.',
   findings, escalation,
 }})
-const exercise = async (response, equal = true, invocation = {{ area, task_id: task }}, storedResponse = stored, comparedResponse = comparison(equal)) => {{
+const exercise = async (response, equal = true, invocation = {{ area, task_id: task }}, storedResponse = stored, comparedResponse = comparison(equal), dispatchResponse = dispatch) => {{
   const prompts = []
   const result = await run(invocation, async (prompt, options) => {{
     prompts.push({{ prompt, options }})
     if (options.label.endsWith(': check findings')) return prompt.split('Candidate review: ').at(-1)
     if (options.agentType) return response
     if (options.label === 'zdev ' + task + ': capture verification snapshot') return storedResponse
-    if (options.label === 'zdev ' + task + ': freeze verifier profile') return dispatch
+    if (options.label === 'zdev ' + task + ': freeze verifier profile') return dispatchResponse
     if (options.label === 'zdev ' + task + ': confirm verifier left snapshot unchanged' || options.label.endsWith(': confirm findings snapshot unchanged')) return comparedResponse
     throw new Error('unexpected coordination call: ' + options.label)
   }})
@@ -7724,6 +7724,19 @@ for (const call of valid.prompts.filter(call => !call.options.agentType)) {{
 }}
 const publicPass = JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: task, verdict: 'pass', summary: 'Checked task and validation.', evidence: ['work_context_snapshot: ' + snapshot], findings: [], escalation: 'none' }})
 if (valid.result !== publicPass) throw new Error(valid.result)
+for (const complexity of ['routine', 'advanced']) {{
+  const contextual = JSON.stringify({{ ...JSON.parse(stored), complexity }})
+  const specification = JSON.parse(dispatch)
+  const implementation = specification.dispatches[0]
+  implementation.role = complexity === 'routine' ? 'routine-implementer' : 'advanced-implementer'
+  implementation.reasoning_effort = verifierProfiles[implementation.role].value.effort
+  if (complexity === 'advanced') specification.dispatches.unshift({{
+    ...implementation, role: 'planner', next_phase: 'implementation',
+  }})
+  const result = await exercise(worker('pass'), true, {{ area, task_id: task }}, contextual, comparison(true), JSON.stringify(specification))
+  if (result.result !== publicPass || result.prompts.length !== 4)
+    throw new Error(complexity + ' standalone verification rejected valid dispatch: ' + result.result)
+}}
 for (const invocation of [['work', 'work-001'], 'work work-001']) {{
   const direct = await exercise(worker('pass'), true, invocation)
   if (!direct.result.startsWith('{{"schema_version":1,"kind":"verifier"')) throw new Error('direct args rejected: ' + direct.result)
@@ -10696,6 +10709,34 @@ fn codex_force_install_migrates_split_skills_to_one_router() {
     ] {
         assert!(!destination.join(directory).exists());
     }
+    let portable = root.join("portable-skills");
+    json_output(
+        root,
+        &[
+            "skill",
+            "install",
+            "codex",
+            "--to",
+            portable.to_str().unwrap(),
+            "--portable",
+        ],
+    );
+    let relocated = root.join("relocated-skills");
+    fs::rename(&portable, &relocated).unwrap();
+    assert_eq!(
+        json_output(
+            root,
+            &[
+                "skill",
+                "check",
+                "codex",
+                "--to",
+                relocated.to_str().unwrap(),
+                "--portable"
+            ],
+        )["status"],
+        "ok"
+    );
 }
 
 #[test]
@@ -14852,6 +14893,14 @@ fn local_experiment_keeps_verified_code_and_preserves_unrelated_work() {
         "done"
     );
     let head = git(root, &["rev-parse", "HEAD"]);
+    let change = json_output(root, &["change", "inspect", &head]);
+    let change_id = change["change_id"]
+        .as_str()
+        .expect("research stable change ID");
+    assert_eq!(
+        json_output(root, &["change", "lookup", change_id])["commits"][0]["commit"],
+        head
+    );
     json_output(
         root,
         &["research", "experiment", "work", "work-001", "recover"],
@@ -14860,6 +14909,42 @@ fn local_experiment_keeps_verified_code_and_preserves_unrelated_work() {
     import_research_fixture(root, json!([dependency]));
     assert_eq!(
         json_output(root, &["next", "work"])["task"]["requires_code"],
+        json!(["work-001"])
+    );
+    git(root, &["add", ".zdev/work"]);
+    git(
+        root,
+        &[
+            "commit",
+            "--only",
+            "-m",
+            "Record accepted-code dependency",
+            ".zdev/work",
+        ],
+    );
+    let cloned = TempDir::new().unwrap();
+    git(
+        root,
+        &[
+            "clone",
+            "--no-local",
+            root.to_str().unwrap(),
+            cloned.path().to_str().unwrap(),
+        ],
+    );
+    assert!(
+        git_stdout(
+            cloned.path(),
+            &["for-each-ref", "--format=%(refname)", "refs/zdev"]
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        json_output(cloned.path(), &["task", "show", "work", "work-001"])["status"],
+        "done"
+    );
+    assert_eq!(
+        json_output(cloned.path(), &["next", "work"])["task"]["requires_code"],
         json!(["work-001"])
     );
 }
@@ -16675,133 +16760,62 @@ fn research_run_changed_conditions_allow_historical_discard_but_protect_area_met
 }
 
 #[test]
-fn claude_serial_research_executes_real_commands_and_recovers_fresh_invocations() {
-    for scenario in [
-        "hypothesis-plan-settlement",
-        "hypothesis-plan-begin",
-        "support-plan-settlement",
-        "mixed",
-        "limits",
-        "acceptance-rework",
-        "last-unit",
-        "refused",
-        "null",
-        "throw",
-        "multiple",
-        "duplicate",
-        "malformed",
-        "stale",
-        "advanced-resume",
-        "admission",
-        "finalization",
-        "shared",
-        "support-completion",
-        "conditions",
-        "measurement",
-        "implementation-blocker",
-        "inconclusive",
-    ] {
-        let evaluator = if scenario == "measurement" {
-            "kill -KILL \"$PPID\"; sleep 0.1; printf 15"
-        } else {
-            "case $(cat seed.txt) in keep*) printf 5;; close) printf 3;; fail) exit 1;; *) printf 15;; esac"
-        };
-        let repository = local_experiment_fixture(evaluator);
-        let root = repository.path();
-        if matches!(
-            scenario,
-            "advanced-resume" | "hypothesis-plan-settlement" | "hypothesis-plan-begin"
-        ) {
-            let task_path = root.join(".zdev/work/tasks/001-candidate.md");
-            let task = fs::read_to_string(&task_path).unwrap();
-            let advanced = if task.contains("complexity = \"standard\"") {
-                task.replace("complexity = \"standard\"", "complexity = \"advanced\"")
-            } else {
-                task.replacen("+++\n", "+++\ncomplexity = \"advanced\"\n", 1)
-            };
-            fs::write(&task_path, advanced).unwrap();
-            git(root, &["add", ".zdev/work/tasks/001-candidate.md"]);
-            git(root, &["commit", "-m", "Plan advanced hypothesis"]);
-        }
-        let destination = root.join(".git/claude-research-integration");
-        let config_home = root.join(".git/research-config");
-        json_output_with_env(
-            root,
-            &[
-                "skill",
-                "install",
-                "claude",
-                "--to",
-                destination.to_str().unwrap(),
-            ],
-            &[("XDG_CONFIG_HOME", config_home.as_path())],
-        );
-        let output = Command::new("node")
-            .args([
-                "--input-type=module",
-                "--eval",
-                include_str!("claude-research-probe.mjs"),
-            ])
-            .env("ZDEV_PROBE_ROOT", root)
-            .env("ZDEV_PROBE_BINARY", env!("CARGO_BIN_EXE_zdev"))
-            .env(
-                "ZDEV_PROBE_SOURCE",
-                destination.join("workflows/zdev-research.js"),
-            )
-            .env("ZDEV_PROBE_SCENARIO", scenario)
-            .env("XDG_CONFIG_HOME", &config_home)
-            .output()
-            .expect("run real-command Claude research adapter");
-        assert!(
-            output.status.success(),
-            "Claude research {scenario} failed: {}\n{}",
-            String::from_utf8_lossy(&output.stderr),
-            String::from_utf8_lossy(&output.stdout)
-        );
-        let evidence: Value = serde_json::from_slice(&output.stdout).unwrap();
-        let evaluated = evidence["evaluator_runs"].as_str().unwrap().len();
-        assert_eq!(
-            evidence["consumed"]["commands"].as_u64().unwrap() as usize,
-            evaluated + evidence["correctness_runs"].as_str().unwrap().len()
-        );
-        if matches!(scenario, "mixed" | "limits" | "shared") {
-            assert_eq!(evidence["report"]["verdict"], "stopped");
-        }
-    }
+fn claude_serial_research_runs_mixed_work_with_scripted_workers() {
+    // Worker responses are scripted; this checks wiring, not model behavior.
+    // Binary lifecycle tests own the detailed failure and recovery cases.
+    let scenario = "mixed";
+    let evaluator = "case $(cat seed.txt) in keep*) printf 5;; close) printf 3;; fail) exit 1;; *) printf 15;; esac";
+    let repository = local_experiment_fixture(evaluator);
+    let root = repository.path();
+    let destination = root.join(".git/claude-research-integration");
+    let config_home = root.join(".git/research-config");
+    json_output_with_env(
+        root,
+        &[
+            "skill",
+            "install",
+            "claude",
+            "--to",
+            destination.to_str().unwrap(),
+        ],
+        &[("XDG_CONFIG_HOME", config_home.as_path())],
+    );
+    let output = Command::new("node")
+        .args([
+            "--input-type=module",
+            "--eval",
+            include_str!("claude-research-probe.mjs"),
+        ])
+        .env("ZDEV_PROBE_ROOT", root)
+        .env("ZDEV_PROBE_BINARY", env!("CARGO_BIN_EXE_zdev"))
+        .env(
+            "ZDEV_PROBE_SOURCE",
+            destination.join("workflows/zdev-research.js"),
+        )
+        .env("ZDEV_PROBE_SCENARIO", scenario)
+        .env("XDG_CONFIG_HOME", &config_home)
+        .output()
+        .expect("run real-command Claude research adapter");
+    assert!(
+        output.status.success(),
+        "Claude research {scenario} failed: {}\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let evidence: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let evaluated = evidence["evaluator_runs"].as_str().unwrap().len();
+    assert_eq!(
+        evidence["consumed"]["commands"].as_u64().unwrap() as usize,
+        evaluated + evidence["correctness_runs"].as_str().unwrap().len()
+    );
+    assert_eq!(evidence["report"]["verdict"], "stopped");
 }
 
 #[test]
-fn claude_rolling_research_refills_measures_and_recovers_public_workflow() {
-    for scenario in [
-        "rolling",
-        "rolling-one",
-        "rolling-rework",
-        "rolling-null",
-        "rolling-throw",
-        "rolling-invalid",
-        "rolling-replay",
-        "rolling-prepare",
-        "rolling-admission",
-        "rolling-finalization",
-        "rolling-measurement",
-        "rolling-ambiguous",
-        "rolling-conditions",
-        "rolling-shared",
-        "rolling-record-only",
-        "rolling-process",
-        "rolling-cap",
-        "rolling-conflict",
-        "rolling-stale-verifier",
-        "rolling-budget",
-        "rolling-cleanup",
-        "rolling-support-completion",
-    ] {
+fn claude_rolling_research_refills_and_reconciles_record_changes() {
+    for scenario in ["rolling", "rolling-record-only"] {
         eprintln!("Claude rolling scenario: {scenario}");
-        let evaluator = if scenario == "rolling-process" {
-            "kill -KILL \"$PPID\"; sleep 0.1; printf 15"
-        } else {
-            "sleep 0.08; wc -c < seed.txt"
-        };
+        let evaluator = "sleep 0.08; wc -c < seed.txt";
         let repository = isolated_candidate_fixture(evaluator);
         let sources = TempDir::new().unwrap();
         let root = repository.path();

@@ -230,6 +230,15 @@ results. Everything after the area is optional fuzzy guidance, not a flag or
 exact task filter. Do not treat the alias as a one-task mode or confuse either
 route with the binary projection.
 
+An explicit request to use parallel batches throughout this goal or loop
+selects the supported **Parallel** route for compatible finite batches. Read
+`references/parallel.md` and retain the user's blanket authorization in the
+existing handoff. Select each later batch from fresh ready tasks and recheck
+admission within the same area, worker, destination, worktree and cleanup
+limits. Reuse those decided choices; request a new decision only when it falls
+outside the retained authority. Without that authorization, keep the ordinary
+one-task route and its single-batch boundaries.
+
 With no focus, let `zdev work-context <area>` select one task using the binary's
 AFK, priority, then numeric ordering. With any focus, obtain the complete ready
 frontier with `zdev tasks list <area> --format json`, read every ready task with
@@ -242,7 +251,7 @@ choice. Admit the chosen task with `zdev work-context <area> --task <task-id>`.
 Repeat the same focused selection from a fresh frontier after every commit;
 focus never becomes stored zdev state.
 
-Each iteration uses the **Implement** route and stops internally only on a
+Each ordinary sequential iteration uses the **Implement** route and stops internally only on a
 verified commit, a blocker, or a user-owned decision. Tell the user which task
 was selected and when its verified commit completes. Before another task,
 repeat the selection rule above from fresh evidence; never reuse the completed
@@ -352,7 +361,7 @@ what remains; mention commands only when they help the user continue or recover.
 ## Pi orchestration
 
 The exact installed task-workflows contract path for this installation is
-"/Users/zayenz/projects/zdev/.pi/skills/zdev-pi/references/task-workflows.md". Decode that JSON string and include the
+"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.pi/skills/zdev-pi/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every child payload.
 
 Route authored routine, standard/default, and advanced work through
@@ -407,7 +416,7 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/projects/zdev/.pi/skills/zdev-pi/references/coding.md"
+Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.pi/skills/zdev-pi/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
 

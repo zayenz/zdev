@@ -1784,6 +1784,9 @@ fn work_context_output(
         ));
     }
 
+    if let Some(task) = &goal_task {
+        tasks::require_task_code(root, area, task)?;
+    }
     let head = work_context_git_stdout(root, &["rev-parse", "HEAD"])?;
     let head = head.trim();
     if head.len() != 40

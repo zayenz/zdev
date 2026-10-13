@@ -6,11 +6,11 @@ hypothesis guards. Serial execution uses the current branch. Rolling execution
 uses run-owned linked sources and one destination coordinator.
 Read the research sections of the installed task-format reference completely.
 The exact installed task-workflows contract path is
-"/Users/zayenz/projects/zdev/.claude/skills/zdev/contracts/task-workflows.md". Decode that string.
+"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.claude/skills/zdev/contracts/task-workflows.md". Decode that string.
 The exact installed coding reference path is
-"/Users/zayenz/projects/zdev/.claude/skills/zdev/skills/zdev/references/coding.md". Decode that string.
+"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.claude/skills/zdev/skills/zdev/references/coding.md". Decode that string.
 The exact installed research reference path is
-"/Users/zayenz/projects/zdev/.claude/skills/zdev/skills/zdev/references/research.md". Decode that string.
+"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.claude/skills/zdev/skills/zdev/references/research.md". Decode that string.
 Pass these paths, absolute repository cwd, brief, complete task, repository
 guidance and stored context to every worker.
 

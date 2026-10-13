@@ -252,6 +252,15 @@ results. Everything after the area is optional fuzzy guidance, not a flag or
 exact task filter. Do not treat the alias as a one-task mode or confuse either
 route with the binary projection.
 
+An explicit request to use parallel batches throughout this goal or loop
+selects the supported **Parallel** route for compatible finite batches. Read
+`references/parallel.md` and retain the user's blanket authorization in the
+existing handoff. Select each later batch from fresh ready tasks and recheck
+admission within the same area, worker, destination, worktree and cleanup
+limits. Reuse those decided choices; request a new decision only when it falls
+outside the retained authority. Without that authorization, keep the ordinary
+one-task route and its single-batch boundaries.
+
 With no focus, let `zdev work-context <area>` select one task using the binary's
 AFK, priority, then numeric ordering. With any focus, obtain the complete ready
 frontier with `zdev tasks list <area> --format json`, read every ready task with
@@ -264,7 +273,7 @@ choice. Admit the chosen task with `zdev work-context <area> --task <task-id>`.
 Repeat the same focused selection from a fresh frontier after every commit;
 focus never becomes stored zdev state.
 
-Each iteration uses the **Implement** route and stops internally only on a
+Each ordinary sequential iteration uses the **Implement** route and stops internally only on a
 verified commit, a blocker, or a user-owned decision. Tell the user which task
 was selected and when its verified commit completes. Before another task,
 repeat the selection rule above from fresh evidence; never reuse the completed
@@ -384,8 +393,9 @@ worktrees, mixed task generation, counted role/measurement dispatch and durable
 recovery. Research continuation follows that contract; ordinary goal
 and loop requests keep `references/area-loop.md` and stop at queue exhaustion.
 The exact installed task-workflows contract path for this installation is
-"/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
-resulting path in every worker payload.
+"references/task-workflows.md". Decode that JSON string. Resolve a
+relative path against the directory containing this SKILL.md and include the
+resulting absolute path in every worker payload.
 
 Use one Codex collaboration agent to implement a task and a different agent to
 verify it. The coordinating agent owns zdev state, user decisions, task
@@ -488,8 +498,9 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/projects/zdev/skills/zdev/references/coding.md"
+Coding guidance file: "references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
+Resolve a relative coding guidance path against the directory containing the loaded root zdev SKILL.md before reading or forwarding it. Forward the resolved absolute path to workers.
 
 The [task format](references/task-format.md) defines imported task bundles.

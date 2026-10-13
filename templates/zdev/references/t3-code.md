@@ -18,8 +18,9 @@ native dispatch-spec route. Other intents keep their shared instructions;
 any requested reviewer uses the T3 dispatch and profile rules here.
 
 The installed task-workflows contract locator is
-{{ task_workflows_contract_path_json }}. Resolve a relative locator against the
-authoritative checkout. Give workers its absolute path and this reference's
+{{ task_workflows_contract_path_json }}. Resolve a locator beginning with
+`references/` against the directory containing the loaded root zdev SKILL.md;
+resolve other relative locators against the authoritative checkout. Give workers its absolute path and this reference's
 absolute path; they load only their assigned worker role and applicable
 contract sections.
 

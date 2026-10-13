@@ -469,7 +469,7 @@ independent verification, or an invalid worker envelope returns `BLOCKER zdev-ve
 without mutation.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/projects/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it and include the resulting
+"/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it and include the resulting
 path in every task-agent payload.
 
 Use `$ARGUMENTS` as the area. The current Oh My Pi session is the coordinator.
@@ -505,6 +505,6 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/projects/zdev/.omp/skills/zdev/references/coding.md"
+Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/ios-0c7f69b6-5c02-43db-a501-b60d9bf3d728/zdev/.omp/skills/zdev/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

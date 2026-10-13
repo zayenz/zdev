@@ -22,7 +22,14 @@ mutation, collect or reuse explicit authorization for all of these choices:
 
 Explain that overlap can reduce elapsed time while consuming usage faster and
 may add integration work. Propose a limit of two when none was supplied.
-Completing this batch authorizes no additional task or batch.
+Distinguish approval for this batch from explicit blanket approval for later
+compatible batches in the same ongoing goal or loop. Retain the approval's
+area, eligible work, worker limit, destination, worktree and cleanup choices in
+the existing conversation or run handoff. One-batch approval stops after this
+batch. Blanket approval permits fresh compatible batches within those same
+choices without another permission question; it preserves admission,
+ownership, capacity, verification and completion gates. Ask only for a choice
+the user has not made or a change beyond the retained authority.
 
 ## Admission
 
@@ -105,6 +112,11 @@ old agent IDs.
 The final report separates tasks with successful destination commits from
 unfinished preserved tasks and their worktree, branch, baseline, commits, and
 last result. It also states cleanup performed or withheld and the stop reason.
+With retained blanket approval and no blocker, the ongoing goal or loop reads
+a fresh ready frontier, selects another compatible finite batch and repeats
+admission. Preserve the approval scope and frozen role settings across batch
+boundaries and recovery. Finishing one batch does not revoke blanket approval
+or extend single-batch approval.
 {% else %}
 ## Unsupported adapter
 

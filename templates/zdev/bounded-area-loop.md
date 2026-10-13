@@ -8,6 +8,12 @@ Resolve and retain the run's concrete role settings before the one admitted
 iteration. Include them in the continuation handoff; a later independent run
 resolves afresh.
 
+An explicitly approved parallel continuation uses `references/parallel.md`.
+Carry its blanket approval scope and frozen role settings into the existing
+handoff, so the next compatible finite batch reuses decided choices. Keep this
+adapter's continuation bound; report remaining work without claiming a
+background loop. Ordinary one-task continuation follows the steps below.
+
 Parse the first token of `$ARGUMENTS` as the area and the remaining text as
 optional fuzzy focus. `zdev-loop` is the canonical name; `zdev-goal` is an
 exact alias. Both commands follow this same contract and always emit the

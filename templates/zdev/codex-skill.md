@@ -22,8 +22,9 @@ worktrees, mixed task generation, counted role/measurement dispatch and durable
 recovery. Research continuation follows that contract; ordinary goal
 and loop requests keep `references/area-loop.md` and stop at queue exhaustion.
 The exact installed task-workflows contract path for this installation is
-{{ task_workflows_contract_path_json }}. Decode that JSON string and include the
-resulting path in every worker payload.
+{{ task_workflows_contract_path_json }}. Decode that JSON string. Resolve a
+relative path against the directory containing this SKILL.md and include the
+resulting absolute path in every worker payload.
 
 Use one Codex collaboration agent to implement a task and a different agent to
 verify it. The coordinating agent owns zdev state, user decisions, task

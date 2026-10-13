@@ -3,6 +3,13 @@
 Resolve and retain the run's concrete role settings before the first admitted
 iteration. Every continued iteration uses those values.
 
+For explicit blanket approval of compatible parallel batches throughout this
+run, use `references/parallel.md` under coordinator control. Invoke the packaged
+`zdev-parallel` workflow for each admitted finite batch, retain the approval
+scope and concrete role settings, and select afresh after it completes. Reuse
+decided choices within that authority. The ordinary packaged `zdev-loop`
+workflow below remains the sequential route.
+
 Treat “goal” and “loop” as the same zdev route. When packaged workflows are
 available, the root zdev skill uses `zdev-loop` internally; `zdev-goal` is the
 same workflow under an alias. The workflow repeats the ordinary one-task route,

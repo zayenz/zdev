@@ -1,9 +1,9 @@
 [package]
 name = "zdev"
-version = "1.6.0"
+version = "2.0.0"
 edition = "2024"
 rust-version = "1.89"
-description = "A small task loop for agentic development"
+description = "Repository-backed coding guidance, task coordination, and independent review"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/zayenz/zdev"
@@ -22,6 +22,7 @@ include = [
   "/src/**",
   "/templates/**",
   "/tests/lean.rs",
+  "/tests/claude-research-probe.mjs",
 ]
 autotests = false
 

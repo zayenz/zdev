@@ -289,6 +289,7 @@ impl Harness {
         configured_workers: Vec<(String, ResolvedWorkers)>,
         destination: &Path,
         scope: &str,
+        portable: bool,
     ) -> Result<SkillIntegration, ZdevError> {
         let mut files = Vec::new();
         match self {
@@ -625,18 +626,24 @@ impl Harness {
             Self::Omp => "skills/zdev/references/task-workflows.md",
             Self::Agy => "skills/zdev/references/task-workflows.md",
         };
-        let task_workflows_contract_path = if self == Self::Claude && scope == "project" {
+        let task_workflows_contract_path = if portable {
+            PathBuf::from("references/task-workflows.md")
+        } else if self == Self::Claude && scope == "project" {
             PathBuf::from(".claude/skills/zdev").join(contract_suffix)
         } else {
             canonicalize_with_missing_suffix(&destination.join(contract_suffix))
         };
-        let coding_guidance_path = canonicalize_with_missing_suffix(&if self == Self::Claude {
-            destination.join("skills/zdev/references/coding.md")
+        let coding_guidance_path = if portable {
+            PathBuf::from("references/coding.md")
         } else {
-            destination
-                .join(contract_suffix)
-                .with_file_name("coding.md")
-        });
+            canonicalize_with_missing_suffix(&if self == Self::Claude {
+                destination.join("skills/zdev/references/coding.md")
+            } else {
+                destination
+                    .join(contract_suffix)
+                    .with_file_name("coding.md")
+            })
+        };
         realize_templates(
             self,
             guidance,
@@ -647,6 +654,7 @@ impl Harness {
         )?;
         Ok(SkillIntegration {
             harness: self,
+            portable,
             version: env!("CARGO_PKG_VERSION"),
             layout: if matches!(
                 self,
@@ -1006,10 +1014,13 @@ fn realize_templates(
 ) -> Result<(), ZdevError> {
     let coding_path_json = serde_json::to_string(&coding_guidance_path.to_string_lossy())
         .map_err(|error| ZdevError::new(format!("Cannot render coding guidance path: {error}")))?;
-    let repository_guidance = format!(
+    let mut repository_guidance = format!(
         "{}\n\n## Coding guidance\n\nCoding guidance file: {coding_path_json}\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.",
         repository_guidance(guidance)
     );
+    if harness == Harness::Codex {
+        repository_guidance.push_str("\nResolve a relative coding guidance path against the directory containing the loaded root zdev SKILL.md before reading or forwarding it. Forward the resolved absolute path to workers.");
+    }
     let version = env!("CARGO_PKG_VERSION");
     let task_workflows_contract_path_json = serde_json::to_string(
         &task_workflows_contract_path.to_string_lossy(),
@@ -1190,6 +1201,9 @@ pub(super) enum SkillCommand {
         /// Install into this exact directory instead of the scope's default
         #[arg(long, value_name = "PATH")]
         to: Option<PathBuf>,
+        /// Generate relocatable Codex references relative to the root SKILL.md
+        #[arg(long, requires = "to")]
+        portable: bool,
         /// Project guidance source: auto, agents, zdev, or a repository-relative Markdown file
         #[arg(long, value_name = "SOURCE")]
         guidance: Option<String>,
@@ -1210,6 +1224,9 @@ pub(super) enum SkillCommand {
         /// Check this exact directory instead of the scope's default
         #[arg(long, value_name = "PATH")]
         to: Option<PathBuf>,
+        /// Check a relocatable Codex bundle generated with --portable
+        #[arg(long, requires = "to")]
+        portable: bool,
         /// Project guidance source: auto, agents, zdev, or a repository-relative Markdown file
         #[arg(long, value_name = "SOURCE")]
         guidance: Option<String>,
@@ -1218,6 +1235,7 @@ pub(super) enum SkillCommand {
 
 struct SkillIntegration {
     harness: Harness,
+    portable: bool,
     version: &'static str,
     layout: IntegrationLayout,
     legacy_files: &'static [&'static str],
@@ -1277,12 +1295,13 @@ pub(super) fn run_skill_command(
     requested_root: Option<&Path>,
     command: &SkillCommand,
 ) -> Result<CommandOutput, ZdevError> {
-    let (harness, scope, requested, guidance) = match command {
+    let (harness, scope, requested, guidance, portable) = match command {
         SkillCommand::Install {
             harness,
             scope,
             to,
             guidance,
+            portable,
             ..
         }
         | SkillCommand::Check {
@@ -1290,8 +1309,20 @@ pub(super) fn run_skill_command(
             scope,
             to,
             guidance,
-        } => (*harness, *scope, to.as_deref(), guidance.as_deref()),
+            portable,
+        } => (
+            *harness,
+            *scope,
+            to.as_deref(),
+            guidance.as_deref(),
+            *portable,
+        ),
     };
+    if portable && harness != Harness::Codex {
+        return Err(ZdevError::new(
+            "--portable is available only for Codex bundles",
+        ));
+    }
     if scope != InstallationScope::Project && guidance.is_some() {
         return Err(ZdevError::new(
             "--guidance is available only with --scope project",
@@ -1341,6 +1372,7 @@ pub(super) fn run_skill_command(
                 configured_workers.clone(),
                 &destination.path,
                 destination.scope,
+                portable,
             )?;
             let result = publish_integration(&integration, &destination.path, *force)?;
             if let (Some(root), Some(guidance)) = (project_root.as_deref(), guidance.as_ref()) {
@@ -1377,6 +1409,7 @@ pub(super) fn run_skill_command(
                     configured_workers,
                     &destination.path,
                     destination.scope,
+                    portable,
                 )?,
                 destination,
                 guidance,
@@ -1880,6 +1913,9 @@ fn check_integration(
     };
     if let Some(selection) = guidance_selection {
         install_command.push_str(&format!(" --guidance {selection}"));
+    }
+    if integration.portable {
+        install_command.push_str(" --portable");
     }
     let mut text = match status {
         "guidance-incomplete" => format!(

@@ -325,7 +325,7 @@ fn validate_task_bundle(root: &Path, bundle: &TaskBundle, area: &str) -> Result<
         .collect::<BTreeSet<_>>();
     let mut seen_keys = BTreeSet::new();
     for task in &bundle.tasks {
-        validate_code_prerequisites(root, &task.requires_code, &existing)?;
+        require_retained_code(root, &task.requires_code, &existing)?;
         if let Some(hypothesis) = &task.hypothesis {
             if research.is_none() {
                 return Err(ZdevError::new(
@@ -2391,7 +2391,7 @@ fn load_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
     validate_graph(&tasks)?;
     validate_research_tasks(&tasks, metadata.research.is_some())?;
     for task in &tasks {
-        validate_code_prerequisites(root, &task.header.requires_code, &tasks)?;
+        validate_code_prerequisites(&task.header.requires_code, &tasks)?;
     }
     Ok(tasks)
 }
@@ -2446,11 +2446,7 @@ fn parse_task(content: &str, path: &Path, area: &str) -> Result<Task, ZdevError>
     })
 }
 
-fn validate_code_prerequisites(
-    root: &Path,
-    ids: &[String],
-    tasks: &[Task],
-) -> Result<(), ZdevError> {
+fn validate_code_prerequisites(ids: &[String], tasks: &[Task]) -> Result<(), ZdevError> {
     let mut seen = BTreeSet::new();
     for id in ids {
         if !seen.insert(id) {
@@ -2476,23 +2472,39 @@ fn validate_code_prerequisites(
                     "Retained-code prerequisite {id} requires completed verified acceptance"
                 ))
             })?;
-        let retained = result
+        result
             .retained_candidate
             .as_deref()
             .ok_or_else(|| ZdevError::new("Missing retained candidate"))?;
-        let revision = git_output(
-            root,
-            &["rev-parse", "--verify", &format!("{retained}^{{commit}}")],
-        )?;
-        if task
+    }
+    Ok(())
+}
+
+fn require_retained_code(root: &Path, ids: &[String], tasks: &[Task]) -> Result<(), ZdevError> {
+    validate_code_prerequisites(ids, tasks)?;
+    for id in ids {
+        let task = find_task(tasks, id)?;
+        let result = task.header.research_results.last().unwrap();
+        let retained = result.retained_candidate.as_deref().unwrap();
+        let measured = task
             .header
             .research_results
             .iter()
             .flat_map(|record| &record.observations)
             .last()
             .map(|observation| observation.candidate_revision.as_str())
-            != Some(revision.as_str())
-        {
+            .ok_or_else(|| ZdevError::new("Missing verified candidate revision"))?;
+        let revision = match git_output(
+            root,
+            &["rev-parse", "--verify", &format!("{retained}^{{commit}}")],
+        ) {
+            Ok(revision) => revision,
+            Err(_) => git_output(root, &["rev-parse", "--verify", &format!("{measured}^{{commit}}")])
+                .map_err(|_| ZdevError::new(format!(
+                    "Retained-code prerequisite {id} is unavailable locally. Fetch {retained} from the source clone before admitting this task"
+                )))?,
+        };
+        if measured != revision {
             return Err(ZdevError::new(format!(
                 "Retained-code prerequisite {id} does not resolve to its verified candidate"
             )));
@@ -2989,6 +3001,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
             json!({"schema_version": SCHEMA_VERSION, "area": area, "mode": metadata.mode.as_str(), "branch": branch.branch_status["branch"], "branch_matches": branch.branch_status["branch_matches"], "lifecycle": "open", "queue": queue, "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory}),
         ));
     };
+    require_retained_code(root, &task.header.requires_code, &tasks)?;
     let view = TaskView {
         id: &task.header.id,
         title: &task.title,
@@ -3136,6 +3149,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         };
         return Ok(CommandOutput::new(text, value));
     };
+    require_task_code(root, &area.tag, &task.header.id)?;
 
     let branch_matches = branch_status["branch_matches"] == Value::Bool(true);
     let required_branch = branch_status["branch"].as_str().unwrap_or("unbound");
@@ -3439,6 +3453,7 @@ pub(super) fn complete_with_checkpoint(
             "Cannot complete task {id}: it is blocked. Complete its blockers first"
         )));
     }
+    require_retained_code(root, &task.header.requires_code, &tasks)?;
     require_hypothesis_completion(root, area, task)?;
     if task.header.hypothesis.is_none() {
         super::research::run::require_supporting_reservation(root, area, id)?;
@@ -3885,10 +3900,20 @@ pub(super) fn summary_selected(
 
 pub(super) fn task_is_ready(root: &Path, area: &str, id: &str) -> Result<bool, ZdevError> {
     let tasks = load_tasks(root, area)?;
-    Ok(tasks
+    let task = tasks
         .iter()
         .find(|task| task.header.id == id)
-        .is_some_and(|task| task_state(task, &tasks) == "ready"))
+        .filter(|task| task_state(task, &tasks) == "ready");
+    if let Some(task) = task {
+        require_retained_code(root, &task.header.requires_code, &tasks)?;
+    }
+    Ok(task.is_some())
+}
+
+pub(super) fn require_task_code(root: &Path, area: &str, id: &str) -> Result<(), ZdevError> {
+    let tasks = load_tasks(root, area)?;
+    let task = find_task(&tasks, id)?;
+    require_retained_code(root, &task.header.requires_code, &tasks)
 }
 
 pub(super) fn validate_index(root: &Path, area: &str) -> Result<(), ZdevError> {

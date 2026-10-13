@@ -355,7 +355,13 @@ a later task that requires retained candidate code only after acceptance. Add
 `requires_code = ["work-002"]` to its task frontmatter, or the equivalent JSON
 array to its draft. These same-area task IDs must already identify completed,
 verified acceptance with resolvable retained candidate code when the task is
-reviewed or imported. Rejection cannot satisfy this requirement. `blocked_by`
+reviewed or imported, selected with `next`, admitted with `work-context`, or
+completed. Inspection and record validation check the accepted evidence without
+requiring a clone-local ref. Availability checks resolve the retention ref or
+the recorded candidate commit when it is already in local history. If neither
+is available, fetch the named experiment ref from its originating clone before
+admission; ordinary clones do not transfer `refs/zdev/experiments/` automatically.
+Rejection cannot satisfy this requirement. `blocked_by`
 continues to mean task completion; `context_tasks` supplies research context. A
 justified retry is a new hypothesis linked through `context_tasks`; completed
 hypotheses cannot be reopened. Later proposals read earlier lessons before

@@ -63,7 +63,10 @@ cargo fmt --check
 cargo clippy --all-targets --all-features --locked -- -D warnings
 cargo test --locked
 cargo package --locked
-cargo install --path . --locked --root "$scratch/install"
+package_root="$repository_root/target/package/zdev-$package_version"
+cargo test --locked --manifest-path "$package_root/Cargo.toml" --no-run \
+    --target-dir "$repository_root/target"
+cargo install --path "$package_root" --locked --root "$scratch/install"
 sh scripts/release-smoke.sh \
     "$scratch/install/bin/zdev" \
     "$expected_version"

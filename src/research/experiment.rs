@@ -849,6 +849,15 @@ fn candidate_matches(
     } else {
         root
     };
+    candidate_matches_in(root, code_root, checkpoint, candidate)
+}
+
+fn candidate_matches_in(
+    root: &Path,
+    code_root: &Path,
+    checkpoint: &Checkpoint,
+    candidate: &str,
+) -> Result<bool, ZdevError> {
     let directory = tempfile::tempdir()
         .map_err(|error| ZdevError::io("Cannot create candidate comparison index", error))?;
     let index = directory.path().join("index");
@@ -1728,9 +1737,10 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
             parent,
             "-m",
             &format!(
-                "research: {}: {}\n\nChange-Id: {}",
+                "research: {}: {}\n\n{}: {}",
                 checkpoint.task,
                 record.lesson,
+                crate::CHANGE_ID_TRAILER,
                 crate::generate_change_id()?
             ),
         ],
@@ -2818,9 +2828,9 @@ fn integrate(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> 
             "Destination integration conflicts are preserved; repair before recovery",
         ));
     }
-    if code_tree(root, &checkpoint.head, &checkpoint.paths)?
-        != git_output(root, &["rev-parse", &format!("{transport}^{{tree}}")])?
-    {
+    // Records may have advanced without changing the measured candidate code.
+    // Compare the destination's owned paths, including modes and deletions.
+    if !candidate_matches_in(root, root, checkpoint, &transport)? {
         if was_integrating {
             return Err(ZdevError::new(
                 "Unfinished integration differs from the measured candidate; preserve and inspect destination state",

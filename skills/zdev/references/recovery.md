@@ -1,5 +1,11 @@
 # Recover interrupted zdev work
 
+Retain explicit blanket parallel approval from the conversation or run handoff
+when its area, work, worker limit, destination, worktree and cleanup choices
+remain unchanged. Recheck fresh admission and ownership before another batch;
+ask only for choices outside that retained authority. One-batch approval and an
+unanswered question do not authorize a later batch.
+
 For ordinary implementation, retain the review stage and prior findings from
 the interrupted run. Apply **Bounded corrections** in [review.md](review.md);
 recovery does not authorize another correction after the allowance is exhausted.

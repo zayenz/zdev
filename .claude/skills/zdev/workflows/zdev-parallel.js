@@ -3,9 +3,9 @@ export const meta = {
   description: 'Implement a finite approved zdev task batch in isolated worktrees',
 }
 
-const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->\n\n## Coding guidance\n\nCoding guidance file: \"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/skills/zdev/references/coding.md\"\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it."
+const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->\n\n## Coding guidance\n\nCoding guidance file: \"/Users/zayenz/projects/zdev/.claude/skills/zdev/skills/zdev/references/coding.md\"\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it."
 const workerContract = repositoryGuidance
-const taskWorkflowContractPath = "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/contracts/task-workflows.md"
+const taskWorkflowContractPath = "/Users/zayenz/projects/zdev/.claude/skills/zdev/contracts/task-workflows.md"
 const object = raw => {
   if (raw && !Array.isArray(raw) && typeof raw === 'object') return raw
   if (typeof raw !== 'string') return null
@@ -135,6 +135,10 @@ const invalid = !/^[a-z0-9][a-z0-9-]*$/.test(area) || tasks.length < 2
 if (invalid || !consent) {
   return `BLOCKER zdev-parallel ${area || 'unknown'}\n\nReason: require a finite unique task_ids batch, absolute destination_root, destination_branch, positive worker_limit, cleanup choice, and explicit consent.`
 }
+const unfinishedRecovery = resume.filter(item => item.status === 'unfinished')
+if (unfinishedRecovery.length > 0) {
+  return `BLOCKER zdev-parallel ${area}\n\nReason: use the installed Recover procedure for unfinished tasks; this executable cannot retain their review stage and correction allowance.\nPreserved state: ${unfinishedRecovery.map(item => `${item.task_id} ${item.worktree} ${item.branch} ${item.baseline}; last result=${item.last_result ?? 'unknown'}`).join(' | ')}`
+}
 const recoveredCompletions = []
 const recoveryCompletionKeys = ['task_id', 'status', 'summary', 'commit', 'findings', 'preserved']
 const recoveryCompletionSchema = { type: 'object', additionalProperties: false, required: recoveryCompletionKeys,
@@ -148,6 +152,9 @@ for (const retained of resume.filter(item => item.status === 'completion')) {
   if (!recovered || recovered.task_id !== retained.task_id || !['committed', 'preserved'].includes(recovered.status)
     || (recovered.status === 'committed' ? !/^[0-9a-f]{40}$/.test(recovered.commit) : recovered.commit !== null)) {
     return `BLOCKER zdev-parallel ${area}\n\nReason: malformed completion recovery result.\nPreserved state: ${retained.worktree} ${retained.branch} ${retained.baseline}`
+  }
+  if (recovered.status === 'preserved') {
+    return `BLOCKER zdev-parallel ${area}\n\nReason: completion recovery remains unresolved; use the installed Recover procedure before any new admission or dispatch.\nPreserved state: ${JSON.stringify(recovered)}`
   }
   recoveredCompletions.push(recovered)
 }
@@ -331,6 +338,7 @@ const preserved = (candidate, summary, findings = []) => ({ task_id: candidate.t
 const runDestinationGate = async candidate => {
   let implementation = candidate.result
   let escalated = false
+  let priorReview = null
   while (true) {
     const transported = strictObject(await agent(
       `${repositoryGuidance}\n\nAct only as serial source transport coordination for parallel task ${candidate.task_id}. Authoritative destination: ${destinationRoot} on ${destinationBranch}. Assigned source: ${candidate.assignment.worktree}, branch ${candidate.assignment.branch}, baseline ${candidate.assignment.baseline}. Worker result: ${JSON.stringify(implementation)}. Carry task ID ${candidate.task_id} through every refresh. Inspect the full source delta. For ready work, create and inspect an ordinary source commit, use the assigned-worktree no-commit transport, refresh explicit-task admission, and capture a fresh work-context snapshot with --task ${candidate.task_id}. Do not verify, complete, stage the destination, commit the destination, or spawn an agent. For an implementer blocker or derived proposal, preserve it and classify only whether it is task-local or requires a shared decision.`,
@@ -356,7 +364,7 @@ const runDestinationGate = async candidate => {
     if (!validAdmission) return preserved(candidate, 'fresh verifier admission was malformed, mismatched, unsafe, or stale', transported.findings)
     const snapshot = admitted.snapshot
     let verification = parseVerifier(await agent(
-      `${workerContract}\n\nIndependently verify parallel task ${candidate.task_id} in authoritative checkout ${destinationRoot}. Load only fresh snapshot ${snapshot} with zdev work-context ${area} --show ${snapshot} --format json and require exact task ${candidate.task_id}. Check the whole task and run required validation. Keep verification read-only and return exactly the four-key semantic verifier object.`,
+      `${workerContract}\n\nIndependently verify parallel task ${candidate.task_id} in authoritative checkout ${destinationRoot}. Load only fresh snapshot ${snapshot} with zdev work-context ${area} --show ${snapshot} --format json and require exact task ${candidate.task_id}. ${priorReview ? `Perform the focused recheck under the coding guidance Review reference: check accepted corrections, affected contracts, and repair regressions; retain conclusions for unchanged code. Prior review and accepted corrections: ${JSON.stringify(priorReview)}.` : "Check the whole task against requirements and coding guidance."} Run required validation. Put optional suggestions in summary, never findings. Keep verification read-only and return exactly the four-key semantic verifier object.`,
       profiled('verifier', { agentType: 'zdev:zdev-verifier', label: `zdev ${candidate.task_id}: verify destination` }),
     ))
     const compared = strictObject(await agent(
@@ -406,6 +414,8 @@ const runDestinationGate = async candidate => {
     if (verification.verdict === 'blocker') return { task_id: candidate.task_id, status: 'blocked',
       summary: verification.summary, commit: null, findings: verification.findings, preserved: transported.preserved }
     if (verification.verdict === 'rework') {
+      if (priorReview) return preserved(candidate, 'required corrections remain after one correction pass; correction allowance exhausted, explicit user continuation needed', verification.findings)
+      priorReview = { snapshot, ...verification }
       if (verification.escalation === 'advanced-implementer') {
         if (candidate.assignment.complexity !== 'standard' || escalated) return preserved(candidate, 'invalid verifier escalation', verification.findings)
         escalated = true

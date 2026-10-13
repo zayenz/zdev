@@ -6,8 +6,10 @@ Use a different verifier from the implementer. Give it repository-relative
 locators for the area brief, task, relevant source and tests, repository
 verification instructions, and the recorded pre-implementation baseline
 snapshot, plus the supplied coding guidance and available design evidence.
-The verifier reads its **Code standards** and **Review** sections, then inspects and tests
-without making intentional edits.
+The verifier reads its **Code standards**, applicable supplements, and the
+[review procedure](review.md), then inspects and tests without intentional edits.
+For a focused recheck, supply the initial review and accepted corrections; retain
+conclusions for unchanged code and inspect repairs and their affected contracts.
 It receives the coordinator-stored opaque snapshot and shows it before review.
 Resolve and retain the concrete verifier settings at the start of this
 interaction, or use the frozen verifier settings from its authorized run.
@@ -93,9 +95,10 @@ all required checks, `rework` for concrete implementation defects or
 task-owned validation writes, and `blocker` for ambiguous Git ownership,
 unsafe or unavailable required evidence, or a user-owned design, scope, or
 testing decision. Put concrete corrections in `findings`. Only `rework` may
-request `advanced-implementer`; otherwise `escalation` is `none`. The
-coordinator accepts that request at most once and only after standard/default
-implementation. Verification itself always uses a fresh standard verifier.
+request `advanced-implementer`; otherwise `escalation` is `none`. Optional
+suggestions are labelled in `summary` and never placed in `findings` or used to
+prevent a pass. The main agent accepts escalation at most once and only after
+standard/default implementation. Verification itself always uses a fresh standard verifier.
 
 The coordinating agent confirms that the verdict addresses the whole task,
 runs the post-response comparison, and independently vets substantive findings

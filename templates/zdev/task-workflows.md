@@ -415,17 +415,19 @@ and validates the resulting nine keys and all combinations before routing or
 returning it. Put checked locations and validation conclusions in `summary`.
 The opaque snapshot is never accepted from worker output.
 
-Every concrete task-owned verifier `rework` with escalation `none` goes to the
-same retained concrete role settings when the harness can resume it, or a replacement with those settings and the
-replacement with the unchanged goal, baseline, current checkout, and full
-findings. A verifier may request `advanced-implementer` once, only after the
-initial standard/default implementation. That starts a replacement advanced
-implementer using the retained advanced-implementer settings without planning and is followed by a fresh verifier using the retained verifier settings.
-Reject a second escalation, an escalation after routine or advanced
-implementation, and every escalation attached to `pass` or `blocker`. There is
-no fixed ordinary-rework count. After each correction, a fresh standard
-verifier checks the whole task again. Stop only on verifier `pass`, a genuine
-blocker, unsafe semantic scope expansion, or a required user-owned decision.
+Follow **Bounded corrections** in `review.md`, beside the supplied coding
+guidance. The main agent reads it before routing review feedback. Return the
+accepted corrections to the same retained implementation settings when possible,
+or a replacement with the unchanged goal, baseline, current checkout, and full
+findings. Carry the initial review and accepted corrections into the focused
+recheck; use a fresh verifier with the retained settings.
+
+A verifier may request `advanced-implementer` once, only after initial
+standard/default implementation. Use the retained advanced settings without
+replanning. Escalation uses the same correction allowance. Reject escalation
+after routine or advanced implementation or on `pass` or `blocker`. Preserve
+review stage and findings in recovery and continuation handoffs; report exhausted
+corrections as a blocker before completion or another repair dispatch.
 
 After an exact matching coordinator-constructed verifier object with verdict `pass`, the coordinator
 gives completion the opaque snapshot ID plus the accepted implementation and

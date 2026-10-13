@@ -18,7 +18,7 @@ native dispatch-spec route. Other intents keep their shared instructions;
 any requested reviewer uses the T3 dispatch and profile rules here.
 
 The installed task-workflows contract locator is
-"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/skills/zdev/references/task-workflows.md". Resolve a relative locator against the
+"/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Resolve a relative locator against the
 authoritative checkout. Give workers its absolute path and this reference's
 absolute path; they load only their assigned worker role and applicable
 contract sections.
@@ -171,10 +171,12 @@ iteration. Focus is guidance, not a filter or stored preference.
 After establishing the visible coordinator goal below, start the ordinary
 one-task implementation sequence. Advanced tasks first receive a read-only plan.
 Implementation completion dispatches a fresh verifier;
-rework dispatches a repair and then another fresh verifier. Each accepted async
+accepted rework follows **Bounded corrections** in [review.md](review.md), with
+a repair and fresh focused recheck. Each accepted async
 dispatch lets the coordinator yield, and T3's completion wake resumes the next
 phase. Preserve area, focus, frozen selections, task ID, baseline, pending
-handles, phase, accepted plan, escalation, and completed task/commit pairs in
+handles, phase, review stage and findings, accepted plan, escalation, and
+completed task/commit pairs in
 the coordinator conversation across wakes and native goal continuations.
 
 ### Use the visible coordinator goal
@@ -241,7 +243,8 @@ Validated closed context returns PASS without Git gates. Open empty/exhausted
 returns PASS after normal safety checks; the area stays open. A real blocker,
 unsafe state, invalid result, failed completion or commit, or a user decision
 stops immediately and preserves unfinished work. Actionable task-owned rework
-stays within the iteration. A stopped or paused run's late completion wake does
+follows the shared bounded correction cycle; exhausted corrections stop the
+iteration and remain exhausted across completion wakes. A stopped or paused run's late completion wake does
 not authorize dispatch or commit; resume only on an explicit user request.
 
 Use canonical `PASS zdev-loop <area>`, `CONTINUE zdev-loop <area>`, or
@@ -306,7 +309,9 @@ Keep coordination, `.zdev`, staging, commits, and delegation with the parent.
   not a terminal blocker. Load the shared derived-work contract only if a split
   becomes necessary; the parent reviews and applies any proposal.
 - **Verifier:** fresh and read-only. Load the supplied snapshot, inspect the
-  entire task and diff, and run required checks. Return exactly `verdict`,
+  entire task and diff on initial review; for a focused recheck follow the prior
+  review and accepted corrections under [review.md](review.md). Run required
+  checks. Return exactly `verdict`,
   `summary`, `findings`, and `escalation` under the shared semantic verifier
   schema. Report validation-written files under its existing rules. For audit
   work, use the shared textual audit envelope instead of task-verifier JSON.
@@ -319,6 +324,6 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/skills/zdev/references/coding.md"
+Coding guidance file: "/Users/zayenz/projects/zdev/skills/zdev/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

@@ -50,8 +50,9 @@ path in every worker payload.
 
 {{task_workflow_contract}}
 
-Concrete task-owned `rework` remains inside that one task cycle with fresh
-independent verification and no fixed retry count. Partial progress, remaining
+Concrete task-owned `rework` follows the bounded correction cycle in the
+supplied coding guidance's **Review** reference. Exhausted corrections stop the
+loop as a blocker; continuation preserves the review stage. Partial progress, remaining
 in-scope work, or an additional attributable path also remains inside the
 cycle. A malformed worker result, genuine worker blocker, unsafe refresh,
 failed completion, or failed commit returns

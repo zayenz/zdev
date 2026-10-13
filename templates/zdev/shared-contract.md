@@ -160,6 +160,9 @@ it which sections to read. Carry changed contracts and available process
 evidence in existing plans, summaries, and handoffs. Independently check
 substantive findings before they drive rework or reporting, as specified there;
 use the task workflow's snapshot and result rules for task verification.
+Before routing corrections, read [review.md](references/review.md) and enforce
+its bounded correction cycle. Load the language and framework supplements
+selected by **Code standards** for each relevant worker.
 
 ## Scoped execution profiles
 

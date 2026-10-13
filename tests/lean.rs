@@ -7476,10 +7476,12 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "zdev/references/implement.md",
             "zdev/references/improve.md",
             "zdev/references/investigate.md",
+            "zdev/references/languages/rust.md",
             "zdev/references/parallel.md",
             "zdev/references/plan-task.md",
             "zdev/references/recovery.md",
             "zdev/references/research.md",
+            "zdev/references/review.md",
             "zdev/references/setup.md",
             "zdev/references/shape-work.md",
             "zdev/references/t3-code.md",
@@ -7509,10 +7511,12 @@ fn harnesses_have_distinct_native_zdev_integration_inventories() {
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
+            "skills/zdev/references/languages/rust.md",
             "skills/zdev/references/parallel.md",
             "skills/zdev/references/plan-task.md",
             "skills/zdev/references/recovery.md",
             "skills/zdev/references/research.md",
+            "skills/zdev/references/review.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
             "skills/zdev/references/t3-code.md",
@@ -8068,6 +8072,22 @@ if (ordinaryRework.calls.length !== 14) throw new Error('one REWORK did not incl
 if (ordinaryRework.calls.some(call => call.options.label === 'zdev post-rework verification refresh')) throw new Error('redundant post-rework verification refresh retained')
 if (!ordinaryRework.verifierPrompts[0].includes('initial locator')) throw new Error('first verifier lost initial locator')
 if (!ordinaryRework.verifierPrompts[1].includes('rework locator') || ordinaryRework.verifierPrompts[1].includes('initial locator')) throw new Error('second verifier did not receive only latest locator')
+if (!ordinaryRework.verifierPrompts[1].includes('focused recheck')
+  || !ordinaryRework.verifierPrompts[1].includes('fix the task-owned defect')) throw new Error('recheck lost its scope or accepted correction')
+const exhaustedReview = await exercise(
+  'stop after focused recheck still requires corrections',
+  'standard',
+  [
+    worker('implementer', 'ready'),
+    worker('verifier', 'rework', 'none', [], ['fix the task-owned defect']),
+    worker('implementer', 'ready'),
+    worker('verifier', 'rework', 'none', [], ['the correction still breaks the caller']),
+  ],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier', 'zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+)
+if (exhaustedReview.completionPrompt || !exhaustedReview.result.includes('correction allowance exhausted')
+  || !exhaustedReview.result.includes('the correction still breaks the caller')) throw new Error('exhausted review did not preserve unresolved work')
 const reworkPrompt = ordinaryRework.calls.find(call => call.options.label.endsWith(': rework'))?.prompt ?? ''
 if (!reworkPrompt.includes('work-context work --show ' + baselineSnapshot + ' --format json')) throw new Error('rework lost original baseline command')
 if (reworkPrompt.includes('"git_status":') || reworkPrompt.includes('"git_diff":')) throw new Error('rework received raw coordinator context')
@@ -9710,6 +9730,33 @@ for (const [finding, checked, expected, vetterCount] of [
   if (!vetted.startsWith(expected + ' zdev-parallel work') || checks !== vetterCount || repairs !== 0)
     throw new Error('parallel finding gate failed: ' + vetted)
 }}
+for (const stillBroken of [false, true]) {{
+  let repairs = 0
+  let reviews = 0
+  let completed = false
+  const bounded = await run({{ area: 'work', task_ids: ids, destination_root: '/repo',
+    destination_branch: 'main', worker_limit: 2, cleanup: false, consent: true }}, async (prompt, options) => {{
+    if (options.label === 'zdev work-001: check findings') return JSON.parse(prompt.split('Candidate review: ').at(-1))
+    if (options.label === 'zdev work-001: confirm findings snapshot unchanged')
+      return {{ schema_version: 1, area: 'work', snapshot: 'W' + '1'.repeat(16), equal: true }}
+    if (options.label === 'zdev work-001: verify destination') {{
+      reviews += 1
+      if (reviews === 2 && (!prompt.includes('focused recheck') || !prompt.includes('caller still fails')))
+        throw new Error('parallel recheck lost accepted corrections')
+      if (reviews === 1 || stillBroken)
+        return {{ verdict: 'rework', summary: 'Required correction.', findings: ['src/api.rs:10: caller still fails'], escalation: 'none' }}
+    }}
+    if (options.label === 'zdev work-001: rework') {{
+      repairs += 1
+      if (repairs > 1) throw new Error('parallel repair loop exceeded its allowance')
+    }}
+    if (options.label === 'zdev work-001: complete and commit') completed = true
+    return agent(prompt, options)
+  }})
+  if (repairs !== 1 || reviews !== 2 || completed === stillBroken
+    || !bounded.startsWith((stillBroken ? 'BLOCKER' : 'PASS') + ' zdev-parallel'))
+    throw new Error('parallel correction boundary failed: ' + bounded)
+}}
 const stopped = await run({{ area: 'work', task_ids: ids, destination_root: '/repo',
   destination_branch: 'main', worker_limit: 2, cleanup: true, consent: true }}, async (prompt, options) => {{
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
@@ -9806,6 +9853,21 @@ for (const mode of boundaryModes) {{
 
 const recovery = [{{ task_id: 'work-001', worktree: '/tmp/work-001', branch: 'zdev/work-001', baseline,
   status: 'completion', commit: null, last_result: 'verified; completion pending' }}]
+for (const status of ['unfinished', 'completion']) {{
+  let recoveryCalls = 0
+  const preservedRecovery = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
+    destination_branch: 'main', worker_limit: 1, cleanup: false, consent: true,
+    resume: [{{ ...recovery[0], status, last_result: 'correction allowance exhausted' }}] }}, async (_prompt, options) => {{
+    recoveryCalls += 1
+    if (status !== 'completion' || !options.label.includes('recover completion checkpoint'))
+      throw new Error('recovery restarted admission or implementation')
+    return {{ task_id: 'work-001', status: 'preserved', summary: 'completion remains unresolved',
+      commit: null, findings: [], preserved: '/tmp/work-001' }}
+  }})
+  if (!preservedRecovery.startsWith('BLOCKER zdev-parallel work')
+    || !preservedRecovery.includes('Recover') || !preservedRecovery.includes('/tmp/work-001')
+    || recoveryCalls !== (status === 'completion' ? 1 : 0)) throw new Error('recovery lost its stopping boundary')
+}}
 let recoveredFirst = false
 let recoveredImplemented = []
 const recoveredResult = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
@@ -10316,7 +10378,7 @@ fn worker_roles_state_their_semantic_result_contracts() {
         3
     );
     assert_eq!(pi.matches("escalation: \\\"none\\\"").count(), 3);
-    assert!(pi.contains("For task verification only"));
+    assert!(pi.contains("For initial task verification"));
     assert!(pi.contains("pass with no findings"));
     assert!(pi.contains("rework with at least one finding"));
     assert!(pi.contains("For audit only, ignore the task-verification JSON contract"));
@@ -11652,9 +11714,11 @@ fn pi_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev-pi/references/implement.md",
             "skills/zdev-pi/references/improve.md",
             "skills/zdev-pi/references/investigate.md",
+            "skills/zdev-pi/references/languages/rust.md",
             "skills/zdev-pi/references/parallel.md",
             "skills/zdev-pi/references/plan-task.md",
             "skills/zdev-pi/references/recovery.md",
+            "skills/zdev-pi/references/review.md",
             "skills/zdev-pi/references/setup.md",
             "skills/zdev-pi/references/shape-work.md",
             "skills/zdev-pi/references/task-format.md",
@@ -11794,9 +11858,11 @@ fn omp_skill_uses_native_shared_root_assets_without_replacing_user_config() {
             "skills/zdev/references/implement.md",
             "skills/zdev/references/improve.md",
             "skills/zdev/references/investigate.md",
+            "skills/zdev/references/languages/rust.md",
             "skills/zdev/references/parallel.md",
             "skills/zdev/references/plan-task.md",
             "skills/zdev/references/recovery.md",
+            "skills/zdev/references/review.md",
             "skills/zdev/references/setup.md",
             "skills/zdev/references/shape-work.md",
             "skills/zdev/references/task-format.md",

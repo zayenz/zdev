@@ -71,8 +71,10 @@ candidates one at a time in the destination:
 2. Create and inspect an ordinary source commit, then integrate it with the
    assigned-worktree no-commit transport into the authoritative destination.
 3. Store fresh explicit-task context, run a fresh independent verifier against
-   the integrated destination, route any rework to the same source tree, and
-   preserve the snapshot comparison and completion gates.
+   the integrated destination, and route accepted corrections to the same source
+   tree under **Bounded corrections** in [review.md](review.md). Carry the initial
+   review into the focused recheck. Preserve review stage, snapshot comparison,
+   and completion gates; another batch or recovery does not reset the allowance.
 4. Complete only that task, stage only its attributable source and generated
    task records, inspect the staged diff, and make exactly one zdev commit.
 

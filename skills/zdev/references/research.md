@@ -14,7 +14,7 @@ Both modes keep one coordinator for authoritative records and acceptance.
 Read the installed task-format reference's research sections for the exact
 policy, TaskBundle, run and local experiment contracts.
 The exact installed task-workflows contract path is
-"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/skills/zdev/references/task-workflows.md". Decode that string. Its sibling
+"/Users/zayenz/projects/zdev/skills/zdev/references/task-workflows.md". Decode that string. Its sibling
 `coding.md` supplies role guidance. Include those
 exact installed paths and this research reference in applicable worker payloads.
 

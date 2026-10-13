@@ -79,8 +79,9 @@ path in every worker payload.
 One ordinary iteration selects, implements, independently verifies, completes,
 and commits at most one task. The split exception below commits the derived
 graph change without completing or claiming verification of its source.
-Concrete task-owned `rework` remains inside that
-iteration with no fixed retry count. A worker result that reports only partial
+Concrete task-owned `rework` follows the bounded correction cycle in the
+supplied coding guidance's **Review** reference. Exhausted corrections stop the
+loop as a blocker; continuation preserves the review stage. A worker result that reports only partial
 progress, remaining in-scope work, or an additional attributable path continues
 inside the iteration; it is not a terminal blocker. After an exact committed
 `PASS zdev-implement <area> <task-id>`, obtain fresh work-context before the

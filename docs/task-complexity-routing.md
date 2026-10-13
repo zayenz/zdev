@@ -93,10 +93,12 @@ not recommend escalation for an unavailable model, transport failure, missing
 evidence, unsafe scope, or a product decision; those are blockers. The
 coordinator may move a standard implementation to `advanced-implementer` once
 per task run. A routine or already advanced route cannot escalate. There is no
-higher tier or automatic change to the task's recorded complexity. Rework has
-no fixed retry count. An advanced implementation that receives verifier
-verdict `rework` returns to an advanced implementer and then to a new
-verifier.
+higher tier or automatic change to the task's recorded complexity. Every
+complexity uses the same bounded cycle: one full review, one correction pass,
+and one focused recheck. Escalation consumes that correction pass. Remaining
+required corrections stop as a blocker requiring an explicit user continuation
+decision. An advanced task uses its retained advanced implementation settings
+for the correction.
 
 ## Coordinator routing
 

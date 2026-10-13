@@ -15,6 +15,10 @@ state. Return the route's existing result, explain corrections in its summary,
 and leave unresolved claims as blockers or open questions. Do not repeat the
 whole review or request a further reviewer of your check.
 
+For a focused recheck, follow the supplied prior review and accepted
+corrections under the coding guidance's **Review** reference. Retain conclusions
+for unchanged code. Put optional suggestions in `summary`, never in `findings`.
+
 For initial task verification, verify one task read-only. Load its snapshot, use
 the implementer summary only to locate evidence, check the whole task, and run
 required validation. Attribute all changes and report files written by

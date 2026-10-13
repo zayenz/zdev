@@ -1,5 +1,12 @@
 # Recover interrupted zdev work
 
+For ordinary implementation, retain the review stage and prior findings from
+the interrupted run. Apply **Bounded corrections** in [review.md](review.md);
+recovery does not authorize another correction after the allowance is exhausted.
+If that stage is unknown, resolve it before dispatching a repair.
+Use this Recover route for an interrupted review; starting a fresh executable
+implementation would lose its review stage.
+
 Orient from the current checkout first. Reuse a branch or worktree choice
 already made for this recovery. If recovery requires switching branches or
 creating a worktree and the user has not requested that Git change, explain the
@@ -145,6 +152,11 @@ run summary. Do not depend on prior agent IDs. Exclude tasks whose completion
 has committed. If a task is done but its final commit failed, finish that
 verified destination checkpoint before admission or dispatch. Rerun the
 parallel admission checks for every remaining task and available role slot.
+
+Claude's executable parallel resume handles committed tasks and pending
+completion only. Recover unfinished implementation or review here, retaining
+its review stage and findings. An unresolved completion checkpoint stops before
+new admission or worker dispatch.
 
 Keep unfinished or ambiguous source trees. Report each task with its worktree,
 branch, baseline, accepted commits, and last result. Cleanup may remove only a

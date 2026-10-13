@@ -25,6 +25,14 @@ const SHARED_REFERENCE_FILES: &[(&str, &str)] = &[
         include_str!("../templates/zdev/references/coding.md"),
     ),
     (
+        "references/review.md",
+        include_str!("../templates/zdev/references/review.md"),
+    ),
+    (
+        "references/languages/rust.md",
+        include_str!("../templates/zdev/references/languages/rust.md"),
+    ),
+    (
         "references/discuss.md",
         include_str!("../templates/zdev/references/discuss.md"),
     ),

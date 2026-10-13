@@ -69,7 +69,7 @@ continue under the one-task contract. Never complete a different, paused, or
 budget-limited native goal.
 
 The exact installed task-workflows contract path is
-"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it and include the resulting
+"/Users/zayenz/projects/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it and include the resulting
 path in every worker payload.
 
 The coordinating session owns task selection, branch safety, Git ownership,
@@ -487,17 +487,19 @@ and validates the resulting nine keys and all combinations before routing or
 returning it. Put checked locations and validation conclusions in `summary`.
 The opaque snapshot is never accepted from worker output.
 
-Every concrete task-owned verifier `rework` with escalation `none` goes to the
-same retained concrete role settings when the harness can resume it, or a replacement with those settings and the
-replacement with the unchanged goal, baseline, current checkout, and full
-findings. A verifier may request `advanced-implementer` once, only after the
-initial standard/default implementation. That starts a replacement advanced
-implementer using the retained advanced-implementer settings without planning and is followed by a fresh verifier using the retained verifier settings.
-Reject a second escalation, an escalation after routine or advanced
-implementation, and every escalation attached to `pass` or `blocker`. There is
-no fixed ordinary-rework count. After each correction, a fresh standard
-verifier checks the whole task again. Stop only on verifier `pass`, a genuine
-blocker, unsafe semantic scope expansion, or a required user-owned decision.
+Follow **Bounded corrections** in `review.md`, beside the supplied coding
+guidance. The main agent reads it before routing review feedback. Return the
+accepted corrections to the same retained implementation settings when possible,
+or a replacement with the unchanged goal, baseline, current checkout, and full
+findings. Carry the initial review and accepted corrections into the focused
+recheck; use a fresh verifier with the retained settings.
+
+A verifier may request `advanced-implementer` once, only after initial
+standard/default implementation. Use the retained advanced settings without
+replanning. Escalation uses the same correction allowance. Reject escalation
+after routine or advanced implementation or on `pass` or `blocker`. Preserve
+review stage and findings in recovery and continuation handoffs; report exhausted
+corrections as a blocker before completion or another repair dispatch.
 
 After an exact matching coordinator-constructed verifier object with verdict `pass`, the coordinator
 gives completion the opaque snapshot ID plus the accepted implementation and
@@ -539,8 +541,9 @@ without mutation.
 One ordinary iteration selects, implements, independently verifies, completes,
 and commits at most one task. The split exception below commits the derived
 graph change without completing or claiming verification of its source.
-Concrete task-owned `rework` remains inside that
-iteration with no fixed retry count. A worker result that reports only partial
+Concrete task-owned `rework` follows the bounded correction cycle in the
+supplied coding guidance's **Review** reference. Exhausted corrections stop the
+loop as a blocker; continuation preserves the review stage. A worker result that reports only partial
 progress, remaining in-scope work, or an additional attributable path continues
 inside the iteration; it is not a terminal blocker. After an exact committed
 `PASS zdev-implement <area> <task-id>`, obtain fresh work-context before the
@@ -592,6 +595,6 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.omp/skills/zdev/references/coding.md"
+Coding guidance file: "/Users/zayenz/projects/zdev/.omp/skills/zdev/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

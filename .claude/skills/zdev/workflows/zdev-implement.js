@@ -3,9 +3,9 @@ export const meta = {
   description: 'Implement, independently verify, complete, and commit one ready zdev task',
 }
 
-const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->\n\n## Coding guidance\n\nCoding guidance file: \"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/skills/zdev/references/coding.md\"\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it."
+const repositoryGuidance = "<!-- zdev:generated-repository-guidance:start -->\n## Repository guidance discovery\n\nBefore inspecting, planning, changing, or validating code, read applicable repository and directory-specific `AGENTS.md` files, `.zdev/guidance.md` when present, and harness-native repository instructions. Pass relevant build, run, test, generated-file, and safety guidance to every delegated role.\n<!-- zdev:generated-repository-guidance:end -->\n\n## Coding guidance\n\nCoding guidance file: \"/Users/zayenz/projects/zdev/.claude/skills/zdev/skills/zdev/references/coding.md\"\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it."
 const workerContract = repositoryGuidance
-const taskWorkflowContractPath = "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.claude/skills/zdev/contracts/task-workflows.md"
+const taskWorkflowContractPath = "/Users/zayenz/projects/zdev/.claude/skills/zdev/contracts/task-workflows.md"
 const normalizeAreaArg = value => {
   if (Array.isArray(value)) return value[0]
   if (typeof value === 'string') return value
@@ -799,7 +799,7 @@ const resolveImplementerResult = async (initial, initialContext, phase) => {
   }
   return { result }
 }
-const verify = async () => {
+const verify = async (priorReview = null) => {
   const storedRaw = (await agent(
     `Act only as read-only verification coordination. Run zdev work-context ${area} --task ${taskId} --store --format json exactly once and return its JSON stdout. Do not show the stored snapshot.`,
     { label: `zdev ${taskId}: capture verification snapshot`, model: 'haiku' },
@@ -813,7 +813,7 @@ const verify = async () => {
   const current = stored
   const snapshot = stored.baselineSnapshot
   const raw = (await agent(
-    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Read any clarified records from the verification snapshot and check their updated requirements while retaining the original baseline for attribution. Use the implementer summary only to locate evidence. Check the whole task and run required validation. Keep verification read-only: use a check or dry-run form for generators and other commands expected to rewrite tracked files. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each unexpected validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Do not repair or discard validation writes.\n\nTechnical adjustments: ${JSON.stringify(technicalAdjustments)}\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
+    `${workerContract}\n\nIndependently verify task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and the verification snapshot with zdev work-context ${area} --show ${snapshot} --format json; require task ${taskId} at HEAD ${current.head}. Read any clarified records from the verification snapshot and check their updated requirements while retaining the original baseline for attribution. Use the implementer summary only to locate evidence. ${priorReview ? `Perform the focused recheck under the coding guidance Review reference: check accepted corrections, affected contracts, and repair regressions; retain conclusions for unchanged code. Prior review and accepted corrections: ${JSON.stringify(priorReview)}.` : "Check the whole task against requirements and coding guidance."} Run required validation. Put optional suggestions in summary, never findings. Keep verification read-only: use a check or dry-run form for generators and other commands expected to rewrite tracked files. Return exactly one JSON object with exactly these four keys and no others: verdict, summary, findings, escalation. Pass requires an empty findings array; rework requires at least one finding. Report each unexpected validation-written task-owned file as a validation_write: <repository-relative path> finding with verdict rework. Never add validation_writes or another fifth key. Do not repair or discard validation writes.\n\nTechnical adjustments: ${JSON.stringify(technicalAdjustments)}\nImplementer summary: ${compactWorkerSummary(latestImplementation)}`,
     workerOptions('verifier', { agentType: 'zdev:zdev-verifier', label: `zdev ${taskId}: verify` }),
   ))?.trim()
   let semantic = parseVerifierResult(raw)
@@ -865,7 +865,8 @@ let verdict = await verify()
 if (!verdict) {
   return blocker(area, taskId, 'verification', 'verifier returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory)
 }
-while (verdict.result.verdict === 'rework') {
+if (verdict.result.verdict === 'rework') {
+  const priorReview = verdict.result
   if (verdict.result.escalation === 'advanced-implementer') {
     if (complexity !== 'standard' || escalated) {
       return blocker(area, taskId, 'rework', 'verifier requested an inapplicable or repeated advanced escalation.', 'lifecycle and commit were not changed.', staleAdvisory)
@@ -888,10 +889,13 @@ while (verdict.result.verdict === 'rework') {
   const resolvedRework = await resolveImplementerResult(rework, current, 'rework')
   if (resolvedRework.terminal) return resolvedRework.terminal
   latestImplementation = resolvedRework.result
-  verdict = await verify()
+  verdict = await verify(priorReview)
   if (!verdict) {
     return blocker(area, taskId, 'verification', 'verifier returned an invalid or mismatched envelope.', 'lifecycle and commit were not changed.', staleAdvisory)
   }
+}
+if (verdict.result.verdict === 'rework') {
+  return blocker(area, taskId, 'focused recheck', 'required corrections remain after one correction pass; explicit user continuation is needed.', `Review stage: correction allowance exhausted. Work preserved; task remains open. ${verdict.result.summary} Findings: ${verdict.result.findings.join('; ')}`, staleAdvisory)
 }
 if (verdict.result.verdict !== 'pass') {
   return blocker(area, taskId, 'verification', verdict.result.summary, `Evidence: ${verdict.result.evidence.join('; ') || 'none.'} Findings: ${verdict.result.findings.join('; ') || 'none.'}`, staleAdvisory)

@@ -110,20 +110,15 @@ operations. Ordinary supporting tasks in the same area keep this route.
    capture fresh work-context for the same task and HEAD, and resume with the
    original baseline still available. Do not use this route for a pending
    reviewed bundle, a changed acceptance criterion, or an ambiguous owner.
-8. Run every verifier with the run's retained concrete verifier settings.
-   Independently vet substantive findings under the task-workflow contract
-   before reporting them or returning them for correction. Require the same
-   unchanged snapshot; changed code needs fresh review. Return every checked
-   concrete task-owned verifier `rework` finding with escalation
-   `none` to the same selected profile when possible. Otherwise give a
-   same-profile replacement the task, current diff, and exact findings. A
-   verifier may request `advanced-implementer` once only after standard/default
-   implementation; use an advanced replacement without replanning. Reject a
-   second or inapplicable escalation. After every correction, use a fresh
-   standard verifier.
-9. Repeat implementation and fresh verification without a fixed retry count.
-   Stop only for verifier `pass`, a real blocker, unsafe semantic scope expansion, or a
-   user-owned decision.
+8. Run every verifier with the retained concrete settings. Read **Bounded
+   corrections** in [review.md](review.md) and follow the task-workflow
+   contract to check findings and route the correction pass. Supply the fresh
+   verifier with the initial review, accepted corrections, and updated snapshot
+   for its focused recheck. Optional suggestions remain feedback in the summary.
+9. Finish on an accepted pass. If required corrections remain after the recheck,
+   report a blocker with the unresolved findings and preserved work. Keep the
+   task open and wait for an explicit continuation decision; retain this review
+   stage across recovery and goal/loop continuation.
 
 If the implementer discovers that the approved task must be split, it may
 return one strict transient `implementation_split` proposal instead of asking

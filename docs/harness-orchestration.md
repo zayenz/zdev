@@ -241,13 +241,14 @@ implementer when the harness can preserve that worker context, or to a
 replacement implementer with the current goal, baseline, and full findings.
 Oh My Pi may message the existing implementer through `hub`; OpenCode may
 resume its implementer child; Codex and Claude Code may use their native
-follow-up mechanism. Pi starts a fresh child. A fresh verifier then checks the
-whole task again, not only the repaired lines.
+follow-up mechanism. Pi starts a fresh child. A fresh verifier then performs a focused recheck of accepted corrections,
+affected contracts, and repair regressions, retaining conclusions for unchanged
+code and running required validation.
 
-There is no fixed retry or correction count. Concrete task-owned findings keep
-returning through implementation and fresh verification until the verifier
-reports `pass`. The coordinator stops only for a genuine blocker, unsafe scope
-expansion, or a required user-owned decision. Transport errors, unavailable
+The ordinary cycle allows one full review, one correction pass, and one focused
+recheck. Remaining required corrections stop automatic repair with the task open
+and work preserved; another repair needs an explicit user continuation decision.
+Carry that stage through recovery and goal/loop continuation. Transport errors, unavailable
 models, permission failures, timeouts, and invalid envelopes are blockers when
 they prevent safe progress; zdev does not hide them behind blind transport
 retries or turn the adapter into a scheduler.

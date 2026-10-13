@@ -318,9 +318,17 @@ execution transcript.
 
 ## Rework
 
-Failed verification returns to implementation with exact findings. The loop
-repeats until the change passes or reaches a real blocker. There is no fixed
-retry count.
+Verification also reviews design and readability against the shared coding
+guidance. Required corrections have a location, consequence, and proportionate
+remedy; optional suggestions remain feedback and never block acceptance.
+
+Use one full review, one correction pass, and one focused recheck. The recheck
+covers accepted corrections, affected contracts, and repair regressions while
+retaining conclusions for unchanged code. If required corrections remain, keep
+the task open and preserve the work. Report a blocker requiring an explicit user
+continuation decision. Recovery and goal/loop continuation retain this stage.
+The installed coding reference links the authoritative review procedure and
+conditionally loaded language and framework guidance.
 
 ## Completion and commit
 

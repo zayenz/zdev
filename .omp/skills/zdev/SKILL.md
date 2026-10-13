@@ -165,6 +165,9 @@ it which sections to read. Carry changed contracts and available process
 evidence in existing plans, summaries, and handoffs. Independently check
 substantive findings before they drive rework or reporting, as specified there;
 use the task workflow's snapshot and result rules for task verification.
+Before routing corrections, read [review.md](skill://zdev/references/review.md) and enforce
+its bounded correction cycle. Load the language and framework supplements
+selected by **Code standards** for each relevant worker.
 
 ## Scoped execution profiles
 
@@ -353,7 +356,7 @@ It may use the packaged prompts internally for a complete task cycle,
 verification, audit, or native area continuation. “Goal” and “loop” select the
 same continuation route.
 The exact installed task-workflows contract path for this installation is
-"/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.omp/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
+"/Users/zayenz/projects/zdev/.omp/skills/zdev/references/task-workflows.md". Decode that JSON string and include the
 resulting path in every worker payload.
 
 Route authored routine, standard/default, and advanced work to
@@ -411,7 +414,7 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 ## Coding guidance
 
-Coding guidance file: "/Users/zayenz/.codex-workspaces/worktrees/83c5f3b8-0c89-4e75-b8f6-7831269edd01/zdev/.omp/skills/zdev/references/coding.md"
+Coding guidance file: "/Users/zayenz/projects/zdev/.omp/skills/zdev/references/coding.md"
 
 Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
 

@@ -129,7 +129,7 @@ in-scope rework continues under the ordinary task contract.
 | Unsafe task-work state or unexplained Git state | `BLOCKER`; no worker. Preserve and report exact state. |
 | Malformed records, missing blockers, or a dependency cycle | Existing validation error, surfaced as `BLOCKER`; no worker or mutation. |
 | Implementer or verifier `BLOCKER`, or completion or commit failure | `BLOCKER`; stop with the one-task workflow's preserved state. Do not count the task or retry it as new work. |
-| Concrete task-owned `REWORK` | Stay inside the same iteration. Correct and fully reverify with no fixed retry count. |
+| Concrete task-owned `REWORK` | Use the shared correction pass and focused recheck. Stop with work preserved if required corrections remain; continuation does not reset the allowance. |
 | Required user-owned product, scope, or unsafe-expansion decision | `BLOCKER`; stop and ask for that decision. |
 | Known unfinished native goal on Codex or Oh My Pi | `BLOCKER`; do not replace, clear, edit, or layer the zdev loop over it. |
 

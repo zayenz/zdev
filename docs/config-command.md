@@ -77,16 +77,16 @@ model plus one effort from `inherit`, `low`, `medium`, `high`, `xhigh`, or
 without an effort. `effort = inherit` means set the model but omit the harness
 effort control; a whole-profile `inherit` omits both controls.
 
-The built-in worker defaults are the dated suggestions in
+The built-in worker defaults for `normal` are described in
 [Worker profiles](worker-profiles.md):
 
 | Harness | Routine implementer | Implementer | Verifier | Advanced implementer |
 | --- | --- | --- | --- | --- |
-| Codex | `gpt-5.6-luna low` | `gpt-6.1-sol low` | `gpt-6.1-sol low` | `gpt-6.1-sol high` |
+| Codex | `gpt-6.1-sol medium` | `gpt-6.1-sol high` | `gpt-6.1-sol high` | `gpt-6.1-sol xhigh` |
 | Claude | `haiku low` | `claude-opus-5 low` | `claude-opus-5 low` | `claude-opus-5 high` |
-| OpenCode | `openai/gpt-5.6-luna low` | `openai/gpt-6.1-sol low` | `anthropic/claude-opus-5 inherit` | `openai/gpt-6.1-sol high` |
-| Pi | `openai/gpt-5.6-luna low` | `openai/gpt-6.1-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol high` |
-| OMP | `openai/gpt-5.6-luna low` | `openai/gpt-6.1-sol low` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol high` |
+| OpenCode | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5 inherit` | `openai/gpt-6.1-sol xhigh` |
+| Pi | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol xhigh` |
+| OMP | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol xhigh` |
 
 The Oh My Pi adapter renders these two abstract fields into its native combined
 representation. It must validate that the pair is expressible rather than
@@ -265,7 +265,7 @@ project.default-area = "payments"  [local .zdev/config.toml]
 project.guidance = "auto"  [default]
 worker.codex.implementer = { model = "gpt-6.1-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-6.1-sol", effort = "low" }  [default]
+  shadows { model = "gpt-6.1-sol", effort = "high" }  [default]
 ```
 
 The same selected rows have this JSON shape:
@@ -351,7 +351,7 @@ The same selected rows have this JSON shape:
             "scope": "default"
           },
           "value": {
-            "effort": "low",
+            "effort": "high",
             "model": "gpt-6.1-sol"
           }
         }
@@ -420,7 +420,7 @@ is exactly:
 ```text
 worker.codex.implementer = { model = "gpt-6.1-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
-  shadows { model = "gpt-6.1-sol", effort = "low" }  [default]
+  shadows { model = "gpt-6.1-sol", effort = "high" }  [default]
 ```
 
 Its JSON form is exactly:
@@ -450,7 +450,7 @@ Its JSON form is exactly:
         "scope": "default"
       },
       "value": {
-        "effort": "low",
+        "effort": "high",
         "model": "gpt-6.1-sol"
       }
     }

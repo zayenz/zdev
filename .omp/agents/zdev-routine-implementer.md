@@ -3,7 +3,7 @@ name: zdev-routine-implementer
 description: Implement tightly specified, low-risk mechanical work for one authored routine zdev task
 tools: read, grep, bash, edit, write
 blocking: true
-model: "openai/gpt-6-luna"
+model: "openai/gpt-6.1-sol"
 thinking-level: "medium"
 ---
 

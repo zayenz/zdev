@@ -128,29 +128,26 @@ the current releases have not all been compared under one zdev workflow.
   discovery](https://github.com/can1357/oh-my-pi/blob/main/docs/task-agent-discovery.md)
   (accessed 2026-08-20).
 
-## Suggested mappings
+## Built-in mappings
 
-These are editable suggestions dated 2026-08-20, not automatic choices.
-Standard is the normal default. Advanced uses the same frontier family at high
-reasoning. Routine uses a cheaper documented model only when authored task
-complexity explicitly requests it.
+The `normal` profile uses GPT-6.1 Sol for OpenAI implementation roles.
+Routine work uses medium reasoning; standard implementation and Sol verification
+use high; advanced implementation and planning use xhigh. Task complexity
+selects the role within that profile.
+Codex's explicit `simple` profile selects GPT-6 Luna for implementation and
+planning. A routine task alone does not select Luna.
+
 Where a harness can use more than one provider, using a different model family
 for verification may reduce correlated misses. That is a zdev inference, not a
 benchmark result.
 
 | Harness | Routine implementer | Standard implementer | Standard verifier | Advanced implementer |
 | --- | --- | --- | --- | --- |
-| Codex | `gpt-5.6-luna`, `low` | `gpt-6.1-sol`, `low` | `gpt-6.1-sol`, `low` | `gpt-6.1-sol`, `high` |
+| Codex | `gpt-6.1-sol`, `medium` | `gpt-6.1-sol`, `high` | `gpt-6.1-sol`, `high` | `gpt-6.1-sol`, `xhigh` |
 | Claude Code | `haiku`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `high` |
-| OpenCode | `openai/gpt-5.6-luna`, `low` | `openai/gpt-6.1-sol`, `low` | `anthropic/claude-opus-5`, effort inherited | `openai/gpt-6.1-sol`, `high` |
-| Pi | `openai/gpt-5.6-luna`, `low` | `openai/gpt-6.1-sol`, `low` | `anthropic/claude-opus-5`, `low` | `openai/gpt-6.1-sol`, `high` |
-| Oh My Pi | `openai/gpt-5.6-luna:low` | `openai/gpt-6.1-sol:low` | `anthropic/claude-opus-5:low` | `openai/gpt-6.1-sol:high` |
-
-OpenAI documents [Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
-as its cost-sensitive, high-volume model. Claude Code documents the
-[`haiku` alias](https://code.claude.com/docs/en/model-config) as its fast,
-efficient choice for simple tasks (accessed 2026-08-22). Those facts support
-the routine defaults without creating a runtime catalog.
+| OpenCode | `openai/gpt-6.1-sol`, `medium` | `openai/gpt-6.1-sol`, `high` | `anthropic/claude-opus-5`, effort inherited | `openai/gpt-6.1-sol`, `xhigh` |
+| Pi | `openai/gpt-6.1-sol`, `medium` | `openai/gpt-6.1-sol`, `high` | `anthropic/claude-opus-5`, `low` | `openai/gpt-6.1-sol`, `xhigh` |
+| Oh My Pi | `openai/gpt-6.1-sol:medium` | `openai/gpt-6.1-sol:high` | `anthropic/claude-opus-5:low` | `openai/gpt-6.1-sol:xhigh` |
 
 The mixed-provider rows assume both providers are configured. A project that
 uses one provider should override both roles rather than depend on a hidden
@@ -158,8 +155,8 @@ substitution.
 
 ## Editable override contract
 
-An optional repository file, `.zdev/workers.toml`, overrides the dated
-suggestions for project-scoped integration installation. A global
+An optional repository file, `.zdev/workers.toml`, overrides the built-in
+defaults for project-scoped integration installation. A global
 `zdev/workers.toml` under the absolute configuration home supplies user
 preferences and the fallback for projects without a local row. The worker file
 is deliberately separate from `.zdev/config.toml`, whose schema describes
@@ -200,7 +197,7 @@ Resolution is per harness and role:
 
 1. A table in `.zdev/workers.toml` wins.
 2. Otherwise a table in the global worker file wins.
-3. Otherwise zdev uses the dated built-in suggestion above.
+3. Otherwise zdev uses the built-in mapping above.
 4. If the selected row says `inherit`, or zdev cannot express a built-in field
    in that harness, the generated integration omits that field and lets the
    harness inherit its native value.

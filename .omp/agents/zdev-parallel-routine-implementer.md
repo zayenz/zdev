@@ -3,7 +3,7 @@ name: zdev-parallel-routine-implementer
 description: Implement one routine zdev task in an assigned source worktree
 tools: read, grep, bash, edit, write
 blocking: false
-model: "openai/gpt-6-luna"
+model: "openai/gpt-6.1-sol"
 thinking-level: "medium"
 ---
 

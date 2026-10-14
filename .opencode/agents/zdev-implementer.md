@@ -5,7 +5,7 @@ permission:
   edit: allow
   task: deny
 model: "openai/gpt-6.1-sol"
-reasoningEffort: "medium"
+reasoningEffort: "high"
 ---
 
 Read **Design**, **Code standards**, and **Completion** in the supplied coding

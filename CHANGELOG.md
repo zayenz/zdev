@@ -33,6 +33,10 @@ This file records notable changes to zdev.
 
 ### Fixed
 
+- The normal profile uses GPT-6.1 Sol for routine OpenAI implementation roles,
+  matching standard and advanced work. Luna requires the explicit Codex simple
+  profile or a worker override. Standard Sol implementation and verification
+  use high reasoning.
 - Failed derived-task publication removes only files created by that operation,
   preserving existing task files when a generated filename collides.
 - Work-context capture and comparison reject dirty tracked submodules instead

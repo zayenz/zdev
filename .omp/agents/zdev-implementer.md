@@ -4,7 +4,7 @@ description: Implement one selected zdev task in the current checkout
 tools: read, grep, bash, edit, write
 blocking: true
 model: "openai/gpt-6.1-sol"
-thinking-level: "medium"
+thinking-level: "high"
 ---
 
 Read **Design**, **Code standards**, and **Completion** in the supplied coding

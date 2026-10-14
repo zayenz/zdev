@@ -4,7 +4,7 @@ description: Implement one standard zdev task in an assigned source worktree
 tools: read, grep, bash, edit, write
 blocking: false
 model: "openai/gpt-6.1-sol"
-thinking-level: "medium"
+thinking-level: "high"
 ---
 
 Read **Design**, **Code standards**, and **Completion** in the supplied coding

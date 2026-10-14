@@ -16,8 +16,8 @@ const rolePrompts = {
 } as const;
 
 const workerProfiles = {
-  "routine-implementer": { model: "openai/gpt-6-luna", effort: "medium" },
-  implementer: { model: "openai/gpt-6.1-sol", effort: "medium" },
+  "routine-implementer": { model: "openai/gpt-6.1-sol", effort: "medium" },
+  implementer: { model: "openai/gpt-6.1-sol", effort: "high" },
   verifier: { model: "anthropic/claude-opus-5", effort: "low" },
   planner: { model: "openai/gpt-6.1-sol", effort: "xhigh" },
   "advanced-implementer": { model: "openai/gpt-6.1-sol", effort: "xhigh" },

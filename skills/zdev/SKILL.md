@@ -491,9 +491,9 @@ coordinating session. Never repeat a worker only to remove valid
 wrapping text.
 
 For the implementer, pass `model="gpt-6.1-sol"` and
-`reasoning_effort="medium"` together with `fork_turns="none"`.
+`reasoning_effort="high"` together with `fork_turns="none"`.
 For the verifier, pass `model="gpt-6.1-sol"` and
-`reasoning_effort="medium"` together with `fork_turns="none"`.
+`reasoning_effort="high"` together with `fork_turns="none"`.
 For the planner, pass `model="gpt-6.1-sol"` and
 `reasoning_effort="xhigh"` together with `fork_turns="none"`.
 

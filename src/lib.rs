@@ -1486,6 +1486,7 @@ fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevEr
     let paths =
         work_context_git_stdout(root, &["ls-files", "--others", "--exclude-standard", "-z"])?;
     let mut untracked = BTreeMap::new();
+    let mut files = Vec::new();
     for path in paths.split('\0').filter(|path| !path.is_empty()) {
         let absolute = root.join(path);
         let metadata = fs::symlink_metadata(&absolute).map_err(|error| {
@@ -1500,8 +1501,8 @@ fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevEr
             })?;
             json!({"kind": "symlink", "target": target})
         } else if metadata.is_file() {
-            let hash = git_output(root, &["hash-object", "--no-filters", "--", path])?;
-            json!({"kind": "file", "hash": hash})
+            files.push(path);
+            continue;
         } else if metadata.is_dir() {
             // Git lists an untracked nested repository as one directory.
             let status = work_context_git_stdout(
@@ -1528,6 +1529,21 @@ fn work_context_untracked(root: &Path) -> Result<BTreeMap<String, Value>, ZdevEr
             )));
         };
         untracked.insert(path.to_owned(), evidence);
+    }
+    // Bound argument sizes while amortizing Git startup across regular files.
+    for batch in files.chunks(64) {
+        let mut arguments = vec!["hash-object", "--no-filters", "--"];
+        arguments.extend_from_slice(batch);
+        let output = git_output(root, &arguments)?;
+        let hashes = output.lines().collect::<Vec<_>>();
+        if hashes.len() != batch.len() {
+            return Err(ZdevError::new(
+                "git hash-object returned an unexpected number of hashes",
+            ));
+        }
+        for (path, hash) in batch.iter().zip(hashes) {
+            untracked.insert((*path).to_owned(), json!({"kind": "file", "hash": hash}));
+        }
     }
     Ok(untracked)
 }

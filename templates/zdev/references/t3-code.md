@@ -208,15 +208,12 @@ the old event-only loop. Return a canonical BLOCKER with failed stage goal
 activation, the prepared command, and unchanged state. One-task implementation,
 verification, and audit do not require this goal.
 
-The condition must select zdev **with T3 orchestration**, retain the named area,
-optional focus and worker choices, and require one independently verified task
-and commit per iteration. Its run is finished only when fresh validated context
-is closed, open/empty, or open/exhausted, or a confirmed blocker or required
-user decision has been reported with its reason and preserved state. All owned
-workers must be terminal before that final report. Include this stop rule in
-the condition itself, so a blocker ends continuation instead of prompting
-repeated attempts. Goal completion describes the run ending; the public zdev
-result still distinguishes PASS from BLOCKER and never closes an exhausted area.
+Build the condition with `zdev goal <area> --format json`, adding
+`--focus <text>` when supplied. Use `native_goal` unchanged, prefixed only with
+"Use zdev with T3 orchestration." Retain worker choices in the conversation.
+The CLI supplies the area continuation and stop conditions; current task
+assignments belong in worker payloads. Goal completion ends the run; the public
+result still distinguishes PASS from BLOCKER.
 
 On every native continuation or child-completion wake, reconcile retained
 handles and phase before any new dispatch. If a worker is still active, retain

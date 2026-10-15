@@ -151,10 +151,12 @@ enum Command {
         #[arg(long, conflicts_with = "area")]
         any: bool,
     },
-    /// Show a stable read-only projection of the next ready task in an area
+    /// Render an area continuation goal and current task context
     Goal {
-        /// Area tag whose next ready task to project
+        /// Area tag to continue
         area: String,
+        #[command(flatten)]
+        options: goal::GoalOptions,
     },
     /// Capture or use the validated task-work context for one area
     ///
@@ -1191,7 +1193,7 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 tasks::next(&root, area.as_deref())
             }
         }
-        Command::Goal { area } => goal::show(&root, area),
+        Command::Goal { area, options } => goal::show(&root, area, options),
         Command::WorkContext {
             area,
             task,

@@ -134,9 +134,10 @@ not create another scheduler or alter ordinary assigned-source work below.
 
 ## Optional assigned source worktree
 
-Ordinary one-task work stays in the admitted checkout. Use a separate source
-worktree only when the user has explicitly chosen or already authorized its
-creation. The authoritative checkout remains the destination: it alone owns
+Ordinary one-task work stays in the admitted checkout, normally a worktree
+under the shared workspace rules. Use this separate source-worktree transport
+when the run calls for assigned source trees. The authoritative checkout remains
+the destination: it alone owns
 admission, task records, snapshots used for verification, lifecycle changes,
 exact staging, and the final `zdev commit`. Do not create another scheduler,
 lifecycle, or record copy for this variant.

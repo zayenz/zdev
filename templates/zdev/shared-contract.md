@@ -14,7 +14,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Investigate** — answer one named checkable uncertainty through research, diagnosis, or a prototype | [references/investigate.md](references/investigate.md) |
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](references/to-tasks.md) and [references/task-format.md](references/task-format.md) |
 | **Implement** — complete and commit one next ready task; aliases: “continue,” “next task” | [references/task-workflows.md](references/task-workflows.md), [references/implement.md](references/implement.md), and [references/verify.md](references/verify.md) |
-| **Parallel** — run one finite approved batch of compatible tasks; aliases: “parallel tasks,” “parallel batch” | [references/parallel.md](references/parallel.md) and [references/task-workflows.md](references/task-workflows.md) |
+| **Parallel** — run compatible tasks in four independent worktree slots; aliases: “parallel tasks,” “parallel batch” | [references/parallel.md](references/parallel.md) and [references/task-workflows.md](references/task-workflows.md) |
 | **Plan one task** — select and plan one ready task without implementation; exact request: “plan next task with advanced planner” | [references/plan-task.md](references/plan-task.md) and [references/task-workflows.md](references/task-workflows.md) |
 | **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](references/verify-workflow.md) and [references/verify.md](references/verify.md) |
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](references/area-loop.md) |
@@ -72,11 +72,12 @@ consent, and a choice already stated for this work does not need confirmation.
 
 {{question_tool_guidance}}
 
-Begin discussion and other read-only orientation in the current checkout.
-Reuse a branch or worktree choice the user already made for this work. When the
-user delegates workspace choices, choose a safe reversible setup and state it.
-Ask when a material workspace choice remains undecided. Existing branch-safety
-and ownership checks still govern task and lifecycle mutations.
+Begin read-only orientation in the current checkout. For implementation,
+reuse an explicit workspace choice; otherwise use a worktree as the
+authoritative checkout before admitting task work. Reuse a suitable worktree
+or create one on the area's required branch. State the selected workspace and
+apply the normal branch-safety and ownership checks. Ask only
+when the destination or ownership is ambiguous.
 
 Keep interaction boundaries explicit. Exploration presents the resulting brief
 for discussion unless the user also requested task creation. An explicit,

@@ -27,7 +27,7 @@ operations. Ordinary supporting tasks in the same area keep this route.
    rebase when the task needs newer base changes or is approaching an
    integration boundary. Reuse an already stated branch or worktree choice;
    use the shared workspace-choice rules when that choice remains undecided.
-   When the user explicitly chooses an assigned source worktree, follow
+   When the run calls for an assigned source worktree, follow
    **Optional assigned source worktree** in the installed task-workflows
    contract. Store and refresh destination context with `--task <task-id>` and
    keep every authoritative record and lifecycle operation in that destination.

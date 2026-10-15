@@ -115,7 +115,7 @@ const area = String(input.area ?? '').trim()
 const tasks = Array.isArray(input.task_ids) ? input.task_ids.map(value => String(value).trim()) : []
 const destinationRoot = String(input.destination_root ?? '').trim()
 const destinationBranch = String(input.destination_branch ?? '').trim()
-const limit = Number(input.worker_limit)
+const limit = Number(input.worker_limit ?? 4)
 const cleanup = input.cleanup === true
 const consent = input.consent === true
 const resume = Array.isArray(input.resume) ? input.resume : []
@@ -461,7 +461,7 @@ const launch = assignment => {
     .then(event => { active.delete(promise); signal(event) })
   active.add(promise)
 }
-const fill = () => { while (!stopDispatch && pending.length > 0 && active.size < limit) launch(pending.shift()) }
+const fill = () => { while (!stopDispatch && pending.length > 0 && active.size + arrivals.length < limit) launch(pending.shift()) }
 fill()
 while (active.size > 0 || arrivals.length > 0) {
   if (arrivals.length === 0) await new Promise(resolve => { wake = resolve })

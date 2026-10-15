@@ -1,7 +1,7 @@
-# Run one approved parallel task batch
+# Run parallel tasks
 
-Parallel execution is an explicit, finite route. A discussion, ready queue,
-goal, loop, or ordinary Implement request does not select it.
+An explicit parallel request selects this route. A finite task list bounds the
+work; parallel authorization for an ongoing goal permits fresh task admission.
 
 Inspect every requested or resumed task for `hypothesis` before creating source
 worktrees or dispatching workers. This ordinary parallel route admits ordinary
@@ -11,36 +11,32 @@ record operations.
 {% if parallel_supported %}
 ## Native harness support
 
-This harness supports this route through its native parallel runtime. Before any source
-mutation, collect or reuse explicit authorization for all of these choices:
+Use four independent task slots by default, with one source worktree per task.
+A slot carries its task through planning, implementation, verification, and
+commit. Reuse explicit worker limits and workspace choices. Available harness
+capacity bounds live delegated roles; the coordinator is separate.
 
-- two or more existing task IDs from one area;
-- creation of one source worktree and branch per admitted task;
-- the authoritative destination branch and checkout;
-- a total delegated-role limit, counting planners, implementers, and verifiers;
-- whether run-owned worktrees and temporary branches may be cleaned up.
+An explicit parallel request authorizes the default worktrees and slots. Reuse
+the named area, eligible work and authoritative destination. Ask only for an
+unresolved destination or scope decision. Preserve worktrees unless cleanup is
+authorized. Report that parallel work consumes usage faster.
 
-Explain that overlap can reduce elapsed time while consuming usage faster and
-may add integration work. Propose a limit of two when none was supplied.
-Distinguish approval for this batch from explicit blanket approval for later
-compatible batches in the same ongoing goal or loop. Retain the approval's
-area, eligible work, worker limit, destination, worktree and cleanup choices in
-the existing conversation or run handoff. One-batch approval stops after this
-batch. Blanket approval permits fresh compatible batches within those same
-choices without another permission question; it preserves admission,
-ownership, capacity, verification and completion gates. Ask only for a choice
-the user has not made or a change beyond the retained authority.
+A finite task list ends after those tasks. Parallel authorization for an ongoing
+goal covers fresh compatible tasks in that area: refill each free slot as soon
+as its previous task commits, without waiting for the other slots. Retain scope,
+worker settings and workspace choices across continuation and recovery.
 
 ## Admission
 
 Inspect the destination, applicable repository instructions, visible agents
 and competing work, available collaboration capacity, and every requested
-task. Require at least two ready tasks whose likely source changes, shared
+task. Start parallel work with at least two ready tasks whose likely source changes, shared
 interfaces, validation resources, generated outputs, services, ownership, and
 local resource needs are mutually compatible. Dependency readiness alone is
-insufficient. Reject duplicate task IDs. If fewer than two candidates remain,
-or the harness cannot provide isolated workers within the agreed limit, explain the
-reason and offer ordinary sequential Implement before creating a source tree.
+insufficient. Reject duplicate task IDs. Refill one slot at a time while peers
+remain active. When only one eligible task remains, finish it through the same
+worktree and acceptance contract. If the harness cannot isolate workers within
+its capacity, report that limit before creating a source tree.
 
 Reuse the **Optional assigned source worktree** contract in the installed
 task-workflows reference unchanged for every admitted task. Keep briefs, task
@@ -53,12 +49,14 @@ run in that cwd. Never copy authoritative records into a source tree.
 
 ## Dispatch and role capacity
 
-Freeze the batch's concrete role settings at admission and include them in
+Freeze the run's concrete role settings at admission and include them in
 every assigned-task handoff. Each lane uses those values for planning,
 implementation, verification, and rework even if shared profile preferences
 change while the batch runs.
 
-Maintain an in-memory set of dispatched task IDs and never dispatch one twice.
+Track each slot's task, phase, worker, and source root in the conversation.
+Admit replacement work against every occupied slot and the current destination.
+Dispatch each task once; an existing assignment resumes its recorded phase.
 Inspect available capacity before every dispatch. Run the
 required advanced planner before edits, then spawn the configured implementation
 profile with `fork_turns="none"` and the explicit source cwd. Count every live
@@ -112,11 +110,10 @@ old agent IDs.
 The final report separates tasks with successful destination commits from
 unfinished preserved tasks and their worktree, branch, baseline, commits, and
 last result. It also states cleanup performed or withheld and the stop reason.
-With retained blanket approval and no blocker, the ongoing goal or loop reads
-a fresh ready frontier, selects another compatible finite batch and repeats
-admission. Preserve the approval scope and frozen role settings across batch
-boundaries and recovery. Finishing one batch does not revoke blanket approval
-or extend single-batch approval.
+For an ongoing goal, select replacement work at each completed slot. A runtime
+that only accepts a finite task list drains that invocation before the next;
+report this adapter limit instead of promising rolling admission. Keep the
+run's scope and settings across invocations.
 {% else %}
 ## Unsupported adapter
 

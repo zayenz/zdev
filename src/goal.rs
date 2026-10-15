@@ -5,6 +5,39 @@ use serde_json::{to_string_pretty, to_value};
 
 use super::{CommandOutput, SCHEMA_VERSION, ZdevError, project, relative, tasks};
 
+#[derive(Debug, clap::Args, Default)]
+pub struct GoalOptions {
+    /// User-supplied guidance for choosing work across the area
+    #[arg(long)]
+    focus: Option<String>,
+    /// Continue compatible tasks in independent worktree slots
+    #[arg(long)]
+    parallel: bool,
+}
+
+fn native_condition(area: &str, options: &GoalOptions) -> String {
+    let execution = if options.parallel {
+        "Use four independent task slots by default under the installed parallel contract, bounded by available worker capacity. Refill each free slot from fresh compatible ready work without waiting for the other slots. Integrate serially; independently verify and commit each task separately."
+    } else {
+        "Run the installed one-task implementation contract, independently verifying and committing each task before selecting again."
+    };
+    let selection = match options
+        .focus
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        Some(focus) => format!(
+            "Fuzzy focus: {}. Choose from the complete ready frontier, preferring AFK tasks; use focus to rank eligible work.",
+            serde_json::to_string(focus).unwrap()
+        ),
+        None => "Let fresh work-context select the next task.".to_owned(),
+    };
+    format!(
+        "Continue zdev area {area}. Read .zdev/{area}/area.toml and .zdev/{area}/brief.md for the current objective and boundaries. {execution} Use worktrees by default and retain the run's workspace and worker choices. {selection} Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
+    )
+}
+
 #[derive(Serialize)]
 struct GoalArea {
     tag: String,
@@ -70,14 +103,27 @@ struct GoalProjection {
     native_goal: Option<String>,
 }
 
-pub(super) fn show(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
-    show_selected(root, area, None)
+pub(super) fn show(
+    root: &Path,
+    area: &str,
+    options: &GoalOptions,
+) -> Result<CommandOutput, ZdevError> {
+    render(root, area, None, options)
 }
 
 pub(super) fn show_selected(
     root: &Path,
     area: &str,
     selected: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    render(root, area, selected, &GoalOptions::default())
+}
+
+fn render(
+    root: &Path,
+    area: &str,
+    selected: Option<&str>,
+    options: &GoalOptions,
 ) -> Result<CommandOutput, ZdevError> {
     let (metadata, area_path) = project::load_area(root, area)?;
     let read = tasks::goal_tasks(root, area, selected)?;
@@ -156,22 +202,7 @@ pub(super) fn show_selected(
             "\n\nDone when:\n{}\n\nValidation:\n{}",
             task.done_when, task.validation
         ));
-        let area_record = format!(".zdev/{area}/area.toml");
-        let authoritative = match &slice {
-            Some(slice) => format!("{area_record}, {}, and {task_path}", slice.path),
-            None => format!("{area_record} and {task_path}"),
-        };
-        let native_goal = if task.hypothesis.is_some() {
-            format!(
-                "Inspect hypothesis task {} in area {area}. Treat {authoritative} as authoritative and read the research record contract in the installed task-format reference. Ordinary dispatch does not execute hypotheses. An explicitly authorized Codex research run uses the separate installed research reference and local experiment lifecycle. Terminal evidence governs completion; completion does not itself accept code or close the area.",
-                task.id
-            )
-        } else {
-            format!(
-                "Complete zdev task {} in area {area}. Treat {authoritative} as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.",
-                task.id
-            )
-        };
+        let native_goal = native_condition(area, options);
         text.push_str(&format!("\n\nNative goal:\n{native_goal}"));
         (
             Some(GoalTask {

@@ -8,13 +8,12 @@ Resolve the run's concrete role settings once before the first iteration and
 retain them in the goal conversation. Every continued iteration uses those
 values; do not re-resolve profile names between tasks.
 
-When the user explicitly authorizes compatible parallel batches for this whole
-run, read `references/parallel.md`. Use its finite batches, serial destination
-acceptance and per-task verification and commits. Retain blanket approval and
-concrete role settings in the goal handoff; after each batch select afresh and
-repeat admission within the same authority. The ordinary one-task instructions
-below apply when parallel continuation was not authorized. Keep this choice in
-the native goal condition instead of replacing an active goal between batches.
+When the user authorizes parallel work for this run, read
+`references/parallel.md`. Keep four independent task slots, refill each from
+fresh compatible work, and serialize destination acceptance. Retain the run
+authority and concrete role settings in the conversation. The ordinary one-task
+instructions below apply when parallel continuation was not authorized. Keep this choice in
+the native goal condition throughout the run.
 
 `zdev-loop <area> [focus...]` is canonical and `zdev-goal <area> [focus...]`
 is an exact semantic alias. Parse everything after the area as optional fuzzy
@@ -54,29 +53,15 @@ before attempting native continuation:
 - Open `ready` with `branch_status.task_work.safe: true` may start the area
   continuation below. Report a stale-but-safe advisory once and continue.
 
-For sequential work, use this native area condition, replacing `<area>` with the validated tag.
-Replace the bracketed clause with its inner focus sentence when the user
-supplied focus; otherwise remove it:
+Run `zdev goal <area> --format json` and pass its `native_goal` unchanged to
+the adapter's native creation operation. Pass the user's exact focus as
+`--focus <text>` when supplied, and `--parallel` when parallel continuation is
+authorized. The CLI owns the continuation and completion wording. Keep selected
+tasks, snapshots, progress, and concrete worker settings in the conversation;
+refresh them as work advances. Retain the same goal across task completions.
 
-For a blanket-approved parallel run, replace the first sentence with:
-"For zdev area <area>, repeatedly admit compatible finite parallel batches
-under the installed parallel contract and the retained user authorization."
-Replace the one-task-per-iteration sentence with:
-"Independently verify each completed task and commit it separately."
-Retain the fresh-selection, safety and terminal-stop clauses. When no compatible
-batch is available, use ordinary Implement only if the retained authorization
-covers that execution choice; otherwise report the required decision.
-
-```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. [Fuzzy focus: <the user's exact focus words>. Before every iteration, inspect the complete ready frontier and choose the best-fitting task; do not treat the focus as an exact filter.] With no focus, let work-context choose the next task. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. This run is complete when fresh context is open/empty, open/exhausted, or closed, or when a confirmed blocker or required user-owned decision has been reported with its reason and preserved state. Stop at the first confirmed blocker; preserve unfinished work. Complete and commit exactly one independently verified task per iteration, and report each selected and completed task through normal progress updates.
-```
-
-Apply it with the native creation operation named by the adapter. The selected
-task's nested `native_goal` remains task-sized context and never replaces this
-area condition. After successful native activation, follow the condition in
-the current session. Every iteration repeats the applicable selection rule and
-uses the one-task contract below. Tell the user which task was selected and
-when its verified commit completes.
+After activation, follow the selection rule above and the applicable execution
+contract. Report each selected task and its verified commit.
 
 Reporting a terminal `BLOCKER` satisfies this run's explicit stop condition.
 End the matching active native goal through the adapter's completion operation

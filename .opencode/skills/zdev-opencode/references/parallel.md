@@ -1,7 +1,7 @@
-# Run one approved parallel task batch
+# Run parallel tasks
 
-Parallel execution is an explicit, finite route. A discussion, ready queue,
-goal, loop, or ordinary Implement request does not select it.
+An explicit parallel request selects this route. A finite task list bounds the
+work; parallel authorization for an ongoing goal permits fresh task admission.
 
 Inspect every requested or resumed task for `hypothesis` before creating source
 worktrees or dispatching workers. This ordinary parallel route admits ordinary

@@ -5,8 +5,8 @@ argument-hint: <area> <task-id> <task-id> [...]
 
 Load the Parallel route from the installed zdev-pi skill and follow its shared
 admission, isolation, serial integration, completion, stopping, and recovery
-contract. Use `$ARGUMENTS` only as the requested area and finite task list; all
-required user choices must already be explicit before source mutation.
+contract. Use `$ARGUMENTS` only as the requested area and finite task list; reuse
+explicit choices and apply the shared four-slot and worktree defaults.
 
 The current Pi session is the coordinator. Use batch operations only for
 read-only advanced planners and initial implementation workers in assigned

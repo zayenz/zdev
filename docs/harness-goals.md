@@ -1,46 +1,35 @@
 # Deterministic goals across harnesses
 
-`zdev goal` renders the next ready task from repository records. Harness
-workflows use that result as context; native session goals remain separate.
-This reference defines the command output and records harness research checked
-on 2026-08-20.
+`zdev goal` renders an area continuation condition in `native_goal`, alongside
+current task context. The CLI constructs the condition deterministically from
+the area tag and explicit run options. Task selection, completion, and changing
+task details leave the condition unchanged.
 
-## Zdev meaning of “goal”
-
-A zdev goal is a read-only view of the next ready task in an area. The same
-validated records produce the same result.
-
-The common vocabulary is:
-
-- **Area objective**: the durable reason for the area.
-- **Focus task**: the ready task selected by AFK suitability, priority, then
-  numeric ID, using the same selection rule as `zdev next`.
-- **Slice context**: the focus task's optional slice objective and boundaries.
-- **Outcome**: the behavior or artifact the focus task must produce.
-- **Context**: optional recorded background for that task.
-- **Boundaries**: limits recorded on the slice and task. These remain separate
-  so their authority is visible.
-- **Done when**: the task's recorded proof conditions.
-- **Validation**: the task's recorded checks.
-- **Native goal**: a short session condition that points back to the durable
-  records. It is a transport value, not durable zdev state.
-
-This definition intentionally selects one task. It fits zdev's approval,
-independent-verification, and per-task commit boundaries, and it remains useful
-for standing areas such as `general` that are not expected to close. Completing
-the focus task completes this rendered goal; the next goal is obtained by
-running the command again.
+Use the condition unchanged when creating a native goal. Keep selected task IDs,
+snapshots, worker settings, and progress in the conversation. The area records
+supply the current objective and boundaries; each worker reads its task record.
+The run ends at queue exhaustion, area closure, or a reported confirmed blocker
+or required user decision. Ending the run preserves unfinished tasks and does
+not close the area.
 
 ### Command
 
 ```text
 zdev goal <area>
 zdev goal <area> --format json
+zdev goal <area> --focus "payment retries" --parallel --format json
 ```
 
 `<area>` is required. Unlike `zdev next`, this command does not infer a default
 area and does not require a clean branch or a task-work branch. It reads and
 validates records but never changes files, Git state, or a harness session.
+
+`--focus` retains the user's selection guidance without selecting a task in
+this read-only command. `--parallel` renders four independent task slots with
+serial integration and per-task verification and commits. Worktrees are the
+default; explicit workspace and worker choices remain in effect. Ordinary
+invocation renders sequential continuation. These options describe a run;
+they create neither workers nor workspaces and do not authorize execution.
 
 ### Exact inputs
 
@@ -156,12 +145,11 @@ Validation:
 - Run the focused payment integration test.
 
 Native goal:
-Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.
+Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.
 ```
 
-The native condition is rendered from a fixed sentence template. For an
-unsliced task, the slice path and its preceding comma are omitted. Paths are
-repository-relative and use `/` separators.
+The native condition uses a fixed template in `src/goal.rs`. It contains no
+task or slice details. Paths are repository-relative and use `/` separators.
 
 ### JSON form
 
@@ -203,7 +191,7 @@ repository-relative and use `/` separators.
       "boundaries": "- Do not change provider selection."
     }
   },
-  "native_goal": "Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision."
+  "native_goal": "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
 }
 ```
 

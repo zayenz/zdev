@@ -31,7 +31,7 @@ verify it. The coordinating agent owns zdev state, user decisions, task
 completion, and commits. Give each agent the rendered repository guidance and
 applicable `AGENTS.md` instructions.
 
-For an explicitly chosen assigned source worktree, the shared task-workflows
+For an assigned source worktree, the shared task-workflows
 contract owns isolation and Git transport. Codex collaboration agents share the
 parent directory by default, so every source implementer or rework payload must
 name the absolute assigned source root and require all file and command tools to

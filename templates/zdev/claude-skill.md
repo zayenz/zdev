@@ -40,8 +40,9 @@ use a new resume invocation of the same durable run. Ordinary Loop keeps its
 existing continuation behavior.
 
 An explicit parallel request uses the packaged `zdev-parallel` workflow when
-it is installed. Collect the finite task list, destination, worktree authority,
-worker limit, cleanup choice, and explicit consent before launching it. If the
+it is installed. Resolve the finite task list and destination, use four workers
+and source worktrees by default, and retain explicit overrides and cleanup
+authority. The parallel request supplies consent. If the
 workflow runtime is unavailable, report that parallel execution is unavailable
 and offer the unchanged sequential Implement route.
 

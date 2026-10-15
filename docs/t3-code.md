@@ -25,17 +25,12 @@ Invoke the root zdev skill and select T3 explicitly:
 
 To continue through the area's ready work, use T3's composer `/goal` command.
 Check `/goal` first if this thread might already have an unfinished goal;
-setting a new condition replaces it. Start the zdev goal with this condition:
-
-```text
-/goal Use zdev with T3 orchestration to loop through area scheduling, using Codex for implementation and Claude Code for verification. Complete one independently verified task and commit per iteration, then select from fresh context. This run is finished when validated context is closed, open/empty, or open/exhausted, or a confirmed blocker or required user decision has been reported with its reason and preserved state. Stop at the first confirmed blocker and preserve unfinished work. All owned workers must be terminal before the final report. Report selected and completed tasks and the canonical zdev loop result.
-```
-
-Replace `scheduling` and the worker choices with yours; add optional focus text
-to the same condition. The main coordinator can run either harness. T3 displays
-the goal and progress while its Codex or Claude provider drives continuation.
-A plain natural-language loop request uses exposed native goal tools when
-available; otherwise the skill supplies this exact command before starting work.
+setting a new condition replaces it. Generate the condition with
+`zdev goal scheduling --format json`, adding `--focus <text>` when needed.
+Prefix its `native_goal` with "Use zdev with T3 orchestration." and supply that
+to `/goal`. Retain worker choices in the conversation. The installed skill
+prepares this condition and uses exposed native goal tools when available;
+otherwise it returns the ready-to-send command before starting work.
 
 “Goal” and “loop” mean the same operation. Optional focus text guides selection
 from the complete ready frontier. The route also supports explicit verification,

@@ -107,17 +107,16 @@ next iteration.
 
 ## Area condition and stop matrix
 
-Codex and Oh My Pi native continuation use this area-sized condition, with
-`<area>` and the optional focus replaced from the invocation. Claude's
-JavaScript workflow encodes the same predicate directly in its loop:
+Codex and Oh My Pi use `native_goal` from `zdev goal <area> --format json`
+unchanged. Pass `--focus <text>` for user-supplied guidance and `--parallel` for
+an authorized parallel run. The CLI owns the condition; task context and run
+progress stay in the conversation. Claude's packaged workflow encodes the same
+stop predicate directly.
 
-```text
-For zdev area <area>, repeatedly run the installed zdev one-task implementation contract. With fuzzy focus, inspect the complete ready frontier before every iteration and choose the best-fitting task; without focus, let work-context choose. After each exact PASS and commit, select again from fresh evidence. Continue only while lifecycle is open, queue is ready, task work is safe, and no blocker or user-owned decision exists. This run is complete when fresh context is open/empty, open/exhausted, or closed, or when a confirmed blocker or required user-owned decision has been reported with its reason and preserved state. Stop at the first confirmed blocker; preserve unfinished work. Complete and commit exactly one independently verified task per iteration and report each selected and completed task.
-```
-
-This condition never replaces the selected task's `native_goal`. The area
-condition governs continuation; every `zdev-implement` handoff still receives
-the unchanged task-sized projection and `native_goal` from `zdev goal`.
+Parallel continuation defaults to four independent task slots and worktrees.
+Each slot can advance without waiting for its peers; destination integration,
+verification, and commits remain serial. Adapters limited to finite task lists
+finish that invocation before admitting the next list.
 
 A confirmed blocker ends the run in the same turn. Reporting its reason and
 preserved state fulfills the area condition's explicit stop rule, so Codex

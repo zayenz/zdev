@@ -1061,7 +1061,7 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
     let second = run_zdev(root, &["goal", "checkout"]);
     assert!(first.status.success());
     assert_eq!(first.stdout, second.stdout);
-    let native_goal = "Complete zdev task checkout-002 in area checkout. Treat .zdev/checkout/area.toml, .zdev/checkout/slices/payments.md, and .zdev/checkout/tasks/002-reject-duplicate-payment.md as authoritative. Meet the recorded outcome, boundaries, done-when conditions, and validation; preserve zdev approval, branch-safety, independent-verification, task-completion, and commit rules. Stop and report if the task is no longer ready or needs a product decision.";
+    let native_goal = "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.";
     let expected_text = format!(
         "Area: checkout — Checkout reliability\nLifecycle: open\nQueue: ready\nObjective:\nMake checkout failures safe and understandable.\nCounts: 3 total; 2 open; 1 ready; 1 blocked; 1 done\n\nTask: checkout-002 — Reject duplicate payment submission\nComplexity: standard\nTask source: .zdev/checkout/tasks/002-reject-duplicate-payment.md\nOutcome:\nA repeated submission returns the original payment result without charging again.\n\nContext:\nThe provider can retry after losing our first response.\n\nSlice: payments — Payment submission\nSlice source: .zdev/checkout/slices/payments.md\nSlice objective:\nMake payment submission safe to retry.\nSlice boundaries:\n- Do not change provider selection.\n\nBoundaries:\n- Keep the public response schema unchanged.\n\nDone when:\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\nValidation:\n- Run the focused payment integration test.\n\nNative goal:\n{native_goal}\n"
     );
@@ -1074,6 +1074,51 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
         "{{\n  \"schema_version\": 1,\n  \"area\": {{\n    \"tag\": \"checkout\",\n    \"title\": \"Checkout reliability\",\n    \"objective\": \"Make checkout failures safe and understandable.\",\n    \"path\": \".zdev/checkout\"\n  }},\n  \"lifecycle\": \"open\",\n  \"queue\": \"ready\",\n  \"counts\": {{\n    \"total\": 3,\n    \"open\": 2,\n    \"ready\": 1,\n    \"blocked\": 1,\n    \"done\": 1\n  }},\n  \"task\": {{\n    \"id\": \"checkout-002\",\n    \"key\": \"reject-duplicate-payment\",\n    \"title\": \"Reject duplicate payment submission\",\n    \"complexity\": \"standard\",\n    \"path\": \".zdev/checkout/tasks/002-reject-duplicate-payment.md\",\n    \"outcome\": \"A repeated submission returns the original payment result without charging again.\",\n    \"context\": \"The provider can retry after losing our first response.\",\n    \"boundaries\": \"- Keep the public response schema unchanged.\",\n    \"done_when\": \"- [ ] Duplicate provider calls are prevented.\\n- [ ] The original result is returned.\",\n    \"validation\": \"- Run the focused payment integration test.\",\n    \"blocked_by\": [],\n    \"slice\": {{\n      \"key\": \"payments\",\n      \"title\": \"Payment submission\",\n      \"path\": \".zdev/checkout/slices/payments.md\",\n      \"objective\": \"Make payment submission safe to retry.\",\n      \"boundaries\": \"- Do not change provider selection.\"\n    }}\n  }},\n  \"native_goal\": \"{native_goal}\"\n}}\n"
     );
     assert_eq!(json_first.stdout, expected_json.as_bytes());
+
+    let focused = json_output(
+        root,
+        &[
+            "goal",
+            "checkout",
+            "--focus",
+            "payment retries",
+            "--parallel",
+        ],
+    );
+    let condition = focused["native_goal"].as_str().unwrap();
+    assert!(condition.contains("four independent task slots"));
+    assert!(condition.contains("Fuzzy focus: \"payment retries\""));
+    assert!(!condition.contains("checkout-002"));
+    assert_eq!(
+        focused["task"],
+        serde_json::from_slice::<Value>(&json_first.stdout).unwrap()["task"]
+    );
+
+    // Completing the focus task changes selection, not the run's objective.
+    let completed_path = tasks.join("002-reject-duplicate-payment.md");
+    let completed = fs::read_to_string(&completed_path)
+        .unwrap()
+        .replace("status = \"open\"", "status = \"done\"")
+        .replace("- [ ]", "- [x]");
+    fs::write(
+        completed_path,
+        format!("{completed}\n## Result\n\nDuplicate calls prevented and checked.\n"),
+    )
+    .unwrap();
+    let advanced = json_output(root, &["goal", "checkout"]);
+    assert_eq!(advanced["task"]["id"], "checkout-003");
+    assert_eq!(advanced["native_goal"], native_goal);
+    let advanced_focused = json_output(
+        root,
+        &[
+            "goal",
+            "checkout",
+            "--focus",
+            "payment retries",
+            "--parallel",
+        ],
+    );
+    assert_eq!(advanced_focused["native_goal"], focused["native_goal"]);
 }
 
 #[test]
@@ -7248,8 +7293,10 @@ fn every_help_page_explains_its_command_and_inputs() {
         (
             &["goal", "--help"],
             &[
-                "stable read-only projection",
-                "Area tag whose next ready task to project",
+                "area continuation goal",
+                "Area tag to continue",
+                "--focus",
+                "--parallel",
             ],
         ),
         (
@@ -9545,7 +9592,7 @@ fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
         1
     );
     assert!(codex.contains("## Codex orchestration"));
-    assert!(codex.contains("For an explicitly chosen assigned source worktree"));
+    assert!(codex.contains("For an assigned source worktree"));
 }
 
 #[test]
@@ -9581,7 +9628,8 @@ fn parallel_route_is_shared_and_supported_harnesses_report_execution_support() {
         assert!(skill.contains("references/parallel.md"));
         if matches!(harness, "codex" | "claude" | "pi" | "omp" | "agy") {
             assert!(parallel.contains("## Native harness support"));
-            assert!(parallel.contains("in-memory set of dispatched task IDs"));
+            assert!(parallel.contains("Dispatch each task once"));
+            assert!(parallel.contains("four independent task slots"));
             assert!(parallel.contains("configured implementation\nprofile"));
             assert!(!parallel.contains("## Unsupported adapter"));
         } else {
@@ -9845,7 +9893,7 @@ const agent = async (prompt, options) => {{
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
     destination_root: '/repo', assignments: ids.map(assignment) }}
   if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch(assignment('work-001', 0))
-  const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
+  const task = [...ids, 'work-004'].find(id => prompt.includes(id) || options.label.includes(id))
   if (options.agentType && options.agentType.includes('implementer')) {{
     activeWorkers += 1
     maximumWorkers = Math.max(maximumWorkers, activeWorkers)
@@ -9883,6 +9931,15 @@ if (!integratedWhileWorkerActive) throw new Error('integration waited for every 
 if (completedWorkers.join(',') !== 'work-002,work-003,work-001') throw new Error('workers did not finish out of order: ' + completedWorkers)
 if (gated.join(',') !== completedWorkers.join(',')) throw new Error('task identity was lost: ' + gated)
 if (!result.startsWith('PASS zdev-parallel work') || !result.includes('work-001') || !result.includes('work-003')) throw new Error(result)
+const defaultIds = [...ids, 'work-004']
+maximumWorkers = 0
+const defaults = await run({{ area: 'work', task_ids: defaultIds, destination_root: '/repo',
+  destination_branch: 'main', cleanup: false, consent: true }}, async (prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
+    destination_root: '/repo', assignments: defaultIds.map(assignment) }}
+  return agent(prompt, options)
+}})
+if (maximumWorkers !== 4 || !defaults.startsWith('PASS zdev-parallel work')) throw new Error('four-slot default failed: ' + defaults)
 for (const [finding, checked, expected, vetterCount] of [
   ['src/api.rs:10: candidate defect', {{ verdict: 'pass', summary: 'Claim disproved; original validation passed.', findings: [], escalation: 'none' }}, 'PASS', 1],
   ['src/api.rs:10: candidate defect', {{ verdict: 'blocker', summary: 'Caller evidence unavailable.', findings: ['Open question'], escalation: 'none' }}, 'BLOCKER', 1],
@@ -9936,7 +9993,7 @@ const stopped = await run({{ area: 'work', task_ids: ids, destination_root: '/re
   if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
     destination_root: '/repo', assignments: ids.map(assignment) }}
   if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch(assignment('work-001', 0))
-  const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
+  const task = [...ids, 'work-004'].find(id => prompt.includes(id) || options.label.includes(id))
   if (options.agentType && options.agentType.includes('implementer')) {{
     if (task === 'work-001') throw new Error('cancelled')
     return {{ schema_version: 1, kind: 'implementer', area: 'work', task_id: task,
@@ -10053,7 +10110,7 @@ const recoveredResult = await run({{ area: 'work', task_ids: ['work-001', 'work-
     return {{ area: 'work', destination_branch: 'main', destination_root: '/repo', assignments: [assignment('work-002', 2)] }}
   }}
   if (options.label.includes('freeze parallel worker profiles')) return parallelDispatch(assignment('work-002', 2))
-  const task = ids.find(id => prompt.includes(id) || options.label.includes(id))
+  const task = [...ids, 'work-004'].find(id => prompt.includes(id) || options.label.includes(id))
   if (options.agentType && options.agentType.includes('implementer')) {{ recoveredImplemented.push(task); return {{ schema_version: 1,
     kind: 'implementer', area: 'work', task_id: task, verdict: 'ready', summary: 'ok', evidence: [], findings: [], escalation: 'none' }} }}
   if (options.label.includes('serial transport')) return {{ task_id: task, status: 'integrated', head: '2'.repeat(40), summary: 'ok', findings: [], preserved: '/tmp/work-002' }}
@@ -14205,7 +14262,7 @@ fn research_mixed_queue_retains_observations_and_rejected_completion() {
         goal["native_goal"]
             .as_str()
             .unwrap()
-            .contains("Ordinary dispatch does not execute hypotheses")
+            .contains("Ordinary dispatch stops before hypotheses")
     );
     let context = json_output(root, &["work-context", "work"]);
     assert_eq!(

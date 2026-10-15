@@ -2810,7 +2810,7 @@ fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
 
 pub(super) fn list(root: &Path, area: Option<&str>) -> Result<CommandOutput, ZdevError> {
     let Some(area) = area else {
-        return Err(list_area_required(root)?);
+        return list_area_summary(root);
     };
     let tasks = load_tasks(root, area)?;
     let task_views = views(root, &tasks);
@@ -2845,7 +2845,7 @@ pub(super) fn list(root: &Path, area: Option<&str>) -> Result<CommandOutput, Zde
     ))
 }
 
-fn list_area_required(root: &Path) -> Result<ZdevError, ZdevError> {
+fn list_area_summary(root: &Path) -> Result<CommandOutput, ZdevError> {
     let mut areas = list_areas(root)?
         .into_iter()
         .map(|area| {
@@ -2886,11 +2886,14 @@ fn list_area_required(root: &Path) -> Result<ZdevError, ZdevError> {
         })
         .collect::<Vec<_>>();
     let message = if guidance.is_empty() {
-        "AREA is required; no areas are available".to_owned()
+        "No areas are available".to_owned()
     } else {
-        format!("AREA is required. Available areas:\n{guidance}")
+        format!("Available areas:\n{guidance}")
     };
-    Ok(ZdevError::with_details(message, json!({"areas": areas})))
+    Ok(CommandOutput::new(
+        message,
+        json!({"schema_version": SCHEMA_VERSION, "areas": areas}),
+    ))
 }
 
 fn next_task(tasks: &[Task]) -> Option<&Task> {

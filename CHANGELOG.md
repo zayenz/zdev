@@ -33,6 +33,8 @@ This file records notable changes to zdev.
 
 ### Fixed
 
+- `zdev tasks list` without an area prints the available areas as normal output
+  and exits successfully, including when no areas exist.
 - The normal profile uses GPT-6.1 Sol for routine OpenAI implementation roles,
   matching standard and advanced work. Luna requires the explicit Codex simple
   profile or a worker override. Standard Sol implementation and verification

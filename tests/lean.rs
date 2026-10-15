@@ -984,23 +984,24 @@ fn tasks_list_without_area_shows_open_areas_before_closed_areas() {
     .expect("close area fixture");
 
     let listed = run_zdev(root, &["--format", "json", "tasks", "list"]);
-    assert!(!listed.status.success());
-    let listed_stderr = String::from_utf8(listed.stderr).expect("task area error text");
-    let listed: Value = serde_json::from_str(&listed_stderr).expect("task area error JSON");
+    assert!(listed.status.success());
+    assert!(listed.stderr.is_empty());
+    let listed: Value = serde_json::from_slice(&listed.stdout).expect("task area list JSON");
     assert_eq!(
-        listed["details"]["areas"],
+        listed["areas"],
         json!([
             {"area": "z-open", "lifecycle": "open", "open_tasks": 1},
             {"area": "a-closed", "lifecycle": "closed", "open_tasks": 0},
         ]),
-        "{listed_stderr}"
+        "{listed}"
     );
 
     let text = run_zdev(root, &["tasks", "list"]);
-    assert!(!text.status.success());
+    assert!(text.status.success());
+    assert!(text.stderr.is_empty());
     assert_eq!(
-        String::from_utf8(text.stderr).expect("task area list text"),
-        "error: AREA is required. Available areas:\nz-open  1 open task\na-closed  0 open tasks  closed\n"
+        String::from_utf8(text.stdout).expect("task area list text"),
+        "Available areas:\nz-open  1 open task\na-closed  0 open tasks  closed\n"
     );
 }
 

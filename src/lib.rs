@@ -651,9 +651,9 @@ enum TasksCommand {
         #[arg(long, value_name = "FINGERPRINT", requires = "source")]
         approval: Option<String>,
     },
-    /// List every task in an area with its current state
+    /// List every task in an area with its current state, or summarize available areas
     List {
-        /// Area tag whose tasks to list
+        /// Area tag whose tasks to list; omit to show available areas
         area: Option<String>,
     },
     /// Regenerate an area's TASKS.md from its individual task files

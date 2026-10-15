@@ -610,11 +610,9 @@ pub(super) fn create_area(
                 "Cannot use trunk mode because configured trunk {configured} is missing locally"
             )));
         }
-        ensure_branch_available(root, configured, AreaMode::Trunk, None)?;
         (AreaMode::Trunk, None, configured.to_owned(), None)
     } else {
         let branch = required_requested_branch(root, requested_branch)?;
-        ensure_branch_available(root, &branch, AreaMode::Isolated, None)?;
         let base_commit = config
             .project
             .trunk
@@ -1162,29 +1160,6 @@ pub(super) fn reopen_area(root: &Path, tag: &str) -> Result<CommandOutput, ZdevE
     set_area_lifecycle(root, tag, AreaLifecycle::Open)
 }
 
-fn ensure_branch_available(
-    root: &Path,
-    branch: &str,
-    mode: AreaMode,
-    owner: Option<&str>,
-) -> Result<(), ZdevError> {
-    let config = read_config(root)?;
-    for area in list_areas(root)? {
-        if owner == Some(area.tag.as_str()) || area.resolved_branch(&config) != Some(branch) {
-            continue;
-        }
-        if mode == AreaMode::Trunk && area.mode == AreaMode::Trunk {
-            continue;
-        }
-        return Err(ZdevError::new(format!(
-            "Branch {branch} is already owned by {} area {}",
-            area.mode.as_str(),
-            area.tag
-        )));
-    }
-    Ok(())
-}
-
 pub(super) fn bind_area(
     root: &Path,
     tag: &str,
@@ -1221,7 +1196,6 @@ pub(super) fn bind_area(
                 "Cannot use trunk mode because configured trunk {configured} is missing locally"
             ))
         })?;
-        ensure_branch_available(root, configured, AreaMode::Trunk, Some(tag))?;
         if area.mode == AreaMode::Isolated {
             let old_branch = area.branch.as_deref().expect("validated isolated branch");
             let old_tip = branch_tip(root, old_branch)?.ok_or_else(|| {
@@ -1242,7 +1216,6 @@ pub(super) fn bind_area(
         configured.to_owned()
     } else {
         let branch = required_requested_branch(root, requested)?;
-        ensure_branch_available(root, &branch, AreaMode::Isolated, Some(tag))?;
         if area.mode == AreaMode::Trunk {
             if let Some(operation) = git_operation(root)? {
                 return Err(ZdevError::new(format!(
@@ -1345,24 +1318,11 @@ fn validate_area_relationships_for_config(
         .iter()
         .map(|area| (area.tag.as_str(), area))
         .collect::<BTreeMap<_, _>>();
-    let mut branches: BTreeMap<&str, &AreaMetadata> = BTreeMap::new();
     for area in areas {
         if config.project.record == RecordPolicy::PullRequest && area.mode == AreaMode::Trunk {
             return Err(ZdevError::new(
                 "Trunk areas are not supported with pull-request records; use an isolated area branch",
             ));
-        }
-        if let Some(branch) = area.resolved_branch(config)
-            && let Some(other) = branches.insert(branch, area)
-            && (area.mode != AreaMode::Trunk || other.mode != AreaMode::Trunk)
-        {
-            return Err(ZdevError::new(format!(
-                "Branch {branch} cannot be shared by {} area {} and {} area {}",
-                other.mode.as_str(),
-                other.tag,
-                area.mode.as_str(),
-                area.tag
-            )));
         }
         if area.parent.as_deref() == Some(area.tag.as_str()) {
             return Err(ZdevError::new(format!(

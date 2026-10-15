@@ -60,7 +60,7 @@ isolated record without `branch`, is invalid. No loader repairs it.
 
 Every record without `mode` remains isolated. This includes an area whose
 stored branch happens to equal the current trunk and an area whose branch was a
-former trunk. It keeps the existing single-owner rule, same-branch shortcut,
+former trunk. It keeps the existing same-branch shortcut,
 anchor behavior, and stored branch. Reconfiguring trunk never adds `mode`,
 removes its branch, or moves it. Once the configured trunk changes, a legacy
 area on the former trunk is assessed as an ordinary isolated area against the
@@ -83,8 +83,8 @@ Create without either option uses the default: create an isolated area on
 the checked-out branch. `--branch` creates an isolated area on the canonical
 requested branch. `--trunk` creates a trunk area following the configured
 trunk. It requires a configured, locally existing trunk, a record policy that
-supports trunk areas, no active Git operation, and no isolated owner of that
-branch. It does not create or check out the branch. Like explicit
+supports trunk areas, and no active Git operation. It does not create or check
+out the branch. Like explicit
 `--branch`, it can record the explicit target while HEAD is detached or on
 another branch; its task-work status is then unsafe until trunk is checked out.
 An inferred isolated branch fails on detached HEAD with the existing
@@ -99,8 +99,8 @@ area graph, and atomically replace only that area's `area.toml`.
 Mode changes have these additional checks:
 
 - Isolated to trunk requires configured and locally existing trunk, no active
-  Git operation, no parent, a supported record policy, and no isolated claimant
-  of trunk. The old isolated branch must exist and its tip must be an ancestor
+  Git operation, no parent, and a supported record policy. The old isolated
+  branch must exist and its tip must be an ancestor
   of the trunk tip. This proves that the mode change does not abandon
   unintegrated area commits. The successful write removes `branch` and
   `base_commit` by publishing the trunk form.
@@ -126,7 +126,6 @@ Stable mode-transition failures are:
 | Trunk is unconfigured | ``Project trunk is not configured; set it with `zdev config trunk <branch>` `` |
 | Configured trunk is missing | `Cannot use trunk mode because configured trunk <branch> is missing locally` |
 | Inferred branch on detached HEAD | existing `No branch is checked out; pass an explicit branch name` |
-| Isolated owner conflicts | `Branch <branch> is already owned by isolated area <tag>` |
 | Isolated source has commits outside trunk | `Cannot bind area <tag> to trunk: branch <branch> has commits not contained in <trunk>` |
 | Isolated target does not contain trunk | `Cannot bind trunk area <tag> to <branch>: the branch does not contain configured trunk <trunk>` |
 | Parent remains | `Cannot bind area <tag> to trunk while it has parent <parent>; remove the parent first` |
@@ -162,19 +161,11 @@ or:
 always null there. Isolated create keeps status `created`; a changed bind keeps
 status `updated`; an exact repeat uses `unchanged`.
 
-## Ownership and several trunk areas
+## Several areas on one branch
 
-Several explicit trunk areas may coexist. Branch ownership validation resolves
-the candidate configured trunk and applies one rule:
-
-- any number of `mode = "trunk"` areas may share that resolved branch;
-- an isolated area remains the sole owner of its stored branch; and
-- a branch may not be shared between an isolated area and any other area,
-  including a trunk area.
-
-Thus a legacy isolated area stored on `main` blocks the first explicit trunk
-area until the user binds it elsewhere or deliberately converts it. Zdev never
-reclassifies the record because its branch name matches configuration.
+Several areas may share a branch, whether they use isolated mode, trunk mode,
+or a mixture. Each area retains its own mode and base relationship. Zdev never
+reclassifies a record because its branch name matches configuration.
 
 On checked-out trunk, all structurally safe trunk areas have
 `branch_matches = true`. `next --any` retains its current comparison: matching
@@ -204,7 +195,7 @@ When at least one explicit trunk area exists, the command:
 3. canonicalizes the requested branch and requires it to exist locally and be
    inspectable;
 4. validates the complete area graph against the candidate branch, including
-   isolated/trunk ownership collisions and record policy; and
+   parent relationships and record policy; and
 5. when changing an existing configured trunk, resolves both tips and requires
    the old tip to be an ancestor of the candidate tip; and
 6. atomically replaces only `.zdev/config.toml`.
@@ -228,7 +219,7 @@ applies even when the user knows both names refer to the same former tip. A
 same-tip name change is automatic only while both refs remain inspectable.
 
 `--allow-divergent` overrides only a confirmed ancestry failure. The old and
-candidate tips must both remain inspectable. Candidate existence, ownership,
+candidate tips must both remain inspectable. Candidate existence,
 record policy, active-operation, schema, and locking checks still apply. It
 performs no Git operation. Success reports the decision:
 
@@ -485,14 +476,14 @@ null/boolean changes; mode-transition failures use the exact errors above.
 | One explicit trunk area on checked-out `main` | `mode = "trunk"`; no branch/parent/base; healthy projection above | Named next/completion allowed | Existing task-specific files only |
 | Two ready trunk areas | both store only trunk mode; both match `main` | `next --any` chooses lexical area tag, then AFK suitability, priority, and numeric task ID within that area | Read-only |
 | Checked-out isolated area plus ready trunk areas | mixed records; isolated matches, trunk areas are structurally safe but off-branch | `next --any` chooses matching isolated candidate first | Read-only |
-| Legacy area stored on current trunk | no mode; stored branch remains exclusive; existing same-branch shortcut | A trunk create/bind colliding with it fails | No mutation |
+| Legacy area stored on current trunk | no mode; stored branch remains fixed; existing same-branch shortcut | Trunk areas may share the branch | Only the requested area record changes |
 | Legacy area on former trunk | stored old branch; effective base is newly configured trunk | Existing isolated fresh/stale/unsafe result | Reconfiguration changes config only |
 | Reconfigure `main` to descendant `stable` with open/closed trunk areas | old tip is ancestor; area files unchanged; all resolve `stable`; old checkout makes open work unsafe | Config command succeeds with old/new branches, tips, lexical areas, and no override; named work waits for checkout; `next --any` may report required `stable` | Atomic config write only |
 | Reconfigure `main` to divergent `stable` by default | ancestry is false; all areas still resolve `main` | Reject with lexical affected areas and `--allow-divergent` recovery | No mutation |
 | Reconfigure divergent history with `--allow-divergent` | area files unchanged; all open/closed areas resolve `stable`; old checkout is off-branch | Success records `old_is_ancestor = false`, `override = true`, old/new branches and lexical affected areas | Atomic config write only; no Git ref operation |
 | Previous configured trunk is missing | old tip/ancestry are null; areas still resolve the old name | Reject even with `--allow-divergent`; restore the old branch first | No mutation |
 | Reconfigure to missing branch while trunk areas exist | candidate cannot produce inspectable operating branch | Reject `configured trunk <name> is missing locally` | No mutation |
-| Reconfigure onto isolated-owned branch | candidate graph has mixed ownership | Reject naming isolated owner and trunk areas | No mutation |
+| Reconfigure onto a branch used by isolated areas | candidate graph permits shared branches | Accept when the normal ancestry checks pass | Atomic config write only |
 | Unset trunk while trunk areas exist | trunk projections would become unbound | Reject with lexical area list | No mutation |
 | Configured trunk deleted outside zdev | trunk records unchanged; fresh null; structural/task safe false; missing diagnostic | Status succeeds; task work fails with details | Read-only |
 | Wrong branch or detached HEAD | fresh true if trunk exists; branch match false/null; task safe false | Status succeeds; named work fails; `next --any` may project off-branch work | Read-only |

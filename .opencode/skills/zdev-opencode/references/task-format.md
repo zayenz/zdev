@@ -3,12 +3,12 @@
 ## Project and area metadata
 
 `.zdev/config.toml` records project `trunk`. An isolated
-`.zdev/<area>/area.toml` stores its owning `branch`; optional `parent` and
+`.zdev/<area>/area.toml` stores its `branch`; optional `parent` and
 `base_commit` describe its managed base relationship. An explicit trunk area
 stores only `mode = "trunk"` and dynamically resolves its branch from
-`project.trunk`; it stores no branch, parent, or base commit. Several explicit
-trunk areas may share configured trunk, but an isolated area remains its
-branch's sole owner. Never infer mode from a branch name.
+`project.trunk`; it stores no branch, parent, or base commit. Several areas may
+share a branch, including areas with different modes. Never infer mode from a
+branch name.
 
 Use the default create form or `--branch` for isolated work. Use `--trunk` only
 when the user explicitly wants a personal/project area on configured trunk;

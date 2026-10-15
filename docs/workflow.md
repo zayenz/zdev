@@ -50,16 +50,16 @@ questions and unavailable required evidence prevent a passing result.
 
 ## Branch orientation
 
-Areas are isolated by default: one area owns one stored Git branch. An
+Areas use isolated mode by default, recording a Git branch for each area. An
 independent isolated area's effective base is project trunk; a dependent area
 names one parent area, whose branch becomes its effective base. Personal and
 project records may instead create an explicit trunk area with `--trunk`.
-Several explicit trunk areas may share configured trunk, but task ownership
-remains area- and task-specific.
+One thread per area is the default. Several areas may share a thread, worktree,
+and branch, while task ownership remains area- and task-specific.
 
 Initialization records trunk when HEAD names a branch; configure it before
 managed work when initialization occurred on detached HEAD. Isolated area
-creation records an owning branch and an initial base anchor when available. A
+creation records a branch and an initial base anchor when available. A
 trunk area stores no branch or anchor and resolves current configured trunk
 dynamically.
 

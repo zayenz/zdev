@@ -152,10 +152,10 @@ have open work and none is selected, show their tags and ask the user to
 choose; do not infer an area from unrelated chat history.
 
 For area planning interactions, report the selected area's mode, resolved
-required branch, and base diagnostics. An isolated area owns its stored branch;
-an explicit trunk area dynamically follows `project.trunk` and may share it
-only with other explicit trunk areas. Require the resolved branch before
-changing task or lifecycle state. Never request freshness or a managed rebase
+required branch, and base diagnostics. An isolated area uses its stored branch;
+an explicit trunk area dynamically follows `project.trunk`. One thread per
+area is the default, but several areas may share a thread, worktree, and branch.
+Require the resolved branch before changing task or lifecycle state. Never request freshness or a managed rebase
 for trunk mode; read-only interactions never rebase.
 
 For ordinary task work, use `branch_status.task_work.safe` as the branch gate.

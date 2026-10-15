@@ -2400,17 +2400,17 @@ fn trunk_area_create_projects_mode_and_allows_explicit_trunk_sharing() {
             "--title",
             "Collision",
             "--objective",
-            "Must remain exclusive.",
+            "Share trunk with other areas.",
             "--branch",
             "main",
         ],
     );
-    assert!(!collision.status.success());
-    let error = String::from_utf8_lossy(&collision.stderr);
     assert!(
-        error.contains("already owned by trunk area docs"),
-        "{error}"
+        collision.status.success(),
+        "{}",
+        String::from_utf8_lossy(&collision.stderr)
     );
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
 
     git(root, &["branch", "stable"]);
     let config_path = root.join(".zdev/config.toml");
@@ -2528,7 +2528,7 @@ fn trunk_task_workflows_resolve_config_and_isolate_shared_area_lifecycle() {
 }
 
 #[test]
-fn area_mode_parser_rejects_contradictions_and_legacy_owner_blocks_trunk() {
+fn area_mode_parser_rejects_contradictions_and_allows_shared_trunk() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -2563,11 +2563,12 @@ fn area_mode_parser_rejects_contradictions_and_legacy_owner_blocks_trunk() {
             "--trunk",
         ],
     );
-    assert!(!collision.status.success());
     assert!(
+        collision.status.success(),
+        "{}",
         String::from_utf8_lossy(&collision.stderr)
-            .contains("already owned by isolated area legacy-main")
     );
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
 
     fs::write(
         &metadata_path,
@@ -2757,8 +2758,13 @@ fn trunk_reconfiguration_requires_resolved_containment_or_explicit_divergence() 
     git(root, &["branch", "collision", "main"]);
     create_area(root, "isolated-owner", "collision");
     let collision = run_zdev(root, &["config", "trunk", "collision", "--allow-divergent"]);
-    assert!(!collision.status.success());
-    assert!(String::from_utf8_lossy(&collision.stderr).contains("cannot be shared"));
+    assert!(
+        collision.status.success(),
+        "{}",
+        String::from_utf8_lossy(&collision.stderr)
+    );
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+    json_output(root, &["config", "trunk", "divergent", "--allow-divergent"]);
     assert_eq!(fs::read(&config_path).unwrap(), divergent_config);
 
     git(root, &["branch", "-D", "divergent"]);
@@ -3442,7 +3448,7 @@ fn initialization_on_detached_head_explains_how_to_bind_trunk() {
 }
 
 #[test]
-fn explicit_branch_shorthand_is_canonicalized_before_storage_and_ownership_checks() {
+fn explicit_branch_shorthand_is_canonicalized_and_areas_can_share_it() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -3481,14 +3487,25 @@ fn explicit_branch_shorthand_is_canonicalized_before_storage_and_ownership_check
             "--title",
             "Duplicate",
             "--objective",
-            "Must not claim the same branch.",
+            "Share the same branch.",
             "--branch",
             "feature",
         ],
     );
-    assert!(!duplicate.status.success());
-    assert!(String::from_utf8_lossy(&duplicate.stderr).contains("already owned"));
-    assert!(!root.join(".zdev/duplicate").exists());
+    assert!(
+        duplicate.status.success(),
+        "{}",
+        String::from_utf8_lossy(&duplicate.stderr)
+    );
+    git(root, &["switch", "-q", "feature"]);
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+    for area in ["feature", "duplicate"] {
+        import_one_task(root, area);
+        assert_eq!(
+            json_output(root, &["next", area])["task"]["id"],
+            format!("{area}-001")
+        );
+    }
 }
 
 #[test]
@@ -3592,9 +3609,9 @@ fn area_binding_and_parent_configuration_validate_the_area_graph() {
     assert_eq!(status["branch_status"]["fresh"], true);
     assert_eq!(status["area"]["base_commit"], established_anchor);
 
-    let duplicate = run_zdev(root, &["area", "bind", "child-area", "root-area"]);
-    assert!(!duplicate.status.success());
-    assert!(String::from_utf8_lossy(&duplicate.stderr).contains("already owned"));
+    let shared = json_output(root, &["area", "bind", "child-area", "root-area"]);
+    assert_eq!(shared["branch"], "root-area");
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
     let self_parent = run_zdev(root, &["area", "parent", "root-area", "root-area"]);
     assert!(!self_parent.status.success());
     assert!(String::from_utf8_lossy(&self_parent.stderr).contains("own parent"));

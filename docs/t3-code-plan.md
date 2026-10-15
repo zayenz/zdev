@@ -108,8 +108,9 @@ coordination owns lifecycle and commits. Runtime handles already belong to the
 harness rather than `.zdev`.
 [Current orchestration contract](harness-orchestration.md).
 
-Use one ordinary coordinator thread per active area and authoritative checkout.
-Pin it while active and include the area in its title. Delegated threads represent
+Default to one ordinary coordinator thread per active area and authoritative
+checkout. Several areas may share a thread and checkout. Pin the thread while
+active and include the selected area in its title. Delegated threads represent
 worker attempts, so a single zdev task can have several T3 children. T3's message
 queue carries follow-up instructions; task dependencies and readiness continue to
 come from zdev. Settling a thread does not close an area or complete a task.

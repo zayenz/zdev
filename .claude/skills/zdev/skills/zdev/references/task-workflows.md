@@ -25,10 +25,10 @@ hypothesis dispatch stays guarded; an installed research route supplies separate
 run authorization and coordination.
 
 An isolated area uses its stored branch and managed base relationship. An
-explicit trunk area dynamically uses configured `project.trunk`, may share it
-with other explicit trunk areas, and never needs a rebase or freshness step.
+explicit trunk area dynamically uses configured `project.trunk` and never needs
+a rebase or freshness step. Several areas may share either branch.
 In both modes, `task_work.safe` and the exact selected area/task govern work;
-sharing trunk never grants ownership of another area's or unrelated paths.
+sharing a branch never grants ownership of another area's or unrelated paths.
 
 Task scope is semantic. The brief, outcome, done conditions, and explicit
 boundaries define it. Source, test, and planner paths identify expected seams;

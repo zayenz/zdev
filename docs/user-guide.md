@@ -62,6 +62,15 @@ conditions require a counted actual rebaseline. A shared environment blocker
 halts affected experimentation but permits counted in-scope supporting repair;
 resolution also requires rebaseline.
 
+Rebaseline normally refuses tracked changes and untracked files outside `.zdev`.
+If accepted code is clean but saved measurements remain untracked, declare their
+output path explicitly, for example `research run work rebaseline --run RUN
+--request baseline-1 --untracked-output results`. Repeat `--untracked-output`
+for additional repository-relative files or directories. This preserves those
+outputs without staging or ignoring them; other untracked paths and all tracked
+changes still block measurement. Only name generated output that does not change
+the code being measured. This option is not evidence of evaluator independence.
+
 Inspect durable progress with:
 
 ```sh

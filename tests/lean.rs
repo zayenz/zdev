@@ -16399,6 +16399,63 @@ fn research_run_counts_reserved_repairs_and_commands_and_preserves_limits_on_res
 }
 
 #[test]
+fn research_rebaseline_allows_only_explicit_untracked_outputs() {
+    let repository = local_experiment_fixture("printf 14");
+    let root = repository.path();
+    let started = start_research_run(root, &[]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    fs::create_dir(root.join("results")).unwrap();
+    fs::write(root.join("results/capture.json"), "saved measurement\n").unwrap();
+    let baseline = [
+        "research",
+        "run",
+        "work",
+        "rebaseline",
+        "--run",
+        identity,
+        "--request",
+        "with-captures",
+    ];
+    assert!(!run_zdev(root, &baseline).status.success());
+    assert!(!git_path(root, "evaluator-runs").exists());
+    let mut allowed = baseline.to_vec();
+    allowed.extend(["--untracked-output", "results"]);
+    fs::write(root.join("seed.txt"), "unfinished candidate\n").unwrap();
+    assert!(!run_zdev(root, &allowed).status.success());
+    fs::write(root.join("seed.txt"), "accepted\n").unwrap();
+    fs::write(root.join("new-source.rs"), "unfinished\n").unwrap();
+    assert!(!run_zdev(root, &allowed).status.success());
+    fs::remove_file(root.join("new-source.rs")).unwrap();
+    for path in [".", "..", "../results", "/tmp", ".git", ".zdev"] {
+        let mut invalid = baseline.to_vec();
+        invalid.extend(["--untracked-output", path]);
+        assert!(!run_zdev(root, &invalid).status.success(), "{path}");
+    }
+    let measured = research_run_action(
+        root,
+        identity,
+        "rebaseline",
+        &[
+            "--request",
+            "with-captures",
+            "--untracked-output",
+            "results",
+        ],
+    );
+    assert_eq!(
+        measured["accepted_baseline"]["baseline_samples"],
+        json!([14.0, 14.0])
+    );
+    assert_eq!(measured["consumed"]["work_attempts"], 1);
+    assert_eq!(measured["consumed"]["commands"], 3);
+    assert_eq!(
+        fs::read(root.join("results/capture.json")).unwrap(),
+        b"saved measurement\n"
+    );
+    assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"ee");
+}
+
+#[test]
 fn research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failure() {
     let repository = local_experiment_fixture("printf 14");
     let root = repository.path();

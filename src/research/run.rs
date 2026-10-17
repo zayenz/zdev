@@ -98,6 +98,9 @@ pub(crate) enum Action {
         run: String,
         #[arg(long)]
         request: String,
+        /// Explicit generated output path to preserve outside the clean-code check
+        #[arg(long = "untracked-output", value_name = "PATH")]
+        untracked_outputs: Vec<String>,
     },
     /// End this authorization once reservations and experiment checkpoints are settled
     End {
@@ -200,6 +203,8 @@ struct Reservation {
 #[serde(deny_unknown_fields)]
 struct Baseline {
     request: String,
+    #[serde(default)]
+    untracked_outputs: Vec<String>,
     head: String,
     settings: Settings,
     samples: Vec<f64>,
@@ -213,8 +218,13 @@ struct Baseline {
 
 pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOutput, ZdevError> {
     let mut dispatch_authorized = false;
-    if let Action::Rebaseline { run, request } = action {
-        rebaseline(root, area, run, request)?;
+    if let Action::Rebaseline {
+        run,
+        request,
+        untracked_outputs,
+    } = action
+    {
+        rebaseline(root, area, run, request, untracked_outputs)?;
     } else if !matches!(action, Action::Context | Action::Inspect) {
         let _lock = ZdevStateLock::acquire(root)?;
         match action {
@@ -1395,7 +1405,41 @@ fn unix_seconds() -> f64 {
         .as_secs_f64()
 }
 
-fn rebaseline(root: &Path, area: &str, identity: &str, request: &str) -> Result<(), ZdevError> {
+fn rebaseline(
+    root: &Path,
+    area: &str,
+    identity: &str,
+    request: &str,
+    untracked_outputs: &[String],
+) -> Result<(), ZdevError> {
+    let mut exclusions = Vec::new();
+    for output in untracked_outputs {
+        let path = Path::new(output);
+        if output.is_empty()
+            || !path
+                .components()
+                .all(|part| matches!(part, std::path::Component::Normal(_)))
+            || path.components().next().is_some_and(|part| {
+                part.as_os_str().eq_ignore_ascii_case(".git")
+                    || part.as_os_str().eq_ignore_ascii_case(".zdev")
+            })
+        {
+            return Err(ZdevError::new(
+                "Untracked output must be a non-empty repository-relative path outside .git and .zdev",
+            ));
+        }
+        exclusions.push(format!(":(top,literal,exclude){output}"));
+    }
+    let mut untracked_args = vec![
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+        "--",
+        ".",
+        ":(exclude).zdev",
+    ];
+    untracked_args.extend(exclusions.iter().map(String::as_str));
     {
         let _lock = ZdevStateLock::acquire(root)?;
         let mut run = authorized(root, area, identity)?;
@@ -1470,19 +1514,7 @@ fn rebaseline(root: &Path, area: &str, identity: &str, request: &str) -> Result<
             ],
         )?
         .is_empty()
-            || !git_output_bytes(
-                root,
-                &[
-                    "ls-files",
-                    "--others",
-                    "--exclude-standard",
-                    "-z",
-                    "--",
-                    ".",
-                    ":(exclude).zdev",
-                ],
-            )?
-            .is_empty()
+            || !git_output_bytes(root, &untracked_args)?.is_empty()
         {
             return Err(ZdevError::new(
                 "Actual rebaseline requires clean accepted code; retain or restore unfinished candidates first",
@@ -1508,6 +1540,7 @@ fn rebaseline(root: &Path, area: &str, identity: &str, request: &str) -> Result<
         invalidate(&mut run, "Actual baseline measurement is unfinished");
         run.rebaseline = Some(Baseline {
             request: request.to_owned(),
+            untracked_outputs: untracked_outputs.to_vec(),
             head: git_output(root, &["rev-parse", "HEAD"])?,
             settings,
             samples: Vec::new(),
@@ -1615,19 +1648,7 @@ fn rebaseline(root: &Path, area: &str, identity: &str, request: &str) -> Result<
             ],
         )?
         .is_empty()
-        || !git_output_bytes(
-            root,
-            &[
-                "ls-files",
-                "--others",
-                "--exclude-standard",
-                "-z",
-                "--",
-                ".",
-                ":(exclude).zdev",
-            ],
-        )?
-        .is_empty()
+        || !git_output_bytes(root, &untracked_args)?.is_empty()
     {
         run.reservations.get_mut(request).unwrap().settled = true;
         save(root, &run)?;

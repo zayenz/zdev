@@ -16,7 +16,7 @@ worker before dispatch. The task and stop semantics below remain common;
 the per-harness native adapters apply to ordinary
 requests.
 
-Codex serial research has a separate [research route](user-guide.md#serial-research-in-codex).
+Codex serial research has a separate [research route](research.md#serial-research-in-codex-and-claude-code).
 An explicit research-run authorization permits scoped generation after queue
 exhaustion and uses durable run accounting. The ordinary area loop below still
 stops at queue exhaustion and guards hypotheses.

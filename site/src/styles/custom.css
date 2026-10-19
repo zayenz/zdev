@@ -1,0 +1,53 @@
+/* Green follows the zdev mark; layout and type follow the sibling docs sites. */
+:root,
+:root[data-theme='dark'] {
+  --sl-font: 'Avenir Next', 'Century Gothic', sans-serif;
+  --sl-font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --sl-color-accent-low: #1e390f;
+  --sl-color-accent: #4cbb17;
+  --sl-color-accent-high: #c0e9a2;
+  --sl-color-black: #141b11;
+  --sl-color-gray-6: #20291c;
+  --sl-color-gray-5: #3b4835;
+  --sl-content-width: 44rem;
+  --sl-sidebar-width: 18rem;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e3f1d6;
+  --sl-color-accent: #2d7c10;
+  --sl-color-accent-high: #23590e;
+  --sl-color-black: #fffdf8;
+  --sl-color-gray-2: #45453c;
+  --sl-color-gray-3: #616055;
+  --sl-color-gray-6: #f0ede4;
+  --sl-color-gray-5: #d4d2c5;
+}
+/* Starlight otherwise expands the splash template's reading width. */
+:root[data-has-hero] { --sl-content-width: 44rem; }
+.site-title img { width: auto; height: 2.5rem; }
+.hero { display: block; padding-block: 1.5rem 0; }
+.hero .stack { text-align: start; gap: 1.5rem; }
+.hero .copy { align-items: flex-start; gap: 1rem; }
+.hero h1 {
+  font-family: var(--sl-font);
+  font-weight: 650;
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  line-height: 1.12;
+  letter-spacing: -0.04em;
+  max-width: 20ch;
+}
+.hero .tagline { max-width: 48ch; line-height: 1.65; font-size: 1.2rem; }
+.hero .actions { justify-content: flex-start; gap: 1rem 1.5rem; }
+.sl-markdown-content p { line-height: 1.75; }
+.sl-markdown-content h2 { letter-spacing: -0.025em; }
+.site-footer { border-top: 1px solid var(--sl-color-hairline); margin-top: 3rem; padding-block: 1.5rem; font-size: 0.875rem; }
+.site-footer a { color: var(--sl-color-accent-high); }
+:focus-visible { outline: 3px solid var(--sl-color-accent-high); outline-offset: 4px; }
+.sl-markdown-content table { display: block; max-width: 100%; overflow-x: auto; }
+@media (max-width: 49.99rem) {
+  .site-title img { height: 2rem; }
+  .hero h1 { font-size: clamp(2rem, 9vw, 3rem); }
+}
+@media (forced-colors: active) {
+  :focus-visible { outline-color: Highlight; }
+}

@@ -1,0 +1,80 @@
+---
+title: zdev
+description: Plan work with a coding agent, keep the decisions in Git, and verify each task before committing it.
+template: splash
+hero:
+  title: Keep the plan with the code.
+  tagline: Zdev gives coding agents a shared record of the brief, tasks, and decisions. A separate agent verifies each implemented task before it is committed.
+  actions:
+    - text: Try your first task
+      link: ./guides/getting-started/
+      icon: right-arrow
+    - text: Browse agent commands
+      link: ./commands/
+      variant: minimal
+---
+
+I use coding agents for work that takes several sessions. An agent can explore
+a design and implement it, but keeping the decisions and remaining work
+coherent between sessions takes care. I built zdev to keep that information in
+the repository, where the next session can read it.
+
+Zdev has two parts. A command-line tool stores and checks the work record. An
+installed skill tells your coding harness, the app you use to work with an
+agent, how to plan, implement, review, and commit the work. It uses the
+harness's model access and agent tools.
+
+## Start with one change
+
+An *area* groups work toward an objective. Its brief records what you agreed
+to build and the boundaries of the change. Individual Markdown tasks describe
+the work and how to check it, under `.zdev/` in your repository.
+
+In your coding-agent chat, you might start with:
+
+```text
+Use zdev to explore adding --name NAME to hello.py.
+Keep the current greeting when no name is supplied.
+```
+
+The agent works with you on a brief. You then ask for tasks, review the
+proposed bundle, and authorize implementation. For each task, a fresh verifier
+checks the result against the requirements and repository rules. Required
+corrections get a correction pass and recheck. After a pass, the coordinating
+agent records completion and commits the accepted changes.
+
+The [first-task tutorial](./guides/getting-started/) takes that example through
+installation, planning, approval, and a verified commit. It also shows where
+to find the record when you return in another session.
+
+## Find your next step
+
+- [Your first task](./guides/getting-started/) is a small worked tutorial, starting with an empty repository.
+- [Agent commands](./commands/) explains what you can ask the agent to do, with examples and stopping points.
+- [CLI reference](./cli/) documents terminal commands, with examples and options.
+- [Detailed reference](./guides/reference/) covers task format, branches, configuration, and harness support.
+- [Upgrade to 2.0](./guides/upgrading-to-2/) explains how to refresh existing integrations and what changes in review.
+
+## Where it runs
+
+The binary supports macOS and Linux on x86-64 and Arm64. Codex, Claude Code,
+OpenCode, Pi, Oh My Pi, and Google Antigravity have integrations. Delegation,
+parallel work, and continuation support vary by harness; check the
+[harness reference](./guides/user-guide/#harness-notes) before choosing a
+long-running workflow. Zdev does not provide its own model service.
+
+## Project status
+
+I maintain zdev in public as a personal tool. The whole project is vibe-coded,
+and I have spent little time reviewing the code myself. I use it a lot, and
+it has been useful for my work. I will make breaking changes when using it
+exposes a better design.
+
+This guide describes zdev 2.0 from source; the latest versioned binary release
+is 1.6.0. The [changelog](./changelog/) records version
+changes. After upgrading the binary, run `zdev skill install <harness> --force`
+to refresh its installed workflow. Zdev is
+[MIT licensed](https://github.com/zayenz/zdev/blob/main/LICENSE).
+
+The [introductory post](https://zayenz.se/blog/post/zdev-1-0/) explains why I
+built zdev and shows an example conversation with a coding agent.

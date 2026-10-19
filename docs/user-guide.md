@@ -4,156 +4,9 @@ Zdev keeps development work in small Markdown tasks and leaves agent execution
 to your coding harness. This guide takes one repository from installation to a
 completed zdev task.
 
-Research areas can mix ordinary tasks and hypothesis tasks. Configure an open
-area with `zdev area research <area> --from <settings.json>`, then review/import
-hypotheses through the normal task-bundle workflow. Append measured evidence
-with `zdev task research <area> <task> --from <result.json>`; omit `--from` to
-inspect settings or task evidence. The
-[research record contract](../skills/zdev/references/task-format.md#research-settings-and-hypothesis-evidence)
-contains complete JSON formats and examples.
-
-Hypotheses keep the normal `open`/`done` status. Interrupted evidence leaves a
-hypothesis open. Accepted, rejected, inconclusive, and failed-to-run evidence
-have distinct completion rules. A valid rejected experiment can complete
-without improving the metric. Completion does not accept candidate code or
-close the area. These commands validate supplied evidence without launching
-evaluators, retaining/restoring code, or proving recorded Git attestations.
-Codex and Claude Code install separate serial research routes using the managed local
-experiment commands. Ordinary Implement, Plan, Verify, Parallel and Loop stop
-before hypothesis dispatch; ordinary supporting tasks retain their workflow.
-
-### Serial research in Codex and Claude Code
-
-First configure a research policy with actual baseline samples and a shell
-command for every required correctness check. The brief defines allowed changes,
-experimental reasoning and measurement policy. Then explicitly authorize the
-installed skill, for example:
-
-```text
-$zdev run serial research in work within the brief, for 20 work attempts
-$zdev run serial research in work until interrupted, with target 5 and command limit 100
-$zdev resume the existing research run in work
-```
-
-State the scope and any attempt, command, cumulative command-time or wall-time
-limits. The default run has 20 coordinator work attempts. `until interrupted`
-removes that default; supplied limits and the directional target still apply.
-This authorization allows the coordinator to generate both supporting tasks
-and hypotheses inside the brief and frozen policy without reviewing every new
-bundle. Ordinary task creation outside a run uses exact bundle approval by
-default; you can delegate creation and import without confirmation.
-
-The coordinator reads the accepted baseline and prior rejected, inconclusive
-and failed lessons before proposing work. It commits admitted task records
-before candidate preparation. Supporting tasks use ordinary planning,
-implementation, independent verification and completion. Hypotheses use local
-`begin`, `evaluate` and `finalize`: the binary runs correctness/evaluator
-commands, records samples and costs, retains candidate Git references, and
-keeps or restores exact owned files. Only a proposed keep gets a fresh
-independent acceptance verifier; the coordinator checks discarded and terminal
-failed results. Each completion has its own commit and leaves the area open.
-
-Preparation, supporting work and same-task rework, repair, rerun, confirmation,
-reconciliation and actual rebaseline consume allowance before work starts.
-Every correctness/evaluator invocation counts before launch. Failure and
-interruption receive no refunds. Workers use resolved concrete model/effort
-settings retained for the run. Accepted supporting code or changed comparison
-conditions require a counted actual rebaseline. A shared environment blocker
-halts affected experimentation but permits counted in-scope supporting repair;
-resolution also requires rebaseline.
-
-Rebaseline normally refuses tracked changes and untracked files outside `.zdev`.
-If accepted code is clean but saved measurements remain untracked, declare their
-output path explicitly, for example `research run work rebaseline --run RUN
---request baseline-1 --untracked-output results`. Repeat `--untracked-output`
-for additional repository-relative files or directories. This preserves those
-outputs without staging or ignoring them; other untracked paths and all tracked
-changes still block measurement. Only name generated output that does not change
-the code being measured. This option is not evidence of evaluator independence.
-
-Inspect durable progress with:
-
-```sh
-zdev research run work context --format json
-zdev research experiment work work-001 inspect --format json
-zdev research experiment work work-001 recover --format json
-```
-
-A new session recovers admissions, reservations, unfinished measurements and
-finalization before new dispatch. Resume retains the original run ID, scope,
-target, deadline and consumed resources. Unresolved measurements are not
-relaunched. Task records preserve measurements and lessons, and Git preserves
-accepted code and rejected candidates. If the old conversation lacks concrete
-worker choices, the coordinator explains that and resolves fresh choices before
-dispatch.
-
-Codex uses the actual exposed native goal tools for continuation. It preserves
-another unfinished goal. If native inspection proves clear but creation is
-unavailable, it performs at most one foreground work-item iteration and states
-that limit; uncertain native state blocks. It never claims background execution
-or completes an unfinished objective because of a transient blocker or empty
-queue. A queue with no ready work permits more scoped proposals while allowance
-remains. Target, budget, interruption and shared blocker stop distinctly; none
-implicitly closes the area or proves its optimization objective achieved.
-
-The [installed Codex contract](../skills/zdev/references/research.md) gives the
-ordered coordinator operations. The [installed Claude contract](../.claude/skills/zdev/skills/zdev/references/research.md)
-uses `zdev-research` with structured authorization, a fresh invocation identity
-and retained concrete profiles. Pause/continue of a live workflow is supported.
-After stop or failure, use a new resume invocation with the same durable run;
-replaying a stopped script can replay a cached reservation before restarting a
-worker. When packaged execution is unavailable, complete at most one foreground
-work-item iteration and report the required continuation. Claude does not use
-its separate `/goal` command for this route. Other harnesses expose research
-records and local commands without this installed execution route. Deterministic
-installation and command scenarios validate the contracts; authenticated live
-Codex and Claude acceptance remain separate.
-
-### Rolling research in Codex and Claude Code
-
-Explicitly request rolling work and its capacities:
-
-```text
-$zdev run rolling research in work within the brief, with two workers and one measurement slot, for 20 work attempts
-$zdev resume the existing rolling research run in work
-```
-
-This authorizes run-owned source worktrees within those limits. Ordinary Parallel
-keeps its finite batch authorization. Each native planner, implementer, verifier
-and delegated finding checker consumes a counted `reserve --worker-slot` claim.
-The coordinator uses the tighter run/native capacity, refills when a role finishes
-while siblings remain active, and starts each source from current accepted HEAD.
-One measurement slot permits overlapping source preparation and one evaluator.
-
-Returning sources enter one destination acceptance lane. Stale candidates
-reconcile and remeasure. The owner gets a counted confirmation role for its fresh
-destination verifier. Checked rework uses a counted Prepare to withdraw only
-that candidate's integrated code to accepted HEAD before source edits. Unrelated
-destination changes and historical evidence survive. Recovery finishes recorded
-withdrawal without authorizing another worker; repair needs new measurements,
-integration and independent verification.
-
-Budget, target, interruption, lost capacity and shared failure stop affected
-dispatch. Resume preserves costs and deadlines and rechecks actual worker/process
-ownership. Unknown workers and measurements keep their slots. Shared conditions
-or accepted supporting code require an actual counted rebaseline before paused
-candidates reconcile and measure. Required advanced plans and concrete worker
-settings remain unchanged through rework and recovery; missing evidence stops
-that candidate. Cleanup requires a stopped, durably completed, run-owned source
-and retained cleanup authority.
-
-Claude uses its installed zdev-research workflow with execution rolling,
-worker_limit and measurement_limit at start. Serial remains the default. Resume
-the same durable run with a fresh invocation_id, execution, cleanup,
-frozen_profiles, retained_plans and retained_candidates from the prior report.
-All native roles consume worker-slot claims; asynchronous command mediation
-lets one actual evaluator overlap source preparation. The workflow also counts
-all native calls, including mediation and composed ordinary helpers, toward
-Claude's documented 1,000-agent workflow cap. It stops refill at 900 calls and
-retains room to drain and report. Continue with a fresh invocation; stopped-script
-replay cannot grant fresh dispatch permission. Deterministic tests exercise
-installed workflows against local public commands. Credentialed Claude
-execution remains separate live acceptance.
+For a short worked example, follow [Your first zdev task](getting-started.md).
+The [command guide](commands/index.md) explains the requests you make in chat.
+For experiments and measured optimization, see the [research guide](research.md).
 
 ## 1. Install zdev
 
@@ -411,7 +264,7 @@ may proceed directly to the exact bundle review without a separate research or
 full-brief pass. You approve that exact bundle or delegate creation and import.
 The harness works on the recorded branch, runs proportionate tests, verifies
 independently, completes the task, and
-commit the accepted changes. Zdev does not create or switch the branch for you.
+commits the accepted changes. Area creation records the branch; it does not switch it for you.
 
 ## 5. Explore and discuss the objective
 
@@ -438,13 +291,15 @@ creation. For non-trivial work, the normal next step is:
 Use zdev to discuss the scheduling brief before we create tasks.
 ```
 
-Implementation also stays in the current checkout by default. You can
-explicitly choose a separate worktree for one task. Zdev then keeps the area
-checkout authoritative and uses an ordinary source branch and commit to carry
-the worker's inspected changes back. The worker edits and validates only its
-assigned worktree; independent verification, task records, completion, and the
-single final zdev commit stay in the area checkout. Conflicts and unfinished
-work preserve both locations for recovery.
+For implementation, the harness reuses a workspace you explicitly selected.
+Otherwise it uses a worktree as the authoritative checkout. Check the workspace
+reported before implementation and inspect results there. Read-only exploration
+starts in the current checkout.
+
+You can also request a separate source worktree for one task. The worker edits
+and validates there; integration, independent verification, task completion,
+and the final accepted commit happen in the authoritative area checkout.
+Conflicts and unfinished work preserve both locations for recovery.
 
 In Codex, you can explicitly request a **parallel batch** of at least two named
 ready tasks. Before it starts, choose the finite task list, destination branch,
@@ -535,6 +390,20 @@ frontier in stable task order.
 
 ## 7. Run the task loop
 
+In your coding-agent chat, ask for one ready task:
+
+```text
+Use zdev to implement the next task in scheduling.
+```
+
+The harness selects a task, implements it, runs the agreed validation, and asks
+a fresh agent to verify it. After a pass, it records completion and commits
+the accepted changes. One implementation request stops after that task. Ask for
+[goal or loop](commands/loop.md) when you want continuation across tasks.
+
+The remaining commands in this section let you inspect or perform parts of
+that workflow manually.
+
 Inspect the branch relationship and next ready task directly when needed:
 
 ```sh
@@ -595,16 +464,29 @@ outcome or acceptance criteria, explicit user constraints, and unclear
 ownership still require the user. Pending reviewed task bundles retain exact
 revision approval.
 
-After both checks pass, mark the task done and commit:
+The installed workflow handles completion and staging after verification. If
+you are performing those steps manually, mark the task done and stage the
+accepted source changes:
 
 ```sh
 zdev task done scheduling scheduling-001 \
   --summary "Implemented and independently verified the scheduling model." \
   --validation "Focused model tests passed."
 
-git add <explicit-implementation-path>... \
-  .zdev/scheduling/tasks/001-add-the-scheduling-model.md \
+git add <explicit-implementation-path>...
+```
+
+For a `project` or `pull-request` record, also stage the changed task file and
+index. Use the actual task path returned by zdev:
+
+```sh
+git add .zdev/scheduling/tasks/001-add-the-scheduling-model.md \
   .zdev/scheduling/TASKS.md
+```
+
+For a `personal` record, leave `.zdev` excluded. Then commit the staged changes:
+
+```sh
 zdev commit -m "feat: add scheduling model"
 ```
 

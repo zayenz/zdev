@@ -4,6 +4,10 @@ Use verify for an independent check of an existing implementation against its
 task. Name both the area and the task ID. The task must be the area's current
 ready task and the checkout must be safe for task work.
 
+Verification includes code review against the [coding guidelines](../coding-guidelines.md)
+and the task's required validation. It is the task-specific acceptance check;
+[standalone Review](review.md) checks a change without accepting a task.
+
 Replace the example task ID with your current ready task.
 
 ## Examples
@@ -37,5 +41,7 @@ after its own independent verification. Use [recover](recover.md) if the work
 was interrupted partway through that flow.
 
 For a diff or code boundary that is not the current task, use [audit](audit.md)
-or the available [standalone review](review.md) route. See
+or [standalone review](review.md), if your installed integration supports it. See
 [verification](../workflow.md#verification) for the detailed acceptance rules.
+The [Review and verification guide](../review-and-verification.md) includes an
+example of the report you receive.

@@ -13,6 +13,9 @@ being shown here.
 For a feature with agreed behavior, follow
 [A feature from idea to commit](feature-walkthrough.md).
 
+You can run terminal commands below yourself or ask your agent to run them and
+explain the result.
+
 ## Define what improvement would mean
 
 Start with exploration and discussion:
@@ -111,6 +114,19 @@ The run stops new work when its allowance or target is reached, you interrupt
 it, or a blocker prevents progress. It reports the reason, accepted changes,
 experimental results, and remaining allowance. Using the budget does not prove
 that the broader performance objective is achieved.
+
+A report after interruption might look like this:
+
+```text
+Stopped at your request; no new experiments started.
+Accepted: one measured improvement, independently verified and committed.
+Rejected: one candidate, with its changes restored and lesson recorded.
+Allowance remaining: 12 work attempts and 64 evaluator/correctness commands.
+Next: inspect the evidence and decide whether to resume this run.
+```
+
+This is an illustrative summary. Actual reports should include the measured
+results and any unfinished work or missing evidence.
 
 Inspect progress in the terminal:
 

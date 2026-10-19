@@ -33,6 +33,10 @@ commit the accepted files.
 
 ## Coding and review guidance
 
+The [Coding guidelines](coding-guidelines.md) introduce the common
+expectations. [Review and verification](review-and-verification.md) explains
+the agent requests and their stopping points.
+
 Installed integrations share one [coding guide](../templates/zdev/references/coding.md).
 Planners describe responsibilities and changed contracts in the existing plan;
 implementers reassess those boundaries and check names, effects, structure, and
@@ -318,13 +322,15 @@ conventions, maintainability, unrelated changes, and risks at touched
 interfaces. It runs the task's validation and returns either a pass on both
 axes or concrete, classified findings.
 
+Verification includes code review of design, naming, and readability against
+the shared coding guidelines. Passing tests alone does not establish acceptance.
+
 Independence comes from the fresh, read-only context, not from storing an
 execution transcript.
 
 ## Rework
 
-Verification also reviews design and readability against the shared coding
-guidance. Required corrections have a location, consequence, and proportionate
+Required corrections have a location, consequence, and proportionate
 remedy; optional suggestions remain feedback and never block acceptance.
 
 Use one full review, one correction pass, and one focused recheck. The recheck

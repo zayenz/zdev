@@ -11,6 +11,9 @@ project; adapt the prompts and validation to your repository. It assumes zdev
 and your harness integration are installed and the repository is initialized.
 See [Your first task](getting-started.md) for that setup.
 
+You can run the terminal commands below yourself or ask your agent to run them.
+The response examples are illustrative summaries, not fixed output formats.
+
 ## Give the idea an area
 
 Start on the project's normal base branch with a safe checkout. Create a
@@ -38,6 +41,14 @@ should describe the intended result and identify choices that still need you.
 It should use existing argument handling and serialization facilities where
 suitable. The request does not justify replacing them.
 
+A first response might be:
+
+```text
+Brief saved to .zdev/result-export/brief.md. Default text output is preserved.
+Still to decide: JSON shape and whether file output may overwrite a file.
+No tasks created yet.
+```
+
 ## Discuss the behavior before the task split
 
 Ask the agent to challenge the draft:
@@ -64,6 +75,10 @@ For this example, suppose the discussion settles these choices:
 These decisions belong in the brief. Resolve project-specific issues too,
 such as how duplicate column names map to object keys, before promising a
 JSON representation. Internal helper names can wait for implementation.
+
+Expect concrete questions, such as: "Should an existing output file be an
+error? I recommend that for this change so export cannot overwrite data
+silently." Once settled, the agent reports the decisions saved in the brief.
 
 ## Review and import the tasks
 
@@ -100,6 +115,10 @@ records the approved work; it does not start implementation. With project or
 pull-request records, normal import also commits the planning records.
 Personal records stay local to the clone.
 
+An import report might say: "Imported result-export-001 (JSON output) and
+result-export-002 (file output, depends on 001). Task 001 is ready;
+implementation has not started." Use the actual IDs from your run.
+
 ## Implement one task and verify it independently
 
 Start with one task so you can inspect the result:
@@ -135,6 +154,16 @@ existing implementation explicitly and reports a result without committing it.
 After verification passes, the coordinator records completion and commits the
 accepted changes with a `Zdev-Change-Id` trailer. Expect a report naming the
 task, validation, verification result, checkout, and commit.
+
+For example:
+
+```text
+Completed result-export-001: JSON output, help, and usage documentation.
+Validation: agreed CLI checks passed; default text output preserved.
+Independent verification: passed requirements and coding-guideline review.
+Commit: <commit-id>, in the reported result-export checkout.
+Next: result-export-002 is ready. Stopped after one task.
+```
 
 In that checkout, inspect the record and commit:
 

@@ -16,6 +16,25 @@ Examples use an area named `greeting` and, where needed, a task named
 `greeting-001`. Create the area and import its tasks before running commands
 that refer to them. The [tutorial](../getting-started.md) walks through setup.
 
+## Ask the agent to run a command
+
+You can ask an agent with terminal access to run any CLI example in this
+reference. It needs zdev installed and access to the repository, just as you
+would. For example, instead of running `zdev status greeting`, ask:
+
+```text
+Use zdev to show the status of greeting and explain what is ready next.
+```
+
+The agent runs the relevant commands and summarizes their output. It might
+report: "One task is done and one is ready. The area's branch is safe for
+task work." That reports state; it does not start implementation. You can also
+paste an exact command and ask the agent to run it. The same approval and
+completion requirements apply when an agent changes records on your behalf.
+
+`zdev goal greeting` still only renders continuation context when run by an
+agent. To start execution, ask it to implement a task or loop through the area.
+
 ## Find a command
 
 | Command | Use it to |

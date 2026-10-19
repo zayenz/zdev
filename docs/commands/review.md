@@ -2,12 +2,13 @@
 
 Use standalone review when you want feedback on local changes, a commit range,
 branch, or code boundary. The standalone review route is being added to the
-2.0 integrations. Until your installed integration includes it, use
+integrations. Until your installed integration includes it, use
 [audit](audit.md) for a bounded code inspection.
 
 ## Examples
 
-Paste either request into your coding-agent chat:
+When your installed integration supports Review, paste either request into
+your coding-agent chat:
 
 ```text
 Use zdev review to check the local changes for area greeting.
@@ -20,7 +21,8 @@ Report required corrections separately from optional suggestions.
 
 ## What happens
 
-The agent selects staged, unstaged, and relevant untracked local changes by
+With the standalone route available, the agent selects staged, unstaged, and
+relevant untracked local changes by
 default. You can name a different target, such as `hello.py` or a commit range.
 It states what it will inspect. If the checkout has no local changes and no
 other target was named, it reports that and stops.
@@ -40,3 +42,6 @@ Use [verify](verify.md) when you need acceptance evidence for the current ready
 task. Use [implement](implement.md) to carry an authorized task through fixes,
 verification, and commit. The [workflow reference](../workflow.md#coding-and-review-guidance)
 describes the shared review standards.
+
+The [Review and verification guide](../review-and-verification.md) explains how
+these requests differ. Both assess the [coding guidelines](../coding-guidelines.md).

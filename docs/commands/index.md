@@ -6,10 +6,10 @@ explains where that interaction stops.
 
 Zdev has two interfaces. The installed skill interprets chat requests such as
 `Use zdev to implement the next task in greeting.` The `zdev` binary runs shell
-commands such as `zdev status greeting`. Chat requests ask the agent to do work;
-shell commands inspect or change specific records. They are not interchangeable.
-For example, the shell command `zdev goal greeting` prints work context; it does
-not start an agent loop.
+commands such as `zdev status greeting`. You can run those commands yourself or
+ask the agent to run them and explain the result. Agent workflows also coordinate
+planning, implementation, and review. For example, running `zdev goal greeting`
+prints work context; asking the agent to loop through greeting starts execution.
 
 ## Examples
 
@@ -44,7 +44,7 @@ commits one task. You can stop after any of these steps and continue later.
 | Define the outcome and scope | [Explore](explore.md) | An area brief |
 | Challenge an existing brief | [Discuss](discuss.md) | Clearer decisions in the brief |
 | Find worthwhile changes | [Improve](improve.md) | Prioritized candidate work |
-| Review a change or code boundary | [Review](review.md) | Checked corrections; route being added to 2.0 |
+| Review a change or code boundary | [Review](review.md) | Checked feedback; availability depends on the installed integration |
 | Inspect a boundary for defects | [Audit](audit.md) | Independently checked findings |
 | Answer one uncertain question | [Investigate](investigate.md) | Evidence and a conclusion |
 | Split agreed work | [Create tasks](tasks.md) | A reviewed task bundle and imported tasks |
@@ -70,3 +70,7 @@ That delegates bundle approval and authorizes one implementation. A request to
 create tasks alone stops after import. Read the [getting started guide](../getting-started.md)
 for a complete first run and the [workflow reference](../workflow.md) for Git
 handling, verification, and completion rules.
+
+[Review and verification](../review-and-verification.md) explains the two scopes.
+Verification includes code review against the [coding guidelines](../coding-guidelines.md)
+as well as the task's required validation.

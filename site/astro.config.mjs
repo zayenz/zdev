@@ -31,7 +31,8 @@ export default defineConfig({
         'guides/areas-and-briefs', 'guides/working-with-tasks',
         'guides/discussion-and-research', 'guides/feature-walkthrough',
         'guides/research-walkthrough',
-        'guides/longer-runs',
+        'guides/longer-runs', 'guides/coding-guidelines',
+        'guides/review-and-verification',
       ] },
       { label: 'Agent commands', items: [
         { label: 'Choose an agent command', slug: 'commands' },

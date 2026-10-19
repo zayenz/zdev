@@ -7,6 +7,7 @@ const root = resolve(site, '..');
 const guides = [
   'areas-and-briefs', 'working-with-tasks', 'discussion-and-research',
   'feature-walkthrough', 'research-walkthrough', 'longer-runs',
+  'coding-guidelines', 'review-and-verification',
   'getting-started', 'user-guide', 'workflow', 'task-format', 'area-lifecycle',
   'area-loop', 'trunk-area-mode', 'derived-work-handoffs', 'config-command',
   'worker-profiles', 'task-complexity-routing', 'harness-orchestration',

@@ -9,6 +9,11 @@ This tutorial adds a `--name` option to a small Python program. The change is
 deliberately small so you can follow the whole process, including what you
 approve and what the agent does next.
 
+Terminal commands in this guide can also be requested from an agent with
+terminal access. It needs the same tools and repository access. The chat
+examples show when you are asking it to coordinate a workflow rather than
+run one command.
+
 ## Install zdev
 
 Zdev does not require Python. To follow its agent workflow, you need Git and

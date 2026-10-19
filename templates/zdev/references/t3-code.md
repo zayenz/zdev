@@ -11,7 +11,8 @@ zdev loop, Claude JavaScript workflow, or native worker dispatch alongside it.
 
 Resolve the selected ordinary zdev intent. Load `task-workflows.md` for
 implementation, verification, and planning, plus `implement.md`, `verify.md`,
-or `verify-workflow.md` for the selected operation. Load `audit.md` for audits.
+or `verify-workflow.md` for the selected operation. Load `audit.md` for audits
+and **Standalone review** in `review.md` for `zdev review`.
 For goal/loop, use **Continue an area** below rather than the native
 `area-loop.md`. For plan-only work, use **Plan only** below rather than the
 native dispatch-spec route. Other intents keep their shared instructions;
@@ -313,5 +314,7 @@ Keep coordination, `.zdev`, staging, commits, and delegation with the parent.
   `summary`, `findings`, and `escalation` under the shared semantic verifier
   schema. Report validation-written files under its existing rules. For audit
   work, use the shared textual audit envelope instead of task-verifier JSON.
+  Standalone review uses the textual report in **Standalone review** in
+  `review.md` and requires no task snapshot.
 
 {{repository_guidance}}

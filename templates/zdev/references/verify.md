@@ -57,7 +57,8 @@ Require the verifier to:
    agreed level, or reward a larger test suite when it adds cost without
    relevant confidence.
 5. **Inspect the touched code:** assess every applicable coding-guidance section,
-   including callers and both sides of changed contracts. Check for unrelated
+   including the explicit naming and decomposition check in **Full review**,
+   callers, and both sides of changed contracts. Check for unrelated
    changes, repository-convention violations, misleading names or structure,
    regressions, and unsafe behavior at touched interfaces. Distinguish exhibited
    failures, latent hazards, and cosmetic differences; seek counterevidence.
@@ -89,11 +90,11 @@ Require the verifier to:
 
 The verifier returns the four-field semantic JSON object defined by
 the task workflow contract: `verdict`, `summary`, `findings`, and `escalation`.
-Its summary carries checked locations and validation conclusions. It uses
-verdict `pass` when the task and touched code pass
-all required checks, `rework` for concrete implementation defects or
-task-owned validation writes, and `blocker` for ambiguous Git ownership,
-unsafe or unavailable required evidence, or a user-owned design, scope, or
+Its summary carries checked locations, the naming and decomposition assessment,
+and validation conclusions. It uses verdict `pass` when the task and touched
+code pass all required checks, `rework` for required behavior, naming, or
+decomposition corrections or task-owned validation writes, and `blocker` for
+ambiguous Git ownership, unsafe or unavailable required evidence, or a user-owned design, scope, or
 testing decision. Put concrete corrections in `findings`. Only `rework` may
 request `advanced-implementer`; otherwise `escalation` is `none`. Optional
 suggestions are labelled in `summary` and never placed in `findings` or used to

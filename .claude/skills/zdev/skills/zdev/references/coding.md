@@ -30,8 +30,9 @@ using existing plans, handoffs, and results.
 
 Reduce the reader's cognitive load. Prefer the simplest design that handles
 current requirements. Add abstractions when their benefit earns their cost.
-Readability is part of correctness and acceptance. Use judgment: each rule
-should improve the code in its context.
+Readability is part of correctness and acceptance. Apply each relevant rule to
+the changed code; a passing test suite does not waive naming or decomposition
+requirements. Use judgment to choose a clear design within the approved scope.
 
 Use the project's formatter and established style. Evaluate existing patterns
 against their purpose before copying them. Refactor for readability when it
@@ -49,8 +50,15 @@ types, plurals for collections, and singulars for elements.
 Use the fewest words that remain clear in context. Omit context supplied by the
 receiver or enclosing code. Use established abbreviations and corresponding
 names for paired operations. Name conditions and constants for their meaning.
-Check names at their callers. Explain consequential interface choices when
-needed; ordinary identifiers need careful review, not individual check lines.
+Check names at their callers: the reader should understand the operation,
+returned value, or condition without opening its implementation. Rename an
+identifier when its meaning depends on tracing assignments or remembering an
+unrelated detail. Use domain terms consistently; distinguish values with
+different roles. Generic words such as `data`, `process`, or `manager` need a
+clear meaning in their immediate context. Make names match actual effects and
+guarantees, including whether an operation validates, persists, or merely checks.
+Explain consequential interface choices when needed; ordinary identifiers need
+careful review, not individual check lines.
 
 ### Data and contracts
 
@@ -84,9 +92,19 @@ pagination consistent with that ordering.
 
 Read top down from the entry point: the code should tell a story. Put the main
 operation before its details where project conventions permit. Split code into
-manageable parts without excessive indirection. Extract a function when its
-name and boundary make the code easier to understand. A long, cohesive function
-is fine. Keep related calculations and invariants together.
+parts with a clear responsibility and a name that explains it. When one
+function mixes orchestration with detailed parsing, validation, domain decisions,
+storage, or rendering, extract the distinct work so the main sequence is readable
+at one level of detail. Split a module when understanding one responsibility
+requires navigating unrelated responsibilities. Judge the boundaries by their
+inputs, results, effects, and invariants, rather than line counts.
+
+Keep related calculations and invariants together. Retain a long function only
+when it performs one cohesive operation and splitting it would obscure that
+operation or scatter its state. Prefer a local function or helper before adding
+a layer, interface, or file. Each extraction must reduce the reader's work;
+wrappers that merely forward arguments and fragments with no useful name add
+indirection without earning it.
 
 Separate domain decisions from storage and presentation where useful. Distinct
 responsibilities do not automatically need separate layers or files. Make
@@ -154,8 +172,14 @@ toolchain locations once. Use its actual project configuration and build flags.
    A bug fix does not automatically need a permanent regression test. Use nearby
    test style when one adds useful confidence; existing checks or a temporary
    reproduction may be enough at the agreed testing level.
-2. Read the finished change from its entry point. Check requirements, names,
-   structure, callers, and both sides of changed contracts against this guidance.
+2. Read the finished change from its entry point and check requirements, callers,
+   and both sides of changed contracts. Complete a **naming and decomposition
+   check**: read changed names at their uses, trace the main call sequence, and
+   inspect each changed function and module for mixed responsibilities under
+   **Names** and **Structure and control flow**. Correct unclear names and split
+   responsibilities before claiming readiness. In the existing summary, explain
+   consequential naming and boundary choices, including any retained long or
+   mixed operation; ordinary local edits need no separate checklist or report.
 3. Run agreed formatting, linting, and validation, including relevant tests after
    a refactor. Finish when the requested behavior, readability, and required
    validation are demonstrated. Report missing evidence and limitations honestly

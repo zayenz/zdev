@@ -17,6 +17,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Explore an objective** — start or revise an area and its brief; aliases: “wayfind,” “shape” | [references/shape-work.md](skill://zdev/references/shape-work.md) |
 | **Discuss the brief** — challenge or sharpen an existing brief; alias: “grill” | [references/discuss.md](skill://zdev/references/discuss.md) |
 | **Improve** — broadly inspect the codebase and propose candidate work | [references/improve.md](skill://zdev/references/improve.md) |
+| **Review** — `zdev review` checks the requested changes or code boundary; defaults to local changes | **Standalone review** in [references/review.md](skill://zdev/references/review.md) |
 | **Audit** — inspect a named boundary and return only independently checked findings | [references/audit.md](skill://zdev/references/audit.md) |
 | **Investigate** — answer one named checkable uncertainty through research, diagnosis, or a prototype | [references/investigate.md](skill://zdev/references/investigate.md) |
 | **Create tasks** — draft, review, and import an approved task split; aliases: “tasks,” “to tasks” | [references/to-tasks.md](skill://zdev/references/to-tasks.md) and [references/task-format.md](skill://zdev/references/task-format.md) |
@@ -174,7 +175,10 @@ Read [coding guidance](skill://zdev/references/coding.md) before planning, autho
 reviewing code. Names explain intent, structure separates responsibilities, and
 values make dependencies explicit; readability contributes to correctness.
 Apply **Design** and **Completion** when authoring and **Review** when assessing
-code, with **Code standards** applying to both. Keep the work
+code, with **Code standards** applying to both. Naming and decomposition are
+acceptance requirements: implementers complete the naming and decomposition
+check before claiming readiness; reviewers inspect them explicitly before a
+pass. Passing tests alone does not satisfy these requirements. Keep the work
 proportional to the task and its agreed testing level.
 
 Give every relevant worker the supplied installed coding guidance path and tell
@@ -215,9 +219,9 @@ rewrite `.zdev/workers.toml` or an installed integration.
 
 Resolve workers before their first dispatch. This includes implementers,
 required planners, verifiers used for implementation or standalone verify,
-audit verifiers, task-bundle challenge reviewers, and workers already requested
-for delegated discussion or investigation. A profile choice by itself never
-adds delegation. When an authorized continuation or parallel batch is already
+standalone review and audit verifiers, task-bundle challenge reviewers, and
+workers already requested for delegated discussion or investigation. A profile
+choice by itself never adds delegation. When an authorized continuation or parallel batch is already
 active, its handoff retains the frozen concrete selections.
 
 Report the selected profile and requested concrete model and effort at the
@@ -408,7 +412,7 @@ selected profile with `hub` when possible; one valid standard-work escalation
 starts an advanced replacement without replanning. The coordinator retains
 task completion and commits.
 
-Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+For task work, before the first worker dispatch, use `zdev config profile dispatch-spec` for
 OMP and freeze all five resolved role rows. Select only a rendered task agent
 whose profile-qualified model and thinking metadata exactly match the frozen
 row; report an unavailable definition before dispatch. Preserve that selection
@@ -451,6 +455,6 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 Coding guidance file: "/Users/zayenz/projects/zdev/.omp/skills/zdev/references/coding.md"
 
-Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
+Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion and finish its naming and decomposition check before claiming readiness. Before verification, audit, or code review, read Code standards and Review and perform the explicit naming and decomposition check before a pass. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
 
 The [task format](references/task-format.md) defines imported task bundles.

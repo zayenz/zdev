@@ -1030,7 +1030,7 @@ fn realize_templates(
     let coding_path_json = serde_json::to_string(&coding_guidance_path.to_string_lossy())
         .map_err(|error| ZdevError::new(format!("Cannot render coding guidance path: {error}")))?;
     let mut repository_guidance = format!(
-        "{}\n\n## Coding guidance\n\nCoding guidance file: {coding_path_json}\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.",
+        "{}\n\n## Coding guidance\n\nCoding guidance file: {coding_path_json}\n\nBefore planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion and finish its naming and decomposition check before claiming readiness. Before verification, audit, or code review, read Code standards and Review and perform the explicit naming and decomposition check before a pass. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.",
         repository_guidance(guidance)
     );
     if harness == Harness::Codex {

@@ -189,13 +189,21 @@ project instructions and explicit user requirements determine how they apply.
 
 Independent review checks readability as well as behavior. Required corrections
 need checked locations and concrete consequences; optional suggestions do not
-block acceptance. Ordinary implementation allows one correction pass followed
-by a focused recheck. If required corrections remain, the harness preserves the
-work and reports the decision needed to continue.
+block acceptance. Implementers check names and responsibility boundaries before
+claiming readiness; reviewers assess them explicitly before a pass. Passing
+tests does not waive these requirements. Ordinary implementation allows one
+correction pass followed by a focused recheck. If required corrections remain,
+the harness preserves the work and reports the decision needed to continue.
 The guidance also watches for death loops: repeated failed fixes, unchanged
 retries, or task splitting without implementation progress. A retry needs a
 concrete changed approach; repeated failure preserves the work and reports
 what is needed to continue.
+
+Ask the harness for `zdev review` to review local changes, or supply a branch,
+commit range, files, or code boundary. This read-only skill route works without
+`.zdev` and reports checked findings, including naming and decomposition issues.
+Use **Verify** to assess an explicit ready task for acceptance. `zdev review` is
+a harness request, not a binary subcommand.
 
 The skill is the normal way to use zdev from a coding harness. It is installed
 by the same binary and uses the same `.zdev` task record.

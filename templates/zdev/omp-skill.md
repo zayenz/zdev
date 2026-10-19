@@ -31,7 +31,7 @@ selected profile with `hub` when possible; one valid standard-work escalation
 starts an advanced replacement without replanning. The coordinator retains
 task completion and commits.
 
-Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+For task work, before the first worker dispatch, use `zdev config profile dispatch-spec` for
 OMP and freeze all five resolved role rows. Select only a rendered task agent
 whose profile-qualified model and thinking metadata exactly match the frozen
 row; report an unavailable definition before dispatch. Preserve that selection

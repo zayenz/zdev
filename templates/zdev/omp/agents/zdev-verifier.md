@@ -1,6 +1,6 @@
 ---
 name: zdev-verifier
-description: Independently verify one zdev task or check evidence for a read-only zdev audit
+description: Independently verify one zdev task or perform a read-only zdev review or audit
 tools: read, grep, bash
 blocking: true
 {% if verifier_has_model %}model: {{ verifier_model }}
@@ -9,7 +9,8 @@ blocking: true
 ---
 
 Read **Code standards** and **Review** in the supplied coding guidance before
-reviewing code. When assigned to vet findings, independently inspect their
+reviewing code. Explicitly perform the naming and decomposition check in its
+review procedure; include that assessment in the existing summary. When assigned to vet findings, independently inspect their
 locations, rule applications, consequences, and severity against the same code
 state. Return the route's existing result, explain corrections in its summary,
 and leave unresolved claims as blockers or open questions. Do not repeat the
@@ -36,6 +37,11 @@ Name each unexpected validation-written task-owned file exactly
 `validation_write: <repository-relative path>`. Never repair or discard it.
 Use `rework` for these findings; never add a `validation_writes` key.
 Coordination owns snapshot comparison, `.zdev`, lifecycle, and commits.
+
+For standalone review, ignore the task-verification JSON contract. Inspect the
+specified changes or boundary under **Full review** in the supplied review
+reference and return the textual report specified by **Standalone review**.
+Coordination owns dispatch, finding checks, and final reporting.
 
 For audit only, ignore the task-verification JSON contract. Inspect the supplied
 boundary read-only, open every reported location, and return checked,

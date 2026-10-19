@@ -48,8 +48,9 @@ exact installed route-contract and supplied coding guidance paths; applicable
 repository-instruction paths;
 authoritative brief, slice, and task paths; and the opaque work-context
 snapshot when its route provides one. The agent reads those paths directly and
-returns the route's required fields in one JSON object as its final response,
-then ends its turn.
+returns the route's required result as its final response, then ends its turn.
+Task roles use their JSON objects; standalone review and audit use their textual
+reports.
 
 The coordinator owns worker cleanup. Keep each worker's ID, role, task, and
 status in the conversation. After collecting a result, close the worker with

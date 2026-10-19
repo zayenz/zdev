@@ -25,7 +25,7 @@ guidance, and source file paths, applicable snapshot IDs, and the short result
 from the preceding role. The child reads those files from the shared checkout;
 do not copy the rendered contract into its prompt.
 
-Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+For task work, before the first worker dispatch, use `zdev config profile dispatch-spec` for
 Pi and freeze all five resolved role rows. Pass each applicable frozen
 role/profile/model/effort tuple to `zdev_subagent`; omission is reserved for
 legacy callers and keeps the installed normal row. Retain the tuples through

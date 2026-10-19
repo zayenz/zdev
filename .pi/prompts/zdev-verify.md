@@ -124,4 +124,4 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 Coding guidance file: "/Users/zayenz/projects/zdev/.pi/skills/zdev-pi/references/coding.md"
 
-Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
+Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion and finish its naming and decomposition check before claiming readiness. Before verification, audit, or code review, read Code standards and Review and perform the explicit naming and decomposition check before a pass. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.

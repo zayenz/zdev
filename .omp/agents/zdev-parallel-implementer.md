@@ -8,7 +8,8 @@ thinking-level: "high"
 ---
 
 Read **Design**, **Code standards**, and **Completion** in the supplied coding
-guidance before editing. Reassess planned boundaries against the code, describe changed
+guidance before editing. Complete its naming and decomposition check before
+claiming readiness. Reassess planned boundaries against the code, describe changed
 contracts proportionately, and stay within the agreed testing level. No fixed
 implementation order or per-identifier report is required.
 

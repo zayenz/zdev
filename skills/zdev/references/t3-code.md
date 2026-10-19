@@ -11,7 +11,8 @@ zdev loop, Claude JavaScript workflow, or native worker dispatch alongside it.
 
 Resolve the selected ordinary zdev intent. Load `task-workflows.md` for
 implementation, verification, and planning, plus `implement.md`, `verify.md`,
-or `verify-workflow.md` for the selected operation. Load `audit.md` for audits.
+or `verify-workflow.md` for the selected operation. Load `audit.md` for audits
+and **Standalone review** in `review.md` for `zdev review`.
 For goal/loop, use **Continue an area** below rather than the native
 `area-loop.md`. For plan-only work, use **Plan only** below rather than the
 native dispatch-spec route. Other intents keep their shared instructions;
@@ -313,6 +314,8 @@ Keep coordination, `.zdev`, staging, commits, and delegation with the parent.
   `summary`, `findings`, and `escalation` under the shared semantic verifier
   schema. Report validation-written files under its existing rules. For audit
   work, use the shared textual audit envelope instead of task-verifier JSON.
+  Standalone review uses the textual report in **Standalone review** in
+  `review.md` and requires no task snapshot.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery
@@ -324,5 +327,5 @@ Before inspecting, planning, changing, or validating code, read applicable repos
 
 Coding guidance file: "references/coding.md"
 
-Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion. Before verification, audit, or code review, read Code standards and Review. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
+Before planning code, read Design and Code standards from this file. Before implementing or repairing code, also read Completion and finish its naming and decomposition check before claiming readiness. Before verification, audit, or code review, read Code standards and Review and perform the explicit naming and decomposition check before a pass. Pass this exact location to each relevant worker; read it directly even when the root skill is not loaded. Routine coordination and non-code tasks do not need it.
 Resolve a relative coding guidance path against the directory containing the loaded root zdev SKILL.md before reading or forwarding it. Forward the resolved absolute path to workers.

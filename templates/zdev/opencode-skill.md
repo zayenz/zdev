@@ -29,7 +29,7 @@ result from the preceding role. Let the worker read those files instead of
 copying their contents or the full contract into the prompt. An implementer
 loads the derived-work section only if it actually needs a split.
 
-Before the first worker dispatch, use `zdev config profile dispatch-spec` for
+For task work, before the first worker dispatch, use `zdev config profile dispatch-spec` for
 OpenCode and freeze all five resolved role rows. Select only a rendered agent
 whose profile-qualified metadata exactly matches the applicable frozen row;
 report an unavailable definition before dispatch. Keep those definitions and

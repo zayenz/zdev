@@ -53,6 +53,9 @@ coding guidance path from repository guidance. Require planners to read its
 **Design** and **Code standards** sections, implementers also **Completion**, and
 verifiers its **Code standards** and **Review** sections before work. Carry
 available design and process evidence in existing plans and summaries, not new records.
+Require implementers to complete the naming and decomposition check before
+returning `ready`, and verifiers to perform the explicit check in **Full review**
+before `pass`. Keep the assessment in the existing summary.
 A planner puts responsibilities and changed contracts in `plan.approach`;
 implementers reassess them and revise affected contracts before implementation
 within approved scope, without another planning worker or fixed build order.

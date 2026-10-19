@@ -1,5 +1,8 @@
 # Reference
 
+The [Working with zdev guide](areas-and-briefs.md) introduces areas, tasks,
+discussion, research, and orchestration before the command details.
+
 Use the [tutorial](getting-started.md) to try the ordinary workflow, or the
 [command guide](commands/index.md) to choose a request for your agent. These
 pages explain the underlying commands and records in more detail.

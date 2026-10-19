@@ -1,5 +1,8 @@
 # Research and experiments
 
+For an introduction, read [Research toward an open-ended goal](research-walkthrough.md).
+This reference covers the execution and record details.
+
 Research areas can mix ordinary tasks and hypothesis tasks. Configure an open
 area with `zdev area research <area> --from <settings.json>`, then review/import
 hypotheses through the normal task-bundle workflow. Append measured evidence

@@ -27,6 +27,11 @@ export default defineConfig({
         { label: 'Your first task', slug: 'guides/getting-started' },
         { label: 'Upgrade to 2.0', slug: 'guides/upgrading-to-2' },
       ] },
+      { label: 'Working with zdev', items: [
+        'guides/areas-and-briefs', 'guides/working-with-tasks',
+        'guides/discussion-and-research', 'guides/research-walkthrough',
+        'guides/longer-runs',
+      ] },
       { label: 'Agent commands', items: [
         { label: 'Choose an agent command', slug: 'commands' },
         'commands/setup', 'commands/notes', 'commands/explore', 'commands/discuss',

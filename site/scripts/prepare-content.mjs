@@ -6,7 +6,7 @@ const site = fileURLToPath(new URL('../', import.meta.url));
 const root = resolve(site, '..');
 const guides = [
   'areas-and-briefs', 'working-with-tasks', 'discussion-and-research',
-  'research-walkthrough', 'longer-runs',
+  'feature-walkthrough', 'research-walkthrough', 'longer-runs',
   'getting-started', 'user-guide', 'workflow', 'task-format', 'area-lifecycle',
   'area-loop', 'trunk-area-mode', 'derived-work-handoffs', 'config-command',
   'worker-profiles', 'task-complexity-routing', 'harness-orchestration',

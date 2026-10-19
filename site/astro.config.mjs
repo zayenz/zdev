@@ -29,7 +29,8 @@ export default defineConfig({
       ] },
       { label: 'Working with zdev', items: [
         'guides/areas-and-briefs', 'guides/working-with-tasks',
-        'guides/discussion-and-research', 'guides/research-walkthrough',
+        'guides/discussion-and-research', 'guides/feature-walkthrough',
+        'guides/research-walkthrough',
         'guides/longer-runs',
       ] },
       { label: 'Agent commands', items: [

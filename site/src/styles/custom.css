@@ -42,6 +42,13 @@
 .hero .actions { justify-content: flex-start; gap: 1rem 1.5rem; }
 .sl-markdown-content p { line-height: 1.75; }
 .sl-markdown-content h2 { letter-spacing: -0.025em; }
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration: none;
+  text-underline-offset: 0.2em;
+}
+.sl-markdown-content a:not(:where(.not-content *)):is(:hover, :focus-visible) {
+  text-decoration: underline;
+}
 .site-footer { border-top: 1px solid var(--sl-color-hairline); margin-top: 3rem; padding-block: 1.5rem; font-size: 0.875rem; }
 .site-footer a { color: var(--sl-color-accent-high); }
 :focus-visible { outline: 3px solid var(--sl-color-accent-high); outline-offset: 4px; }

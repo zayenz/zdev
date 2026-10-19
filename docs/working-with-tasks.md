@@ -4,6 +4,9 @@ A task describes one piece of work that can be implemented, checked, and
 recorded on its own. The area brief supplies the shared context; the task says
 what this particular step must achieve.
 
+The [feature walkthrough](feature-walkthrough.md) follows ordinary development
+through discussion, task creation, implementation, verification, and commits.
+
 For the `evaluation` area, "make queries faster" is too broad for an ordinary
 implementation task. "Add a repeatable benchmark for the agreed query set" is
 a useful first step. It has an observable result even before you know which

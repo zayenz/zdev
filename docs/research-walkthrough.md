@@ -10,6 +10,9 @@ zdev is installed and an area named `evaluation` exists. The prompts are
 messages to your coding agent. They do not run a research campaign merely by
 being shown here.
 
+For a feature with agreed behavior, follow
+[A feature from idea to commit](feature-walkthrough.md).
+
 ## Define what improvement would mean
 
 Start with exploration and discussion:

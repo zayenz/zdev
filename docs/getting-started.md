@@ -9,11 +9,11 @@ This tutorial adds a `--name` option to a small Python program. The change is
 deliberately small so you can follow the whole process, including what you
 approve and what the agent does next.
 
-## Before you start
+## Install zdev
 
-You need Git, Python 3, and a coding harness with an authenticated model account.
-A harness is the app or command-line agent you use to work on code, such as
-Codex or Claude Code. Zdev uses its model access and delegation tools. Installing
+Zdev does not require Python. To follow its agent workflow, you need Git and
+a coding harness with an authenticated model account. A harness is the app or
+command-line agent you use to work on code, such as Codex or Claude Code. Zdev uses its model access and delegation tools. Installing
 zdev alone does not start agents or provide a model subscription.
 
 The binary supports macOS and Linux on x86-64 and Arm64. This guide describes
@@ -43,6 +43,10 @@ The check should report `ok`. After upgrading zdev, refresh it with
 [harness reference](user-guide.md#harness-notes) describes differences in support.
 
 ## Make a small repository
+
+The greeting-program example below needs Python 3 to run `hello.py`. That is a
+requirement of this example, not of zdev. You can use an existing project in any
+language to follow the same planning and implementation workflow.
 
 Run these commands in a terminal, in a directory where you keep experiments.
 Choose a directory name that does not already exist:

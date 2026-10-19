@@ -109,8 +109,8 @@ state is clear. Native unavailability falls back to at most one verified
 committed task and returns canonical `CONTINUE zdev-loop <area>` only when
 fresh ready work remains.
 
-The native area condition explicitly completes the run after reporting a
-confirmed blocker or required user-owned decision. On that first terminal
+For ordinary Area loop only, the native condition completes the run after
+reporting a confirmed blocker or required user-owned decision. On that first terminal
 `BLOCKER`, report its reason and preserved state, then call `update_goal` with
 `status: "complete"` for the matching active goal in the same turn and return
 the canonical `BLOCKER` result. This completes
@@ -118,7 +118,9 @@ the run's stop-and-report objective; unfinished tasks and the area retain their
 exact state. Do not use `status: "blocked"` for this completed run, wait for
 three goal turns, or repeat workers to confirm the same impasse. Complete the
 matching active goal on terminal `PASS` as well. Preserve every other native
-goal and follow its own objective and lifecycle rules.
+goal and follow its own objective and lifecycle rules. Research follows its
+research reference: a blocker or exhausted allowance never completes an
+unfinished research objective.
 
 {{repository_guidance}}
 

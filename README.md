@@ -25,6 +25,8 @@ Linux on x86-64 and Arm64.
 > The whole zdev project is vibe-coded: I have spent little time reviewing the
 > code myself. I use it a lot, and it has been useful for my work.
 
+Documentation: [zayenz.se/zdev](https://zayenz.se/zdev/).
+
 ## Install
 
 For an existing installation, follow [Upgrade to 2.0](docs/upgrading-to-2.0.md).
@@ -136,14 +138,14 @@ keeps or restores code, and commits the task's measured conclusion. Empty queues
 permit more scoped proposals; target, budget, interruption and shared blocker
 are distinct stops. A fresh session resumes the same run and its remaining
 allowance from durable records. Ordinary Implement and Loop keep their existing
-behavior. See [Serial research](docs/user-guide.md#serial-research-in-codex-and-claude-code) for
+behavior. See [Serial research](docs/research.md#serial-research-in-codex-and-claude-code) for
 requests, accounting and recovery.
 
 Codex and Claude Code also support an explicit **rolling research** request with separate
 worker and measurement limits. It refills free role capacity while siblings
 prepare, starts each source from current accepted code, and serializes destination
 acceptance. Stale candidates reconcile and remeasure. See
-[Rolling research](docs/user-guide.md#rolling-research-in-codex-and-claude-code).
+[Rolling research](docs/research.md#rolling-research-in-codex-and-claude-code).
 
 ### Complete and commit work
 

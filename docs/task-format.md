@@ -12,10 +12,11 @@ executes correctness checks and measurements, retains candidate Git code, and
 keeps or restores owned files before completing and committing the result.
 `requires_code` admits later work only after verified acceptance. The installed
 [Codex research route](../skills/zdev/references/research.md) and
-[Claude serial research route](../.claude/skills/zdev/skills/zdev/references/research.md)
+[Claude research route](../.claude/skills/zdev/skills/zdev/references/research.md)
 generate scoped supporting tasks and hypotheses and coordinate execution.
-Codex also coordinates rolling source worktrees. Claude rolling research and
-execution routes for other harnesses follow separately.
+Codex and Claude Code also coordinate rolling source worktrees. Other harnesses
+can use the local experiment commands; automatic research routes are not provided
+for them.
 
 The [research run contract](../skills/zdev/references/task-format.md#authorize-and-recover-a-research-run)
 authorizes generated mixed work, counts dispatch and command costs, and retains

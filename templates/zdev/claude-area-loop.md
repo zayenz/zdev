@@ -5,8 +5,9 @@ iteration. Every continued iteration uses those values.
 
 For explicit blanket approval of compatible parallel batches throughout this
 run, use `references/parallel.md` under coordinator control. Invoke the packaged
-`zdev-parallel` workflow for each admitted finite batch, retain the approval
-scope and concrete role settings, and select afresh after it completes. Reuse
+`zdev-parallel` workflow for each admitted finite batch, passing the retained
+five-role map as `frozen_profiles`. Retain the approval scope and concrete role
+settings, and select afresh after it completes. Reuse
 decided choices within that authority. The ordinary packaged `zdev-loop`
 workflow below remains the sequential route.
 

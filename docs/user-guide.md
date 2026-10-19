@@ -308,8 +308,10 @@ and cleanup preference. Zdev checks likely source overlap, shared interfaces,
 validation resources, repository instructions, and visible competing work.
 Compatible implementations may overlap in separate trees; integration and
 verification still happen one task and one commit at a time. Codex, Claude
-Code, and Pi support this route. OpenCode and Oh My Pi currently offer
-sequential Implement for this request.
+Code, Pi, and capable Oh My Pi sessions support this route. OpenCode offers
+sequential Implement on its current foreground Task surface. T3 orchestration
+also supports sequential work only. The default is four task slots, bounded by
+live harness capacity; reuse explicitly chosen destination and cleanup settings.
 
 **Discuss the brief** reads the brief and relevant indexed sources, then
 identifies choices that could materially change behavior, scope, task

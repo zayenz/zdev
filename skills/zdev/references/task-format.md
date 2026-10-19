@@ -483,7 +483,7 @@ can be settled without refunding its consumed attempt.
 `--time-limit-seconds`, and directional `--target` remain effective. Command
 limits count each ZDev correctness or evaluator invocation before launch.
 `--command-seconds` limits their cumulative elapsed time; command timeouts are
-clipped to both that remaining allowance and the original wall-clock deadline.
+clipped to both that remaining allowance and the current authorized wall-clock deadline.
 Supporting workers consume work attempts; the binary does not sandbox their
 shells. Use the bound lifecycle for measurement while a run is active:
 standalone `research measure` and supplied `task research` observations refuse
@@ -504,8 +504,13 @@ zdev research experiment work work-002 recover --format json
 zdev research run work resume --run <run> --format json
 ```
 
-Stop and resume retain the same identity, scope, consumed allowance and original
-time boundary. Target, budget, interruption and shared environment blocker are
+Stop and resume retain the same identity, scope, consumed allowance and current
+time boundary. An explicit allowance extension uses `research run work extend
+--run <run> --request <stable-id>` with authorized `--add-attempts`,
+`--add-commands`, `--add-command-seconds`, or `--add-time-seconds`. Additions
+increase finite limits; time is added to the existing deadline. Repeating the
+same request and additions never adds twice. Extension preserves costs, pending
+work, comparison policy, and stop state; recover and resume normally. Target, budget, interruption and shared environment blocker are
 distinct stop reasons. Stopping permits recording, restoration and previously
 authorized finalization without new costly dispatch. Ending authorization uses
 `end --run <run>` after reservations and experiment checkpoints are settled;

@@ -108,6 +108,29 @@ records and local commands without this installed execution route. Deterministic
 installation and command scenarios validate the contracts; authenticated live
 Codex and Claude acceptance remain separate.
 
+## Extend an authorized run
+
+When the user grants more allowance, extend the same run rather than ending it
+and starting another. For example:
+
+```sh
+zdev research run work extend --run <run> --request another-day \
+  --add-time-seconds 86400 --add-attempts 20 --format json
+```
+
+Supply only the additions the user authorized. `--add-commands` and
+`--add-command-seconds` increase the corresponding finite limits. Time is added
+to the existing deadline, including when it has expired. Unlimited limits do
+not need extending. Additions must be positive; counts cannot overflow and time
+must remain finite.
+
+Retain the request identity: repeating it with the same additions has no extra
+effect; changing its additions is rejected. The run keeps its identity, scope,
+policy, target, consumed costs, active reservations, and checkpoints. An
+interruption or shared blocker remains in place. Resume or resolve it through
+the existing recovery route before dispatching more work.
+
+
 ## Rolling research in Codex and Claude Code
 
 Explicitly request rolling work and its capacities:

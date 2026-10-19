@@ -16,12 +16,24 @@ This file records notable changes to zdev.
 - Explicit blanket approval for compatible parallel batches remains valid
   throughout an ongoing goal or loop, within the approved area and execution
   limits. Each batch still rechecks admission and verifies each task.
+- Implementation reuses an explicit workspace choice and otherwise uses an
+  isolated worktree. Continuing parallel work defaults to four task slots within
+  live capacity. Explicit task/import delegation remains valid within its scope.
+- Several areas may share a branch. Rebaseline can preserve explicitly declared
+  untracked outputs, and snapshots batch untracked-file hashing.
 - Research workflow tests use three representative local scenarios instead of
   a broad fault-injection matrix. Tests use scripted workers and never invoke
   an LLM or a live coding harness.
 
 ### Added
 
+- `research run <area> extend` adds explicitly granted allowance to an existing
+  run without resetting costs, policy, or unfinished work. Request identities
+  make retries safe.
+- Notes capture candidate work before it becomes an area. Standalone skill
+  review works without `.zdev` and explicitly checks naming and decomposition.
+- Documentation at [zayenz.se/zdev](https://zayenz.se/zdev/) covers the first task,
+  feature and research walkthroughs, agent commands, and the CLI.
 - Codex and Claude Code support authorized serial and rolling research with
   measured baselines, correctness checks, retained candidates, bounded work
   and command allowances, and recovery from durable records.
@@ -33,6 +45,14 @@ This file records notable changes to zdev.
 
 ### Fixed
 
+- Rolling source reconciliation preserves both existing-file edits and owned
+  additions. Claude rolling recovery reuses current completed measurements.
+- Claude parallel acceptance pauses at unresolved destination checkpoints,
+  retains concrete profiles between batches, and accepts stale-but-safe work.
+- Task approval includes retained-code prerequisites. Dispatch collects fresh
+  working-tree evidence once per decision, including retained-plan comparison.
+- Public references match delegated task import, default worktrees, and current
+  harness support; research links and the manual task-bundle example are fixed.
 - `zdev tasks list` without an area prints the available areas as normal output
   and exits successfully, including when no areas exist.
 - The normal profile uses GPT-6.1 Sol for routine OpenAI implementation roles,

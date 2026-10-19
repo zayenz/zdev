@@ -55,7 +55,13 @@ and concrete model/effort handling from the root Codex skill.
    only on an explicit request. Retain `run.id`; never start another run to
    refresh an exhausted allowance or deadline. On resume, reconstruct from
    context and recover unfinished effects first, then use `resume --run <run>`
-   when authorized. Identity, scope, target, original deadline and costs survive.
+   when authorized. Identity, scope, target, current deadline and costs survive.
+   When the user grants more allowance, call `research run <area> extend --run
+   <run> --request <stable-id>` with only the authorized `--add-attempts`,
+   `--add-commands`, `--add-command-seconds`, or `--add-time-seconds`. Time adds
+   to the existing deadline. Retry the same request with identical additions;
+   it never adds twice. Extension preserves unresolved work and stop state;
+   recover and resume normally. It changes no experimental policy or target.
 4. Resolve and freeze all five roles with `zdev config profile resolve codex
    <role> --area <area> ... --format json` under the shared scoped-profile
    contract. Retain the returned concrete planner, routine-implementer,
@@ -65,7 +71,7 @@ and concrete model/effort handling from the root Codex skill.
    Do not call ordinary `dispatch-spec` for a hypothesis or remove its guard.
 5. With clear native state, use exposed `create_goal` only for this explicitly
    requested run. Use an objective that names the area, authorized scope and
-   retained limits, requires the selected serial or rolling contract and durable recovery, and
+   current durable authorization, requires the selected serial or rolling contract and durable recovery, and
    distinguishes ending the run from achieving the area's optimization objective.
    Do not add a native token budget unless the user requested one. After native
    activation, carry out the run in the foreground; supported idle continuation
@@ -240,7 +246,7 @@ repeated-blocker threshold. Do not invent a model-facing resume operation.
 
 A new session reads durable run context, current task records/results, local
 experiment inspect/recover and Git history. Recover pending effects before
-generation, then resume the same authorized identity with its original deadline
+generation, then resume the same authorized identity with its current authorized deadline
 and consumed resources. Conversation handoffs retain concrete worker choices;
 durable records establish work and measurement state. Signed-in live Codex
 execution is separate acceptance evidence; deterministic command checks do not
@@ -361,7 +367,9 @@ Process improving returned candidates through one destination lane. If accepted
 code changed since dispatch or measurement, use counted `reconcile` and a fresh
 Evaluate before integration. If the baseline changes again, repeat those gates.
 Record-only drift follows the explicit refresh rules in the task-format
-reference. `integrate` rechecks current measurements, claims the lane, applies
+reference. On resume, the experiment projection's `measurement_current` confirms
+that a completed measurement still matches the owned code and comparison policy;
+transport commit IDs need not match measurement commit IDs. `integrate` rechecks current measurements, claims the lane, applies
 only owned code and supplies a fresh destination `verification_snapshot`.
 
 Reserve a `confirmation --worker-slot` request for this acceptance owner, then

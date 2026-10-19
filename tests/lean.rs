@@ -9932,6 +9932,31 @@ if (!integratedWhileWorkerActive) throw new Error('integration waited for every 
 if (completedWorkers.join(',') !== 'work-002,work-003,work-001') throw new Error('workers did not finish out of order: ' + completedWorkers)
 if (gated.join(',') !== completedWorkers.join(',')) throw new Error('task identity was lost: ' + gated)
 if (!result.startsWith('PASS zdev-parallel work') || !result.includes('work-001') || !result.includes('work-003')) throw new Error(result)
+
+let pausedTransports = 0
+const paused = await run({{ area: 'work', task_ids: ['work-002', 'work-003'], destination_root: '/repo',
+  destination_branch: 'main', worker_limit: 2, cleanup: false, consent: true,
+  frozen_profiles: parallelProfiles }}, async (prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
+    destination_root: '/repo', assignments: ['work-002', 'work-003'].map(assignment) }}
+  if (options.label.includes('freeze parallel worker profiles')) throw new Error('Frozen profiles were resolved again')
+  if (options.label.includes('serial transport')) pausedTransports++
+  if (options.label.includes('verify destination')) return {{ verdict: 'blocker', summary: 'missing required evidence', findings: ['evidence'], escalation: 'none' }}
+  return agent(prompt, options)
+}})
+if (pausedTransports !== 1 || !paused.includes('paused by unresolved destination checkpoint'))
+  throw new Error('Parallel acceptance continued over unresolved destination: ' + paused)
+const staleSafe = await run({{ area: 'work', task_ids: ['work-002', 'work-003'], destination_root: '/repo',
+  destination_branch: 'main', worker_limit: 2, cleanup: false, consent: true,
+  frozen_profiles: parallelProfiles }}, async (prompt, options) => {{
+  if (options.label.includes('admit parallel batch')) return {{ area: 'work', destination_branch: 'main',
+    destination_root: '/repo', assignments: ['work-002', 'work-003'].map(assignment) }}
+  if (options.label.includes('freeze parallel worker profiles')) throw new Error('Frozen profiles were resolved again')
+  const result = await agent(prompt, options)
+  return options.label.includes('fresh verifier admission') ? {{ ...result, stale_advisory: true }} : result
+}})
+if (!staleSafe.startsWith('PASS zdev-parallel work') || !staleSafe.includes('stale base; safe task work continued')) throw new Error(staleSafe)
+
 const defaultIds = [...ids, 'work-004']
 maximumWorkers = 0
 const defaults = await run({{ area: 'work', task_ids: defaultIds, destination_root: '/repo',
@@ -10050,7 +10075,7 @@ await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root:
 if (!absolutePlannerReachedImplementer) throw new Error('normalized absolute planner path was rejected')
 
 const boundaryModes = ['implementer duplicate', 'transport duplicate', 'verifier duplicate', 'completion duplicate',
-  'admission malformed', 'admission mismatch', 'admission unsafe', 'admission stale']
+  'admission malformed', 'admission mismatch', 'admission unsafe', 'admission invalid advisory']
 for (const mode of boundaryModes) {{
   let verifierCalls = 0
   const boundary = await run({{ area: 'work', task_ids: ['work-001', 'work-002'], destination_root: '/repo',
@@ -10068,7 +10093,7 @@ for (const mode of boundaryModes) {{
       if (mode === 'admission malformed') return '{{"schema_version":1}}'
       return {{ schema_version: 1, area: 'work', task_id: mode === 'admission mismatch' ? 'work-999' : 'work-001',
         head: '1'.repeat(40), snapshot: 'W' + '1'.repeat(16), lifecycle: 'open', queue: 'ready',
-        safe: mode !== 'admission unsafe', stale_advisory: mode === 'admission stale', checkout: '/repo' }}
+        safe: mode !== 'admission unsafe', stale_advisory: mode === 'admission invalid advisory' ? null : false, checkout: '/repo' }}
     }}
     if (options.agentType === 'zdev:zdev-verifier') {{ verifierCalls += 1; return mode === 'verifier duplicate'
       ? '{{"verdict":"pass","summary":"ok","summary":"duplicate","findings":[],"escalation":"none"}}'
@@ -15109,6 +15134,14 @@ fn local_experiment_keeps_verified_code_and_preserves_unrelated_work() {
         &["research", "experiment", "work", "work-001", "recover"],
     );
     assert_eq!(git(root, &["rev-parse", "HEAD"]), head);
+    json_output_with_stdin(root, &["tasks", "review", "work", "--from", "-"], &bundle);
+    let review = json_output(root, &["tasks", "review", "work", "--show"]);
+    assert!(
+        review["markdown"]
+            .as_str()
+            .unwrap()
+            .contains("### Requires retained code\n1. work-001")
+    );
     import_research_fixture(root, json!([dependency]));
     assert_eq!(
         json_output(root, &["next", "work"])["task"]["requires_code"],
@@ -16199,6 +16232,87 @@ fn research_run_admits_mixed_work_recovers_publication_and_refills_an_exhausted_
 }
 
 #[test]
+fn research_run_extension_preserves_costs_and_retries_without_double_allowance() {
+    let repository = local_experiment_fixture("printf 7");
+    let root = repository.path();
+    let started = start_research_run(
+        root,
+        &[
+            "--attempt-limit",
+            "1",
+            "--command-limit",
+            "2",
+            "--command-seconds",
+            "10",
+            "--time-limit-seconds",
+            "60",
+        ],
+    );
+    let identity = started["run"]["id"].as_str().unwrap();
+    research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "prepare",
+            "--task",
+            "work-001",
+            "--kind",
+            "preparation",
+        ],
+    );
+    research_run_action(root, identity, "stop", &[]);
+    let before = json_output(root, &["research", "run", "work", "inspect"]);
+    let flags = [
+        "--request",
+        "another-day",
+        "--add-attempts",
+        "2",
+        "--add-commands",
+        "3",
+        "--add-command-seconds",
+        "20",
+        "--add-time-seconds",
+        "86400",
+    ];
+    let extended = research_run_action(root, identity, "extend", &flags);
+    assert_eq!(extended["run"]["id"], before["run"]["id"]);
+    assert_eq!(extended["run"]["started_at"], before["run"]["started_at"]);
+    assert_eq!(extended["run"]["policy"], before["run"]["policy"]);
+    assert_eq!(
+        extended["run"]["reservations"],
+        before["run"]["reservations"]
+    );
+    assert_eq!(extended["run"]["stop"], before["run"]["stop"]);
+    assert_eq!(extended["consumed"], before["consumed"]);
+    assert_eq!(extended["run"]["attempt_limit"], 3);
+    assert_eq!(extended["run"]["command_limit"], 5);
+    assert_eq!(extended["run"]["command_seconds"], 30.0);
+    assert_eq!(
+        extended["run"]["deadline"].as_f64().unwrap(),
+        before["run"]["deadline"].as_f64().unwrap() + 86400.0
+    );
+    let run_path = git_path(root, "zdev/runs/work/current.json");
+    let bytes = fs::read(&run_path).unwrap();
+    research_run_action(root, identity, "extend", &flags);
+    assert_eq!(fs::read(&run_path).unwrap(), bytes);
+    for extra in [
+        vec!["--request", "another-day", "--add-attempts", "3"],
+        vec!["--request", "invalid", "--add-attempts", "0"],
+        vec!["--request", "empty"],
+    ] {
+        let mut arguments = vec!["research", "run", "work", "extend", "--run", identity];
+        arguments.extend(extra);
+        assert!(!run_zdev(root, &arguments).status.success());
+        assert_eq!(fs::read(&run_path).unwrap(), bytes);
+    }
+    let resumed = research_run_action(root, identity, "resume", &[]);
+    assert_eq!(resumed["run"]["attempt_limit"], 3);
+    assert_eq!(resumed["consumed"], before["consumed"]);
+}
+
+#[test]
 fn research_run_counts_reserved_repairs_and_commands_and_preserves_limits_on_resume() {
     let repository = local_experiment_fixture("printf 14");
     let root = repository.path();
@@ -17125,6 +17239,11 @@ fn claude_rolling_research_refills_and_reconciles_record_changes() {
         let repository = isolated_candidate_fixture(evaluator);
         let sources = TempDir::new().unwrap();
         let root = repository.path();
+        if scenario == "rolling-record-only" {
+            let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+            settings["attempt_limit"] = json!(1);
+            configure_research_fixture(root, &settings);
+        }
         // Advanced planning is part of the same retained hypothesis across recovery.
         let task_path = root.join(".zdev/work/tasks/001-candidate.md");
         let task = fs::read_to_string(&task_path).unwrap();
@@ -17337,7 +17456,7 @@ fn isolated_candidates_reconcile_current_baseline_and_preserve_git_transport() {
         source_before
     );
     assert_eq!(
-        admit_isolated_candidate(root, &b, "work-002", &["seed.txt"])["dispatch_authorized"],
+        admit_isolated_candidate(root, &b, "work-002", &["seed.txt", "new-sibling.txt"])["dispatch_authorized"],
         true
     );
     assert_eq!(
@@ -17346,6 +17465,7 @@ fn isolated_candidates_reconcile_current_baseline_and_preserve_git_transport() {
     );
     edit_local_candidate(&a);
     fs::write(b.join("seed.txt"), "b\n").unwrap();
+    fs::write(b.join("new-sibling.txt"), "owned addition\n").unwrap();
     fs::write(b.join("unowned.txt"), "preserve\n").unwrap();
     assert!(
         !run_zdev(
@@ -17488,6 +17608,10 @@ fn isolated_candidates_reconcile_current_baseline_and_preserve_git_transport() {
     );
     assert!(!reconcile.status.success()); // Both sources changed seed.txt: Git retains the conflict.
     assert!(!git(&b, &["ls-files", "--unmerged"]).is_empty());
+    assert_eq!(
+        fs::read(b.join("new-sibling.txt")).unwrap(),
+        b"owned addition\n"
+    );
     research_run_action(
         root,
         identity,

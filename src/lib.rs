@@ -1611,8 +1611,8 @@ fn dispatch_spec(
             "Ordinary dispatch does not execute hypotheses. In Codex and Claude Code, an explicitly authorized research run uses the installed research reference; other harnesses can use the local experiment contract in the task-format reference. Ordinary supporting tasks retain their implementation workflow",
         ));
     }
-    let admission = compare_work_context(root, area, snapshot)?.value;
-    if admission["equal"].as_bool() != Some(true) {
+    let fresh = work_context_output(root, area, Some(task))?.value;
+    if shown != fresh {
         return Err(ZdevError::with_details(
             format!(
                 "Requested {} dispatch context {snapshot} is stale for explicit task {task}",
@@ -1687,7 +1687,6 @@ fn dispatch_spec(
             )
         }
         CodexDispatchRoute::Implement => {
-            let fresh = work_context_output(root, area, Some(task))?.value;
             if required_json_string(&fresh, "/task_id", "Fresh work context")? != task {
                 return Err(ZdevError::new(format!(
                     "Fresh context no longer selects {task}"
@@ -1699,11 +1698,7 @@ fn dispatch_spec(
                     let retained = plan_snapshot.ok_or_else(|| {
                         ZdevError::new("--plan-snapshot is required for retained plan state")
                     })?;
-                    Some(
-                        compare_work_context(root, area, retained)?.value["equal"]
-                            .as_bool()
-                            .ok_or_else(|| ZdevError::new("Work-context comparison lacks equal"))?,
-                    )
+                    Some(show_work_context(root, area, retained)?.value == fresh)
                 }
             };
             if retained_plan == RetainedPlan::Applicable && plan_equal != Some(true) {

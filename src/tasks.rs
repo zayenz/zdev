@@ -479,6 +479,12 @@ fn render_task_bundle_approval_with_selection_fields(
             approval_list(&task.done_when),
             approval_list(&task.validation),
         ));
+        if !task.requires_code.is_empty() {
+            document.push_str(&format!(
+                "\n\n### Requires retained code\n{}",
+                approval_list(&task.requires_code)
+            ));
+        }
     }
     let fence = "`".repeat(longest_backtick_run(&document).saturating_add(1).max(3));
     format!("{fence}markdown\n{document}\n{fence}")
@@ -3027,7 +3033,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         task.path.display()
     );
     if task.header.hypothesis.is_some() {
-        text.push_str("\nKind: hypothesis (research record contract; automatic execution is not yet supported)");
+        text.push_str("\nKind: hypothesis (use an explicitly authorized Codex or Claude Code research run, or the local experiment commands)");
     }
     if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
         text.push_str(&format!("\nSlice: {slice}\nSlice brief: {path}"));
@@ -3188,7 +3194,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         view.path
     );
     if task.header.hypothesis.is_some() {
-        text.push_str("\nKind: hypothesis (research record contract; automatic execution is not yet supported)");
+        text.push_str("\nKind: hypothesis (use an explicitly authorized Codex or Claude Code research run, or the local experiment commands)");
     }
     if let (Some(slice), Some(path)) = (&task.header.slice, &view.slice_brief) {
         text.push_str(&format!("\nSlice: {slice}\nSlice brief: {path}"));

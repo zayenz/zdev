@@ -7,6 +7,11 @@ usually needs only [one implementation](implement.md).
 
 Replace the example task IDs with ready tasks from your queue.
 
+Codex, Claude Code, Pi, and capable Oh My Pi sessions support this route.
+OpenCode currently offers sequential Implement because its foreground Task
+surface cannot hand back each completion. T3 orchestration is also sequential.
+See [harness support](../user-guide.md#harness-notes) for capability checks.
+
 ## Examples
 
 Paste either request into your coding-agent chat:

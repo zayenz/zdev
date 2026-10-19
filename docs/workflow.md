@@ -227,8 +227,8 @@ mutations use the area's ordinary task-work branch-safety gate.
 
 Discussion may proceed directly to exact task-bundle review when the request
 explicitly asks for task creation and settles the product and testing choices.
-This route skips unnecessary research or a new full brief. It still requires
-explicit bundle approval, safe branch state, proportionate testing, independent
+This route skips unnecessary research or a new full brief. Task import requires exact bundle approval or existing delegated authority
+covering its scope. The route retains safe branch state, proportionate testing, independent
 verification, recorded completion, and a commit. Zdev never creates or switches
 the `general` branch. The harness asks before making that Git change unless the
 user already chose it.
@@ -238,8 +238,9 @@ reviewer reads the returned Markdown path, and concrete revisions replace the
 stored candidate. Focused corrections are checked by the same reviewer against
 the prior findings and the complete revised document. Material changes to
 scope, boundaries, dependencies, task splitting, or testing strategy receive a
-fresh full challenge. Only the final challenged document is presented for
-explicit approval. Storage and independent challenge do not imply approval.
+fresh full challenge. Present the final challenged document for approval unless
+the user already delegated task creation and import within its scope. Storage
+and independent challenge alone do not grant that authority.
 
 Zdev must be active before intent routing. A `zdev` or `$zdev` cue, a
 request to work through an existing `.zdev` area, or an unmistakable reference to
@@ -258,8 +259,10 @@ Every interaction uses the same question policy. The harness asks one focused
 question when the answer determines the next step, batches only independent
 questions, recommends an answer with its trade-off, and treats no answer as no
 consent. It reuses choices already stated for the work. Discussion and read-only
-orientation begin in the current checkout; an unrequested branch creation,
-branch switch, or worktree creation waits for the user's choice.
+orientation begin in the current checkout. Implementation reuses an explicit
+workspace choice; otherwise it creates an isolated worktree as its authoritative
+checkout and reports that location. A branch switch in the existing checkout
+still needs a user choice when it was not already authorized.
 
 An explicitly chosen assigned-worktree implementation keeps this admitted
 checkout as the destination. It stores context for the exact task, gives the
@@ -275,7 +278,8 @@ chooses the destination, total delegated-role limit, and cleanup preference.
 Codex, Claude Code, and Pi support this route. OpenCode checks its visible Task
 surface before mutation, then offers sequential Implement because current
 foreground batches do not return coordinator control per completed child.
-Oh My Pi also offers sequential Implement.
+Oh My Pi supports parallel work when its live background-worker capabilities
+qualify. T3 orchestration currently supports sequential work only.
 Parallel workers may overlap, but destination integration,
 independent verification, task completion, and zdev commits remain serial.
 

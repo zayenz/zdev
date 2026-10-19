@@ -43,8 +43,26 @@ An initial import can also include the area metadata, brief, slice briefs, and
 previously untracked project configuration. Direct imports also accept
 `--approval FINGERPRINT` for compatibility.
 
-See the [user guide](../user-guide.md) for a complete JSON bundle and
-[task format](../task-format.md) for fields and dependencies.
+For an area named `work`, a minimal `tasks.json` is:
+
+```json
+{
+  "schema_version": 1,
+  "area": "work",
+  "tasks": [{
+    "key": "greeting",
+    "title": "Add a named greeting",
+    "outcome": "The program accepts --name and keeps its default greeting.",
+    "blocked_by": [],
+    "done_when": ["Both greeting forms produce the agreed output."],
+    "validation": ["Run the program with and without --name."]
+  }]
+}
+```
+
+Import it with `zdev tasks import work --from tasks.json` when authorized.
+See [task format](../task-format.md) for fields and dependencies. Approval
+Markdown also shows any `requires_code` prerequisites.
 
 ## Derive follow-up work
 

@@ -44,6 +44,30 @@ Every batch still selects from fresh tasks and rechecks admission. Approval of
 one batch alone does not authorize another; a choice outside blanket authority
 still needs a decision. Harness continuation limits remain in effect.
 
+## Execution defaults and delegated work
+
+Implementation reuses the workspace you explicitly selected. Otherwise the
+harness uses an isolated worktree as its authoritative checkout and reports
+where to inspect the result. Read-only exploration starts in the current
+checkout. Parallel work defaults to four task slots within available capacity;
+destination acceptance and commits remain serial.
+
+An explicit delegation to create and import tasks remains valid within its
+scope. Without that authority, the harness presents the final reviewed bundle
+for approval. Notes under `.zdev/_notes/` capture work before it becomes an
+area. Several areas may share a branch; task dependencies still stay within
+their own area.
+
+The normal OpenAI worker profile now uses GPT-6.1 Sol, with high reasoning for
+standard implementation and verification. This can change model usage from
+older defaults. The explicit simple profile and worker overrides remain
+available. Existing saved choices continue to take precedence as documented
+in [worker profiles](worker-profiles.md).
+
+Research runs can extend explicitly granted allowances with `research run
+<area> extend`, preserving the run and its costs. Stop/resume alone retains the
+existing limits; see [research](research.md#extend-an-authorized-run).
+
 ## Research records after cloning
 
 Task inspection, status and record validation remain available when local

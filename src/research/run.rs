@@ -80,6 +80,23 @@ pub(crate) enum Action {
         #[arg(long)]
         run: String,
     },
+    /// Add explicitly authorized allowance without resetting costs or unfinished work
+    Extend {
+        #[arg(long)]
+        run: String,
+        /// Stable identity: retrying the same extension never adds allowance twice
+        #[arg(long)]
+        request: String,
+        #[arg(long)]
+        add_attempts: Option<usize>,
+        #[arg(long)]
+        add_commands: Option<usize>,
+        #[arg(long)]
+        add_command_seconds: Option<f64>,
+        /// Add seconds to the existing deadline
+        #[arg(long)]
+        add_time_seconds: Option<f64>,
+    },
     /// Halt affected experimentation on a shared environment failure
     Block {
         #[arg(long)]
@@ -156,6 +173,17 @@ struct Run {
     admissions: BTreeMap<String, Admission>,
     reservations: BTreeMap<String, Reservation>,
     rebaseline: Option<Baseline>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    extensions: BTreeMap<String, Extension>,
+}
+
+#[derive(Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Extension {
+    attempts: Option<usize>,
+    commands: Option<usize>,
+    command_seconds: Option<f64>,
+    time_seconds: Option<f64>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -323,6 +351,25 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
                 run.stop = None;
                 save(root, &run)?;
             }
+            Action::Extend {
+                run: identity,
+                request,
+                add_attempts,
+                add_commands,
+                add_command_seconds,
+                add_time_seconds,
+            } => extend(
+                root,
+                area,
+                identity,
+                request,
+                Extension {
+                    attempts: *add_attempts,
+                    commands: *add_commands,
+                    command_seconds: *add_command_seconds,
+                    time_seconds: *add_time_seconds,
+                },
+            )?,
             Action::Block {
                 run: identity,
                 reason,
@@ -559,7 +606,70 @@ fn start(
         admissions: BTreeMap::new(),
         reservations: BTreeMap::new(),
         rebaseline: None,
+        extensions: BTreeMap::new(),
     };
+    save(root, &run)
+}
+
+fn extend(
+    root: &Path,
+    area: &str,
+    identity: &str,
+    request: &str,
+    extra: Extension,
+) -> Result<(), ZdevError> {
+    let mut run = authorized(root, area, identity)?;
+    crate::validate_nonempty_line(request, "Extension request identity")?;
+    if let Some(previous) = run.extensions.get(request) {
+        return if previous == &extra {
+            Ok(())
+        } else {
+            Err(ZdevError::new(
+                "Changed allowance under an existing extension request",
+            ))
+        };
+    }
+    if extra.attempts.is_none()
+        && extra.commands.is_none()
+        && extra.command_seconds.is_none()
+        && extra.time_seconds.is_none()
+    {
+        return Err(ZdevError::new("Specify at least one allowance to add"));
+    }
+    let extend_count =
+        |limit: Option<usize>, addition: Option<usize>| -> Result<Option<usize>, ZdevError> {
+            match addition {
+                None => Ok(limit),
+                Some(added) if added > 0 => limit
+                    .and_then(|value| value.checked_add(added))
+                    .map(Some)
+                    .ok_or_else(|| {
+                        ZdevError::new("Cannot extend an unlimited or overflowing count limit")
+                    }),
+                _ => Err(ZdevError::new("Added allowances must be positive")),
+            }
+        };
+    let extend_seconds =
+        |limit: Option<f64>, addition: Option<f64>| -> Result<Option<f64>, ZdevError> {
+            match addition {
+                None => Ok(limit),
+                Some(added) if added.is_finite() && added > 0.0 => limit
+                    .map(|value| value + added)
+                    .filter(|value| value.is_finite())
+                    .map(Some)
+                    .ok_or_else(|| {
+                        ZdevError::new("Cannot extend an unlimited or overflowing time limit")
+                    }),
+                _ => Err(ZdevError::new(
+                    "Added allowances must be finite and positive",
+                )),
+            }
+        };
+    run.attempt_limit = extend_count(run.attempt_limit, extra.attempts)?;
+    run.command_limit = extend_count(run.command_limit, extra.commands)?;
+    run.command_seconds = extend_seconds(run.command_seconds, extra.command_seconds)?;
+    run.deadline = extend_seconds(run.deadline, extra.time_seconds)?;
+    run.extensions.insert(request.to_owned(), extra);
     save(root, &run)
 }
 

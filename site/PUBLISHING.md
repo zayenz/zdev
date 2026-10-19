@@ -27,6 +27,19 @@ discovery independently of the optional directory link. Add the flag and
 imported output together. Do not add a documentation link to the blog post as
 part of this publication.
 
+## Public listing
+
+Before listing the site, reconcile the workflow reference and upgrade notes,
+then build and import the selected documentation revision below. Check the
+first-task guide's release-version notice against the release actually available;
+update it when 2.0 is published. A release tag does not update the hosted docs.
+
+Once the final import is reviewed, set the zdev project entry's site link to
+`/zdev/` and add its getting-started and workflow guide links in zayenz.se. Keep
+its GitHub source link. The README now links to the documentation; update the
+introductory blog post's documentation link as part of the host publication.
+Run the host's required checks and publish through its normal route.
+
 ## Import or update
 
 Use Node 24 in the zayenz.se repository. Replace the source path with the

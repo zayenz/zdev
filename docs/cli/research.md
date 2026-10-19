@@ -34,6 +34,7 @@ zdev research run AREA COMMAND
 | `reserve` | Charge a work attempt before dispatch. |
 | `settle` | Settle completed supporting work. |
 | `stop` or `resume` | Interrupt or resume the same authorization and allowance. |
+| `extend` | Add explicitly granted allowance without resetting costs or unfinished work. |
 | `block` or `resolve` | Record a shared environment failure or its resolution. |
 | `rebaseline` | Measure current accepted code with correctness checks and evaluator. |
 | `end` | End the authorization after reservations and checkpoints are settled. |
@@ -46,7 +47,7 @@ zdev research run AREA COMMAND
 Run operations that change existing authorization use the returned run and
 request identities where required. For their exact arguments, use, for
 example, `zdev research run greeting reserve --help`. Resume preserves the
-original limits and consumed resources.
+current authorized limits and consumed resources.
 
 ## Experiments
 
@@ -83,3 +84,17 @@ input options accept `-` for standard input.
 Use [task research](task.md#research-evidence) to append supplied evidence to a
 task. For managed experiments, follow the begin, evaluate, and finalize path
 so code decisions and measurements stay coordinated.
+
+## Extend an existing authorization
+
+To add an explicitly granted allowance to an existing run:
+
+```sh
+zdev research run work extend --run <run> --request another-day \
+  --add-time-seconds 86400 --add-attempts 20 --format json
+```
+
+The additions increase finite limits without resetting costs or unfinished work.
+Use the same request identity for retries. See
+[authorization extension](../research.md#extend-an-authorized-run) for the
+deadline, retry, and recovery rules.

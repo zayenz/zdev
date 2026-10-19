@@ -108,6 +108,14 @@ const strictObject = (raw, keys) => {
 }
 const exactKeys = (value, keys) => value && !Array.isArray(value) && typeof value === 'object'
   && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort())
+const roles = ['routine-implementer', 'implementer', 'advanced-implementer', 'planner', 'verifier']
+const validRole = (record, role) => exactKeys(record,
+  ['schema_version', 'profile', 'harness', 'role', 'value', 'origin', 'fallback'])
+  && record.schema_version === 1 && record.role === role && record.harness === 'claude'
+  && typeof record.profile === 'string' && record.profile
+  && ((exactKeys(record.value, ['inherit']) && record.value.inherit === true)
+    || (exactKeys(record.value, ['model', 'effort']) && typeof record.value.model === 'string'
+      && record.value.model && ['inherit', 'low', 'medium', 'high', 'xhigh', 'max'].includes(record.value.effort)))
 const absolute = value => typeof value === 'string' && value.startsWith('/')
 const taskId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]*-[0-9]+$/.test(value)
 const input = args && !Array.isArray(args) && typeof args === 'object' ? args : {}
@@ -120,6 +128,7 @@ const cleanup = input.cleanup === true
 const consent = input.consent === true
 const resume = Array.isArray(input.resume) ? input.resume : []
 const runProfile = input.run_profile ?? input.runProfile ?? null
+const frozenProfiles = input.frozen_profiles ?? input.frozenProfiles ?? null
 const requestedRoleProfiles = input.role_profiles ?? input.roleProfiles ?? {}
 const roleProfiles = requestedRoleProfiles && !Array.isArray(requestedRoleProfiles)
   && typeof requestedRoleProfiles === 'object' ? requestedRoleProfiles : {}
@@ -132,6 +141,9 @@ const validResume = resume.every(item => exactKeys(item, resumeKeys) && tasks.in
 const invalid = !/^[a-z0-9][a-z0-9-]*$/.test(area) || tasks.length < 2
   || new Set(tasks).size !== tasks.length || !tasks.every(taskId)
   || !absolute(destinationRoot) || !destinationBranch || !Number.isInteger(limit) || limit < 1 || !validResume
+if (frozenProfiles !== null && (!exactKeys(frozenProfiles, roles) || !roles.every(role => validRole(frozenProfiles[role], role)))) {
+  return `BLOCKER zdev-parallel ${area}\n\nReason: invalid frozen worker profiles; no admission or worker was started.`
+}
 if (invalid || !consent) {
   return `BLOCKER zdev-parallel ${area || 'unknown'}\n\nReason: require a finite unique task_ids batch, absolute destination_root, destination_branch, positive worker_limit, cleanup choice, and explicit consent.`
 }
@@ -188,8 +200,8 @@ const validPrepared = exactKeys(prepared, ['area', 'destination_branch', 'destin
 if (!validPrepared) {
   return `BLOCKER zdev-parallel ${area}\n\nReason: admission did not return exact safe assignments.\nPreserved state: inspect any reported worktrees before retrying.`
 }
-let batchProfiles = null
-if (assignments.length > 0) {
+let batchProfiles = frozenProfiles
+if (assignments.length > 0 && !batchProfiles) {
   const first = assignments[0]
   const flags = `${runProfile ? ` --run-profile ${String(runProfile)}` : ''}${Object.entries(roleProfiles).map(([role, profile]) => ` --role-profile ${role}=${profile}`).join('')}`
   const raw = await agent(
@@ -197,16 +209,8 @@ if (assignments.length > 0) {
     { label: `zdev ${area}: freeze parallel worker profiles`, model: 'haiku' },
   )
   const spec = strictObject(raw, ['schema_version', 'kind', 'harness', 'route', 'area', 'task_id', 'snapshot', 'dispatches', 'profiles', 'stop'])
-  const roles = ['routine-implementer', 'implementer', 'advanced-implementer', 'planner', 'verifier']
   const exact = (value, keys) => value && !Array.isArray(value) && typeof value === 'object'
     && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort())
-  const validRole = (record, role) => exact(record,
-    ['schema_version', 'profile', 'harness', 'role', 'value', 'origin', 'fallback'])
-    && record.schema_version === 1 && record.role === role && record.harness === 'claude'
-    && typeof record.profile === 'string' && record.profile
-    && ((exact(record.value, ['inherit']) && record.value.inherit === true)
-      || (exact(record.value, ['model', 'effort']) && typeof record.value.model === 'string'
-        && record.value.model && ['inherit', 'low', 'medium', 'high', 'xhigh', 'max'].includes(record.value.effort)))
   const implementationRole = first.complexity === 'routine' ? 'routine-implementer'
     : first.complexity === 'advanced' ? 'advanced-implementer' : 'implementer'
   const expectedRoles = first.complexity === 'advanced'
@@ -335,11 +339,15 @@ const admissionSchema = { type: 'object', additionalProperties: false, required:
     safe: { type: 'boolean' }, stale_advisory: { type: 'boolean' }, checkout: { type: 'string' } } }
 const preserved = (candidate, summary, findings = []) => ({ task_id: candidate.task_id, status: 'preserved',
   summary, commit: null, findings, preserved: `${candidate.assignment.worktree} ${candidate.assignment.branch} ${candidate.assignment.baseline}` })
+let destinationPending = false
+let staleAdvisory = false
 const runDestinationGate = async candidate => {
   let implementation = candidate.result
   let escalated = false
   let priorReview = null
   while (true) {
+    // A ready source may mutate the destination even if transport returns an invalid result.
+    destinationPending ||= implementation.verdict === 'ready'
     const transported = strictObject(await agent(
       `${repositoryGuidance}\n\nAct only as serial source transport coordination for parallel task ${candidate.task_id}. Authoritative destination: ${destinationRoot} on ${destinationBranch}. Assigned source: ${candidate.assignment.worktree}, branch ${candidate.assignment.branch}, baseline ${candidate.assignment.baseline}. Worker result: ${JSON.stringify(implementation)}. Carry task ID ${candidate.task_id} through every refresh. Inspect the full source delta. For ready work, create and inspect an ordinary source commit, use the assigned-worktree no-commit transport, refresh explicit-task admission, and capture a fresh work-context snapshot with --task ${candidate.task_id}. Do not verify, complete, stage the destination, commit the destination, or spawn an agent. For an implementer blocker or derived proposal, preserve it and classify only whether it is task-local or requires a shared decision.`,
       { label: `zdev ${candidate.task_id}: serial transport`, schema: transportSchema },
@@ -360,8 +368,9 @@ const runDestinationGate = async candidate => {
     const validAdmission = admitted && admitted.schema_version === 1 && admitted.area === area
       && admitted.task_id === candidate.task_id && admitted.head === transported.head
       && /^W[0-9a-f]{16}$/.test(admitted.snapshot) && admitted.lifecycle === 'open' && admitted.queue === 'ready'
-      && admitted.safe === true && admitted.stale_advisory === false && admitted.checkout === destinationRoot
-    if (!validAdmission) return preserved(candidate, 'fresh verifier admission was malformed, mismatched, unsafe, or stale', transported.findings)
+      && admitted.safe === true && typeof admitted.stale_advisory === 'boolean' && admitted.checkout === destinationRoot
+    if (!validAdmission) return preserved(candidate, 'fresh verifier admission was malformed, mismatched, or unsafe', transported.findings)
+    staleAdvisory ||= admitted.stale_advisory
     const snapshot = admitted.snapshot
     let verification = parseVerifier(await agent(
       `${workerContract}\n\nIndependently verify parallel task ${candidate.task_id} in authoritative checkout ${destinationRoot}. Load only fresh snapshot ${snapshot} with zdev work-context ${area} --show ${snapshot} --format json and require exact task ${candidate.task_id}. ${priorReview ? `Perform the focused recheck under the coding guidance Review reference: check accepted corrections, affected contracts, and repair regressions; retain conclusions for unchanged code. Prior review and accepted corrections: ${JSON.stringify(priorReview)}.` : "Check the whole task against requirements and coding guidance."} Run required validation. Put optional suggestions in summary, never findings. Keep verification read-only and return exactly the four-key semantic verifier object.`,
@@ -442,6 +451,7 @@ const runDestinationGate = async candidate => {
       && typeof completed.summary === 'string' && completed.summary.trim() && Array.isArray(completed.findings)
       && typeof completed.preserved === 'string'
       && (completed.status === 'committed' ? /^[0-9a-f]{40}$/.test(completed.commit) : completed.commit === null)
+    if (validCompletion && completed.status === 'committed') destinationPending = false
     return validCompletion ? completed : preserved(candidate, 'completion returned a malformed result', verification.findings)
   }
 }
@@ -471,17 +481,17 @@ while (active.size > 0 || arrivals.length > 0) {
   if (candidate.failure) {
     stopDispatch = true
     outcomes.push(preserved(candidate, candidate.failure))
-  } else if (sharedDecision) {
-    outcomes.push(preserved(candidate, 'paused by shared decision'))
+  } else if (sharedDecision || destinationPending) {
+    outcomes.push(preserved(candidate, destinationPending ? 'paused by unresolved destination checkpoint' : 'paused by shared decision'))
   } else {
     const gated = await runDestinationGate(candidate)
     outcomes.push(gated)
     if (gated.status === 'shared-decision') { sharedDecision = true; stopDispatch = true }
-    else if (gated.status === 'preserved') stopDispatch = true
+    else if (gated.status === 'preserved' || destinationPending) stopDispatch = true
   }
   fill()
 }
 for (const assignment of pending) outcomes.push(preserved({ task_id: assignment.task_id, assignment }, 'not dispatched after cancellation or capacity loss'))
 const committed = outcomes.filter(item => item.status === 'committed')
 const unfinished = outcomes.filter(item => item.status !== 'committed')
-return `${unfinished.length === 0 ? 'PASS' : 'BLOCKER'} zdev-parallel ${area}\n\nArea: ${area}\nDestination: ${destinationRoot} (${destinationBranch})\nCommitted tasks: ${committed.map(item => `${item.task_id} ${item.commit}`).join(', ') || 'none'}\nUnfinished tasks: ${unfinished.map(item => `${item.task_id} [${item.status}] ${item.summary}; findings=${item.findings.join('; ') || 'none'}; preserved=${item.preserved}`).join(' | ') || 'none'}\nCleanup: ${cleanup && unfinished.length === 0 ? 'authorized for stopped, integrated run-owned worktrees' : 'withheld; retain unfinished or ambiguous work'}\nStop reason: ${unfinished.length === 0 ? 'approved batch committed' : sharedDecision ? 'shared decision required' : 'one or more task results require recovery'}`
+return `${unfinished.length === 0 ? 'PASS' : 'BLOCKER'} zdev-parallel ${area}\n\nArea: ${area}\nDestination: ${destinationRoot} (${destinationBranch})\nCommitted tasks: ${committed.map(item => `${item.task_id} ${item.commit}`).join(', ') || 'none'}\nUnfinished tasks: ${unfinished.map(item => `${item.task_id} [${item.status}] ${item.summary}; findings=${item.findings.join('; ') || 'none'}; preserved=${item.preserved}`).join(' | ') || 'none'}\nBase advisory: ${staleAdvisory ? 'stale base; safe task work continued' : 'none'}\nCleanup: ${cleanup && unfinished.length === 0 ? 'authorized for stopped, integrated run-owned worktrees' : 'withheld; retain unfinished or ambiguous work'}\nStop reason: ${unfinished.length === 0 ? 'approved batch committed' : sharedDecision ? 'shared decision required' : 'one or more task results require recovery'}`

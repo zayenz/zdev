@@ -267,6 +267,27 @@ pub(crate) fn experiment(
         "finalize, or edit and evaluate another allotted attempt"
     };
     let comparison_valid = comparison_current(root, &checkpoint)?;
+    let measurement_current = match checkpoint.attempts.last() {
+        Some(attempt)
+            if !checkpoint.index_updated
+                && comparison_valid
+                && attempt.published
+                && !attempt.measuring
+                && checkpoint.isolated.as_ref().is_none_or(|candidate| {
+                    candidate.worker_stopped
+                        && !candidate.refreshing
+                        && !candidate.withdrawing
+                        && !candidate.integrating
+                })
+                && attempt
+                    .settings
+                    .as_ref()
+                    .is_none_or(|settings| settings == &checkpoint.settings) =>
+        {
+            candidate_matches(root, &checkpoint, &attempt.candidate)?
+        }
+        _ => false,
+    };
     let candidate_state = candidate_state(root, &checkpoint)?;
     let cleanup_eligible = checkpoint.index_updated
         && checkpoint
@@ -280,7 +301,7 @@ pub(crate) fn experiment(
         .filter(|attempt| !attempt.measuring && comparison_valid)
         .map(|attempt| super::compare(&checkpoint.settings.comparison, &attempt.observation))
         .transpose()?;
-    let value = json!({"schema_version": 1, "area": area, "task": task, "dispatch_authorized": dispatch_authorized, "candidate_state": candidate_state, "cleanup_eligible": cleanup_eligible, "checkpoint": checkpoint, "assessment": assessment, "comparison_valid": comparison_valid, "next_action": next_action});
+    let value = json!({"schema_version": 1, "area": area, "task": task, "dispatch_authorized": dispatch_authorized, "candidate_state": candidate_state, "cleanup_eligible": cleanup_eligible, "checkpoint": checkpoint, "assessment": assessment, "comparison_valid": comparison_valid, "measurement_current": measurement_current, "next_action": next_action});
     Ok(CommandOutput::new(
         serde_json::to_string_pretty(&value).unwrap(),
         value,
@@ -2642,6 +2663,12 @@ fn refresh_source(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevEr
         });
         checkpoint.isolated.as_mut().unwrap().source_base = target.clone();
         valid?;
+        // Track owned additions so reset removes them too; the retained commit restores the full delta.
+        for path in &checkpoint.paths {
+            if fs::symlink_metadata(source.join(path)).is_ok() {
+                git_output(&source, &["--literal-pathspecs", "add", "-f", "--", path])?;
+            }
+        }
         git_output(&source, &["reset", "--hard", &target])?;
     }
     if !git_output(&source, &["ls-files", "--unmerged"])?.is_empty() {

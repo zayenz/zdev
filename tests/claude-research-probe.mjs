@@ -248,6 +248,7 @@ if (scenario.startsWith('rolling')) {
           injected = true
           fs.appendFileSync(`${root}/.zdev/work/brief.md`, '\nClarified the unchanged research objective.\n')
           git(['commit', '--only', '-m', 'Record-only checkpoint revision', '.zdev/work/brief.md'])
+          throw new Error('Interrupted after a completed measurement')
         }
         return JSON.stringify(value)
       }
@@ -354,7 +355,14 @@ if (scenario.startsWith('rolling')) {
     return agent(prompt, options)
   }
   const input = { ...optionsInput, execution: 'rolling', until_interrupted: true, target: 1, worker_limit: 2, measurement_limit: 1, cleanup: false }
-  const first = JSON.parse(await run(input, rollingAgent))
+  let first = JSON.parse(await run(input, rollingAgent))
+  if (scenario === 'rolling-record-only') {
+    if (first.verdict !== 'blocker') throw new Error('Measurement interruption was not preserved')
+    first = JSON.parse(await run({ area: 'work', execution: 'rolling', authorization: 'resume',
+      invocation_id: `probe-${scenario}-resume`, run_id: first.run_id,
+      frozen_profiles: first.frozen_profiles, retained_plans: first.retained_plans,
+      retained_candidates: first.retained_candidates }, rollingAgent))
+  }
   const final = state()
   if (first.stop_reason !== 'target') throw new Error(`Rolling run did not reach measured target: ${JSON.stringify({ first, events })}`)
   if (!generated || !createdAfterKeep || !final.run.rebaseline?.published || !workers.some(item => item.task === 'work-004' && item.role === 'planner')) throw new Error('Rolling mixed generation/current HEAD/support rebaseline was omitted')

@@ -58,8 +58,9 @@ the execution, cleanup and frozen_profiles returned by the prior invocation.
 Also pass retained_candidates to preserve unfinished source implementation or
 checked acceptance repair requirements. An interrupted repair cannot use its old
 measurements or verification to accept code. Do not supply replacement
-scope, limits or target on resume. The original identity, deadline and costs
-survive. Pass retained_plans as the task-ID map of semantic plans returned by the
+scope, limits or target in the resume input. If the user explicitly grants more
+allowance, extend the durable run through the task-format contract before
+resuming. The identity, current deadline and costs survive. Pass retained_plans as the task-ID map of semantic plans returned by the
 prior invocation. Restore those advanced plans when continuing the same task;
 never plan again during same-task rework. If a conversation lacks concrete role
 choices, explain that and resolve all five Claude roles afresh through `zdev

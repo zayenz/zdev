@@ -260,7 +260,7 @@ const experiment = (task, action, flags = []) => command(['research', 'experimen
 const inspectExperiment = (value, task) => {
   if (value?.schema_version !== 1 || value.area !== area || value.task !== task
     || !value.checkpoint || !Array.isArray(value.checkpoint.attempts)
-    || typeof value.comparison_valid !== 'boolean') throw new Error('Invalid experiment checkpoint')
+    || typeof value.comparison_valid !== 'boolean' || typeof value.measurement_current !== 'boolean') throw new Error('Invalid experiment checkpoint')
   return value
 }
 const hypothesis = async selected => {
@@ -584,7 +584,7 @@ const runRollingResearch = async () => {
       const selected = await select(checkpoint.task)
       if (selected.complexity === 'advanced' && !retainedPlans[checkpoint.task]) throw new Error('Advanced rolling resume requires the unchanged original semantic plan before dispatch')
       candidates.set(checkpoint.task, { selected, measured, plan: retainedPlans[checkpoint.task] ?? null,
-        needsMeasurement: !measured.checkpoint.attempts.length || measured.checkpoint.attempts.at(-1).candidate !== measured.checkpoint.isolated.returned_commit,
+        needsMeasurement: !measured.measurement_current,
         ...(retainedCandidates[checkpoint.task] ? { findings: retainedCandidates[checkpoint.task].findings,
           escalated: retainedCandidates[checkpoint.task].escalated, needsRepair: retainedCandidates[checkpoint.task].needs_repair || measured.checkpoint.isolated.refreshing }
           : !measured.checkpoint.attempts.length || measured.checkpoint.isolated.refreshing ? { needsRepair: true } : {}) })

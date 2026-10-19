@@ -1,10 +1,11 @@
 ---
 title: zdev
-description: Plan work with a coding agent, keep the decisions in Git, and verify each task before committing it.
-template: splash
+description: Organize development work in briefs and tasks, keep the record in your repository, and use coding agents to carry it out.
+template: doc
+tableOfContents: false
 hero:
-  title: Keep the plan with the code.
-  tagline: Zdev gives coding agents a shared record of the brief, tasks, and decisions. A separate agent verifies each implemented task before it is committed.
+  title: Organize development work with coding agents
+  tagline: Zdev records development work as briefs and tasks in your repository. Its agent workflows use that record to plan changes, implement tasks, and check the results.
   actions:
     - text: Try your first task
       link: ./guides/getting-started/
@@ -14,15 +15,15 @@ hero:
       variant: minimal
 ---
 
-I use coding agents for work that takes several sessions. An agent can explore
-a design and implement it, but keeping the decisions and remaining work
-coherent between sessions takes care. I built zdev to keep that information in
-the repository, where the next session can read it.
+The brief describes what to build and why. Tasks break that objective into
+work that can be implemented and checked. Decisions, dependencies, and results
+stay with the repository, so another agent or a later session can continue
+without reconstructing the plan from chat history.
 
-Zdev has two parts. A command-line tool stores and checks the work record. An
-installed skill tells your coding harness, the app you use to work with an
-agent, how to plan, implement, review, and commit the work. It uses the
-harness's model access and agent tools.
+The CLI manages this record. The installed skill gives your coding agent
+workflows for exploring an objective, creating tasks, and carrying out the
+approved work. You can ask for one task, a loop through an area, or compatible
+tasks in parallel.
 
 ## Start with one change
 
@@ -37,15 +38,13 @@ Use zdev to explore adding --name NAME to hello.py.
 Keep the current greeting when no name is supplied.
 ```
 
-The agent works with you on a brief. You then ask for tasks, review the
-proposed bundle, and authorize implementation. For each task, a fresh verifier
-checks the result against the requirements and repository rules. Required
-corrections get a correction pass and recheck. After a pass, the coordinating
-agent records completion and commits the accepted changes.
+The agent helps turn the objective into a brief and a proposed task bundle.
+Once you approve the work, it can implement the tasks, run the agreed checks,
+and have a separate agent verify each result before committing it. The record
+shows what is finished and what remains.
 
 The [first-task tutorial](./guides/getting-started/) takes that example through
-installation, planning, approval, and a verified commit. It also shows where
-to find the record when you return in another session.
+installation, planning, approval, and a completed task.
 
 ## Find your next step
 
@@ -65,10 +64,9 @@ long-running workflow. Zdev does not provide its own model service.
 
 ## Project status
 
-I maintain zdev in public as a personal tool. The whole project is vibe-coded,
-and I have spent little time reviewing the code myself. I use it a lot, and
-it has been useful for my work. I will make breaking changes when using it
-exposes a better design.
+Zdev is a public personal tool under active development. It is vibe-coded,
+and its maintainer has spent little time reviewing the code directly.
+Breaking changes are possible as the workflow develops.
 
 This guide describes zdev 2.0 from source; the latest versioned binary release
 is 1.6.0. The [changelog](./changelog/) records version
@@ -76,5 +74,4 @@ changes. After upgrading the binary, run `zdev skill install <harness> --force`
 to refresh its installed workflow. Zdev is
 [MIT licensed](https://github.com/zayenz/zdev/blob/main/LICENSE).
 
-The [introductory post](https://zayenz.se/blog/post/zdev-1-0/) explains why I
-built zdev and shows an example conversation with a coding agent.
+The [introductory post](https://zayenz.se/blog/post/zdev-1-0/) explains the motivation for zdev and shows an example conversation with a coding agent.

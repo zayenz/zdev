@@ -16,13 +16,14 @@ export default defineConfig({
   integrations: [starlight({
     title: 'zdev',
     logo: { light: '../assets/zdev-logo.svg', dark: '../assets/zdev-logo-light.svg', replacesTitle: true, alt: 'zdev' },
-    description: 'Keep tasks, decisions and verified changes in your repository while a coding harness does the work.',
+    description: 'Organize development work in repository briefs and tasks, then use coding agents to carry it out.',
     favicon: '/favicon.svg',
     customCss: ['./src/styles/custom.css'],
     components: { Footer: './src/components/Footer.astro' },
     social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/zayenz/zdev' }],
     sidebar: [
       { label: 'Start here', items: [
+        { label: 'What zdev does', slug: '' },
         { label: 'Your first task', slug: 'guides/getting-started' },
         { label: 'Upgrade to 2.0', slug: 'guides/upgrading-to-2' },
       ] },

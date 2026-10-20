@@ -11,7 +11,7 @@ The agent command names distinguish the scope and stopping point:
 | --- | --- | --- |
 | [Review](commands/review.md) | A change, commit range, or named code boundary; an area can supply context. | Findings or a pass, with no repairs or task completion. |
 | [Verify](commands/verify.md) | The area's current ready task, its brief, coding guidelines, and required validation. | A verification result, without intentional code edits, task completion, or a commit. |
-| [Implement](commands/implement.md) | One authorized task through implementation and independent verification. | A completed task and commit after acceptance, or preserved work and a blocker. |
+| [Implement](commands/implement.md) | One authorized task through implementation and independent review and verification. | A completed task and commit after acceptance, or preserved work and a blocker. |
 
 Standalone Review is being added to the integrations. If your installed
 integration does not include it, [Audit](commands/audit.md) can inspect a named
@@ -50,7 +50,7 @@ into a failure.
 
 ## How implementation uses the result
 
-Implement includes independent verification. You do not need separate Review
+Implement includes independent review and verification. You do not need separate Review
 and Verify requests for an ordinary task. The verifier checks behavior and
 code quality in the same acceptance step.
 

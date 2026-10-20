@@ -2,8 +2,8 @@
 
 Zdev keeps an agreed plan and its remaining work in your Git repository. Your
 coding agent reads that plan, implements one task, and asks a separate agent to
-verify the result before committing it. You can leave the conversation and pick
-up the same work in another session.
+review the implementation and verify the result before committing it. You can
+leave the conversation and pick up the same work in another session.
 
 This tutorial adds a `--name` option to a small Python program. The change is
 deliberately small so you can follow the whole process, including what you
@@ -21,13 +21,11 @@ a coding harness with an authenticated model account. A harness is the app or
 command-line agent you use to work on code, such as Codex or Claude Code. Zdev uses its model access and delegation tools. Installing
 zdev alone does not start agents or provide a model subscription.
 
-The binary supports macOS and Linux on x86-64 and Arm64. This guide describes
-zdev 2.0 from source. The latest versioned binary release is still 1.6.0.
-For the version used by this guide, install with a
-[Rust toolchain](https://rustup.rs/):
+The binary supports macOS and Linux on x86-64 and Arm64. This guide uses
+zdev 2.0. Install it with a [Rust toolchain](https://rustup.rs/):
 
 ```sh
-cargo install --git https://github.com/zayenz/zdev --locked
+cargo install zdev --version 2.0.0 --locked
 zdev --version
 ```
 
@@ -137,7 +135,7 @@ Import this exact task bundle for greeting.
 Import records the approved work. It does not start implementation. You can
 stop the conversation here; a new session can read the same brief and tasks.
 
-## Implement and verify
+## Implement, review, and verify
 
 Ask for one task:
 
@@ -146,9 +144,9 @@ Use zdev to implement the next task in greeting in this checkout.
 ```
 
 The agent selects a task whose dependencies are satisfied, implements it, and
-runs the agreed checks. A fresh verifier checks the result against the task
-and repository rules. Required corrections get a correction pass and a focused
-recheck. Unresolved corrections or a missing prerequisite leave the task open.
+runs the agreed checks. A separate agent reviews the implementation and
+verifies the result against the task and repository rules. Required corrections
+get a correction pass and a focused recheck. Unresolved corrections or a missing prerequisite leave the task open.
 
 After a pass, the coordinating agent records completion and commits the accepted
 source changes. The commit has a `Zdev-Change-Id` trailer, which identifies the

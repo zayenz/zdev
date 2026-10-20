@@ -2,7 +2,7 @@
 
 This file records notable changes to zdev.
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-10-20
 
 ### Changed
 
@@ -15,7 +15,8 @@ This file records notable changes to zdev.
   recheck. Recovery retains that review stage.
 - Explicit blanket approval for compatible parallel batches remains valid
   throughout an ongoing goal or loop, within the approved area and execution
-  limits. Each batch still rechecks admission and verifies each task.
+  limits. Each batch still rechecks admission and independently reviews and
+  verifies each task.
 - Implementation reuses an explicit workspace choice and otherwise uses an
   isolated worktree. Continuing parallel work defaults to four task slots within
   live capacity. Explicit task/import delegation remains valid within its scope.
@@ -416,6 +417,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[2.0.0]: https://github.com/zayenz/zdev/compare/v1.6.0...v2.0.0
 [1.6.0]: https://github.com/zayenz/zdev/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/zayenz/zdev/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/zayenz/zdev/compare/v1.4.0...v1.5.0

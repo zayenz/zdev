@@ -1,7 +1,7 @@
 # Continue through an area
 
 Use loop when you want zdev to work through a named area's approved tasks,
-with independent verification and a commit for each completed task. "Goal"
+with independent review and verification and a commit for each completed task. "Goal"
 means the same thing in an active zdev chat.
 
 ## Examples

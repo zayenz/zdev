@@ -33,8 +33,8 @@ resources, and the destination checkout. Each admitted task gets its own source
 worktree. The default is four task slots, bounded by available harness capacity;
 you can request a smaller limit. Parallel work consumes model usage faster.
 
-Implementations can overlap. Integration, independent verification, and the
-final task commits happen one at a time in the destination. Each accepted task
+Implementations can overlap. Integration, independent review and verification,
+and the final task commits happen one at a time in the destination. Each accepted task
 has its own commit. A task-local blocker preserves that task's worktree while
 unaffected work may continue.
 

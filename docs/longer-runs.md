@@ -53,7 +53,7 @@ accepted task commits still happen one task at a time. Tasks that share a
 changing interface or validation resource may need to run sequentially even
 when their dependency lists are independent.
 
-Each task keeps its agreed validation and independent verification. A longer
+Each task keeps its agreed validation and independent review and verification. A longer
 run changes how the next task starts, not what counts as an accepted result.
 
 ## How the harness carries the run

@@ -262,8 +262,8 @@ You can ask the harness to discuss a concrete one-off request and draft its task
 bundle in the same interaction. When no product or testing choice remains, it
 may proceed directly to the exact bundle review without a separate research or
 full-brief pass. You approve that exact bundle or delegate creation and import.
-The harness works on the recorded branch, runs proportionate tests, verifies
-independently, completes the task, and
+The harness works on the recorded branch, runs proportionate tests, delegates
+independent review and verification, completes the task, and
 commits the accepted changes. Area creation records the branch; it does not switch it for you.
 
 ## 5. Explore and discuss the objective
@@ -399,8 +399,8 @@ Use zdev to implement the next task in scheduling.
 ```
 
 The harness selects a task, implements it, runs the agreed validation, and asks
-a fresh agent to verify it. After a pass, it records completion and commits
-the accepted changes. One implementation request stops after that task. Ask for
+a fresh agent to review the implementation and verify the result. After a pass,
+it records completion and commits the accepted changes. One implementation request stops after that task. Ask for
 [goal or loop](commands/loop.md) when you want continuation across tasks.
 
 The remaining commands in this section let you inspect or perform parts of
@@ -451,8 +451,8 @@ not an exact filter, and is applied again after each commit.
 Ask the harness to work on the returned task with zdev. It should:
 
 1. implement against the task, area brief, and repository guidance;
-2. verify the result in a fresh, read-only context with separate specification
-   and repository-standards checks;
+2. review and verify the result with a separate agent in a fresh, read-only
+   context with separate specification and repository-standards checks;
 3. fix concrete failures and verify again; and
 4. stop for a real blocker or mark the task ready for completion after both
    checks pass.

@@ -6,17 +6,18 @@
 </h1>
 
 Zdev coordinates repository work with coding guidance, durable tasks, and
-independent review. A coding harness explores the code, implements a task, and
-checks the result against its requirements and the repository's standards.
+independent review and verification. A coding harness explores the code and
+implements a task. A separate agent reviews the implementation and verifies it
+against the task requirements and the repository's standards.
 
 Coding harnesses can explore a repository, compare designs, implement code,
 and review the result. The awkward part is what has to survive between those
 activities: the decisions, the task order, the work that has been verified, and
 the connection between a task and its Git history.
 
-The `zdev` binary manages a task record in `.zdev`. The zdev skill guides the harness through planning,
-implementation, and independent verification. The skill coordinates the work;
-the binary records its progress.
+The `zdev` binary manages a task record in `.zdev`. The zdev skill guides the
+harness through planning, implementation, and independent review and verification.
+The skill coordinates the work; the binary records its progress.
 
 Zdev is maintained as a personal tool in public. Releases target macOS and
 Linux on x86-64 and Arm64.
@@ -36,7 +37,7 @@ Versioned binaries are available from the
 installation from source with a Rust toolchain, use Cargo:
 
 ```sh
-cargo install --git https://github.com/zayenz/zdev --locked
+cargo install zdev --version 2.0.0 --locked
 ```
 
 From a local checkout, use `cargo install --path . --locked`.
@@ -237,8 +238,8 @@ Once installed, ask the harness to use zdev explicitly. The usual workflow is:
 3. **Create tasks** to turn the agreed brief into task files for the binary to
    import.
 4. **Implement** the next ready task within the brief and task boundaries.
-5. **Verify** the task and diff in a fresh context, checking both the task
-   requirements and repository standards.
+5. **Review and verify** the task and diff with a separate agent in a fresh
+   context, checking both the task requirements and repository standards.
 6. Complete the task and commit the accepted changes through the binary.
 
 **Improve** surveys the codebase and proposes candidate work without creating
@@ -248,8 +249,8 @@ remain read-only until their result becomes part of an agreed objective.
 
 The skill does not replace the task record or make design decisions on behalf
 of the developer. It gives the harness a common route through the brief, task
-selection, implementation, verification, and completion steps that the binary
-records.
+selection, implementation, review, verification, and completion steps that the
+binary records.
 
 Use `zdev config` to inspect project settings and choose worker models:
 

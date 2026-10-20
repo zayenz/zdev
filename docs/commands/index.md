@@ -51,7 +51,7 @@ commits one task. You can stop after any of these steps and continue later.
 | Finish one ready task | [Implement](implement.md) | A verified commit |
 | Run compatible tasks together | [Parallel](parallel.md) | Separate verified task commits |
 | Think through one task first | [Plan](plan.md) | A plan in the conversation |
-| Check the current ready task | [Verify](verify.md) | A task verification result |
+| Review and verify the current ready task | [Verify](verify.md) | A task review and verification result |
 | Continue through approved work | [Loop or goal](loop.md) | One verified commit per completed task |
 | Resume interrupted work | [Recover](recover.md) | Resumed work or a precise recovery decision |
 | Change settings | [Configure](configure.md) | The requested setting |

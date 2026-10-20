@@ -6,8 +6,8 @@ What should the JSON contain? Should it go to standard output or a file?
 What happens when a destination already exists?
 
 This walkthrough follows that idea through discussion, tasks, implementation,
-independent verification, and commits. The query tool is an illustrative
-project; adapt the prompts and validation to your repository. It assumes zdev
+independent review and verification, and commits. The query tool is an
+illustrative project; adapt the prompts and validation to your repository. It assumes zdev
 and your harness integration are installed and the repository is initialized.
 See [Your first task](getting-started.md) for that setup.
 
@@ -119,7 +119,7 @@ An import report might say: "Imported result-export-001 (JSON output) and
 result-export-002 (file output, depends on 001). Task 001 is ready;
 implementation has not started." Use the actual IDs from your run.
 
-## Implement one task and verify it independently
+## Implement one task, then review and verify it independently
 
 Start with one task so you can inspect the result:
 
@@ -145,9 +145,10 @@ decision. A changed requirement that affects scope should be settled before
 continuing. Testing follows the agreed level; it does not automatically require
 a new test framework.
 
-You do not need a separate verify request in this flow: independent verification
-is included in implement. The [Verify command](commands/verify.md) checks an
-existing implementation explicitly and reports a result without committing it.
+You do not need separate review and verify requests in this flow: independent
+review and verification are included in implement. The
+[Verify command](commands/verify.md) checks an existing implementation explicitly
+and reports a result without committing it.
 
 ## Inspect the commit, then continue
 

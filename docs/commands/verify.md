@@ -1,7 +1,7 @@
 # Verify the current ready task
 
-Use verify for an independent check of an existing implementation against its
-task. Name both the area and the task ID. The task must be the area's current
+Use verify for independent review and verification of an existing implementation
+against its task. Name both the area and the task ID. The task must be the area's current
 ready task and the checkout must be safe for task work.
 
 Verification includes code review against the [coding guidelines](../coding-guidelines.md)

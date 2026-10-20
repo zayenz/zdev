@@ -1,7 +1,7 @@
 # Implement one ready task
 
 Use implement when the area has approved tasks and you want one completed,
-independently verified, and committed. "Continue" and "next task" also select
+independently reviewed and verified, and committed. "Continue" and "next task" also select
 this interaction when zdev is active.
 
 ## Examples
@@ -24,7 +24,8 @@ the branch and existing changes. It reuses an agreed workspace; otherwise the
 workflow normally uses a worktree. The implementer makes the task's changes
 and runs the agreed validation. An advanced task receives a planning pass first.
 
-A different agent checks the complete result and required validation. Confirmed
+A different agent reviews the implementation and verifies the complete result
+and required validation. Confirmed
 problems receive one correction pass and a focused recheck. Once verification
 passes, the coordinator marks the task done, stages its changes, and makes a
 commit with a stable `Zdev-Change-Id`.

@@ -5,8 +5,8 @@ Zdev has one normal loop:
 ```text
 next task
   → implementation sub-agent
-  → verification sub-agent
-  → rework and verify again when needed
+  → independent review and verification sub-agent
+  → rework and recheck when needed
   → mark done
   → commit with a stable change ID
   → next task

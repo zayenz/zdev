@@ -1,8 +1,8 @@
 # Upgrade to zdev 2.0
 
 Zdev 2.0 makes coding guidance part of planning, implementation and independent
-review. Readability and repository standards contribute to acceptance alongside
-the task's required behavior. Language and framework supplements apply to the
+review and verification. Readability and repository standards contribute to
+acceptance alongside the task's required behavior. Language and framework supplements apply to the
 affected code, within explicit user requirements and project instructions.
 
 Existing 1.x areas, briefs, tasks and worker configuration remain valid. The
@@ -10,8 +10,14 @@ record schema stays at version 1; there is no record migration or reinitializati
 
 ## Refresh the binary and integrations
 
-Install the 2.0 binary using your existing installation method. Then refresh
-each binary-installed harness integration with the same scope and destination:
+Install the 2.0 binary using your existing installation method. For Cargo:
+
+```sh
+cargo install zdev --version 2.0.0 --locked
+```
+
+Then refresh each binary-installed harness integration with the same scope and
+destination:
 
 ```sh
 zdev skill install codex --force
@@ -32,8 +38,9 @@ directory; they do not depend on the maintainer's checkout.
 
 ## Review and continuation changes
 
-Reviews separate required corrections from optional suggestions. An ordinary
-task receives one full review, one correction pass and one focused recheck.
+A separate agent reviews the implementation and verifies it against the task
+requirements and repository standards. Reviews separate required corrections
+from optional suggestions. An ordinary task receives one full review, one correction pass and one focused recheck.
 Recovery carries the review stage and prior findings forward. If required
 corrections remain after the recheck, the task stays open and the harness asks
 for an explicit continuation decision. Research retains its own attempt budgets.

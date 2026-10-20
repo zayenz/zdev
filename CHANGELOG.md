@@ -46,6 +46,8 @@ This file records notable changes to zdev.
 
 ### Fixed
 
+- The report generator locks a compatible `http-cache-semantics` update that
+  fixes a cache-response disclosure advisory.
 - Rolling source reconciliation preserves both existing-file edits and owned
   additions. Claude rolling recovery reuses current completed measurements.
 - Claude parallel acceptance pauses at unresolved destination checkpoints,

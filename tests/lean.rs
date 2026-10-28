@@ -6935,21 +6935,16 @@ fn cross_area_blockers_gate_readiness_and_index_on_trunk() {
             .contains("Cannot complete task engines-002: it is blocked")
     );
 
+    let done = run_task_done(root, "platform", "platform-001");
+    assert!(done.status.success());
     assert!(
-        run_task_done(root, "platform", "platform-001")
-            .status
-            .success()
+        String::from_utf8_lossy(&done.stdout)
+            .contains("Updated dependent indexes: .zdev/engines/TASKS.md")
     );
     assert_eq!(
         task_states(root, "engines")[1],
         ("engines-002".to_owned(), "ready".to_owned())
     );
-    let stale = failure_text(&run_zdev(root, &["check"]));
-    assert!(stale.contains("Generated task summary is stale: "));
-    assert!(
-        stale.contains(".zdev/engines/TASKS.md. Run `zdev tasks index engines` to regenerate it")
-    );
-    json_output(root, &["tasks", "index", "engines"]);
     assert_eq!(json_output(root, &["check"])["status"], "ok");
     assert!(read_index(root, "engines").contains(
         "| [engines-002](tasks/002-build-on-the-blocker.md) | Build on the blocker | ready | platform-001 (platform: done) |\n"
@@ -7036,13 +7031,153 @@ fn cross_area_blocker_done_on_another_branch_counts_after_rebase() {
         task_states(root, "engines")[1],
         ("engines-002".to_owned(), "ready".to_owned())
     );
-    assert!(
-        failure_text(&run_zdev(root, &["check"]))
-            .contains("Run `zdev tasks index engines` to regenerate it")
-    );
-    json_output(root, &["tasks", "index", "engines"]);
     assert_eq!(json_output(root, &["check"])["status"], "ok");
     assert!(read_index(root, "engines").contains("platform-001 (platform: done)"));
+}
+
+/// The task file and index of the platform blocker and its engines dependent.
+fn cross_area_record_bytes(root: &Path) -> Vec<Vec<u8>> {
+    [
+        ".zdev/platform/tasks/001-complete-one-task.md",
+        ".zdev/platform/TASKS.md",
+        ".zdev/engines/tasks/002-build-on-the-blocker.md",
+        ".zdev/engines/TASKS.md",
+    ]
+    .iter()
+    .map(|path| fs::read(root.join(path)).expect("task record"))
+    .collect()
+}
+
+/// A trunk project where `engines-002` is blocked by `platform-001`.
+fn create_cross_area_dependency(root: &Path) {
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_trunk_area(root, "platform");
+    create_trunk_area(root, "engines");
+    import_one_task(root, "platform");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "engines", "--from", "-"],
+        &gated_bundle("engines", &["platform-001"]),
+    );
+}
+
+#[test]
+fn task_status_changes_refresh_dependent_indexes_and_guard_reopen() {
+    let repository = repository();
+    let root = repository.path();
+    create_cross_area_dependency(root);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let before = cross_area_record_bytes(root);
+        let engines = root.join(".zdev/engines");
+        let original_permissions = fs::metadata(&engines).expect("engines").permissions();
+        let mut read_only = original_permissions.clone();
+        read_only.set_mode(0o555);
+        fs::set_permissions(&engines, read_only).expect("read-only engines area");
+        let failed = run_task_done(root, "platform", "platform-001");
+        fs::set_permissions(&engines, original_permissions).expect("restore engines area");
+        assert!(failure_text(&failed).contains(".zdev/engines/TASKS.md"));
+        assert_eq!(cross_area_record_bytes(root), before);
+    }
+
+    let done = json_output(
+        root,
+        &[
+            "task",
+            "done",
+            "platform",
+            "platform-001",
+            "--summary",
+            "Completed the task.",
+            "--validation",
+            "Focused check passed.",
+        ],
+    );
+    assert_eq!(done["dependent_indexes"], json!([".zdev/engines/TASKS.md"]));
+    assert!(
+        read_index(root, "engines")
+            .contains("| Build on the blocker | ready | platform-001 (platform: done) |\n")
+    );
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+
+    assert!(
+        run_task_done(root, "engines", "engines-002")
+            .status
+            .success()
+    );
+    let before = cross_area_record_bytes(root);
+    let refused = failure_text(&run_zdev(
+        root,
+        &["task", "reopen", "platform", "platform-001"],
+    ));
+    assert!(refused.contains(
+        "Cannot reopen platform-001: completed task engines-002 in area engines depends on it"
+    ));
+    assert_eq!(cross_area_record_bytes(root), before);
+
+    let reopened = json_output(root, &["task", "reopen", "engines", "engines-002"]);
+    assert_eq!(reopened["dependent_indexes"], json!([]));
+    let reopened = json_output(root, &["task", "reopen", "platform", "platform-001"]);
+    assert_eq!(
+        reopened["dependent_indexes"],
+        json!([".zdev/engines/TASKS.md"])
+    );
+    assert!(
+        read_index(root, "engines")
+            .contains("| Build on the blocker | blocked | platform-001 (platform: open) |\n")
+    );
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+}
+
+#[test]
+fn derived_apply_refreshes_dependent_index_in_its_commit() {
+    let repository = repository();
+    let root = repository.path();
+    create_cross_area_dependency(root);
+    commit_all(root, "record cross-area work");
+    let proposal = derived_proposal_bytes(
+        "platform",
+        "platform-001",
+        investigation_follow_up("platform", "platform-001", "follow", "Follow the platform"),
+    );
+    let apply = ["tasks", "derive", "apply", "platform", "--from", "-"];
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let before = cross_area_record_bytes(root);
+        let hook = root.join(".git/hooks/pre-commit");
+        fs::write(&hook, "#!/bin/sh\nexit 1\n").expect("hook");
+        let mut permissions = fs::metadata(&hook).expect("hook").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&hook, permissions).expect("executable hook");
+        let rejected = json_output_with_stdin_status(root, &apply, &proposal);
+        fs::remove_file(hook).expect("remove hook");
+        assert!(
+            failure_text(&rejected).contains("all task, index, and retained bytes were restored")
+        );
+        assert_eq!(cross_area_record_bytes(root), before);
+        assert_eq!(git(root, &["status", "--porcelain"]), "");
+    }
+
+    let applied = json_output_with_stdin(root, &apply, &proposal);
+    assert_eq!(
+        applied["dependent_indexes"],
+        json!([".zdev/engines/TASKS.md"])
+    );
+    assert!(
+        git(root, &["show", "--name-only", "--format=", "HEAD"])
+            .lines()
+            .any(|path| path == ".zdev/engines/TASKS.md")
+    );
+    assert_eq!(git(root, &["status", "--porcelain"]), "");
+    assert!(read_index(root, "engines").contains("platform-001 (platform: done)"));
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
 }
 
 #[cfg(unix)]

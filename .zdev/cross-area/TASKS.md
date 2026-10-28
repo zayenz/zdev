@@ -3,15 +3,15 @@
 # Tasks: cross-area
 
 - Total: 6
-- Ready: 2
+- Ready: 1
 - Blocked: 2
-- Done: 2
+- Done: 3
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
 | [cross-area-001](tasks/001-validate-cross-area-blockers-and-cross-area-cycles.md) | Validate cross-area blockers and cross-area cycles | done | — |
 | [cross-area-002](tasks/002-compute-readiness-across-areas-and-render-cross-area-blocker.md) | Compute readiness across areas and render cross-area blockers in TASKS.md | done | cross-area-001 |
-| [cross-area-003](tasks/003-refresh-dependent-indexes-on-blocker-status-changes-and-guar.md) | Refresh dependent indexes on blocker status changes and guard cross-area reopen | ready | cross-area-002 |
+| [cross-area-003](tasks/003-refresh-dependent-indexes-on-blocker-status-changes-and-guar.md) | Refresh dependent indexes on blocker status changes and guard cross-area reopen | done | cross-area-002 |
 | [cross-area-004](tasks/004-project-the-blocked-queue-and-name-cross-area-blockers-in-ne.md) | Project the blocked queue and name cross-area blockers in next, status and close | ready | cross-area-002 |
 | [cross-area-005](tasks/005-teach-harness-routes-the-blocked-queue-and-dependent-index-s.md) | Teach harness routes the blocked queue and dependent index staging | blocked | cross-area-004, cross-area-003 |
 | [cross-area-006](tasks/006-document-cross-area-blockers-and-record-them-in-the-changelo.md) | Document cross-area blockers and record them in the changelog | blocked | cross-area-005 |

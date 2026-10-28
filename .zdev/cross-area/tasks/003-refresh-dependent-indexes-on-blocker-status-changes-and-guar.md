@@ -3,7 +3,7 @@ schema_version = 1
 id = "cross-area-003"
 key = "refresh-dependent-indexes"
 area = "cross-area"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "high"
@@ -36,11 +36,11 @@ Reopen guard: `reopen` already refuses when a completed task in the same area de
 
 ## Done when
 
-- [ ] `zdev task done` on a blocker regenerates the TASKS.md of each dependent area in the checkout, reports those paths in JSON, and leaves `zdev check` passing without `zdev tasks index`.
-- [ ] `zdev task reopen` on a blocker whose dependents in another area are all open regenerates their TASKS.md and reports the paths.
-- [ ] `zdev tasks derive apply` with an investigation follow-up whose source task blocks a task in another area regenerates that area's TASKS.md, reports the path, and includes it in the managed commit when committing.
-- [ ] A failed write in any of these commands restores every task file and TASKS.md it touched.
-- [ ] `zdev task reopen` on a done task refuses when a completed task in another area lists it in `blocked_by`, names that dependent and its area, and leaves every task file and TASKS.md unchanged.
+- [x] `zdev task done` on a blocker regenerates the TASKS.md of each dependent area in the checkout, reports those paths in JSON, and leaves `zdev check` passing without `zdev tasks index`.
+- [x] `zdev task reopen` on a blocker whose dependents in another area are all open regenerates their TASKS.md and reports the paths.
+- [x] `zdev tasks derive apply` with an investigation follow-up whose source task blocks a task in another area regenerates that area's TASKS.md, reports the path, and includes it in the managed commit when committing.
+- [x] A failed write in any of these commands restores every task file and TASKS.md it touched.
+- [x] `zdev task reopen` on a done task refuses when a completed task in another area lists it in `blocked_by`, names that dependent and its area, and leaves every task file and TASKS.md unchanged.
 
 ## Validation
 
@@ -50,3 +50,15 @@ Reopen guard: `reopen` already refuses when a completed task in the same area de
 - `cargo test --locked`
 - `cargo build --locked`
 - `git diff --check`
+
+## Result
+
+task done, task reopen and investigation follow-up derive apply now regenerate the TASKS.md of every other area with a task blocked by the changed task, under the same lock and rollback, reporting them in a new dependent_indexes JSON field; derive apply includes them in its managed commit. task reopen refuses while a completed task in another area depends on the task. Research publication is unchanged: completing a hypothesis task that another area depends on fails safely before writing (follow-up). Independently verified, with one rollback correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 198)
+- cargo build --locked: pass
+- git diff --check: pass

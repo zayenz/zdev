@@ -1552,6 +1552,15 @@ pub(super) fn apply_derived(
     validate_graph(root, area, &hypothetical)?;
     let statuses = read_task_statuses(root, area, &hypothetical)?;
     let index_content = render_index(area, &hypothetical, &statuses);
+    let dependent_indexes = if source_header.status == source_task.header.status {
+        Vec::new()
+    } else {
+        render_dependent_indexes(root, area, &proposal.source_task, source_header.status)?
+    };
+    let dependent_index_paths = dependent_indexes
+        .iter()
+        .map(|(path, _)| path.clone())
+        .collect::<Vec<_>>();
     let ready = hypothetical
         .iter()
         .filter(|task| task_state(task, &statuses) == "ready")
@@ -1564,6 +1573,7 @@ pub(super) fn apply_derived(
     })?;
     let original_index = fs::read(&index_path)
         .map_err(|error| ZdevError::io(format!("Cannot read {}", index_path.display()), error))?;
+    let original_dependent_indexes = read_originals(&dependent_indexes)?;
     let retained = proposal
         .split_ownership
         .as_ref()
@@ -1611,6 +1621,9 @@ pub(super) fn apply_derived(
                 })?;
         }
         write_atomic(&index_path, index_content.as_bytes())?;
+        for (path, bytes) in &dependent_indexes {
+            write_atomic(path, bytes)?;
+        }
         for (path, bytes) in &retained {
             if fs::read(root.join(path)).ok().as_deref() != Some(bytes.as_slice()) {
                 return Err(ZdevError::new(format!(
@@ -1632,6 +1645,7 @@ pub(super) fn apply_derived(
         paths.push(source_task.path.clone());
         paths.extend(created.iter().cloned());
         paths.push(index_path.clone());
+        paths.extend(dependent_index_paths.iter().cloned());
         let (revision, change_id) = commit_task_import(root, area, &paths)?;
         Ok((revision, change_id, paths))
     })();
@@ -1652,6 +1666,17 @@ pub(super) fn apply_derived(
             }
             if let Err(rollback) = write_atomic(&index_path, &original_index) {
                 rollback_errors.push(format!("cannot restore task index: {rollback}"));
+            }
+            for (path, original) in dependent_index_paths
+                .iter()
+                .zip(&original_dependent_indexes)
+            {
+                if let Err(rollback) = write_atomic(path, original) {
+                    rollback_errors.push(format!(
+                        "cannot restore dependent task index {}: {rollback}",
+                        path.display()
+                    ));
+                }
             }
             if let Err(rollback) = git_read_tree(root, &prior_index) {
                 rollback_errors.push(format!("cannot restore Git index: {rollback}"));
@@ -1699,6 +1724,7 @@ pub(super) fn apply_derived(
         "commit": revision,
         "change_id": change_id,
         "paths": relative_paths(root, &paths)?,
+        "dependent_indexes": relative_paths(root, &dependent_index_paths)?,
     });
     if let Some(ownership) = &proposal.split_ownership {
         value
@@ -2798,6 +2824,65 @@ fn read_blocking_area_tasks(
     Ok(blocking_tasks)
 }
 
+/// One area's parsed tasks.
+struct AreaTasks {
+    tag: String,
+    tasks: Vec<Task>,
+}
+
+/// The other areas in the checkout with a task whose `blocked_by` names `id`, in
+/// area-tag order, read without validating their graphs. This is the inverse of
+/// [`read_blocking_area_tasks`]: these areas' readiness and `TASKS.md` show the
+/// status of `id`.
+fn read_dependent_areas(root: &Path, area: &str, id: &str) -> Result<Vec<AreaTasks>, ZdevError> {
+    let mut dependents = Vec::new();
+    for metadata in list_areas(root)? {
+        if metadata.tag == area || !area_has_tasks(root, &metadata.tag) {
+            continue;
+        }
+        let tasks = read_area_tasks(root, &metadata.tag)?;
+        if tasks.iter().any(|task| is_blocked_by(task, id)) {
+            dependents.push(AreaTasks {
+                tag: metadata.tag,
+                tasks,
+            });
+        }
+    }
+    Ok(dependents)
+}
+
+fn is_blocked_by(task: &Task, id: &str) -> bool {
+    task.header.blocked_by.iter().any(|blocker| blocker == id)
+}
+
+/// Whether `task` is done and lists `id` as a blocker, which keeps `id` from being
+/// reopened.
+fn is_completed_dependent(task: &Task, id: &str) -> bool {
+    task.header.status == TaskStatus::Done && is_blocked_by(task, id)
+}
+
+/// Renders the `TASKS.md` of each area in the checkout that depends on `id`, a
+/// task in `area`, as it reads once `id` has `status`. Only direct dependents
+/// change: an index shows the status of its tasks' own blockers.
+fn render_dependent_indexes(
+    root: &Path,
+    area: &str,
+    id: &str,
+    status: TaskStatus,
+) -> Result<Vec<(PathBuf, Vec<u8>)>, ZdevError> {
+    read_dependent_areas(root, area, id)?
+        .into_iter()
+        .map(|dependent| {
+            validate_graph(root, &dependent.tag, &dependent.tasks)?;
+            let statuses =
+                read_task_statuses(root, &dependent.tag, &dependent.tasks)?.with_status(id, status);
+            let index = render_index(&dependent.tag, &dependent.tasks, &statuses);
+            let path = root.join(".zdev").join(&dependent.tag).join("TASKS.md");
+            Ok((path, index.into_bytes()))
+        })
+        .collect()
+}
+
 fn blocker_areas(tasks: &[Task]) -> Vec<String> {
     tasks
         .iter()
@@ -2910,6 +2995,13 @@ struct TaskStatuses(BTreeMap<String, TaskStatus>);
 impl TaskStatuses {
     fn status(&self, id: &str) -> Option<TaskStatus> {
         self.0.get(id).copied()
+    }
+
+    /// These statuses with `id` given `status`, for rendering before a status
+    /// change is written.
+    fn with_status(mut self, id: &str, status: TaskStatus) -> Self {
+        self.0.insert(id.to_owned(), status);
+        self
     }
 }
 
@@ -3599,7 +3691,8 @@ pub(super) fn append_research_record_with_checkpoint(
         toml::to_string(&header).unwrap(),
         task.body
     );
-    publish_task_and_index_with_checkpoint(root, area, task, &content, checkpoint)
+    publish_task_and_index_with_checkpoint(root, area, task, &content, checkpoint)?;
+    Ok(())
 }
 
 pub(super) fn complete(
@@ -3631,7 +3724,7 @@ pub(super) fn complete_with_checkpoint(
     if task.header.status == TaskStatus::Done {
         return Ok(CommandOutput::new(
             format!("Task {id} is already done"),
-            json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "area": area, "task": id}),
+            json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "area": area, "task": id, "dependent_indexes": []}),
         ));
     }
     if task_state(task, &read_task_statuses(root, area, &tasks)?) != "ready" {
@@ -3659,15 +3752,19 @@ pub(super) fn complete_with_checkpoint(
         body.push_str(&format!("- {item}\n"));
     }
     let content = format!("+++\n{}+++\n{}", toml::to_string(&header).unwrap(), body);
-    publish_task_and_index_with_checkpoint(root, area, task, &content, checkpoint)?;
+    let dependent_indexes = relative_paths(
+        root,
+        &publish_task_and_index_with_checkpoint(root, area, task, &content, checkpoint)?,
+    )?;
     let mut text = format!("Completed task {id}");
+    append_dependent_indexes(&mut text, &dependent_indexes);
     if let Some(advisory) = &branch.advisory {
         text.push('\n');
         text.push_str(advisory);
     }
     Ok(CommandOutput::new(
         text,
-        json!({"schema_version": SCHEMA_VERSION, "status": "done", "area": area, "task": id, "branch_status": branch.branch_status, "advisory": branch.advisory}),
+        json!({"schema_version": SCHEMA_VERSION, "status": "done", "area": area, "task": id, "branch_status": branch.branch_status, "advisory": branch.advisory, "dependent_indexes": dependent_indexes}),
     ))
 }
 
@@ -3685,7 +3782,7 @@ pub(super) fn reopen(root: &Path, area: &str, id: &str) -> Result<CommandOutput,
     if task.header.status == TaskStatus::Open {
         return Ok(CommandOutput::new(
             format!("Task {id} is already open"),
-            json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "area": area, "task": id}),
+            json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "area": area, "task": id, "dependent_indexes": []}),
         ));
     }
     if task.header.hypothesis.is_some() {
@@ -3693,17 +3790,25 @@ pub(super) fn reopen(root: &Path, area: &str, id: &str) -> Result<CommandOutput,
             "A completed hypothesis cannot be reopened; create a new context-linked retry",
         ));
     }
-    if tasks.iter().any(|candidate| {
-        candidate.header.status == TaskStatus::Done
-            && candidate
-                .header
-                .blocked_by
-                .iter()
-                .any(|blocker| blocker == id)
-    }) {
+    if tasks
+        .iter()
+        .any(|candidate| is_completed_dependent(candidate, id))
+    {
         return Err(ZdevError::new(format!(
             "Cannot reopen {id}: a completed task depends on it. Reopen dependent completed tasks first"
         )));
+    }
+    for dependent_area in read_dependent_areas(root, area, id)? {
+        if let Some(dependent) = dependent_area
+            .tasks
+            .iter()
+            .find(|candidate| is_completed_dependent(candidate, id))
+        {
+            return Err(ZdevError::new(format!(
+                "Cannot reopen {id}: completed task {} in area {} depends on it. Reopen dependent completed tasks first",
+                dependent.header.id, dependent_area.tag
+            )));
+        }
     }
     let mut header = task.header.clone();
     header.status = TaskStatus::Open;
@@ -3726,11 +3831,25 @@ pub(super) fn reopen(root: &Path, area: &str, id: &str) -> Result<CommandOutput,
             .replace("- [X] ", "- [ ] ")
     })?;
     let content = format!("+++\n{}+++\n{}", toml::to_string(&header).unwrap(), body);
-    publish_task_and_index(root, area, task, &content)?;
+    let dependent_indexes =
+        relative_paths(root, &publish_task_and_index(root, area, task, &content)?)?;
+    let mut text = format!("Reopened task {id}");
+    append_dependent_indexes(&mut text, &dependent_indexes);
     Ok(CommandOutput::new(
-        format!("Reopened task {id}"),
-        json!({"schema_version": SCHEMA_VERSION, "status": "open", "area": area, "task": id}),
+        text,
+        json!({"schema_version": SCHEMA_VERSION, "status": "open", "area": area, "task": id, "dependent_indexes": dependent_indexes}),
     ))
+}
+
+/// Adds a line naming the other areas' `TASKS.md` files a status change rewrote,
+/// so that whoever commits the change also commits them.
+fn append_dependent_indexes(text: &mut String, paths: &[String]) {
+    if !paths.is_empty() {
+        text.push_str(&format!(
+            "\nUpdated dependent indexes: {}",
+            paths.join(", ")
+        ));
+    }
 }
 
 fn publish_task_and_index(
@@ -3738,25 +3857,26 @@ fn publish_task_and_index(
     area: &str,
     current: &Task,
     content: &str,
-) -> Result<(), ZdevError> {
+) -> Result<Vec<PathBuf>, ZdevError> {
     publish_task_and_index_with_checkpoint(root, area, current, content, |_| Ok(()))
 }
 
+/// Replaces `current` with `content` and regenerates its area's `TASKS.md`. When
+/// the task's status changes, also regenerates the `TASKS.md` of every other area
+/// that depends on it. Passes all planned writes to `checkpoint` before writing,
+/// writes them with rollback, and returns the dependent index paths it wrote.
 fn publish_task_and_index_with_checkpoint(
     root: &Path,
     area: &str,
     current: &Task,
     content: &str,
     checkpoint: impl FnOnce(&[(PathBuf, Vec<u8>)]) -> Result<(), ZdevError>,
-) -> Result<(), ZdevError> {
+) -> Result<Vec<PathBuf>, ZdevError> {
     let index_path = root.join(".zdev").join(area).join("TASKS.md");
-    let original_task = fs::read(&current.path)
-        .map_err(|error| ZdevError::io(format!("Cannot read {}", current.path.display()), error))?;
-    let original_index = fs::read(&index_path)
-        .map_err(|error| ZdevError::io(format!("Cannot read {}", index_path.display()), error))?;
     let mut tasks = load_tasks(root, area)?;
     let updated = parse_task(content, &current.path, area)?;
-    if updated.header.status == TaskStatus::Done {
+    let status = updated.header.status;
+    if status == TaskStatus::Done {
         require_hypothesis_completion(root, area, &updated)?;
     }
     let slot = tasks
@@ -3767,21 +3887,63 @@ fn publish_task_and_index_with_checkpoint(
     validate_research_tasks(&tasks, load_area(root, area)?.0.research.is_some())?;
     validate_graph(root, area, &tasks)?;
     let index = render_index(area, &tasks, &read_task_statuses(root, area, &tasks)?);
+    let dependent_indexes = if status == current.header.status {
+        Vec::new()
+    } else {
+        render_dependent_indexes(root, area, &current.header.id, status)?
+    };
+    let dependent_index_paths = dependent_indexes
+        .iter()
+        .map(|(path, _)| path.clone())
+        .collect();
 
-    checkpoint(&[
+    let mut writes = vec![
         (current.path.clone(), content.as_bytes().to_vec()),
-        (index_path.clone(), index.as_bytes().to_vec()),
-    ])?;
-    write_atomic(&current.path, content.as_bytes())?;
-    if let Err(error) = write_atomic(&index_path, index.as_bytes()) {
-        let task_rollback = write_atomic(&current.path, &original_task);
-        let index_rollback = write_atomic(&index_path, &original_index);
-        if let Err(rollback) = task_rollback.and(index_rollback) {
-            return Err(ZdevError::new(format!(
-                "{error}; rollback also failed: {rollback}"
-            )));
+        (index_path, index.into_bytes()),
+    ];
+    writes.extend(dependent_indexes);
+    let originals = read_originals(&writes)?;
+    checkpoint(&writes)?;
+    write_with_rollback(&writes, &originals)?;
+    Ok(dependent_index_paths)
+}
+
+/// The current bytes of each file that `writes` will replace, in the same order.
+fn read_originals(writes: &[(PathBuf, Vec<u8>)]) -> Result<Vec<Vec<u8>>, ZdevError> {
+    writes
+        .iter()
+        .map(|(path, _)| {
+            fs::read(path)
+                .map_err(|error| ZdevError::io(format!("Cannot read {}", path.display()), error))
+        })
+        .collect()
+}
+
+/// Writes each file atomically, in order. If a write fails, attempts to restore
+/// every file already written to its `originals`, so that either every file
+/// changes or none does, and reports each restore that fails. A failed atomic
+/// write leaves its own file unchanged.
+fn write_with_rollback(
+    writes: &[(PathBuf, Vec<u8>)],
+    originals: &[Vec<u8>],
+) -> Result<(), ZdevError> {
+    for (written, (path, bytes)) in writes.iter().enumerate() {
+        let Err(error) = write_atomic(path, bytes) else {
+            continue;
+        };
+        let rollback_errors = writes[..written]
+            .iter()
+            .zip(originals)
+            .filter_map(|((path, _), original)| write_atomic(path, original).err())
+            .map(|rollback| rollback.to_string())
+            .collect::<Vec<_>>();
+        if rollback_errors.is_empty() {
+            return Err(error);
         }
-        return Err(error);
+        return Err(ZdevError::new(format!(
+            "{error}; rollback also failed: {}",
+            rollback_errors.join("; ")
+        )));
     }
     Ok(())
 }

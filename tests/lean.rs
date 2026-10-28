@@ -15775,7 +15775,8 @@ fn research_measure_collects_samples_and_retains_execution_failures() {
     let revision = git(root, &["rev-parse", "HEAD"]);
     let revision = revision.trim();
     let mut settings = research_settings(revision);
-    settings["evaluator_command"] = json!("echo $((ZDEV_REPETITION + 6))");
+    // `release` is also the evaluator gate's internal variable; the inherited value must survive.
+    settings["evaluator_command"] = json!("echo $((ZDEV_REPETITION + release))");
     settings["timeout_seconds"] = json!(10.0);
     configure_research_fixture(root, &settings);
     let args = [
@@ -15790,7 +15791,16 @@ fn research_measure_collects_samples_and_retains_execution_failures() {
         "-",
     ];
     let checks = br#"[{"name":"equivalent output","passed":true}]"#;
-    let measured = json_output_with_stdin(root, &args, checks);
+    let checks_file = git_path(root, "measure-checks.json");
+    fs::write(&checks_file, checks).unwrap();
+    let file_args = args.map(|arg| {
+        if arg == "-" {
+            checks_file.to_str().unwrap()
+        } else {
+            arg
+        }
+    });
+    let measured = json_output_with_env(root, &file_args, &[("release", Path::new("6"))]);
     assert_eq!(measured["observation"]["samples"], json!([7.0, 8.0]));
     assert_eq!(measured["observation"]["evaluation_runs"], 2);
     assert_eq!(
@@ -16954,6 +16964,117 @@ fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_meas
         research_run_action(root, identity, "resume", &[])["run"]["deadline"],
         run["run"]["deadline"]
     );
+}
+
+#[cfg(all(unix, debug_assertions))]
+#[test]
+fn local_experiment_owner_lost_before_recording_evaluator_never_runs_it() {
+    let controls = TempDir::new().unwrap();
+    let hold = controls.path().join("unrecorded-group");
+    let repository = local_experiment_fixture("printf 7");
+    let root = repository.path();
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["attempt_limit"] = json!(1);
+    configure_research_fixture(root, &settings);
+    git(root, &["add", ".zdev/work/area.toml"]);
+    git(root, &["commit", "-m", "allow one attempt"]);
+    start_research_run(
+        root,
+        &[
+            "--attempt-limit",
+            "2",
+            "--time-limit-seconds",
+            "60",
+            "--command-seconds",
+            "60",
+        ],
+    );
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    let mut owner = Command::new(env!("CARGO_BIN_EXE_zdev"))
+        .arg("--root")
+        .arg(root)
+        .args(["research", "experiment", "work", "work-001", "evaluate"])
+        .env("ZDEV_TEST_HOLD_UNRECORDED_EVALUATOR", &hold)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    // The correctness command is the first spawn; the owner holds it before recording its group.
+    let deadline = std::time::Instant::now() + EVALUATOR_WAIT_LIMIT;
+    let group = loop {
+        if let Some(group) = fs::read_to_string(&hold)
+            .ok()
+            .and_then(|text| text.parse::<u32>().ok())
+        {
+            break group;
+        }
+        assert!(
+            owner.try_wait().unwrap().is_none(),
+            "evaluation exited before spawning its correctness command"
+        );
+        assert!(
+            std::time::Instant::now() < deadline,
+            "correctness command was not spawned"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    let unresolved = run_zdev(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    assert!(String::from_utf8_lossy(&unresolved.stderr).contains("no command was relaunched"));
+    let finalize = [
+        "research",
+        "experiment",
+        "work",
+        "work-001",
+        "finalize",
+        "--decision",
+        "failed-to-run",
+        "--lesson",
+        "The owner stopped before its correctness command ran.",
+    ];
+    let refused = run_zdev(root, &finalize);
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("recover measurement first"));
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"candidate\n");
+    owner.kill().unwrap();
+    owner.wait().unwrap();
+    let checkpoint: Value = serde_json::from_slice(
+        &fs::read(git_path(root, "zdev/experiments/work/work-001.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(checkpoint["attempts"][0]["running_pid"], Value::Null);
+    assert_eq!(checkpoint["attempts"][0]["measuring"], true);
+    // Without its owner the gated shell exits on its own, before the command starts.
+    await_process_group_exit(group);
+    assert!(!git_path(root, "correctness-runs").exists());
+    assert!(!git_path(root, "evaluator-runs").exists());
+    let recovered = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "recover"],
+    );
+    let observation = &recovered["checkpoint"]["attempts"][0]["observation"];
+    assert_eq!(observation["outcome"], "crashed");
+    assert_eq!(observation["correctness_runs"], 1);
+    assert_eq!(observation["evaluation_runs"], 0);
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"candidate\n");
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-001"])["status"],
+        "open"
+    );
+    let context = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(context["consumed"]["commands"], 1);
+    json_output(root, &finalize);
+    assert_eq!(fs::read(root.join("seed.txt")).unwrap(), b"accepted\n");
+    let completed = json_output(root, &["task", "show", "work", "work-001"]);
+    assert_eq!(completed["status"], "done");
+    assert_eq!(
+        completed["research_results"][0]["observations"][0],
+        *observation
+    );
+    fs::remove_file(&hold).unwrap();
 }
 
 #[test]

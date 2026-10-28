@@ -147,6 +147,15 @@ This file records notable changes to zdev.
   `on-request` (the default) or `isolated`, which restores the 2.0 behavior.
   Existing areas keep their recorded mode.
 
+### Fixed
+
+- A research evaluator or correctness command, including a managed rebaseline
+  command, now starts only after zdev has saved its process group in the
+  checkpoint. If zdev dies before saving the group, the command never runs, so
+  recovery, discard and finalization cannot restore files or release capacity
+  while an unrecorded evaluator is still running. The interrupted attempt keeps
+  its counted invocation and elapsed time.
+
 ## [2.0.0] - 2026-10-20
 
 ### Changed

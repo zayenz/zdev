@@ -1263,7 +1263,7 @@ fn run_measured_command(
     let checkpoint = load(root, area, task)?;
     let code_root = source_root_or(root, &checkpoint);
     let started = std::time::Instant::now();
-    let result = super::evaluate_with_started(code_root, command, timeout, repetition, |pid| {
+    let result = super::evaluate_recorded(code_root, command, timeout, repetition, |pid| {
         let _lock = ZdevStateLock::acquire(root)?;
         let mut checkpoint = load(root, area, task)?;
         checkpoint.attempts.last_mut().unwrap().running_pid = Some(pid);

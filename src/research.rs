@@ -949,26 +949,37 @@ fn evaluate(
     timeout_seconds: f64,
     repetition: usize,
 ) -> Result<f64, (ObservationOutcome, String)> {
-    evaluate_with_started(root, command, timeout_seconds, repetition, |_| Ok(()))
+    evaluate_recorded(root, command, timeout_seconds, repetition, |_| Ok(()))
 }
 
-fn evaluate_with_started(
+/// Shell script that waits for `EVALUATOR_RELEASE` on stdin before it runs the evaluator command
+/// `$1`. End of input means the owner exited before recording the group, so the command never
+/// runs. The subshell keeps its variable out of the command's environment. `exec` keeps the pid
+/// and process group, and the command runs as `sh -c` with null stdin.
+const EVALUATOR_GATE: &str = r#"( IFS= read -r release && test "$release" = start ) || exit 125
+exec sh -c "$1" </dev/null"#;
+const EVALUATOR_RELEASE: &[u8] = b"start\n";
+
+/// Runs one evaluator repetition in its own process group. `record_group` receives the group id
+/// before the command starts, and the command starts only after it succeeds, so callers can
+/// durably record the group before any evaluator code runs.
+fn evaluate_recorded(
     root: &Path,
     command: &str,
     timeout_seconds: f64,
     repetition: usize,
-    started_process: impl FnOnce(u32) -> Result<(), ZdevError>,
+    record_group: impl FnOnce(u32) -> Result<(), ZdevError>,
 ) -> Result<f64, (ObservationOutcome, String)> {
+    use std::io::Write;
     use std::process::{Command, Stdio};
     let crashed = |error: io::Error| (ObservationOutcome::Crashed, error.to_string());
     let output = tempfile::tempfile().map_err(crashed)?;
     let mut process = Command::new("sh");
     process
-        .arg("-c")
-        .arg(command)
+        .args(["-c", EVALUATOR_GATE, "sh", command])
         .current_dir(root)
         .env("ZDEV_REPETITION", repetition.to_string())
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(output.try_clone().map_err(crashed)?)
         .stderr(Stdio::null());
     #[cfg(unix)]
@@ -977,12 +988,19 @@ fn evaluate_with_started(
         process.process_group(0);
     }
     let mut child = process.spawn().map_err(crashed)?;
-    if let Err(error) = started_process(child.id()) {
-        #[cfg(unix)]
-        kill_evaluator_group(child.id());
-        let _ = child.kill();
-        let _ = child.wait();
+    let mut release = child.stdin.take().expect("evaluator stdin is piped");
+    #[cfg(debug_assertions)]
+    hold_unrecorded_group(child.id());
+    if let Err(error) = record_group(child.id()) {
+        drop(release);
+        stop_evaluator(&mut child);
         return Err((ObservationOutcome::Crashed, error.to_string()));
+    }
+    let released = release.write_all(EVALUATOR_RELEASE);
+    drop(release);
+    if let Err(error) = released {
+        stop_evaluator(&mut child);
+        return Err(crashed(error));
     }
     let started = std::time::Instant::now();
     let deadline = std::time::Duration::from_secs_f64(timeout_seconds);
@@ -993,10 +1011,7 @@ fn evaluate_with_started(
                 std::thread::sleep(std::time::Duration::from_millis(5))
             }
             result => {
-                #[cfg(unix)]
-                kill_evaluator_group(child.id());
-                let _ = child.kill();
-                let _ = child.wait();
+                stop_evaluator(&mut child);
                 return Err(match result {
                     Err(error) => crashed(error),
                     _ => (
@@ -1034,6 +1049,31 @@ fn evaluate_with_started(
             format!("Evaluator repetition {repetition} must output one finite number"),
         )
     })
+}
+
+/// Kills the evaluator's whole process group and reaps its shell leader.
+fn stop_evaluator(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    kill_evaluator_group(child.id());
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+/// Test-only hold, compiled out of release builds. When `ZDEV_TEST_HOLD_UNRECORDED_EVALUATOR`
+/// names a file, writes the spawned evaluator group there and waits until a test removes the
+/// file, so the test can stop the owner before the group is recorded.
+#[cfg(debug_assertions)]
+fn hold_unrecorded_group(group: u32) {
+    let Some(hold) = std::env::var_os("ZDEV_TEST_HOLD_UNRECORDED_EVALUATOR") else {
+        return;
+    };
+    let hold = std::path::PathBuf::from(hold);
+    if std::fs::write(&hold, group.to_string()).is_err() {
+        return;
+    }
+    while hold.exists() {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }
 
 #[cfg(unix)]

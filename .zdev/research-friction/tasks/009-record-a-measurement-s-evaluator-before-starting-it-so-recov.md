@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-009"
 key = "record-evaluator-before-spawn"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "high"
@@ -29,11 +29,23 @@ The fix needs a durable record that exists before the spawn can produce a live p
 
 ## Done when
 
-- [ ] A durable record identifying the measurement is written before the evaluator can run, and recovery uses it to find the evaluator group when running_pid was never saved.
-- [ ] If the owner dies between spawn and running_pid publication, recovery reports the measurement as still running (or unresolved) while any group member lives, and discard/finalize refuse to restore files until the group is gone.
-- [ ] Once the orphaned group exits, recovery completes normally with costs and the attempt preserved.
+- [x] A durable record identifying the measurement is written before the evaluator can run, and recovery uses it to find the evaluator group when running_pid was never saved.
+- [x] If the owner dies between spawn and running_pid publication, recovery reports the measurement as still running (or unresolved) while any group member lives, and discard/finalize refuse to restore files until the group is gone.
+- [x] Once the orphaned group exits, recovery completes normally with costs and the attempt preserved.
 
 ## Validation
 
 - Add one focused test in tests/lean.rs that kills the owner inside the window (for example via a test-only hook or by holding the evaluator before running_pid is saved) and checks recovery, discard refusal and final recovery; reuse the general-029 helpers. No live harness.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+Every research evaluator and correctness command now starts behind a stdin gate in the shared evaluate_recorded: the command runs only after zdev has saved its process group as running_pid, and if the owner dies first the gate reads EOF and exits without running it. running_pid is therefore the durable record written before any evaluator code runs, so recovery can no longer restore files or release capacity while an untracked evaluator runs. Covers experiment measurement and managed rebaseline; schema and recovery logic unchanged. The gate reads in a subshell so the command's environment is unchanged. Debug-only test hold compiled out of release builds. Verified by GPT-6 Astra (high), with one environment correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (213)
+- cargo build --locked and --release: pass; test hold absent from release binary
+- git diff --check: pass

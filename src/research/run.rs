@@ -2395,7 +2395,7 @@ fn rebaseline(
             (binding, repetition, timeout)
         };
         let started = std::time::Instant::now();
-        let result = super::evaluate_with_started(root, &command, timeout, repetition, |pid| {
+        let result = super::evaluate_recorded(root, &command, timeout, repetition, |pid| {
             let _lock = ZdevStateLock::acquire(root)?;
             let mut run = authorized(root, area, identity)?;
             run.rebaseline.as_mut().unwrap().running_pid = Some(pid);

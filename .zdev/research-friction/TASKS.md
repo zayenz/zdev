@@ -3,9 +3,9 @@
 # Tasks: research-friction
 
 - Total: 8
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 7
+- Done: 8
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -16,4 +16,4 @@
 | [research-friction-005](tasks/005-honor-declared-generated-output-paths-in-research-source-own.md) | Honor declared generated-output paths in research source-ownership checks | done | research-friction-004 |
 | [research-friction-006](tasks/006-give-research-run-inspect-a-compact-default-view.md) | Give research run inspect a compact default view | done | — |
 | [research-friction-007](tasks/007-report-research-limit-provenance-and-count-dispatches-separa.md) | Report research limit provenance and count dispatches separately from experiments | done | — |
-| [research-friction-008](tasks/008-report-research-progress-separately-from-engineering-progres.md) | Report research progress separately from engineering progress | ready | — |
+| [research-friction-008](tasks/008-report-research-progress-separately-from-engineering-progres.md) | Report research progress separately from engineering progress | done | — |

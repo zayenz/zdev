@@ -263,9 +263,22 @@ restore a candidate, preserve it and report the required lifecycle action.
 Malformed, multiple or duplicate JSON objects, null results, thrown calls,
 unsafe state and incomplete commits preserve effects and costs. Inspect before
 retrying. Record stop when possible without replacing an existing shared blocker.
-No native cancellation API is assumed. Report run identity/scope, completed
-ordinary tasks and hypothesis decisions/commits, accepted baseline, fresh
-remaining allowance, precise stop reason and unfinished recovery actions.
+No native cancellation API is assumed. Report run identity/scope, fresh
+remaining allowance, precise stop reason and unfinished recovery actions. Then
+report research progress and engineering progress under separate headings.
+Research progress lists each question answered with its hypothesis decision,
+each valid comparison under the frozen policy, each negative finding
+(`rejected`, `inconclusive` or `failed_to_run`) with its lesson, the current
+accepted result from the run's accepted baseline, and the next useful
+experiment. Read decisions, lessons and observations from `zdev task research
+<area> <task> --format json` and the accepted baseline from run `inspect`.
+Engineering progress lists completed ordinary tasks, commits, verification,
+`consumed.experiments` and `consumed.dispatches_by_kind`. Only an `accepted`
+decision from a comparison accepted under the frozen policy is an accepted
+result; finalize records `keep` as `accepted` and `discard` as `rejected`.
+Never present a supporting task, a rejected candidate or an isolated screen win
+as a measured improvement, and report an invalid measurement as invalid. A
+large task count is not research progress.
 Queue exhaustion and ending authorization neither close the area nor prove its
 optimization objective achieved. Authenticated Claude execution is separate
 live acceptance evidence.

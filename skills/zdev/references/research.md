@@ -283,11 +283,27 @@ checkpoints and outstanding reservations. End authorization with `end --run
 an unfinished run, reset its deadline/costs or close the area.
 
 Report the run identity, scope, native continuation or exact fallback extent,
-completed tasks/decisions and commits, accepted baseline, remaining allowance,
-stop reason and unfinished recovery actions. Distinguish `target`, `budget`,
-`interruption`, shared `blocker`, `cross-area-wait` and unsafe/user-owned
-state. Queue exhaustion
-alone is a proposal boundary. A finite stop is not evidence that the area's
+remaining allowance, stop reason and unfinished recovery actions. Then report
+research progress and engineering progress under separate headings.
+
+- Research progress: each question answered with its hypothesis decision,
+  each valid comparison under the frozen policy, each negative finding
+  (`rejected`, `inconclusive` or `failed_to_run`) with its lesson, the current
+  accepted result from the run's accepted baseline, and the next useful
+  experiment. Read decisions, lessons and observations from `zdev task research
+  <area> <task> --format json` and the accepted baseline from run `inspect`.
+- Engineering progress: supporting tasks, commits, verification,
+  `consumed.experiments` and `consumed.dispatches_by_kind`.
+
+Only an `accepted` decision from a comparison accepted under the frozen policy
+is an accepted result. Finalize records `--decision keep` as `accepted` and
+`--decision discard` as `rejected`. Never present a supporting task, a rejected
+candidate or an isolated screen win as a measured improvement, and report an
+invalid measurement as invalid. A large task count is not research progress.
+
+Distinguish `target`, `budget`, `interruption`, shared `blocker`,
+`cross-area-wait` and unsafe/user-owned state. Queue exhaustion alone is a
+proposal boundary. A finite stop is not evidence that the area's
 optimization objective has been achieved.
 
 Use `update_goal` only according to its exposed lifecycle rules. Complete a

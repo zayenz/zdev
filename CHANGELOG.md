@@ -82,6 +82,14 @@ This file records notable changes to zdev.
   checkpoint attempts, observations or tasks. `inspect --full` returns the
   previous complete projection, which `context` and the commands that change
   the run still return.
+- The research skills tell the coordinator to report research progress
+  separately from engineering progress. Research progress lists questions
+  answered with their decisions, valid comparisons, negative findings with
+  their lessons, the current accepted result and the next useful experiment.
+  Engineering progress lists supporting tasks, commits, verification,
+  `consumed.experiments` and `consumed.dispatches_by_kind`. A supporting task,
+  a rejected candidate or an isolated screen win is never reported as a
+  measured improvement.
 - Claude defaults use Claude Opus 5.5 (`claude-opus-5-5`) for every role and
   never `max` effort. In `normal`, routine implementation uses low effort,
   standard implementation and verification use medium, and advanced

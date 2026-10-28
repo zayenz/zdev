@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-008"
 key = "research-progress-report"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "low"
@@ -34,8 +34,8 @@ Data sources the coordinator can already read: hypothesis results (`zdev task re
 
 ## Done when
 
-- [ ] The report instructions of both research routes list research progress separately from engineering progress. Research progress covers questions answered with their decision, valid comparisons, negative findings with lessons, the current accepted result and the next useful experiment.
-- [ ] The checked-in fixtures are regenerated, and the existing template and fixture checks pass without new tests.
+- [x] The report instructions of both research routes list research progress separately from engineering progress. Research progress covers questions answered with their decision, valid comparisons, negative findings with lessons, the current accepted result and the next useful experiment.
+- [x] The checked-in fixtures are regenerated, and the existing template and fixture checks pass without new tests.
 
 ## Validation
 
@@ -46,3 +46,16 @@ Data sources the coordinator can already read: hypothesis results (`zdev task re
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+Both research routes report research progress (questions answered, valid comparisons, negative findings using the JSON decision names rejected/inconclusive/failed_to_run, the accepted result, the next experiment) separately from engineering progress (supporting tasks, commits, verification, consumed.experiments, dispatches_by_kind). Only an accepted decision under the frozen policy counts as an accepted result; finalize keep/discard map to accepted/rejected. Template-only. Verified by GPT-6 Astra (high), with one terminology correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 208)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

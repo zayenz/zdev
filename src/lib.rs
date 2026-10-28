@@ -1905,6 +1905,177 @@ fn work_context_json_bytes(output: &CommandOutput) -> Result<Vec<u8>, ZdevError>
     Ok(bytes)
 }
 
+/// Whether two open work contexts of `area` differ at most in its advisory research
+/// `metric_bound`. The bound may differ in the goal and status research settings and in the
+/// `[research]` line of the area metadata's working-tree text; every other byte of evidence,
+/// including the rest of that file, must match.
+fn work_contexts_match_except_metric_bound(
+    root: &Path,
+    area: &str,
+    stored: &Value,
+    current: &Value,
+) -> Result<bool, ZdevError> {
+    let metadata_path = format!(".zdev/{area}/area.toml");
+    let indexed =
+        work_context_git_stdout(root, &["cat-file", "blob", &format!(":{metadata_path}")])?;
+    let normalize =
+        |context: &Value| work_context_without_metric_bound(context, &metadata_path, &indexed);
+    Ok(match (normalize(stored), normalize(current)) {
+        (Some(stored), Some(current)) => stored == current,
+        _ => false,
+    })
+}
+
+/// The context with the bound removed from its research settings, and the area metadata's status
+/// line and diff replaced by that file's working-tree text without the bound line. `None` when the
+/// metadata diff is not a plain text change of the indexed file.
+fn work_context_without_metric_bound(
+    context: &Value,
+    metadata_path: &str,
+    indexed: &str,
+) -> Option<Value> {
+    let mut context = context.clone();
+    for pointer in ["/goal/area/research", "/status/area/research"] {
+        if let Some(research) = context.pointer_mut(pointer).and_then(Value::as_object_mut) {
+            research.remove("metric_bound");
+        }
+    }
+    let (other_diffs, metadata_diff) =
+        split_file_diff(context["git_diff"].as_str()?, metadata_path);
+    let metadata = match metadata_diff {
+        Some(diff) => apply_text_diff(indexed, &diff)?,
+        None => indexed.to_owned(),
+    };
+    let other_statuses = context["git_status"]
+        .as_str()?
+        .lines()
+        .filter(|line| line.get(3..) != Some(metadata_path))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let fields = context.as_object_mut()?;
+    fields.insert("git_diff".to_owned(), json!(other_diffs));
+    fields.insert("git_status".to_owned(), json!(other_statuses));
+    fields.insert(
+        "area_metadata_without_metric_bound".to_owned(),
+        json!(without_research_metric_bound_line(&metadata)),
+    );
+    Some(context)
+}
+
+/// Splits `git diff` output into the other files' sections and the section for `path`.
+fn split_file_diff(diff: &str, path: &str) -> (String, Option<String>) {
+    let mut others = String::new();
+    let mut section = String::new();
+    let mut in_section = false;
+    for line in diff.split_inclusive('\n') {
+        if let Some(names) = line.strip_prefix("diff --git ") {
+            in_section = diff_names_match_path(names.trim_end_matches('\n'), path);
+        }
+        if in_section {
+            section.push_str(line);
+        } else {
+            others.push_str(line);
+        }
+    }
+    (others, (!section.is_empty()).then_some(section))
+}
+
+/// Whether a `git diff` header's `<source> <destination>` names both sides as `path`. The
+/// side prefixes follow the user's Git configuration (`a/`, mnemonic `i/` or none).
+fn diff_names_match_path(names: &str, path: &str) -> bool {
+    let is_side_prefix = |prefix: &str| {
+        prefix
+            .strip_suffix('/')
+            .map_or(prefix.is_empty(), |name| !name.contains('/'))
+    };
+    names.split_once(' ').is_some_and(|(source, destination)| {
+        [source, destination]
+            .into_iter()
+            .all(|side| side.strip_suffix(path).is_some_and(is_side_prefix))
+    })
+}
+
+/// Rebuilds a file's working-tree text from its indexed text and its `git diff` section. `None`
+/// unless the section is a plain text modification whose context and removals match `indexed`.
+fn apply_text_diff(indexed: &str, section: &str) -> Option<String> {
+    let old = indexed.split_inclusive('\n').collect::<Vec<_>>();
+    let mut lines = section.split_inclusive('\n');
+    let header = lines.by_ref().take(4).collect::<Vec<_>>();
+    if header.len() != 4
+        || !header[1].starts_with("index ")
+        || !header[2].starts_with("--- ")
+        || !header[3].starts_with("+++ ")
+    {
+        return None;
+    }
+    let same_line =
+        |old: &str, line: &str| old.trim_end_matches('\n') == line.trim_end_matches('\n');
+    let mut text = String::new();
+    let mut cursor = 0;
+    let mut last_added = false;
+    for line in lines {
+        if let Some(range) = line.strip_prefix("@@ -") {
+            let (old_range, _) = range.split_once(' ')?;
+            let (start, count) = old_range.split_once(',').unwrap_or((old_range, "1"));
+            let (start, count) = (start.parse::<usize>().ok()?, count.parse::<usize>().ok()?);
+            // An empty old range names the line after which the hunk inserts.
+            let unchanged_until = if count == 0 {
+                start
+            } else {
+                start.checked_sub(1)?
+            };
+            text.extend(old.get(cursor..unchanged_until)?.iter().copied());
+            cursor = unchanged_until;
+            continue;
+        }
+        let (kind, content) = line.split_at_checked(1)?;
+        match kind {
+            " " | "-" => {
+                let old_line = *old.get(cursor)?;
+                if !same_line(old_line, content) {
+                    return None;
+                }
+                if kind == " " {
+                    text.push_str(old_line);
+                }
+                cursor += 1;
+            }
+            "+" => text.push_str(content),
+            // The added line ends the file without a newline.
+            "\\" if last_added => {
+                if text.ends_with('\n') {
+                    text.pop();
+                }
+            }
+            "\\" => {}
+            _ => return None,
+        }
+        last_added = kind == "+";
+    }
+    text.extend(old.get(cursor..)?.iter().copied());
+    Some(text)
+}
+
+/// Area metadata text without the `metric_bound` line of its `[research]` table.
+fn without_research_metric_bound_line(text: &str) -> String {
+    let mut table = "";
+    let mut kept = String::new();
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            table = trimmed;
+        }
+        let is_bound = table == "[research]"
+            && trimmed
+                .split_once('=')
+                .is_some_and(|(key, _)| key.trim() == "metric_bound");
+        if !is_bound {
+            kept.push_str(line);
+        }
+    }
+    kept
+}
+
 fn work_context_snapshot_id(bytes: &[u8]) -> String {
     let hash = bytes.iter().fold(0xcbf29ce484222325_u64, |hash, byte| {
         (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)

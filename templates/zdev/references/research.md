@@ -115,6 +115,14 @@ blocker. After resolving it, use `resolve --run <run>` and a counted actual
 `rebaseline --run <run> --request <new-request>` before comparisons resume.
 Do not repeatedly fail hypotheses against the same broken environment.
 
+When context reports `unreachable_minimum_gain`, the declared `metric_bound`
+shows that no candidate can meet the frozen minimum gain from the accepted
+baseline. Prepare no further candidates for this study. This is a study decision
+for the user: keep the frozen study, end it, or declare a new study with its own
+threshold and a newly measured baseline. Never lower the frozen threshold
+yourself. The warning is advisory; changing only the bound never invalidates
+comparisons or unfinished experiments.
+
 When comparison conditions or accepted supporting code change, retain or
 restore unfinished candidates, then run actual rebaseline on clean accepted
 HEAD. Supplied baseline samples cannot clear invalidation. A supporting task

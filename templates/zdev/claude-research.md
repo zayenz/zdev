@@ -162,18 +162,22 @@ safe lifecycle restoration permits accepted supporting edits.
 
 Read fresh run context and all rejected, inconclusive and failed-to-run lessons
 at each boundary. Check stop_reason and comparison validity before new costly
-work. Choose ready tasks using ordinary dependencies and eligibility; under a
-shared blocker choose only relevant ordinary supporting repairs. Keep explicit
-task selection through every refresh. When no task is ready and fresh run
-context lists `cross_area_waits`, every open task waits on another area: record
-`stop --run <run>`, report `stopped` with stop reason `cross-area-wait` and
-those waits, and generate no work. Empty/exhausted queues permit a small
-nonempty scoped mixed TaskBundle, not successful completion. Check scope,
-graph links and requires_code; only verified acceptance establishes retained
-code. Admit with a unique request, inspect allocated task IDs/files, stage only
-those task records and TASKS.md, inspect the cached diff, and use zdev commit.
-Refresh after publication. Invalid or nonprogressing proposals stop with their
-concrete failure rather than generating forever.
+work. When context reports `unreachable_minimum_gain`, prepare no further
+candidates and report the study decision to the user: keep the frozen study, end
+it, or declare a new study with its own threshold and measured baseline. Never
+lower the frozen threshold; changing only the advisory `metric_bound` never
+invalidates comparisons. Choose ready tasks using ordinary dependencies and
+eligibility; under a shared blocker choose only relevant ordinary supporting
+repairs. Keep explicit task selection through every refresh. When no task is
+ready and fresh run context lists `cross_area_waits`, every open task waits on
+another area: record `stop --run <run>`, report `stopped` with stop reason
+`cross-area-wait` and those waits, and generate no work. Empty/exhausted queues
+permit a small nonempty scoped mixed TaskBundle, not successful completion.
+Check scope, graph links and requires_code; only verified acceptance establishes
+retained code. Admit with a unique request, inspect allocated task IDs/files,
+stage only those task records and TASKS.md, inspect the cached diff, and use
+zdev commit. Refresh after publication. Invalid or nonprogressing proposals stop
+with their concrete failure rather than generating forever.
 
 Supporting tasks use the composed ordinary one-task workflow: advanced planning,
 implementation, strict worker results, fresh independent verification, rework,

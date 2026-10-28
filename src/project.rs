@@ -1051,16 +1051,27 @@ pub(super) fn configure_research(
     } else {
         load_area(root, tag)?.0.research
     };
-    let text = match &settings {
+    let unreachable_gain = match &settings {
+        Some(settings) => settings.unreachable_gain()?,
+        None => None,
+    };
+    let mut text = match &settings {
         Some(settings) => format!(
             "Research settings for {tag}:\n{}",
             serde_json::to_string_pretty(settings).unwrap()
         ),
         None => format!("Area {tag} has no research settings"),
     };
+    if let Some(warning) = &unreachable_gain {
+        text.push_str(&format!(
+            "\nWarning: minimum gain {} is unreachable: the baseline aggregate {} and metric bound {} allow a gain of at most {}. Study decision for the user: keep the frozen study, end it, or declare a new study with its own threshold and measured baseline.",
+            warning.minimum_gain, warning.baseline_aggregate, warning.metric_bound, warning.largest_possible_gain
+        ));
+    }
     Ok(CommandOutput::new(
         text,
-        json!({"schema_version": SCHEMA_VERSION, "area": tag, "research": settings}),
+        json!({"schema_version": SCHEMA_VERSION, "area": tag, "research": settings,
+            "unreachable_minimum_gain": unreachable_gain}),
     ))
 }
 

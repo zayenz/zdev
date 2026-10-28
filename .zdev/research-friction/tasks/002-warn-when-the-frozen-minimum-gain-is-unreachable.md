@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-002"
 key = "unreachable-gain-warning"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -49,13 +49,13 @@ The brief's optional predeclared relative-gain rule is excluded. It would change
 
 ## Done when
 
-- [ ] With a declared bound whose largest possible gain is below `minimum_gain`, `research run <area> context --format json` reports the gate as unreachable with the baseline aggregate, bound and `minimum_gain`, and `next_action` names the study decision.
-- [ ] When the gate is reachable or no bound is declared, `next_action` is unchanged.
-- [ ] `zdev area research <area>` reports the same warning for stored settings with an unreachable gate.
-- [ ] Declaring or changing the bound on an active run leaves `comparison_valid` unchanged.
-- [ ] Changing only the bound while an experiment checkpoint is unfinished does not force reconcile or re-measurement. That experiment's evaluate, inspect and finalize behave as if the bound were unchanged.
-- [ ] The task-format and research references document the field and the decision, and the checked-in fixtures are regenerated.
-- [ ] One focused regression in `tests/lean.rs` covers the warning, the unchanged validity on an active run, and a bound change during an unfinished experiment. For example, `local_experiment_fixture` has median baseline 11 and `minimum_gain` 1, so a bound of 10.5 is unreachable.
+- [x] With a declared bound whose largest possible gain is below `minimum_gain`, `research run <area> context --format json` reports the gate as unreachable with the baseline aggregate, bound and `minimum_gain`, and `next_action` names the study decision.
+- [x] When the gate is reachable or no bound is declared, `next_action` is unchanged.
+- [x] `zdev area research <area>` reports the same warning for stored settings with an unreachable gate.
+- [x] Declaring or changing the bound on an active run leaves `comparison_valid` unchanged.
+- [x] Changing only the bound while an experiment checkpoint is unfinished does not force reconcile or re-measurement. That experiment's evaluate, inspect and finalize behave as if the bound were unchanged.
+- [x] The task-format and research references document the field and the decision, and the checked-in fixtures are regenerated.
+- [x] One focused regression in `tests/lean.rs` covers the warning, the unchanged validity on an active run, and a bound change during an unfinished experiment. For example, `local_experiment_fixture` has median baseline 11 and `minimum_gain` 1, so a bound of 10.5 is unreachable.
 
 ## Validation
 
@@ -66,3 +66,16 @@ The brief's optional predeclared relative-gain rule is excluded. It would change
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+Research settings gain an optional advisory metric_bound. research run context and zdev area research warn (unreachable_minimum_gain) when even a candidate at the bound cannot meet the frozen minimum gain, and next_action names the study decision. The bound never refuses work and never invalidates comparisons: every whole-settings comparison uses Settings::eq_ignoring_advisory, run-less experiments accept bound-only changes, and keep finalization accepts a snapshot that differs only by the metric_bound line in the area's [research] table while every other byte is still compared exactly. Escalated once to the advanced implementer; independently verified.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 203)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

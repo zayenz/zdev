@@ -100,6 +100,7 @@ All JSON objects reject unknown fields. Settings require the shown fields except
 | `attempt_limit` | Positive finite limit per hypothesis. Each observation counts as one attempt. |
 | `timeout_seconds` | Positive finite timeout per correctness or evaluator invocation, in seconds; defaults to 60. |
 | `correctness_commands` | Optional map from required check names to shell commands. Managed experiments require a command for every required check. |
+| `metric_bound` | Optional finite best value the metric can reach, such as `0` for a nonnegative minimized metric. Advisory only: it never changes acceptance and never invalidates comparisons, runs, or unfinished experiments. |
 
 Fields below `comparison.metric` through `significance` in the table also
 belong to `comparison`. Each candidate preparation or repair attempt, measurement
@@ -116,6 +117,16 @@ measured baseline under those conditions. Reconfigure the area with that full
 policy. Historical task evidence stays readable; it never becomes an alternate
 source of evaluator commands. An unfinished hypothesis cannot complete with
 evidence that differs from the current comparison or attempt limit.
+
+With `metric_bound` declared, `zdev area research` and research run `context`
+report `unreachable_minimum_gain` when even a candidate at the bound cannot pass
+the aggregate minimum-gain rule. The largest possible gain is the baseline
+aggregate minus the bound when minimizing, and the bound minus the baseline
+aggregate when maximizing; the gate is unreachable when it is not positive or
+is below `minimum_gain`. The warning does not model the paired sign test. Run
+`context` then names this as the next action unless a stop reason or invalid
+comparison takes precedence. Adding or changing only the bound never requires a
+rebaseline.
 
 ### Review and import a mixed task bundle
 
@@ -408,8 +419,9 @@ Save its ordinary nine-key verifier envelope as JSON, including
 zdev research experiment work work-002 finalize --decision keep --lesson "The cache removes repeated parsing." --verification /tmp/verifier.json
 ```
 
-Keep requires usable improving measurements, a passing verifier, the unchanged
-candidate snapshot and actual retained Git code. It advances the area's baseline
+Keep requires usable improving measurements, a passing verifier, the candidate
+snapshot unchanged except for the advisory `metric_bound`, and actual retained
+Git code. It advances the area's baseline
 revision and samples. For a measured candidate you reject, run:
 
 ```text

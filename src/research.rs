@@ -52,6 +52,18 @@ pub(super) struct Settings {
     pub timeout_seconds: f64,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub correctness_commands: BTreeMap<String, String>,
+    /// Advisory best value the metric can reach; never part of the frozen policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metric_bound: Option<f64>,
+}
+
+/// The frozen minimum gain exceeds what even a candidate at the metric bound achieves.
+#[derive(Debug, Serialize)]
+pub(super) struct UnreachableGain {
+    pub baseline_aggregate: f64,
+    pub metric_bound: f64,
+    pub minimum_gain: f64,
+    pub largest_possible_gain: f64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -278,7 +290,40 @@ impl Settings {
                 "Research requires permitted changes and a positive attempt limit",
             ));
         }
+        if self.metric_bound.is_some_and(|bound| !bound.is_finite()) {
+            return Err(ZdevError::new("Metric bound must be finite"));
+        }
         Ok(())
+    }
+
+    /// Equality for every settings comparison: advisory fields never invalidate or refuse work.
+    pub fn eq_ignoring_advisory(&self, other: &Self) -> bool {
+        let advisory = Self {
+            metric_bound: other.metric_bound,
+            ..self.clone()
+        };
+        advisory == *other
+    }
+
+    /// Reports when no candidate can pass the aggregate minimum-gain rule; ignores significance.
+    pub fn unreachable_gain(&self) -> Result<Option<UnreachableGain>, ZdevError> {
+        let Some(metric_bound) = self.metric_bound else {
+            return Ok(None);
+        };
+        let comparison = &self.comparison;
+        let baseline_aggregate = comparison.aggregate(&comparison.baseline_samples)?;
+        let largest_possible_gain = match comparison.direction {
+            Direction::Minimize => baseline_aggregate - metric_bound,
+            Direction::Maximize => metric_bound - baseline_aggregate,
+        };
+        let reachable =
+            largest_possible_gain > 0.0 && largest_possible_gain >= comparison.minimum_gain;
+        Ok((!reachable).then_some(UnreachableGain {
+            baseline_aggregate,
+            metric_bound,
+            minimum_gain: comparison.minimum_gain,
+            largest_possible_gain,
+        }))
     }
 }
 

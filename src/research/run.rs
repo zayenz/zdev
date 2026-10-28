@@ -739,7 +739,7 @@ pub(crate) fn configure(
             "Supplied replacement samples cannot rebaseline an active run; use research run rebaseline",
         ));
     }
-    if previous != current {
+    if !previous.eq_ignoring_advisory(current) {
         invalidate(
             &mut run,
             "Evaluator or workload settings changed; actual rebaseline required",
@@ -770,7 +770,7 @@ fn require_policy(root: &Path, run: &mut Run, comparison: bool) -> Result<(), Zd
             "Current research policy differs from the run's authorization",
         ));
     }
-    if settings != run.policy || !accepted_code_matches(root, &settings)? {
+    if !settings.eq_ignoring_advisory(&run.policy) || !accepted_code_matches(root, &settings)? {
         invalidate(
             run,
             "Evaluator/workload or accepted supporting code changed; actual rebaseline required",
@@ -1313,7 +1313,9 @@ pub(crate) fn comparison_valid(root: &Path, area: &str) -> Result<bool, ZdevErro
         return Ok(true);
     };
     let current = super::settings(root, area)?;
-    Ok(run.comparison_valid && current == run.policy && accepted_code_matches(root, &current)?)
+    Ok(run.comparison_valid
+        && current.eq_ignoring_advisory(&run.policy)
+        && accepted_code_matches(root, &current)?)
 }
 
 pub(crate) fn accepted(root: &Path, area: &str, settings: &Settings) -> Result<(), ZdevError> {
@@ -1473,8 +1475,10 @@ pub(crate) fn acceptance(
 fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
     let mut run = load(root, area)?.ok_or_else(|| ZdevError::new("Area has no research run"))?;
     let settings = super::settings(root, area)?;
-    let valid =
-        run.comparison_valid && settings == run.policy && accepted_code_matches(root, &settings)?;
+    let valid = run.comparison_valid
+        && settings.eq_ignoring_advisory(&run.policy)
+        && accepted_code_matches(root, &settings)?;
+    let unreachable_gain = settings.unreachable_gain()?;
     run.comparison_valid = valid;
     let projection = serde_json::to_value(&run).unwrap();
     let stop = reason(&run, &settings, true)?;
@@ -1486,6 +1490,8 @@ fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
         "resolve stop reason or record/recover already authorized work"
     } else if !valid {
         "resolve comparison conditions and run a counted actual rebaseline"
+    } else if unreachable_gain.is_some() {
+        "ask the user to decide the study: the frozen minimum gain is unreachable from the accepted baseline; keep the frozen study, end it, or declare a new study with its own threshold and measured baseline"
     } else if matches!(summary.queue(), tasks::QueueState::Blocked) {
         "no work: every open task waits on another area; stop until the cross-area blockers are done there"
     } else if summary.ready == 0 {
@@ -1503,7 +1509,8 @@ fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
             "wall_seconds": run.deadline.map(|deadline| (deadline - now).max(0.0)),
             "workers": run.worker_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.worker).count()),
             "measurements": run.measurement_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.measurement).count())},
-        "elapsed_wall_seconds": (now - run.started_at).max(0.0), "next_action": next});
+        "elapsed_wall_seconds": (now - run.started_at).max(0.0),
+        "unreachable_minimum_gain": unreachable_gain, "next_action": next});
     tasks::insert_cross_area_waits(&mut value, &summary.cross_area_waits);
     Ok(CommandOutput::new(
         serde_json::to_string_pretty(&value).unwrap(),
@@ -1746,8 +1753,9 @@ fn rebaseline(
     let _lock = ZdevStateLock::acquire(root)?;
     let mut run = authorized(root, area, identity)?;
     let baseline = run.rebaseline.as_ref().unwrap();
+    let current = super::settings(root, area)?;
     if baseline.head != git_output(root, &["rev-parse", "HEAD"])?
-        || super::settings(root, area)? != baseline.settings
+        || !current.eq_ignoring_advisory(&baseline.settings)
         || !git_output_bytes(
             root,
             &[
@@ -1772,6 +1780,7 @@ fn rebaseline(
     let mut settings = baseline.settings.clone();
     settings.comparison.baseline_revision = baseline.head.clone();
     settings.comparison.baseline_samples = baseline.samples.clone();
+    settings.metric_bound = current.metric_bound;
     settings.validate()?;
     // Persist expected settings first: retry can recover a crash before area publication.
     run.policy = settings.clone();
@@ -1794,14 +1803,21 @@ fn publish_baseline(root: &Path, run: &mut Run) -> Result<(), ZdevError> {
         ));
     }
     let (mut metadata, _) = crate::project::load_area(root, &run.area)?;
-    if metadata.research.as_ref() != Some(&baseline.settings)
-        && metadata.research.as_ref() != Some(&run.policy)
-    {
-        return Err(ZdevError::new(
-            "Research policy changed during baseline publication recovery",
-        ));
+    let mut published = run.policy.clone();
+    match &metadata.research {
+        Some(current)
+            if current.eq_ignoring_advisory(&baseline.settings)
+                || current.eq_ignoring_advisory(&run.policy) =>
+        {
+            published.metric_bound = current.metric_bound;
+        }
+        _ => {
+            return Err(ZdevError::new(
+                "Research policy changed during baseline publication recovery",
+            ));
+        }
     }
-    metadata.research = Some(run.policy.clone());
+    metadata.research = Some(published);
     crate::project::write_area_metadata(root, &metadata)?;
     run.rebaseline.as_mut().unwrap().published = true;
     save(root, run)

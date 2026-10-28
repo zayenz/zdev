@@ -17276,6 +17276,150 @@ fn research_run_admits_mixed_work_recovers_publication_and_refills_an_exhausted_
 }
 
 #[test]
+fn research_run_reports_unreachable_minimum_gain() {
+    let repository = local_experiment_fixture("printf 7");
+    let root = repository.path();
+    start_research_run(root, &["--target", "1"]);
+    let context = || json_output(root, &["research", "run", "work", "context"]);
+    let inspect = || {
+        json_output(
+            root,
+            &["research", "experiment", "work", "work-001", "inspect"],
+        )
+    };
+    let initial = context();
+    assert!(initial["unreachable_minimum_gain"].is_null());
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["metric_bound"] = json!(0.0);
+    configure_research_fixture(root, &settings);
+    let reachable = context();
+    assert!(reachable["unreachable_minimum_gain"].is_null());
+    assert_eq!(reachable["next_action"], initial["next_action"]);
+    assert_eq!(reachable["run"]["comparison_valid"], true);
+    git(root, &["commit", "-am", "declare metric bound"]);
+
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    settings["metric_bound"] = json!(10.5);
+    configure_research_fixture(root, &settings);
+    let unreachable = json!({"baseline_aggregate": 11.0, "metric_bound": 10.5,
+        "minimum_gain": 1.0, "largest_possible_gain": 0.5});
+    assert_eq!(
+        json_output(root, &["area", "research", "work"])["unreachable_minimum_gain"],
+        unreachable
+    );
+    let text = run_zdev(root, &["area", "research", "work"]);
+    assert!(
+        String::from_utf8_lossy(&text.stdout).contains("Warning: minimum gain 1 is unreachable")
+    );
+    let warned = context();
+    assert_eq!(warned["unreachable_minimum_gain"], unreachable);
+    assert_eq!(warned["run"]["comparison_valid"], true);
+    assert!(
+        warned["next_action"]
+            .as_str()
+            .unwrap()
+            .starts_with("ask the user to decide the study")
+    );
+    assert_eq!(inspect()["comparison_valid"], true);
+
+    let measured = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    assert_eq!(measured["assessment"]["improved"], true);
+    settings["metric_bound"] = json!(11.5);
+    configure_research_fixture(root, &settings);
+    let inspected = inspect();
+    assert_eq!(inspected["comparison_valid"], true);
+    assert_eq!(inspected["measurement_current"], true);
+    assert_eq!(inspected["assessment"], measured["assessment"]);
+
+    // The verifier reviewed bound 10.5; only that advisory line may differ at keep.
+    let verification = local_verifier(
+        root,
+        measured["checkpoint"]["verification_snapshot"]
+            .as_str()
+            .unwrap(),
+    );
+    let keep = [
+        "research",
+        "experiment",
+        "work",
+        "work-001",
+        "finalize",
+        "--decision",
+        "keep",
+        "--lesson",
+        "Caching wins.",
+        "--verification",
+        verification.to_str().unwrap(),
+    ];
+    let stale = "Candidate verification snapshot is stale";
+    fs::write(root.join("unrelated-work.txt"), "edited after review\n").unwrap();
+    assert!(failure_text(&run_zdev(root, &keep)).contains(stale));
+    fs::write(root.join("unrelated-work.txt"), "original\n").unwrap();
+    let area_path = root.join(".zdev/work/area.toml");
+    let reviewed_area = fs::read_to_string(&area_path).unwrap();
+    fs::write(
+        &area_path,
+        format!("# edited after review\n{reviewed_area}"),
+    )
+    .unwrap();
+    assert!(failure_text(&run_zdev(root, &keep)).contains(stale));
+    fs::write(&area_path, reviewed_area).unwrap();
+    let finalized = json_output(root, &keep);
+    assert_eq!(finalized["next_action"], "complete");
+    let accepted = json_output(root, &["area", "research", "work"]);
+    assert_eq!(accepted["research"]["metric_bound"], 11.5);
+    assert_eq!(
+        accepted["research"]["comparison"]["baseline_samples"],
+        json!([7.0, 7.0])
+    );
+    let accepted_context = context();
+    assert_eq!(accepted_context["run"]["comparison_valid"], true);
+    assert_eq!(
+        accepted_context["unreachable_minimum_gain"]["largest_possible_gain"],
+        -4.5
+    );
+
+    // Without an active run, a bound-only change refuses neither evaluate nor discard.
+    let repository = local_experiment_fixture("printf 20");
+    let root = repository.path();
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["metric_bound"] = json!(0.0);
+    configure_research_fixture(root, &settings);
+    let measured = json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    assert_eq!(measured["assessment"]["improved"], false);
+    settings["metric_bound"] = json!(1.0);
+    configure_research_fixture(root, &settings);
+    let discarded = json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "The candidate is slower.",
+        ],
+    );
+    assert_eq!(discarded["next_action"], "complete");
+    assert_eq!(
+        json_output(root, &["area", "research", "work"])["research"]["metric_bound"],
+        1.0
+    );
+}
+
+#[test]
 fn research_run_extension_preserves_costs_and_retries_without_double_allowance() {
     let repository = local_experiment_fixture("printf 7");
     let root = repository.path();

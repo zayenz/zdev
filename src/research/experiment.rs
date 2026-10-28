@@ -282,7 +282,7 @@ pub(crate) fn experiment(
                 && attempt
                     .settings
                     .as_ref()
-                    .is_none_or(|settings| settings == &checkpoint.settings) =>
+                    .is_none_or(|settings| settings.eq_ignoring_advisory(&checkpoint.settings)) =>
         {
             candidate_matches(root, &checkpoint, &attempt.candidate)?
         }
@@ -659,7 +659,7 @@ fn require_environment(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevE
             "Experiment branch or HEAD changed; inspect before recovery",
         ));
     }
-    if super::settings(root, &checkpoint.area)? != checkpoint.settings
+    if !super::settings(root, &checkpoint.area)?.eq_ignoring_advisory(&checkpoint.settings)
         && !super::run::record_policy_compatible(root, &checkpoint.area, &checkpoint.settings)?
     {
         return Err(ZdevError::new(
@@ -703,6 +703,24 @@ fn area_metadata_matches(root: &Path, checkpoint: &Checkpoint) -> Result<bool, Z
             .map_err(json_error)?)
 }
 
+/// Whether the area metadata may differ from its recorded bytes: only its research settings
+/// changed, either just in the advisory metric bound or compatibly with the active run's policy.
+fn research_settings_change_permitted(
+    root: &Path,
+    checkpoint: &Checkpoint,
+) -> Result<bool, ZdevError> {
+    if !area_metadata_matches(root, checkpoint)? {
+        return Ok(false);
+    }
+    let current = super::settings(root, &checkpoint.area)?;
+    let changed = current != checkpoint.settings;
+    if changed && current.eq_ignoring_advisory(&checkpoint.settings) {
+        return Ok(true);
+    }
+    Ok((checkpoint.isolated.is_some() || changed)
+        && super::run::record_policy_compatible(root, &checkpoint.area, &checkpoint.settings)?)
+}
+
 fn require_record_ownership(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevError> {
     for (path, expected) in &checkpoint.record_hashes {
         if checkpoint.isolated.is_some() && path == &format!(".zdev/{}/TASKS.md", checkpoint.area) {
@@ -712,14 +730,7 @@ fn require_record_ownership(root: &Path, checkpoint: &Checkpoint) -> Result<(), 
         }
         if git_output(root, &["hash-object", "--", path])? != *expected
             && !(path == &format!(".zdev/{}/area.toml", checkpoint.area)
-                && area_metadata_matches(root, checkpoint)?
-                && (checkpoint.isolated.is_some()
-                    || super::settings(root, &checkpoint.area)? != checkpoint.settings)
-                && super::run::record_policy_compatible(
-                    root,
-                    &checkpoint.area,
-                    &checkpoint.settings,
-                )?)
+                && research_settings_change_permitted(root, checkpoint)?)
         {
             return Err(ZdevError::new(format!(
                 "Experiment record changed outside the lifecycle: {path}"
@@ -1146,7 +1157,7 @@ fn run_measured_command(
         let _lock = ZdevStateLock::acquire(root)?;
         let mut checkpoint = load(root, area, task)?;
         require_environment(root, &checkpoint)?;
-        if super::settings(root, area)? != checkpoint.settings {
+        if !super::settings(root, area)?.eq_ignoring_advisory(&checkpoint.settings) {
             return Err(ZdevError::new(
                 "Research settings changed during measurement; recover without relaunching",
             ));
@@ -1492,13 +1503,18 @@ fn authorize_finalization(
                 "Keep requires a passing independent verifier envelope bound to the candidate snapshot",
             ));
         }
-        let (_, stored, _) = crate::read_work_context_snapshot(root, &checkpoint.area, snapshot)?;
-        let current = crate::work_context_json_bytes(&crate::work_context_output(
-            root,
-            &checkpoint.area,
-            Some(&checkpoint.task),
-        )?)?;
-        if stored != current {
+        let (_, stored, stored_context) =
+            crate::read_work_context_snapshot(root, &checkpoint.area, snapshot)?;
+        let current = crate::work_context_output(root, &checkpoint.area, Some(&checkpoint.task))?;
+        // The advisory metric bound may change after verification without staling the evidence.
+        if stored != crate::work_context_json_bytes(&current)?
+            && !crate::work_contexts_match_except_metric_bound(
+                root,
+                &checkpoint.area,
+                &stored_context,
+                &current.value,
+            )?
+        {
             return Err(ZdevError::new("Candidate verification snapshot is stale"));
         }
         Some(Verification {
@@ -1701,10 +1717,14 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
             .observation
             .samples
             .clone();
-        if metadata.research.as_ref() != Some(&checkpoint.settings)
-            && metadata.research.as_ref() != Some(&accepted_settings)
-        {
-            return Err(ZdevError::new("Research policy changed during acceptance"));
+        match &metadata.research {
+            Some(current)
+                if current.eq_ignoring_advisory(&checkpoint.settings)
+                    || current.eq_ignoring_advisory(&accepted_settings) =>
+            {
+                accepted_settings.metric_bound = current.metric_bound;
+            }
+            _ => return Err(ZdevError::new("Research policy changed during acceptance")),
         }
         super::run::accepted(root, &checkpoint.area, &accepted_settings)?;
         metadata.research = Some(accepted_settings);
@@ -1718,7 +1738,7 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
             )],
         )?;
         recover_publication(root, checkpoint)?;
-    } else if super::settings(root, &checkpoint.area)? != checkpoint.settings
+    } else if !super::settings(root, &checkpoint.area)?.eq_ignoring_advisory(&checkpoint.settings)
         && !super::run::record_policy_compatible(root, &checkpoint.area, &checkpoint.settings)?
     {
         return Err(ZdevError::new("Research policy changed during discard"));
@@ -1891,7 +1911,7 @@ pub(crate) fn require_completion(
         completed_settings.comparison.baseline_revision = last.candidate.clone();
         completed_settings.comparison.baseline_samples = last.observation.samples.clone();
     }
-    if super::settings(root, area)? != completed_settings
+    if !super::settings(root, area)?.eq_ignoring_advisory(&completed_settings)
         && (record.decision == Decision::Accepted
             || !super::run::record_policy_compatible(root, area, &checkpoint.settings)?)
     {
@@ -1956,7 +1976,7 @@ fn require_clean_index(root: &Path, path: &str) -> Result<(), ZdevError> {
 
 fn comparison_current(root: &Path, checkpoint: &Checkpoint) -> Result<bool, ZdevError> {
     Ok(super::run::comparison_valid(root, &checkpoint.area)?
-        && super::settings(root, &checkpoint.area)? == checkpoint.settings)
+        && super::settings(root, &checkpoint.area)?.eq_ignoring_advisory(&checkpoint.settings))
 }
 
 fn candidate_state(
@@ -2544,7 +2564,8 @@ fn reconcile(
     }
     let head = git_output(root, &["rev-parse", "HEAD"])?;
     let settings = super::settings(root, &checkpoint.area)?;
-    if checkpoint.head == head && checkpoint.settings == settings {
+    let settings_changed = !settings.eq_ignoring_advisory(&checkpoint.settings);
+    if checkpoint.head == head && !settings_changed {
         return Ok(());
     }
     let code_changed = !git_output_bytes(
@@ -2566,7 +2587,7 @@ fn reconcile(
         .last()
         .filter(|attempt| !attempt.measuring)
         .map(|attempt| attempt.candidate.clone());
-    if code_changed || checkpoint.settings != settings {
+    if code_changed || settings_changed {
         let binding = super::run::bind_work(
             root,
             &checkpoint.area,
@@ -2819,7 +2840,11 @@ fn integrate(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> 
         .ok_or_else(|| ZdevError::new("Integration requires fresh measurements"))?;
     if last.measuring
         || !last.published
-        || last.settings.as_ref().unwrap_or(&checkpoint.settings) != &checkpoint.settings
+        || !last
+            .settings
+            .as_ref()
+            .unwrap_or(&checkpoint.settings)
+            .eq_ignoring_advisory(&checkpoint.settings)
         || !super::compare(&checkpoint.settings.comparison, &last.observation)?.improved
     {
         return Err(ZdevError::new(

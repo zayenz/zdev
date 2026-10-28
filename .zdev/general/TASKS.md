@@ -2,8 +2,8 @@
 
 # Tasks: general
 
-- Total: 31
-- Ready: 0
+- Total: 32
+- Ready: 1
 - Blocked: 0
 - Done: 31
 
@@ -40,3 +40,4 @@
 | [general-029](tasks/029-synchronize-the-research-interruption-tests-on-readiness-ins.md) | Synchronize the research interruption tests on readiness instead of elapsed time | done | — |
 | [general-030](tasks/030-give-non-timeout-cases-in-the-research-measure-test-a-genero.md) | Give non-timeout cases in the research measure test a generous deadline | done | — |
 | [general-031](tasks/031-prepare-the-zdev-2-1-0-release.md) | Prepare the zdev 2.1.0 release | done | — |
+| [general-032](tasks/032-name-the-invalidation-reason-in-read-only-research-views-and.md) | Name the invalidation reason in read-only research views and drop stale worktree wording | ready | — |

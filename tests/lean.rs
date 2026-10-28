@@ -16046,6 +16046,73 @@ fn edit_local_candidate(root: &Path) {
     }
 }
 
+/// Bounds waits for evaluator processes so a broken synchronization fails instead of hanging.
+const EVALUATOR_WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// Evaluator step whose subshell writes `ready` and then holds the process group until it is
+/// killed or `hold` disappears, so leaked evaluators end with the test's temporary directory.
+fn held_evaluator_step(ready: &Path, hold: &Path) -> String {
+    format!(
+        "( : > '{}'; while test -f '{}'; do sleep 0.1; done )",
+        ready.display(),
+        hold.display()
+    )
+}
+
+/// Returns the evaluator process group once the held evaluator is ready and zdev has
+/// published the group in the checkpoint.
+fn await_held_evaluator(evaluation: &mut std::process::Child, root: &Path, ready: &Path) -> u32 {
+    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
+    let deadline = std::time::Instant::now() + EVALUATOR_WAIT_LIMIT;
+    loop {
+        let checkpoint: Value =
+            serde_json::from_slice(&fs::read(&checkpoint_path).unwrap()).unwrap();
+        let attempt = &checkpoint["attempts"][0];
+        if ready.exists()
+            && attempt["observation"]["evaluation_runs"] == 1
+            && let Some(group) = attempt["running_pid"].as_u64()
+        {
+            return group as u32;
+        }
+        assert!(
+            evaluation.try_wait().unwrap().is_none(),
+            "evaluation exited before its evaluator became ready"
+        );
+        assert!(
+            std::time::Instant::now() < deadline,
+            "evaluator did not become ready"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+/// Waits until no live process remains in `group`; zombies await reaping by their new parent.
+fn await_process_group_exit(group: u32) {
+    let deadline = std::time::Instant::now() + EVALUATOR_WAIT_LIMIT;
+    loop {
+        let processes = Command::new("ps")
+            .args(["-ax", "-o", "pgid=,stat="])
+            .output()
+            .unwrap();
+        assert!(processes.status.success());
+        let group_running = String::from_utf8_lossy(&processes.stdout)
+            .lines()
+            .any(|line| {
+                let mut fields = line.split_whitespace();
+                fields.next().and_then(|field| field.parse::<u32>().ok()) == Some(group)
+                    && fields.next().is_some_and(|status| !status.starts_with('Z'))
+            });
+        if !group_running {
+            return;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "killed evaluator group remains running"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
 fn local_verifier(root: &Path, snapshot: &str) -> std::path::PathBuf {
     let path = git_path(root, "verifier.json");
     fs::write(&path, serde_json::to_vec(&json!({"schema_version": 1, "kind": "verifier", "area": "work", "task_id": "work-001", "verdict": "pass", "summary": "Independently checked candidate and measurements.", "evidence": [format!("work_context_snapshot: {snapshot}")], "findings": [], "escalation": "none"})).unwrap()).unwrap();
@@ -16614,7 +16681,12 @@ fn local_experiment_recovers_each_finalization_boundary_and_refuses_overlap() {
 #[cfg(unix)]
 #[test]
 fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_measurement() {
-    let repository = local_experiment_fixture("sleep 30; printf 7");
+    let controls = TempDir::new().unwrap();
+    let ready = controls.path().join("ready");
+    let hold = controls.path().join("hold");
+    fs::write(&hold, b"hold").unwrap();
+    let repository =
+        local_experiment_fixture(&format!("{}; printf 7", held_evaluator_step(&ready, &hold)));
     let root = repository.path();
     let run = start_research_run(
         root,
@@ -16638,21 +16710,7 @@ fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_meas
         .stderr(std::process::Stdio::null())
         .spawn()
         .unwrap();
-    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    let process = loop {
-        let checkpoint: Value =
-            serde_json::from_slice(&fs::read(&checkpoint_path).unwrap()).unwrap();
-        let attempt = &checkpoint["attempts"][0];
-        if attempt["observation"]["evaluation_runs"] == 1 && attempt["running_pid"].is_u64() {
-            break attempt["running_pid"].as_u64().unwrap();
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "evaluator did not start"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    };
+    let process = await_held_evaluator(&mut child, root, &ready);
     child.kill().unwrap();
     child.wait().unwrap();
     let unresolved = run_zdev(
@@ -16702,25 +16760,7 @@ fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_meas
         .args(["-c", &format!("kill -KILL -{process}")])
         .status()
         .unwrap();
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    loop {
-        let status = Command::new("ps")
-            .args(["-o", "stat=", "-p", &process.to_string()])
-            .output()
-            .unwrap();
-        if !status.status.success()
-            || String::from_utf8_lossy(&status.stdout)
-                .trim()
-                .starts_with('Z')
-        {
-            break;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "killed evaluator remains running"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    await_process_group_exit(process);
     let recovered = json_output(
         root,
         &["research", "experiment", "work", "work-001", "recover"],
@@ -19789,11 +19829,13 @@ fn isolated_candidates_preserve_capacity_pause_and_recover_without_relaunch() {
     let controls = TempDir::new().unwrap();
     let gate = controls.path().join("pause");
     let calls = controls.path().join("calls");
+    let ready = controls.path().join("ready");
     fs::write(&gate, b"pause").unwrap();
     let evaluator = format!(
-        "printf e >> '{}'; if test -f '{}'; then sleep 30; fi; wc -c < seed.txt",
+        "printf e >> '{}'; if test -f '{}'; then {}; fi; wc -c < seed.txt",
         calls.display(),
-        gate.display()
+        gate.display(),
+        held_evaluator_step(&ready, &gate)
     );
     let repository = isolated_candidate_fixture(&evaluator);
     let root = repository.path();
@@ -19863,21 +19905,7 @@ fn isolated_candidates_preserve_capacity_pause_and_recover_without_relaunch() {
         .stderr(std::process::Stdio::null())
         .spawn()
         .unwrap();
-    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    let process = loop {
-        let checkpoint: Value =
-            serde_json::from_slice(&fs::read(&checkpoint_path).unwrap()).unwrap();
-        let attempt = &checkpoint["attempts"][0];
-        if attempt["observation"]["evaluation_runs"] == 1 && attempt["running_pid"].is_u64() {
-            break attempt["running_pid"].as_u64().unwrap();
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "evaluator did not start"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    };
+    let process = await_held_evaluator(&mut child, root, &ready);
     // Safe live measurement ownership permits further source preparation within worker capacity.
     admit_isolated_candidate(root, &c, "work-003", &["seed.txt"]);
     isolated_action(root, "work-002", "return");
@@ -19917,23 +19945,15 @@ fn isolated_candidates_preserve_capacity_pause_and_recover_without_relaunch() {
         .args(["-c", &format!("kill -KILL -{process}")])
         .status()
         .unwrap();
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    loop {
-        if run_zdev(
+    await_process_group_exit(process);
+    assert!(
+        run_zdev(
             root,
-            &["research", "experiment", "work", "work-001", "recover"],
+            &["research", "experiment", "work", "work-001", "recover"]
         )
         .status
         .success()
-        {
-            break;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "killed measurement remains unresolved"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    );
     let recovered = isolated_action(root, "work-001", "recover");
     assert_eq!(
         recovered["checkpoint"]["attempts"]
@@ -20054,7 +20074,7 @@ fn isolated_candidates_preserve_capacity_pause_and_recover_without_relaunch() {
     interrupted["isolated"]["integrated"] = json!(false);
     interrupted["verification_snapshot"] = Value::Null;
     fs::write(
-        &checkpoint_path,
+        git_path(root, "zdev/experiments/work/work-001.json"),
         serde_json::to_vec_pretty(&interrupted).unwrap(),
     )
     .unwrap();

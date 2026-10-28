@@ -3,9 +3,9 @@
 # Tasks: general
 
 - Total: 29
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 28
+- Done: 29
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -37,4 +37,4 @@
 | [general-026](tasks/026-make-the-implement-pass-report-the-full-commit-id-the-loop-r.md) | Make the implement PASS report the full commit ID the loop requires | done | — |
 | [general-027](tasks/027-make-t3-verifier-workers-perform-the-full-code-review.md) | Make T3 verifier workers perform the full code review | done | — |
 | [general-028](tasks/028-default-to-the-t3-route-inside-t3-code-and-keep-loop-progres.md) | Default to the T3 route inside T3 Code and keep loop progress in the main thread | done | general-027 |
-| [general-029](tasks/029-synchronize-the-research-interruption-tests-on-readiness-ins.md) | Synchronize the research interruption tests on readiness instead of elapsed time | ready | — |
+| [general-029](tasks/029-synchronize-the-research-interruption-tests-on-readiness-ins.md) | Synchronize the research interruption tests on readiness instead of elapsed time | done | — |

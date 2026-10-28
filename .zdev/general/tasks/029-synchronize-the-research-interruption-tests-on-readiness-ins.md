@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-029"
 key = "deflake-research-interruption-tests"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -26,10 +26,22 @@ On 2026-10-28 both tests failed twice in full `cargo test --locked` runs (once w
 
 ## Done when
 
-- [ ] Each test waits on an explicit readiness signal written by the evaluator (for example a marker file) before interrupting, and on the whole process group exiting before final recovery, instead of fixed sleeps or short deadlines.
-- [ ] Both tests pass in 5 consecutive full `cargo test --locked` runs, and in a run with the lean suite under parallel load (for example two concurrent runs of the two tests in separate target dirs).
+- [x] Each test waits on an explicit readiness signal written by the evaluator (for example a marker file) before interrupting, and on the whole process group exiting before final recovery, instead of fixed sleeps or short deadlines.
+- [x] Both tests pass in 5 consecutive full `cargo test --locked` runs, and in a run with the lean suite under parallel load (for example two concurrent runs of the two tests in separate target dirs).
 
 ## Validation
 
 - Report the repeated-run results.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+The two research interruption tests now hold the evaluator with a ready marker and hold file, wait until the marker, evaluation run and running_pid are all published before interrupting, and wait for the whole evaluator process group to exit before recovery. Fixed sleeps and short deadlines are replaced by one 120-second hang guard; every cost, recovery, relaunch and capacity assertion is unchanged and recovery retries were removed. Passed 5 consecutive full runs and two concurrent suites. Verified by GPT-6 Astra (high).
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass x5 consecutive (lean 208)
+- target tests under two concurrent suites: pass
+- git diff --check: pass

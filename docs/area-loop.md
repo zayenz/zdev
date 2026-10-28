@@ -98,9 +98,9 @@ collection. Open empty or exhausted context remains fully gated. A true
 `stale_advisory` is reported once and does not stop work.
 
 A successful iteration returns an exact
-`PASS zdev-implement <area> <task-id>` with a nonempty commit ID. The outer
-workflow records that pair and obtains new work-context before deciding whether
-to continue. Any one-task blocker, malformed result, missing commit ID, or
+`PASS zdev-implement <area> <task-id>` whose commit ID starts with the full
+40-character commit SHA. The outer workflow records that pair and obtains new
+work-context before deciding whether to continue. Any one-task blocker, malformed result, missing commit ID, or
 user-owned decision stops immediately. The area loop never combines two tasks
 into one verification or commit and never uses pre-commit selection for the
 next iteration.

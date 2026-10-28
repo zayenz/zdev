@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-026"
 key = "loop-commit-id-contract"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -29,13 +29,26 @@ Cause: the contracts disagree. `templates/zdev/claude/workflows/zdev-implement.j
 
 ## Done when
 
-- [ ] The completion prompt in zdev-implement.js states that `Commit ID` is the full 40-character commit SHA reported by `zdev commit` (for example the `commit` field of `zdev commit --format json`), with nothing else on the line.
-- [ ] zdev-implement.js rejects a PASS whose Commit ID is not a full 40-character lowercase hex SHA (bare or in backticks), returning a BLOCKER that names the malformed commit ID instead of passing it on.
-- [ ] zdev-loop.js accepts the PASS when the Commit ID line holds the full SHA followed by other text, such as a trailing change ID in parentheses, by taking the leading 40-hex token. A short or missing SHA still blocks with the existing message.
-- [ ] Any other workflow that parses an implement PASS commit ID (check zdev-goal.js and zdev-parallel.js) follows the same rule.
-- [ ] Generated copies match the templates and `zdev skill check` reports every harness ready.
+- [x] The completion prompt in zdev-implement.js states that `Commit ID` is the full 40-character commit SHA reported by `zdev commit` (for example the `commit` field of `zdev commit --format json`), with nothing else on the line.
+- [x] zdev-implement.js rejects a PASS whose Commit ID is not a full 40-character lowercase hex SHA (bare or in backticks), returning a BLOCKER that names the malformed commit ID instead of passing it on.
+- [x] zdev-loop.js accepts the PASS when the Commit ID line holds the full SHA followed by other text, such as a trailing change ID in parentheses, by taking the leading 40-hex token. A short or missing SHA still blocks with the existing message.
+- [x] Any other workflow that parses an implement PASS commit ID (check zdev-goal.js and zdev-parallel.js) follows the same rule.
+- [x] Generated copies match the templates and `zdev skill check` reports every harness ready.
 
 ## Validation
 
 - In tests/lean.rs, update the implement fixture that uses `abc123` to a full SHA, and add focused workflow cases: implement rejects a short commit ID; the loop accepts a full SHA with a trailing change ID and still rejects a short one. Use the existing scripted-worker workflow tests; no live harness run.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+The implement completion prompt now requires the full 40-character SHA from zdev commit as Commit ID. Implement blocks a PASS whose Commit ID does not start with a full SHA, naming the malformed value; the loop (and the generated goal workflow) takes the leading full SHA, so a trailing change ID is accepted and short IDs are still rejected. Research uses the same commitIdFrom rule; parallel already required 40 hex. Fixes loops that stopped after every committed task (field report, Opus 5.5 session).
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 201)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

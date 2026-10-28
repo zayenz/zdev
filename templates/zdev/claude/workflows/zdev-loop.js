@@ -46,7 +46,8 @@ const loopHasExactLine = (text, expected) => {
     /^(?:PASS|BLOCKER) zdev-implement /.test(line.trim()))
   return results.length === 1 && results[0].trim() === expected
 }
-const plainCommit = value => /^`[0-9a-f]{40}`$/.test(value ?? '') ? value.slice(1, -1) : value
+// Same rule as commitIdFrom in the one-task body: the leading full SHA, bare or in backticks.
+const loopCommitId = value => value?.match(/^(`?)([0-9a-f]{40})\1(?=\s|$)/)?.[2] ?? null
 const loopAdvisory = 'stale effective-base link; managed rebase remains optional.'
 const completedTasks = []
 const commits = []
@@ -233,8 +234,8 @@ while (true) {
     return pass(state, `no ready work; ${state.lifecycle}/${state.queue}.`, crossAreaWaits)
   }
   if (task && task !== 'none' && loopHasExactLine(result, `PASS zdev-implement ${loopArea} ${task}`)) {
-    const commit = plainCommit(loopField(result, 'Commit ID'))
-    if (!/^[0-9a-f]{40}$/.test(commit ?? '')) {
+    const commit = loopCommitId(loopField(result, 'Commit ID'))
+    if (commit === null) {
       return block(state, task, 'result validation', 'the one-task PASS omitted its commit ID.', 'the task result was not counted and no next task was started.')
     }
     if (loopField(result, 'Derived proposal') !== 'implementation_split') {

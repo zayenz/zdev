@@ -465,9 +465,9 @@ state. Public output begins with
 `PASS zdev-implement <area> <task-id>` or
 `BLOCKER zdev-implement <area> <task-id>`; its body repeats the exact area and
 task, reports the stale advisory once when present, and names summary, changed
-files, validation, verifier evidence, and commit ID on pass, or the failed
-stage, reason, and preserved state on blocker. It omits the advisory field when
-no stale advisory was observed.
+files, validation, verifier evidence, and the full 40-character commit ID on
+pass, or the failed stage, reason, and preserved state on blocker. It omits the
+advisory field when no stale advisory was observed.
 
 An ordinary `zdev-implement` pass completes one task. A successful split uses
 the derived exception above and leaves its source open. After reporting the

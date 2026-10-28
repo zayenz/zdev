@@ -62,6 +62,9 @@ const fromExactLine = (text, expected) => {
     ? lines.slice(results[0]).join('\n').trim()
     : null
 }
+// A Commit ID field counts only when it starts with the full lowercase SHA, bare or in
+// backticks; trailing text such as the change ID that zdev commit prints is ignored.
+const commitIdFrom = value => value?.match(/^(`?)([0-9a-f]{40})\1(?=\s|$)/)?.[2] ?? null
 const advisoryText = 'stale effective-base link; managed rebase remains optional.'
 const blocker = (subjectArea, taskId, stage, reason, state, staleAdvisory = false) =>
   `BLOCKER zdev-implement ${subjectArea} ${taskId}\n\nArea: ${subjectArea}\nTask: ${taskId}\n${staleAdvisory ? `Advisory: ${advisoryText}\n` : ''}Failed stage: ${stage}\nReason: ${reason}\nPreserved state: ${state}`
@@ -657,6 +660,10 @@ if (input.planOnly) {
     effort: selectedPlanner.reasoning_effort, ...semantic })
 }
 
+const malformedCommitBlocker = (stage, reported) => blocker(area, taskId, stage,
+  `the PASS reported malformed commit ID ${JSON.stringify(reported)}; expected the full 40-character commit SHA from zdev commit.`,
+  'the coordinator may already have committed; inspect git log and the zdev task record before continuing.', staleAdvisory)
+
 const routeDerivedSplit = async (workerResult, coordinatorContext) => {
   const proposal = derivedSplitFrom(workerResult, area, taskId)
   if (!proposal) return null
@@ -678,7 +685,10 @@ const routeDerivedSplit = async (workerResult, coordinatorContext) => {
     && exactSubject
     && field(routed, 'Advisory') === advisory
     && ['Failed stage', 'Reason', 'Preserved state'].every(name => field(routed, name) !== null)
-  if (validPass) return passResult
+  if (validPass) {
+    const reported = field(routed, 'Commit ID')
+    return commitIdFrom(reported) ? passResult : malformedCommitBlocker('derived split', reported)
+  }
   if (validBlocker) return blockerResult
   return blocker(area, taskId, 'derived split', 'coordinator returned an invalid or mismatched split result.', 'the source task and proposal require inspection before continuing.', staleAdvisory)
 }
@@ -926,7 +936,7 @@ if (verdict.result.verdict !== 'pass') {
 
 const advisory = staleAdvisory ? advisoryText : null
 const completed = await agent(
-  `${repositoryGuidance}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, before mutation run exactly one zdev work-context ${area} --compare ${verdict.approved} --format json. Accept the exact four-key JSON object {"schema_version":1,"area":"${area}","snapshot":"${verdict.approved}","equal":true}. On an exact match, run zdev task done, stage the attributed task-owned paths, every clarified record path in the handoff, exact task records, and every dependent TASKS.md path that task done reports in dependent_indexes or as Updated dependent indexes, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit needs recovery. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nCompletion handoff: ${JSON.stringify({ snapshot: verdict.approved, implementation: latestImplementation.summary, verification: verdict.result.summary, technical_adjustments: technicalAdjustments })}`,
+  `${repositoryGuidance}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, before mutation run exactly one zdev work-context ${area} --compare ${verdict.approved} --format json. Accept the exact four-key JSON object {"schema_version":1,"area":"${area}","snapshot":"${verdict.approved}","equal":true}. On an exact match, run zdev task done, stage the attributed task-owned paths, every clarified record path in the handoff, exact task records, and every dependent TASKS.md path that task done reports in dependent_indexes or as Updated dependent indexes, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit needs recovery. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker. Commit ID is the full 40-character commit SHA that zdev commit reports (the commit field of zdev commit --format json), with nothing else on the line.\n\nCompletion handoff: ${JSON.stringify({ snapshot: verdict.approved, implementation: latestImplementation.summary, verification: verdict.result.summary, technical_adjustments: technicalAdjustments })}`,
   { label: `zdev ${taskId}: complete and commit` },
 )
 const result = completed?.trim()
@@ -942,7 +952,10 @@ const validBlocker = blockerResult !== null
   && exactSubject
   && field(result, 'Advisory') === advisory
   && ['Failed stage', 'Reason', 'Preserved state'].every(name => field(result, name) !== null)
-if (validPass) return passResult
+if (validPass) {
+  const reported = field(result, 'Commit ID')
+  return commitIdFrom(reported) ? passResult : malformedCommitBlocker('completion and commit', reported)
+}
 if (validBlocker) return blockerResult
 return blocker(area, taskId, 'completion and commit', 'coordinator returned an invalid or mismatched envelope.', 'inspect the checkout and zdev task record before continuing.', staleAdvisory)
 
@@ -975,6 +988,9 @@ const fromExactLine = (text, expected) => {
     ? lines.slice(results[0]).join('\n').trim()
     : null
 }
+// A Commit ID field counts only when it starts with the full lowercase SHA, bare or in
+// backticks; trailing text such as the change ID that zdev commit prints is ignored.
+const commitIdFrom = value => value?.match(/^(`?)([0-9a-f]{40})\1(?=\s|$)/)?.[2] ?? null
 const decodeJsonObject = raw => {
   if (raw && !Array.isArray(raw) && typeof raw === 'object') {
     return { value: raw, raw: JSON.stringify(raw) }
@@ -1620,10 +1636,10 @@ const generate = async () => {
 }
 const recordSupportingCompletion = (result, task) => {
   const pass = typeof result === 'string' && fromExactLine(result, `PASS zdev-implement ${area} ${task}`)
-  const commit = pass && field(pass, 'Commit ID')?.replace(/^`|`$/g, '')
+  const commit = pass && commitIdFrom(field(pass, 'Commit ID'))
   if (!pass || field(pass, 'Area') !== area || field(pass, 'Task') !== task
     || !['Summary', 'Changed files', 'Validation', 'Verifier evidence'].every(name => field(pass, name))
-    || !/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Error(typeof result === 'string' ? result : 'Supporting workflow returned no valid completion')
+    || !commit) throw new Error(typeof result === 'string' ? result : 'Supporting workflow returned no valid completion')
   completed.push({ task_id: task,
     decision: field(pass, 'Derived proposal') === 'implementation_split' ? 'implementation_split' : 'supporting', commit })
 }

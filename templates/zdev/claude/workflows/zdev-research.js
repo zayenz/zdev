@@ -240,10 +240,10 @@ const generate = async () => {
 }
 const recordSupportingCompletion = (result, task) => {
   const pass = typeof result === 'string' && fromExactLine(result, `PASS zdev-implement ${area} ${task}`)
-  const commit = pass && field(pass, 'Commit ID')?.replace(/^`|`$/g, '')
+  const commit = pass && commitIdFrom(field(pass, 'Commit ID'))
   if (!pass || field(pass, 'Area') !== area || field(pass, 'Task') !== task
     || !['Summary', 'Changed files', 'Validation', 'Verifier evidence'].every(name => field(pass, name))
-    || !/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Error(typeof result === 'string' ? result : 'Supporting workflow returned no valid completion')
+    || !commit) throw new Error(typeof result === 'string' ? result : 'Supporting workflow returned no valid completion')
   completed.push({ task_id: task,
     decision: field(pass, 'Derived proposal') === 'implementation_split' ? 'implementation_split' : 'supporting', commit })
 }

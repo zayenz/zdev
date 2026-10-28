@@ -8730,7 +8730,8 @@ const dispatchSpec = (complexity, planOnly = false) => JSON.stringify({{
 const passEvidence = [
   'work_context_snapshot: W0123456789abcdef',
 ]
-const completion = 'Completion finished.\nPASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files:\n- src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: `abc123`'
+const completionWithCommit = commit => 'Completion finished.\nPASS zdev-implement work work-001\n\nArea: work\nTask: work-001\nSummary: complete\nChanged files:\n- src/lib.rs\nValidation: passed\nVerifier evidence: checked\nCommit ID: ' + commit
+let completion = completionWithCommit('`' + 'a'.repeat(40) + '`')
 const exercise = async (name, complexity, responses, expectedTypes, expectedPrefix = 'PASS', derived = null, invocation = {{ area }}, compareEquals = [], verificationOverrides = {{}}, blockerDecisions = [], adjustmentDecisions = []) => {{
   const types = []
   const calls = []
@@ -8820,6 +8821,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (completionPrompt.includes('"git_status":') || completionPrompt.includes('"git_diff":')) throw new Error(name + ': completion received raw Git evidence')
     if (!completionPrompt.includes('zdev work-context work --compare W0123456789abcdef --format json')) throw new Error(name + ': completion lost compact comparison')
     if (!completionPrompt.includes('every dependent TASKS.md path that task done reports in dependent_indexes')) throw new Error(name + ': completion did not stage dependent indexes')
+    if (!completionPrompt.includes('Commit ID is the full 40-character commit SHA')) throw new Error(name + ': completion did not state the commit ID format')
   }}
   return {{ result, verifierPrompts, completionPrompt, calls }}
 }}
@@ -8881,6 +8883,17 @@ await exercise(
   [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
   ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
 )
+completion = completionWithCommit('abc123 (kqzvlmno)')
+const shortCommit = await exercise(
+  'short commit ID',
+  'standard',
+  [worker('implementer', 'ready'), worker('verifier', 'pass', 'none', passEvidence)],
+  ['zdev:zdev-implementer', 'zdev:zdev-verifier'],
+  'BLOCKER',
+)
+if (!shortCommit.result.includes('Failed stage: completion and commit') || !shortCommit.result.includes('malformed commit ID "abc123 (kqzvlmno)"'))
+  throw new Error('short commit ID: ' + shortCommit.result)
+completion = completionWithCommit('a'.repeat(40) + ' (kqzvlmno)')
 for (const [name, invocation] of [['array args', ['work']], ['string args', 'work']]) {{
   await exercise(
     name,
@@ -9466,6 +9479,24 @@ for (const call of twoTask.calls.filter(call => call.type === null
   && !call.label.includes('complete and commit'))) {{
   if (call.model !== 'claude-opus-5-5' || call.effort !== 'low') throw new Error('loop deterministic coordination did not use low-effort Opus 5.5: ' + call.label)
 }}
+
+const changeIdCommit = await exercise(
+  'commit ID with trailing change ID',
+  [ready('work-001'), ready('work-001'), closed],
+  [worker('work-001', 'implementer', 'ready'), worker('work-001', 'verifier', 'pass', 'none', passEvidence(head))],
+  [completionPass('work-001').replace('`' + commit1 + '`', commit1 + ' (kqzvlmno)')],
+  'PASS',
+)
+if (!changeIdCommit.result.includes('Commits: ' + commit1 + '\n')) throw new Error(changeIdCommit.result)
+const shortCommit = await exercise(
+  'short commit ID',
+  [ready('work-001'), ready('work-001')],
+  [worker('work-001', 'implementer', 'ready'), worker('work-001', 'verifier', 'pass', 'none', passEvidence(head))],
+  [completionPass('work-001').replace('`' + commit1 + '`', commit1.slice(0, 12))],
+  'BLOCKER',
+)
+if (!shortCommit.result.includes('Tasks completed: none') || !shortCommit.result.includes('malformed commit ID'))
+  throw new Error(shortCommit.result)
 
 const noWork = await exercise('closed no-work', [closed], [], [], 'PASS', [], 'work')
 if (noWork.calls.length !== 1 || noWork.calls[0].label !== 'zdev work: select next task') throw new Error(JSON.stringify(noWork.calls))

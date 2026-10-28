@@ -3,9 +3,9 @@
 # Tasks: general
 
 - Total: 26
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 25
+- Done: 26
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -34,4 +34,4 @@
 | [general-023](tasks/023-honor-blanket-authorization-across-parallel-batches.md) | Honor blanket authorization across parallel batches | done | — |
 | [general-024](tasks/024-default-t3-verifiers-to-codex-when-it-is-available.md) | Default T3 verifiers to Codex when it is available | done | — |
 | [general-025](tasks/025-create-branches-and-worktrees-only-on-request-by-default.md) | Create branches and worktrees only on request by default | done | — |
-| [general-026](tasks/026-make-the-implement-pass-report-the-full-commit-id-the-loop-r.md) | Make the implement PASS report the full commit ID the loop requires | ready | — |
+| [general-026](tasks/026-make-the-implement-pass-report-the-full-commit-id-the-loop-r.md) | Make the implement PASS report the full commit ID the loop requires | done | — |

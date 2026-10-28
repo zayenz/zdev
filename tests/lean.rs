@@ -1539,6 +1539,53 @@ fn work_context_snapshots_fail_closed_and_remain_available() {
 }
 
 #[test]
+fn work_context_show_reads_without_writable_state_lock() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "reading",
+            "--title",
+            "Reading",
+            "--objective",
+            "Read stored work-context snapshots without writing state.",
+            "--trunk",
+        ],
+    );
+    commit_all(root, "record area");
+    let stored = json_output(root, &["work-context", "reading", "--store"]);
+    let snapshot = stored["snapshot"].as_str().expect("snapshot ID").to_owned();
+    let stored_bytes = fs::read_to_string(reported_path(root, &stored["path"])).expect("stored");
+
+    let lock_path = git_path(root, "zdev-state.lock");
+    if lock_path.exists() {
+        fs::remove_file(&lock_path).expect("remove idle state lock");
+    }
+    fs::create_dir_all(&lock_path).expect("unopenable state lock");
+    let shown = run_zdev(root, &["work-context", "reading", "--show", &snapshot]);
+    assert!(shown.status.success(), "{shown:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&shown.stdout).trim_end(),
+        stored_bytes.trim_end()
+    );
+    assert_eq!(
+        json_output(root, &["work-context", "reading", "--compare", &snapshot])["equal"],
+        true
+    );
+    assert!(
+        !run_zdev(root, &["work-context", "reading", "--store"])
+            .status
+            .success()
+    );
+}
+
+#[test]
 fn work_context_snapshots_use_the_linked_worktree_git_path() {
     let repository = repository();
     let root = repository.path();

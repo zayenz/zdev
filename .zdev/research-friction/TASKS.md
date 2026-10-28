@@ -3,13 +3,13 @@
 # Tasks: research-friction
 
 - Total: 8
-- Ready: 7
+- Ready: 6
 - Blocked: 1
-- Done: 0
+- Done: 1
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
-| [research-friction-001](tasks/001-read-stored-work-context-snapshots-without-the-writable-stat.md) | Read stored work-context snapshots without the writable state lock | ready | — |
+| [research-friction-001](tasks/001-read-stored-work-context-snapshots-without-the-writable-stat.md) | Read stored work-context snapshots without the writable state lock | done | — |
 | [research-friction-002](tasks/002-warn-when-the-frozen-minimum-gain-is-unreachable.md) | Warn when the frozen minimum gain is unreachable | ready | — |
 | [research-friction-003](tasks/003-allow-declared-administrative-correctness-command-amendments.md) | Allow declared administrative correctness-command amendments in an active run | ready | — |
 | [research-friction-004](tasks/004-limit-accepted-code-invalidation-to-declared-relevant-inputs.md) | Limit accepted-code invalidation to declared relevant inputs | ready | — |

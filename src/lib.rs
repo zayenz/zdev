@@ -2150,7 +2150,7 @@ fn store_work_context(
 
 fn show_work_context(root: &Path, area: &str, snapshot: &str) -> Result<CommandOutput, ZdevError> {
     project::load_area(root, area)?;
-    let _lock = ZdevStateLock::acquire(root)?;
+    // Stored snapshots are immutable and published atomically, so reads need no lock.
     let (_, bytes, value) = read_work_context_snapshot(root, area, snapshot)?;
     let exact = String::from_utf8(bytes)
         .map_err(|_| ZdevError::new("Stored work-context snapshot is not valid UTF-8"))?;
@@ -2168,15 +2168,11 @@ fn compare_work_context(
     snapshot: &str,
 ) -> Result<CommandOutput, ZdevError> {
     project::load_area(root, area)?;
-    let (stored, selected) = {
-        let _lock = ZdevStateLock::acquire(root)?;
-        let (_, bytes, value) = read_work_context_snapshot(root, area, snapshot)?;
-        let selected = value
-            .get("task_id")
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        (bytes, selected)
-    };
+    let (_, stored, value) = read_work_context_snapshot(root, area, snapshot)?;
+    let selected = value
+        .get("task_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     let equal = match selected.as_deref() {
         Some(id) if !tasks::task_is_ready(root, area, id)? => false,
         selected => {

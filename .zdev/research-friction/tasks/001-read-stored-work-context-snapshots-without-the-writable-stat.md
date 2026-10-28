@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-001"
 key = "snapshot-show-read-only"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "routine"
 afk = true
 priority = "high"
@@ -31,10 +31,10 @@ Relevant tests in `tests/lean.rs`: `work_context_snapshots_round_trip_exact_json
 
 ## Done when
 
-- [ ] When the state lock path cannot be opened for writing, `work-context <area> --show <snapshot>` succeeds and prints the exact stored JSON.
-- [ ] In the same state, `work-context <area> --compare <snapshot>` reports equality without acquiring the lock, and `--store` still fails because writes still need the lock.
-- [ ] Missing, corrupt and cross-area snapshots still fail with their existing errors.
-- [ ] One focused regression in `tests/lean.rs` covers the unopenable-lock read.
+- [x] When the state lock path cannot be opened for writing, `work-context <area> --show <snapshot>` succeeds and prints the exact stored JSON.
+- [x] In the same state, `work-context <area> --compare <snapshot>` reports equality without acquiring the lock, and `--store` still fails because writes still need the lock.
+- [x] Missing, corrupt and cross-area snapshots still fail with their existing errors.
+- [x] One focused regression in `tests/lean.rs` covers the unopenable-lock read.
 
 ## Validation
 
@@ -44,3 +44,15 @@ Relevant tests in `tests/lean.rs`: `work_context_snapshots_round_trip_exact_json
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+work-context --show and the stored-snapshot read in --compare no longer take the writable state lock; immutable, atomically published snapshots are read directly, so read-only inspection works when the lock cannot be opened. --store and every other lock user are unchanged. Independently verified; the new test fails on the baseline.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 202)
+- cargo build --locked: pass
+- git diff --check: pass

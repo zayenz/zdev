@@ -136,8 +136,8 @@ not create another scheduler or alter ordinary assigned-source work below.
 
 ## Optional assigned source worktree
 
-Ordinary one-task work stays in the admitted checkout, normally a worktree
-under the shared workspace rules. Use this separate source-worktree transport
+Ordinary one-task work stays in the admitted checkout chosen by the shared
+workspace rules. Use this separate source-worktree transport
 when the run calls for assigned source trees. The authoritative checkout remains
 the destination: it alone owns
 admission, task records, snapshots used for verification, lifecycle changes,

@@ -882,6 +882,23 @@ fn input_invalidation(changed: &[String]) -> Option<String> {
     ))
 }
 
+/// Why comparisons against the frozen `policy` are invalid under current `settings` and
+/// accepted code, or `None` when they remain valid.
+fn comparison_invalidation(
+    root: &Path,
+    policy: &Settings,
+    settings: &Settings,
+) -> Result<Option<String>, ZdevError> {
+    if !settings.eq_ignoring_advisory(policy) {
+        return Ok(Some(
+            "Evaluator or workload settings changed; actual rebaseline required".to_owned(),
+        ));
+    }
+    Ok(input_invalidation(&changed_relevant_paths(
+        root, settings, "HEAD",
+    )?))
+}
+
 fn invalidate(run: &mut Run, reason: &str) {
     run.comparison_valid = false;
     run.invalidation = Some(reason.to_owned());
@@ -1037,12 +1054,7 @@ fn require_policy(root: &Path, run: &mut Run, comparison: bool) -> Result<(), Zd
             "Current research policy differs from the run's authorization",
         ));
     }
-    let invalidation = if settings.eq_ignoring_advisory(&run.policy) {
-        input_invalidation(&changed_relevant_paths(root, &settings, "HEAD")?)
-    } else {
-        Some("Evaluator or workload settings changed; actual rebaseline required".to_owned())
-    };
-    if let Some(reason) = invalidation {
+    if let Some(reason) = comparison_invalidation(root, &run.policy, &settings)? {
         invalidate(run, &reason);
         save(root, run)?;
     }
@@ -1764,9 +1776,11 @@ struct LiveRun {
 fn live_run(root: &Path, area: &str) -> Result<LiveRun, ZdevError> {
     let mut run = load(root, area)?.ok_or_else(|| ZdevError::new("Area has no research run"))?;
     let settings = super::settings(root, area)?;
-    run.comparison_valid = run.comparison_valid
-        && settings.eq_ignoring_advisory(&run.policy)
-        && accepted_code_matches(root, &settings)?;
+    // Report the reason a mutating gate would record, without saving it.
+    if let Some(reason) = comparison_invalidation(root, &run.policy, &settings)? {
+        run.comparison_valid = false;
+        run.invalidation.get_or_insert(reason);
+    }
     let unreachable_gain = settings.unreachable_gain()?;
     let stop = reason(&run, &settings, true)?;
     let summary = tasks::summary(root, area)?;

@@ -18840,6 +18840,14 @@ fn research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failur
         json!("printf override > optional-code.txt; test -f optional-code.txt && printf 1");
     dirty_baseline["comparison"]["evaluator_identity"] = json!("fixture-untracked-code");
     configure_research_fixture(root, &dirty_baseline);
+    let stored_run = fs::read(&run_path).unwrap();
+    let changed = json_output(root, &["research", "run", "work", "inspect"]);
+    assert_eq!(changed["comparison_valid"], false);
+    assert_eq!(
+        changed["invalidation"],
+        "Evaluator or workload settings changed; actual rebaseline required"
+    );
+    assert_eq!(fs::read(&run_path).unwrap(), stored_run);
     let prior_area = fs::read(root.join(".zdev/work/area.toml")).unwrap();
     let rejected = run_zdev(
         root,
@@ -19048,6 +19056,29 @@ fn research_relevant_inputs_ignore_unrelated_commits() {
         let reason = invalidated["run"]["invalidation"].as_str().unwrap();
         assert!(reason.contains(path), "unexpected reason: {reason}");
     };
+    // Read-only views name the reason a mutating gate would record, without saving it.
+    let assert_reported_by = |root: &Path, path: &str| {
+        let run_path = git_path(root, "zdev/runs/work/current.json");
+        let stored = fs::read(&run_path).unwrap();
+        let viewed = context(root);
+        let inspected = json_output(root, &["research", "run", "work", "inspect"]);
+        for (valid, reason) in [
+            (
+                &viewed["run"]["comparison_valid"],
+                &viewed["run"]["invalidation"],
+            ),
+            (&inspected["comparison_valid"], &inspected["invalidation"]),
+        ] {
+            assert_eq!(valid, false);
+            let reason = reason.as_str().unwrap();
+            assert!(
+                reason.starts_with("Accepted relevant input changed since the baseline: ")
+                    && reason.contains(path),
+                "unexpected reason: {reason}"
+            );
+        }
+        assert_eq!(fs::read(&run_path).unwrap(), stored);
+    };
 
     let repository = local_experiment_fixture("printf 11");
     let root = repository.path();
@@ -19137,6 +19168,7 @@ fn research_relevant_inputs_ignore_unrelated_commits() {
         "changed\n",
         "change a declared input",
     );
+    assert_reported_by(root, "unrelated-stage.txt");
     assert_invalidated_by(root, identity, "unrelated-stage.txt");
 
     let repository = local_experiment_fixture("printf 11");

@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-032"
 key = "pre-tag-2-1-polish"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -32,11 +32,24 @@ Found by the final GPT-6 Astra release review of 2.1 (2026-10-28); the maintaine
 
 ## Done when
 
-- [ ] After a commit to a declared relevant input, read-only `research run context` and compact `inspect` report the path-naming reason while comparison_valid is false, and the run file is unchanged; a settings change reports the settings reason.
-- [ ] require_policy and live_run use one shared helper for the reason.
-- [ ] task-workflows.md and its rendered copies no longer say 'normally a worktree'; `zdev skill check` reports every harness ready.
+- [x] After a commit to a declared relevant input, read-only `research run context` and compact `inspect` report the path-naming reason while comparison_valid is false, and the run file is unchanged; a settings change reports the settings reason.
+- [x] require_policy and live_run use one shared helper for the reason.
+- [x] task-workflows.md and its rendered copies no longer say 'normally a worktree'; `zdev skill check` reports every harness ready.
 
 ## Validation
 
 - Extend research_relevant_inputs_ignore_unrelated_commits (or the nearest existing test) to read context and inspect after the relevant-input commit, before any mutating command, and assert the reason and an unchanged run file.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+Read-only research run context and compact inspect now report the invalidation reason (changed relevant path or settings change) whenever they recompute the comparison as invalid, through comparison_invalidation, the single rule require_policy also uses; the read-only path never writes. The task-workflow contract no longer says ordinary work runs 'normally' in a worktree. Verified by GPT-6 Astra (high).
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (213)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

@@ -653,7 +653,7 @@ pub(super) fn create_area(
         ),
     )
     .map_err(|error| ZdevError::io("Cannot write area brief", error))?;
-    let empty = tasks::empty_index(tag)?;
+    let empty = tasks::empty_index(tag);
     fs::write(stage.path().join("TASKS.md"), empty)
         .map_err(|error| ZdevError::io("Cannot write task summary", error))?;
     fs::rename(stage.keep(), &path)

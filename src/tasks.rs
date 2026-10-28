@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::project::{
-    AreaLifecycle, AreaMetadata, RecordPolicy, area_branch_status, current_branch, list_areas,
-    load_area, read_config, require_checked_out_area_branch, require_task_work_area_link,
-    slice_briefs,
+    AreaLifecycle, AreaMetadata, AreaMode, RecordPolicy, area_branch_status, current_branch,
+    list_areas, load_area, read_config, require_checked_out_area_branch,
+    require_task_work_area_link, slice_briefs,
 };
 use super::research::{Hypothesis, ResultRecord, validate_evidence};
 use super::{
@@ -304,11 +304,9 @@ fn validate_task_bundle(root: &Path, bundle: &TaskBundle, area: &str) -> Result<
     }
     let slices = slice_briefs(root, area)?;
     let research = load_area(root, area)?.0.research;
-    let existing = if bundle
-        .tasks
-        .iter()
-        .any(|task| task.hypothesis.is_some() || !task.requires_code.is_empty())
-        && root.join(".zdev").join(area).join("tasks").is_dir()
+    let existing = if bundle.tasks.iter().any(|task| {
+        task.hypothesis.is_some() || !task.requires_code.is_empty() || !task.blocked_by.is_empty()
+    }) && root.join(".zdev").join(area).join("tasks").is_dir()
     {
         load_tasks(root, area)?
     } else {
@@ -326,6 +324,13 @@ fn validate_task_bundle(root: &Path, bundle: &TaskBundle, area: &str) -> Result<
     let mut seen_keys = BTreeSet::new();
     for task in &bundle.tasks {
         require_retained_code(root, &task.requires_code, &existing)?;
+        for blocker in &task.blocked_by {
+            let is_known = context_ids.contains(blocker.as_str())
+                || task_exists_in_other_area(root, area, blocker)?;
+            if !is_known {
+                return Err(unknown_blocker_error(root, area, &task.key, blocker));
+            }
+        }
         if let Some(hypothesis) = &task.hypothesis {
             if research.is_none() {
                 return Err(ZdevError::new(
@@ -1544,7 +1549,8 @@ pub(super) fn apply_derived(
         hypothetical.push(parse_task(content, path, area)?);
     }
     hypothetical.sort_by(compare_tasks_by_id);
-    let index_content = render_index(area, &hypothetical)?;
+    validate_graph(root, area, &hypothetical)?;
+    let index_content = render_index(area, &hypothetical);
     let ready = hypothetical
         .iter()
         .filter(|task| task_state(task, &hypothetical) == "ready")
@@ -1751,7 +1757,7 @@ pub(crate) fn prepare_generated_bundle(
         .collect::<Vec<_>>();
     files.push((
         root.join(format!(".zdev/{area}/TASKS.md")),
-        render_index(area, &hypothetical)?.into_bytes(),
+        render_index(area, &hypothetical).into_bytes(),
     ));
     Ok(GeneratedBundle { ids, files })
 }
@@ -1801,13 +1807,12 @@ fn allocate_bundle(
             .map(|blocker| {
                 if let Some(id) = allocated.get(blocker.as_str()) {
                     Ok((*id).clone())
-                } else if existing_ids.contains(blocker.as_str()) {
+                } else if existing_ids.contains(blocker.as_str())
+                    || task_exists_in_other_area(root, area, blocker)?
+                {
                     Ok(blocker.clone())
                 } else {
-                    Err(ZdevError::new(format!(
-                        "Task {} has unknown blocker {blocker}",
-                        draft.key
-                    )))
+                    Err(unknown_blocker_error(root, area, &draft.key, blocker))
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -1842,7 +1847,7 @@ fn allocate_bundle(
         hypothetical.push(parse_task(content, path, area)?);
     }
     hypothetical.sort_by(compare_tasks_by_id);
-    validate_graph(&hypothetical)?;
+    validate_graph(root, area, &hypothetical)?;
     let ready = hypothetical
         .iter()
         .filter(|task| task_state(task, &hypothetical) == "ready")
@@ -2369,7 +2374,19 @@ fn render_draft(header: &TaskHeader, draft: &TaskDraft) -> Result<String, ZdevEr
 }
 
 fn load_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
-    let (metadata, area_dir) = load_area(root, area)?;
+    let tasks = read_area_tasks(root, area)?;
+    validate_graph(root, area, &tasks)?;
+    validate_research_tasks(&tasks, load_area(root, area)?.0.research.is_some())?;
+    for task in &tasks {
+        validate_code_prerequisites(&task.header.requires_code, &tasks)?;
+    }
+    Ok(tasks)
+}
+
+/// Parses one area's task files, sorted by ID, without validating its dependency
+/// graph, so that graph validation can read the areas its blockers name.
+fn read_area_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
+    let (_, area_dir) = load_area(root, area)?;
     let tasks_dir = area_dir.join("tasks");
     if !tasks_dir.is_dir() {
         return Err(ZdevError::new(format!(
@@ -2392,11 +2409,6 @@ fn load_tasks(root: &Path, area: &str) -> Result<Vec<Task>, ZdevError> {
     }
     validate_task_slices(root, area, &tasks)?;
     tasks.sort_by(compare_tasks_by_id);
-    validate_graph(&tasks)?;
-    validate_research_tasks(&tasks, metadata.research.is_some())?;
-    for task in &tasks {
-        validate_code_prerequisites(&task.header.requires_code, &tasks)?;
-    }
     Ok(tasks)
 }
 
@@ -2711,12 +2723,15 @@ fn compare_tasks_by_id(left: &Task, right: &Task) -> std::cmp::Ordering {
         .then_with(|| left.header.id.cmp(&right.header.id))
 }
 
-fn validate_graph(tasks: &[Task]) -> Result<(), ZdevError> {
-    let by_id = tasks
+/// Validates one area's tasks as part of the project graph: every blocker names a
+/// task in this area or another, and no dependency cycle passes through the area,
+/// including cycles through the other areas its blockers reach.
+fn validate_graph(root: &Path, area: &str, tasks: &[Task]) -> Result<(), ZdevError> {
+    let ids = tasks
         .iter()
-        .map(|task| (task.header.id.as_str(), task))
-        .collect::<BTreeMap<_, _>>();
-    if by_id.len() != tasks.len() {
+        .map(|task| task.header.id.as_str())
+        .collect::<BTreeSet<_>>();
+    if ids.len() != tasks.len() {
         return Err(ZdevError::new("Task IDs must be unique"));
     }
     let keys = tasks
@@ -2726,6 +2741,12 @@ fn validate_graph(tasks: &[Task]) -> Result<(), ZdevError> {
     if keys.len() != tasks.len() {
         return Err(ZdevError::new("Task keys must be unique"));
     }
+    let blocking_tasks = read_blocking_area_tasks(root, area, tasks)?;
+    let by_id = blocking_tasks
+        .iter()
+        .chain(tasks)
+        .map(|task| (task.header.id.as_str(), task))
+        .collect::<BTreeMap<_, _>>();
     for task in tasks {
         let mut seen = BTreeSet::new();
         for blocker in &task.header.blocked_by {
@@ -2737,39 +2758,143 @@ fn validate_graph(tasks: &[Task]) -> Result<(), ZdevError> {
             }
             if !by_id.contains_key(blocker.as_str()) {
                 return Err(ZdevError::new(format!(
-                    "Task {} has missing blocker {blocker}",
-                    task.header.id
+                    "Task {} has missing blocker {blocker}{}",
+                    task.header.id,
+                    missing_blocker_detail(root, area, blocker)?
                 )));
             }
         }
     }
+    if let Some(cycle) = find_cycle(tasks, &by_id) {
+        return Err(ZdevError::new(format!(
+            "Task dependency cycle: {} (each task is blocked by the next)",
+            cycle.join(" -> ")
+        )));
+    }
+    Ok(())
+}
+
+/// Tasks of the other areas reached from `tasks` through `blocked_by`, read without
+/// validating those areas' own graphs. Blockers in absent areas reach nothing.
+fn read_blocking_area_tasks(
+    root: &Path,
+    area: &str,
+    tasks: &[Task],
+) -> Result<Vec<Task>, ZdevError> {
+    let mut reached = BTreeSet::from([area.to_owned()]);
+    let mut pending = blocker_areas(tasks);
+    let mut blocking_tasks = Vec::new();
+    while let Some(next) = pending.pop() {
+        if !reached.insert(next.clone()) || !area_has_tasks(root, &next) {
+            continue;
+        }
+        let area_tasks = read_area_tasks(root, &next)?;
+        pending.extend(blocker_areas(&area_tasks));
+        blocking_tasks.extend(area_tasks);
+    }
+    Ok(blocking_tasks)
+}
+
+fn blocker_areas(tasks: &[Task]) -> Vec<String> {
+    tasks
+        .iter()
+        .flat_map(|task| &task.header.blocked_by)
+        .filter_map(|blocker| task_id_area(blocker))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The area a task ID belongs to: everything before its last `-` when the rest
+/// is a number. Area tags may themselves contain hyphens.
+fn task_id_area(id: &str) -> Option<&str> {
+    let (area, number) = id.rsplit_once('-')?;
+    let is_number = !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit());
+    (is_number && validate_segment(area, "Area tag").is_ok()).then_some(area)
+}
+
+fn area_exists(root: &Path, area: &str) -> bool {
+    root.join(".zdev").join(area).join("area.toml").is_file()
+}
+
+fn area_has_tasks(root: &Path, area: &str) -> bool {
+    area_exists(root, area) && root.join(".zdev").join(area).join("tasks").is_dir()
+}
+
+/// Whether `id` names an existing task in an area other than `area`.
+fn task_exists_in_other_area(root: &Path, area: &str, id: &str) -> Result<bool, ZdevError> {
+    let Some(blocker_area) = task_id_area(id) else {
+        return Ok(false);
+    };
+    if blocker_area == area || !area_has_tasks(root, blocker_area) {
+        return Ok(false);
+    }
+    Ok(read_area_tasks(root, blocker_area)?
+        .iter()
+        .any(|task| task.header.id == id))
+}
+
+/// The error for a bundle task whose blocker is neither a bundle key nor an
+/// existing task ID.
+fn unknown_blocker_error(root: &Path, area: &str, key: &str, blocker: &str) -> ZdevError {
+    match missing_blocker_detail(root, area, blocker) {
+        Ok(detail) => ZdevError::new(format!("Task {key} has unknown blocker {blocker}{detail}")),
+        Err(error) => error,
+    }
+}
+
+/// Explains, for an error message, where a blocker that names no task was
+/// expected. A dependent in an isolated area may predate a blocker created on
+/// trunk, so its message also suggests rebasing the area.
+fn missing_blocker_detail(root: &Path, area: &str, blocker: &str) -> Result<String, ZdevError> {
+    let Some(blocker_area) = task_id_area(blocker) else {
+        return Ok(" (not a task ID)".to_owned());
+    };
+    let mut detail = if area_exists(root, blocker_area) {
+        format!(" (expected in area {blocker_area})")
+    } else {
+        format!(" (expected area {blocker_area} does not exist)")
+    };
+    if blocker_area != area && load_area(root, area)?.0.mode == AreaMode::Isolated {
+        detail.push_str(&format!(
+            "; if it was created after area {area} branched, run `zdev area rebase {area}`"
+        ));
+    }
+    Ok(detail)
+}
+
+/// The first dependency cycle reachable from `starts`, as task IDs from a task
+/// through its blockers back to itself. Blockers absent from `by_id` end a path.
+fn find_cycle<'a>(starts: &'a [Task], by_id: &BTreeMap<&'a str, &'a Task>) -> Option<Vec<&'a str>> {
     fn visit<'a>(
         id: &'a str,
         by_id: &BTreeMap<&'a str, &'a Task>,
-        visiting: &mut BTreeSet<&'a str>,
+        path: &mut Vec<&'a str>,
         visited: &mut BTreeSet<&'a str>,
-    ) -> Result<(), ZdevError> {
+    ) -> Option<Vec<&'a str>> {
+        if let Some(start) = path.iter().position(|step| *step == id) {
+            let mut cycle = path[start..].to_vec();
+            cycle.push(id);
+            return Some(cycle);
+        }
         if visited.contains(id) {
-            return Ok(());
+            return None;
         }
-        if !visiting.insert(id) {
-            return Err(ZdevError::new(format!(
-                "Task dependency cycle includes {id}"
-            )));
+        let task = by_id.get(id)?;
+        path.push(id);
+        for blocker in &task.header.blocked_by {
+            if let Some(cycle) = visit(blocker, by_id, path, visited) {
+                return Some(cycle);
+            }
         }
-        for blocker in &by_id[id].header.blocked_by {
-            visit(blocker, by_id, visiting, visited)?;
-        }
-        visiting.remove(id);
+        path.pop();
         visited.insert(id);
-        Ok(())
+        None
     }
-    let mut visiting = BTreeSet::new();
+    let mut path = Vec::new();
     let mut visited = BTreeSet::new();
-    for id in by_id.keys().copied() {
-        visit(id, &by_id, &mut visiting, &mut visited)?;
-    }
-    Ok(())
+    starts
+        .iter()
+        .find_map(|task| visit(&task.header.id, by_id, &mut path, &mut visited))
 }
 
 fn task_state(task: &Task, tasks: &[Task]) -> &'static str {
@@ -3586,7 +3711,8 @@ fn publish_task_and_index_with_checkpoint(
         .ok_or_else(|| ZdevError::new(format!("Unknown task: {}", current.header.id)))?;
     *slot = updated;
     validate_research_tasks(&tasks, load_area(root, area)?.0.research.is_some())?;
-    let index = render_index(area, &tasks)?;
+    validate_graph(root, area, &tasks)?;
+    let index = render_index(area, &tasks);
 
     checkpoint(&[
         (current.path.clone(), content.as_bytes().to_vec()),
@@ -3606,8 +3732,8 @@ fn publish_task_and_index_with_checkpoint(
     Ok(())
 }
 
-fn render_index(area: &str, tasks: &[Task]) -> Result<String, ZdevError> {
-    validate_graph(tasks)?;
+/// Renders `TASKS.md` for a task list whose graph the caller has validated.
+fn render_index(area: &str, tasks: &[Task]) -> String {
     let ready = tasks
         .iter()
         .filter(|task| task_state(task, tasks) == "ready")
@@ -3663,10 +3789,10 @@ fn render_index(area: &str, tasks: &[Task]) -> Result<String, ZdevError> {
             ));
         }
     }
-    Ok(result)
+    result
 }
 
-pub(super) fn empty_index(area: &str) -> Result<String, ZdevError> {
+pub(super) fn empty_index(area: &str) -> String {
     render_index(area, &[])
 }
 
@@ -3764,7 +3890,7 @@ pub(super) fn write_index(root: &Path, area: &str) -> Result<PathBuf, ZdevError>
     let (_, area_dir) = load_area(root, area)?;
     let tasks = load_tasks(root, area)?;
     let path = area_dir.join("TASKS.md");
-    write_atomic(&path, render_index(area, &tasks)?.as_bytes())?;
+    write_atomic(&path, render_index(area, &tasks).as_bytes())?;
     Ok(path)
 }
 
@@ -3925,7 +4051,7 @@ pub(super) fn require_task_code(root: &Path, area: &str, id: &str) -> Result<(),
 
 pub(super) fn validate_index(root: &Path, area: &str) -> Result<(), ZdevError> {
     let tasks = load_tasks(root, area)?;
-    let expected = render_index(area, &tasks)?;
+    let expected = render_index(area, &tasks);
     let path = root.join(".zdev").join(area).join("TASKS.md");
     let actual = fs::read_to_string(&path)
         .map_err(|error| ZdevError::io(format!("Cannot read {}", path.display()), error))?;

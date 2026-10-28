@@ -6693,6 +6693,184 @@ fn malformed_dependencies_fail_before_any_task_file_is_created() {
     );
 }
 
+fn create_trunk_area(root: &Path, area: &str) {
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            area,
+            "--title",
+            area,
+            "--objective",
+            "Exercise cross-area blockers.",
+            "--trunk",
+        ],
+    );
+}
+
+/// A bundle with an independent ready task and a task blocked by `blockers`.
+fn gated_bundle(area: &str, blockers: &[&str]) -> Vec<u8> {
+    serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": area,
+        "tasks": [
+            {
+                "key": "base", "title": "Build the base", "blocked_by": [],
+                "outcome": "The base exists.", "done_when": ["The base exists."]
+            },
+            {
+                "key": "gated", "title": "Build on the blocker", "blocked_by": blockers,
+                "outcome": "The gated work exists.", "done_when": ["The gated work exists."]
+            }
+        ]
+    }))
+    .expect("task bundle")
+}
+
+fn failure_text(output: &Output) -> String {
+    assert!(!output.status.success());
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+#[test]
+fn cross_area_blockers_import_and_missing_ones_name_their_area() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_trunk_area(root, "core-platform");
+    create_trunk_area(root, "engines");
+    import_one_task(root, "core-platform");
+
+    for (blocker, expected) in [
+        (
+            "core-platform-009",
+            "Task gated has unknown blocker core-platform-009 (expected in area core-platform)",
+        ),
+        (
+            "kernel-001",
+            "Task gated has unknown blocker kernel-001 (expected area kernel does not exist)",
+        ),
+    ] {
+        let bundle = gated_bundle("engines", &[blocker]);
+        let review = json_output_with_stdin_status(
+            root,
+            &["tasks", "review", "engines", "--from", "-"],
+            &bundle,
+        );
+        assert!(failure_text(&review).contains(expected));
+        let import = json_output_with_stdin_status(
+            root,
+            &["tasks", "import", "engines", "--from", "-"],
+            &bundle,
+        );
+        assert!(failure_text(&import).contains(expected));
+    }
+    assert!(!git_path(root, "zdev/reviews/engines").exists());
+    assert_eq!(
+        fs::read_dir(root.join(".zdev/engines/tasks"))
+            .expect("tasks directory")
+            .count(),
+        0
+    );
+
+    let bundle = gated_bundle("engines", &["core-platform-001"]);
+    json_output_with_stdin(
+        root,
+        &["tasks", "review", "engines", "--from", "-"],
+        &bundle,
+    );
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "engines", "--from", "-"],
+        &bundle,
+    );
+    let gated = fs::read_to_string(root.join(".zdev/engines/tasks/002-build-on-the-blocker.md"))
+        .expect("gated task");
+    assert!(gated.contains("blocked_by = [\"core-platform-001\"]"));
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+
+    fs::remove_file(root.join(".zdev/core-platform/tasks/001-complete-one-task.md"))
+        .expect("delete blocker");
+    json_output(root, &["tasks", "index", "core-platform"]);
+    assert!(failure_text(&run_zdev(root, &["check"])).contains(
+        "Task engines-002 has missing blocker core-platform-001 (expected in area core-platform)"
+    ));
+}
+
+#[test]
+fn missing_cross_area_blocker_in_isolated_area_suggests_rebase() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "engines", "engines-branch");
+
+    let import = json_output_with_stdin_status(
+        root,
+        &["tasks", "import", "engines", "--from", "-"],
+        &gated_bundle("engines", &["platform-001"]),
+    );
+    let message = failure_text(&import);
+    assert!(
+        message.contains("unknown blocker platform-001 (expected area platform does not exist)")
+    );
+    assert!(message.contains("run `zdev area rebase engines`"));
+}
+
+#[test]
+fn cross_area_dependency_cycles_fail_check_and_import_with_their_ids() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_trunk_area(root, "alpha");
+    create_trunk_area(root, "beta");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "beta", "--from", "-"],
+        &gated_bundle("beta", &["base"]),
+    );
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "alpha", "--from", "-"],
+        &gated_bundle("alpha", &["beta-002"]),
+    );
+    let beta_gated = root.join(".zdev/beta/tasks/002-build-on-the-blocker.md");
+    let content = fs::read_to_string(&beta_gated).expect("beta task");
+    fs::write(
+        &beta_gated,
+        content.replace(
+            "blocked_by = [\"beta-001\"]",
+            "blocked_by = [\"alpha-002\"]",
+        ),
+    )
+    .expect("hand-edit cycle");
+
+    assert!(
+        failure_text(&run_zdev(root, &["check"]))
+            .contains("Task dependency cycle: alpha-002 -> beta-002 -> alpha-002")
+    );
+    for (area, cycle) in [
+        ("alpha", "alpha-002 -> beta-002 -> alpha-002"),
+        ("beta", "beta-002 -> alpha-002 -> beta-002"),
+    ] {
+        let bundle = serde_json::to_vec(&json!({
+            "schema_version": 1,
+            "area": area,
+            "tasks": [{
+                "key": "more", "title": "Add more work", "blocked_by": [],
+                "outcome": "More work exists.", "done_when": ["More work exists."]
+            }]
+        }))
+        .expect("task bundle");
+        let import =
+            json_output_with_stdin_status(root, &["tasks", "import", area, "--from", "-"], &bundle);
+        assert!(failure_text(&import).contains(cycle));
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn failed_task_write_removes_earlier_and_current_partial_files() {

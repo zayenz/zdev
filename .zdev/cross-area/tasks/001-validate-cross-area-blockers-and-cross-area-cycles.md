@@ -3,7 +3,7 @@ schema_version = 1
 id = "cross-area-001"
 key = "validate-cross-area-blockers"
 area = "cross-area"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -48,12 +48,12 @@ Existing tests that pin error text: `malformed_dependencies_fail_before_any_task
 
 ## Done when
 
-- [ ] `zdev tasks review` and `zdev tasks import` accept a bundle whose task names an existing task ID from another area, and the imported task file records that full ID in `blocked_by`.
-- [ ] `zdev tasks review` and `zdev tasks import` reject a blocker that is neither a bundle key nor an existing task ID; the error names the dependent task, the blocker and its expected area (saying so when that area does not exist); no review is stored and no task file is created.
-- [ ] After the blocking task file in another area is deleted, `zdev check` fails naming the dependent task, the missing blocker and its expected area.
-- [ ] For a dependent in an isolated area, the missing-blocker error also suggests `zdev area rebase <area>`.
-- [ ] A dependency cycle spanning two areas fails `zdev check` and an import into either area, and the error lists the task IDs in the cycle.
-- [ ] The task Result states whether `zdev task done` plus the documented staging and `zdev commit` record the blocker's `done` status in the completion commit.
+- [x] `zdev tasks review` and `zdev tasks import` accept a bundle whose task names an existing task ID from another area, and the imported task file records that full ID in `blocked_by`.
+- [x] `zdev tasks review` and `zdev tasks import` reject a blocker that is neither a bundle key nor an existing task ID; the error names the dependent task, the blocker and its expected area (saying so when that area does not exist); no review is stored and no task file is created.
+- [x] After the blocking task file in another area is deleted, `zdev check` fails naming the dependent task, the missing blocker and its expected area.
+- [x] For a dependent in an isolated area, the missing-blocker error also suggests `zdev area rebase <area>`.
+- [x] A dependency cycle spanning two areas fails `zdev check` and an import into either area, and the error lists the task IDs in the cycle.
+- [x] The task Result states whether `zdev task done` plus the documented staging and `zdev commit` record the blocker's `done` status in the completion commit.
 
 ## Validation
 
@@ -64,3 +64,15 @@ Existing tests that pin error text: `malformed_dependencies_fail_before_any_task
 - `cargo test --locked`
 - `cargo build --locked`
 - `git diff --check`
+
+## Result
+
+Review, import and zdev check accept a blocked_by entry naming an existing task in another area, reject a missing one with the expected area (plus a rebase hint for isolated areas), and detect dependency cycles across areas with the full path. Confirmed: zdev task done writes status into the task file and TASKS.md, the documented Finish step stages both, and zdev commit commits them, so a blocker's done status lands in its completion commit. Readiness and TASKS.md output are unchanged until cross-area-readiness-and-index.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 194)
+- cargo build --locked: pass
+- git diff --check: pass

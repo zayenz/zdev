@@ -2,9 +2,9 @@
 
 # Tasks: general
 
-- Total: 26
-- Ready: 0
-- Blocked: 0
+- Total: 28
+- Ready: 1
+- Blocked: 1
 - Done: 26
 
 | ID | Task | State | Blocked by |
@@ -35,3 +35,5 @@
 | [general-024](tasks/024-default-t3-verifiers-to-codex-when-it-is-available.md) | Default T3 verifiers to Codex when it is available | done | — |
 | [general-025](tasks/025-create-branches-and-worktrees-only-on-request-by-default.md) | Create branches and worktrees only on request by default | done | — |
 | [general-026](tasks/026-make-the-implement-pass-report-the-full-commit-id-the-loop-r.md) | Make the implement PASS report the full commit ID the loop requires | done | — |
+| [general-027](tasks/027-make-t3-verifier-workers-perform-the-full-code-review.md) | Make T3 verifier workers perform the full code review | ready | — |
+| [general-028](tasks/028-default-to-the-t3-route-inside-t3-code-and-keep-loop-progres.md) | Default to the T3 route inside T3 Code and keep loop progress in the main thread | blocked | general-027 |

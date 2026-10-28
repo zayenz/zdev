@@ -6,7 +6,8 @@ Use this route only when the user explicitly authorizes a research run in a
 named area, or asks to resume its existing run. For example: `$zdev research
 run work within the brief, for 20 work attempts` or `$zdev resume research run
 work`. Explicit `until interrupted` removes the default attempt limit; it
-does not remove supplied targets, time or command limits. Ordinary Implement,
+does not remove supplied targets, time or command limits. A time limit without
+an attempt limit also has no dispatch cap. Ordinary Implement,
 Plan, Verify, Parallel and Loop keep their hypothesis guards. Serial research uses the current branch. An explicit rolling parallel research
 request also authorizes run-owned source worktrees within the stated limits.
 Both modes keep one coordinator for authoritative records and acceptance.
@@ -55,14 +56,30 @@ and concrete model/effort handling from the root Codex skill.
 
    Pass the user's supplied `--attempt-limit`, `--command-limit`,
    `--command-seconds`, `--time-limit-seconds` and directional `--target`.
-   The default is 20 coordinator work attempts. Pass `--until-interrupted`
-   only on an explicit request. Retain `run.id`; never start another run to
+   Without `--attempt-limit`, a run with `--time-limit-seconds` has no
+   dispatch cap; any other run defaults to 20 coordinator work attempts. Pass
+   `--until-interrupted` only on an explicit request. When you choose a limit
+   value yourself, such as a command-time safety ceiling, also pass
+   `--estimated <limit>` for it, for example `--estimated command-seconds`.
+   Never mark a value the user stated. Context reports each limit under
+   `limits` with its `origin`: `user`, `default`, `coordinator_estimate`, or
+   `unrecorded` for a run started before origins were recorded. Report each
+   limit's origin to the user. `consumed.work_attempts` counts every dispatch,
+   `consumed.experiments` counts measured experiments, and
+   `consumed.dispatches_by_kind` shows the supporting work beside them. When
+   `consumed.work_attempts_advisory` is true, the dispatch count never stops
+   the run. Retain `run.id`; never start another run to
    refresh an exhausted allowance or deadline. On resume, reconstruct from
    context and recover unfinished effects first, then use `resume --run <run>`
    when authorized. Identity, scope, target, current deadline and costs survive.
    When the user grants more allowance, call `research run <area> extend --run
    <run> --request <stable-id>` with only the authorized `--add-attempts`,
-   `--add-commands`, `--add-command-seconds`, or `--add-time-seconds`. Time adds
+   `--add-commands`, `--add-command-seconds`, or `--add-time-seconds`. You may
+   raise your own `coordinator_estimate` limits the same way without asking,
+   because they are your estimates, not the user's authorization. Raise a
+   `user`, `default` or `unrecorded` limit only with the user's grant. Every
+   limit stops the run until it is extended, whatever its origin. A time-only
+   run has no attempt limit, so `extend --add-attempts` fails on it. Time adds
    to the existing deadline. Retry the same request with identical additions;
    it never adds twice. Extension preserves unresolved work and stop state;
    recover and resume normally. It changes no experimental policy or target.
@@ -92,8 +109,8 @@ blocks instead of layering fallback work over a possible goal.
 
 Read fresh run state before any new work. For routine checks, use
 `zdev research run <area> inspect --format json`. It reports `stop_reason`,
-comparison validity and invalidation, the accepted baseline aggregate, consumed
-and remaining allowance, unsettled reservations, unfinished checkpoints, ready
+comparison validity and invalidation, the accepted baseline aggregate, `limits`
+with their origins, consumed and remaining allowance, unsettled reservations, unfinished checkpoints, ready
 and blocked counts, the next ready task and `next_action`. When recovery needs
 checkpoint attempts, task lessons, admissions or reservation details, read
 `context` or `inspect --full` instead. Both return the complete projection with

@@ -22,19 +22,9 @@ pub(crate) enum Action {
         #[arg(long)]
         until_interrupted: bool,
         #[arg(long)]
-        attempt_limit: Option<usize>,
-        #[arg(long)]
-        command_limit: Option<usize>,
-        #[arg(long)]
-        command_seconds: Option<f64>,
-        #[arg(long)]
-        time_limit_seconds: Option<f64>,
-        #[arg(long)]
         target: Option<f64>,
-        #[arg(long, default_value_t = 1)]
-        worker_limit: usize,
-        #[arg(long, default_value_t = 1)]
-        measurement_limit: usize,
+        #[command(flatten)]
+        limits: RequestedLimits,
     },
     /// Inspect current policy, task results, unfinished checkpoints and live remaining limits
     Context,
@@ -131,7 +121,93 @@ pub(crate) enum Action {
     },
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, ValueEnum)]
+/// The limits `start` accepts; `--estimated` marks supplied values the coordinator chose itself.
+#[derive(Debug, clap::Args)]
+pub(crate) struct RequestedLimits {
+    /// Coordinator work dispatches; defaults to 20 unless the run has a time limit or runs until
+    /// interrupted
+    #[arg(long)]
+    attempt_limit: Option<usize>,
+    #[arg(long)]
+    command_limit: Option<usize>,
+    #[arg(long)]
+    command_seconds: Option<f64>,
+    #[arg(long)]
+    time_limit_seconds: Option<f64>,
+    /// Native worker capacity; defaults to one
+    #[arg(long)]
+    worker_limit: Option<usize>,
+    /// Concurrent measurement capacity; defaults to one
+    #[arg(long)]
+    measurement_limit: Option<usize>,
+    /// Record a supplied limit as the coordinator's own estimate rather than the user's constraint
+    #[arg(long = "estimated", value_enum, value_name = "LIMIT")]
+    estimated: Vec<Limit>,
+}
+
+impl RequestedLimits {
+    fn supplied(&self, limit: Limit) -> bool {
+        match limit {
+            Limit::AttemptLimit => self.attempt_limit.is_some(),
+            Limit::CommandLimit => self.command_limit.is_some(),
+            Limit::CommandSeconds => self.command_seconds.is_some(),
+            Limit::TimeLimitSeconds => self.time_limit_seconds.is_some(),
+            Limit::WorkerLimit => self.worker_limit.is_some(),
+            Limit::MeasurementLimit => self.measurement_limit.is_some(),
+        }
+    }
+
+    /// The origin of a limit the run has: a supplied value is the user's unless marked as the
+    /// coordinator's estimate, and any other value is a product default.
+    fn origin(&self, limit: Limit) -> LimitOrigin {
+        if !self.supplied(limit) {
+            LimitOrigin::Default
+        } else if self.estimated.contains(&limit) {
+            LimitOrigin::CoordinatorEstimate
+        } else {
+            LimitOrigin::User
+        }
+    }
+}
+
+/// A run limit, named after its `start` flag. The directional target is a goal, not a limit.
+// Variant names spell the flags (`attempt-limit`) and stored keys (`attempt_limit`) exactly.
+#[allow(clippy::enum_variant_names)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+enum Limit {
+    AttemptLimit,
+    CommandLimit,
+    CommandSeconds,
+    TimeLimitSeconds,
+    WorkerLimit,
+    MeasurementLimit,
+}
+
+/// Who set a limit. Extensions keep the origin of the limit they raise.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum LimitOrigin {
+    User,
+    Default,
+    CoordinatorEstimate,
+    /// Reported for runs stored before origins were recorded; never stored.
+    #[serde(skip_deserializing)]
+    Unrecorded,
+}
+
+impl LimitOrigin {
+    fn describe(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Default => "default",
+            Self::CoordinatorEstimate => "coordinator estimate",
+            Self::Unrecorded => "unrecorded",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize, ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum WorkKind {
     Supporting,
@@ -169,6 +245,9 @@ struct Run {
     worker_limit: usize,
     #[serde(default = "serial_capacity")]
     measurement_limit: usize,
+    /// One entry per limit the run has; runs stored before origins existed have none.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    limit_origins: BTreeMap<Limit, LimitOrigin>,
     #[serde(default)]
     acceptance: Option<String>,
     stop: Option<Stop>,
@@ -182,6 +261,25 @@ struct Run {
     extensions: BTreeMap<String, Extension>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     amendments: Vec<Amendment>,
+}
+
+impl Run {
+    fn has_limit(&self, limit: Limit) -> bool {
+        match limit {
+            Limit::AttemptLimit => self.attempt_limit.is_some(),
+            Limit::CommandLimit => self.command_limit.is_some(),
+            Limit::CommandSeconds => self.command_seconds.is_some(),
+            Limit::TimeLimitSeconds => self.deadline.is_some(),
+            Limit::WorkerLimit | Limit::MeasurementLimit => true,
+        }
+    }
+
+    fn origin(&self, limit: Limit) -> LimitOrigin {
+        self.limit_origins
+            .get(&limit)
+            .copied()
+            .unwrap_or(LimitOrigin::Unrecorded)
+    }
 }
 
 /// A declared administrative change to existing correctness command text, in adoption order.
@@ -244,8 +342,26 @@ struct Reservation {
     worker: bool,
     #[serde(default)]
     requested_worker_slot: bool,
+    /// Live measurement capacity claim; settlement releases it.
     #[serde(default)]
     measurement: bool,
+    /// Whether this reservation was ever claimed as a measurement; never cleared.
+    #[serde(default)]
+    measured: bool,
+}
+
+impl Reservation {
+    /// Sets the live measurement claim and remembers durably when one was made.
+    fn set_measurement(&mut self, measurement: bool) {
+        self.measurement = measurement;
+        self.measured |= measurement;
+    }
+
+    /// Whether this dispatch measured a candidate. Reservations stored before `measured` existed
+    /// fall back to having run a command; in newer runs only measurements run commands.
+    fn is_experiment(&self) -> bool {
+        self.kind != WorkKind::Rebaseline && (self.measured || self.commands > 0)
+    }
 }
 
 // Baseline progress belongs here until measured samples can replace area settings.
@@ -281,28 +397,9 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
             Action::Start {
                 scope,
                 until_interrupted,
-                attempt_limit,
-                command_limit,
-                command_seconds,
-                time_limit_seconds,
                 target,
-                worker_limit,
-                measurement_limit,
-            } => {
-                start(
-                    root,
-                    area,
-                    scope,
-                    *until_interrupted,
-                    *attempt_limit,
-                    *command_limit,
-                    *command_seconds,
-                    *time_limit_seconds,
-                    *target,
-                    *worker_limit,
-                    *measurement_limit,
-                )?;
-            }
+                limits,
+            } => start(root, area, scope, *until_interrupted, *target, limits)?,
             Action::Admit {
                 run,
                 request,
@@ -487,7 +584,7 @@ fn load(root: &Path, area: &str) -> Result<Option<Run>, ZdevError> {
         || run
             .deadline
             .is_some_and(|value| !value.is_finite() || value < run.started_at)
-        || (!run.until_interrupted && run.attempt_limit.is_none())
+        || (!run.until_interrupted && run.attempt_limit.is_none() && run.deadline.is_none())
         || run.worker_limit == 0
         || run.measurement_limit == 0
         || run.attempt_limit == Some(0)
@@ -497,6 +594,7 @@ fn load(root: &Path, area: &str) -> Result<Option<Run>, ZdevError> {
             .flatten()
             .any(|value| !value.is_finite() || value <= 0.0)
         || run.target.is_some_and(|value| !value.is_finite())
+        || run.limit_origins.keys().any(|limit| !run.has_limit(*limit))
     {
         return Err(ZdevError::new("Research run contains invalid limits"));
     }
@@ -571,38 +669,48 @@ pub(crate) fn active(root: &Path, area: &str) -> Result<bool, ZdevError> {
     Ok(load(root, area)?.is_some_and(|run| !run.ended))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn start(
     root: &Path,
     area: &str,
     scope: &str,
     until_interrupted: bool,
-    attempts: Option<usize>,
-    commands: Option<usize>,
-    command_seconds: Option<f64>,
-    time: Option<f64>,
     target: Option<f64>,
-    worker_limit: usize,
-    measurement_limit: usize,
+    limits: &RequestedLimits,
 ) -> Result<(), ZdevError> {
     require_area(root, area)?;
     crate::validate_nonempty_line(scope, "Authorized research scope")?;
-    for value in [command_seconds, time].into_iter().flatten() {
+    for value in [limits.command_seconds, limits.time_limit_seconds]
+        .into_iter()
+        .flatten()
+    {
         if !value.is_finite() || value <= 0.0 {
             return Err(ZdevError::new(
                 "Research resource limits must be finite and positive",
             ));
         }
     }
-    if worker_limit == 0
-        || measurement_limit == 0
-        || attempts == Some(0)
-        || commands == Some(0)
+    if [
+        limits.attempt_limit,
+        limits.command_limit,
+        limits.worker_limit,
+        limits.measurement_limit,
+    ]
+    .contains(&Some(0))
         || target.is_some_and(|value| !value.is_finite())
     {
         return Err(ZdevError::new(
             "Count limits must be positive and target must be finite",
         ));
+    }
+    if let Some(limit) = limits
+        .estimated
+        .iter()
+        .find(|limit| !limits.supplied(**limit))
+    {
+        return Err(ZdevError::new(format!(
+            "--estimated {} names a limit that was not supplied",
+            limit.to_possible_value().unwrap().get_name()
+        )));
     }
     if let Some(previous) = load(root, area)? {
         if !previous.ended {
@@ -621,7 +729,12 @@ fn start(
     let policy = super::settings(root, area)?;
     let invalidation = input_invalidation(&changed_relevant_paths(root, &policy, "HEAD")?);
     let started_at = unix_seconds();
-    let run = Run {
+    // A time limit or an explicit until-interrupted request replaces the default dispatch cap.
+    let attempt_limit = limits
+        .attempt_limit
+        .or((!until_interrupted && limits.time_limit_seconds.is_none())
+            .then_some(DEFAULT_ATTEMPT_LIMIT));
+    let mut run = Run {
         schema_version: 1,
         area: area.to_owned(),
         id: crate::generate_change_id()?.replacen('Z', "run-", 1),
@@ -629,13 +742,16 @@ fn start(
         until_interrupted,
         policy,
         started_at,
-        deadline: time.map(|seconds| started_at + seconds),
-        attempt_limit: attempts.or((!until_interrupted).then_some(DEFAULT_ATTEMPT_LIMIT)),
-        command_limit: commands,
-        command_seconds,
+        deadline: limits
+            .time_limit_seconds
+            .map(|seconds| started_at + seconds),
+        attempt_limit,
+        command_limit: limits.command_limit,
+        command_seconds: limits.command_seconds,
         target,
-        worker_limit,
-        measurement_limit,
+        worker_limit: limits.worker_limit.unwrap_or_else(serial_capacity),
+        measurement_limit: limits.measurement_limit.unwrap_or_else(serial_capacity),
+        limit_origins: BTreeMap::new(),
         acceptance: None,
         stop: None,
         comparison_valid: invalidation.is_none(),
@@ -647,6 +763,12 @@ fn start(
         extensions: BTreeMap::new(),
         amendments: Vec::new(),
     };
+    run.limit_origins = Limit::value_variants()
+        .iter()
+        .copied()
+        .filter(|limit| run.has_limit(*limit))
+        .map(|limit| (limit, limits.origin(limit)))
+        .collect();
     save(root, &run)
 }
 
@@ -1112,6 +1234,7 @@ fn reserve(
             ));
         }
     }
+    let measurement = kind == WorkKind::Rebaseline;
     run.reservations.insert(
         request.to_owned(),
         Reservation {
@@ -1124,7 +1247,8 @@ fn reserve(
             pending_timeout: None,
             worker: worker_slot,
             requested_worker_slot: worker_slot,
-            measurement: kind == WorkKind::Rebaseline,
+            measurement,
+            measured: measurement,
         },
     );
     save(root, run)?;
@@ -1289,7 +1413,7 @@ pub(crate) fn bind_work_with_capacity(
         require_dispatch(root, &mut run, kind, false, Some(task), worker)?;
         let reservation = run.reservations.get_mut(request).unwrap();
         reservation.worker = worker;
-        reservation.measurement = measurement;
+        reservation.set_measurement(measurement);
         save(root, &run)?;
         return Ok(Some(Binding {
             run: run.id,
@@ -1337,7 +1461,7 @@ pub(crate) fn bind_work_with_capacity(
     }
     let reservation = run.reservations.get_mut(request).unwrap();
     reservation.worker = worker;
-    reservation.measurement = measurement;
+    reservation.set_measurement(measurement);
     save(root, &run)?;
     Ok(Some(Binding {
         run: run.id,
@@ -1372,7 +1496,7 @@ pub(crate) fn claim_measurement(
     run.reservations
         .get_mut(&binding.request)
         .unwrap()
-        .measurement = true;
+        .set_measurement(true);
     save(root, &run)
 }
 
@@ -1686,20 +1810,105 @@ fn next_action(
     }
 }
 
+/// Costs charged so far. Every dispatch is one work attempt; experiments are the dispatches that
+/// measured a candidate, and the remaining dispatches support them.
 #[derive(Serialize)]
 struct Consumed {
     work_attempts: usize,
+    /// No attempt limit applies, so the work-attempt count never stops dispatch.
+    work_attempts_advisory: bool,
+    dispatches_by_kind: BTreeMap<WorkKind, usize>,
+    experiments: usize,
     commands: usize,
     command_seconds: f64,
 }
 
 impl Consumed {
     fn of(run: &Run) -> Self {
+        let mut dispatches_by_kind: BTreeMap<WorkKind, usize> = WorkKind::value_variants()
+            .iter()
+            .map(|kind| (*kind, 0))
+            .collect();
+        for reservation in run.reservations.values() {
+            *dispatches_by_kind.entry(reservation.kind).or_default() += 1;
+        }
         Self {
             work_attempts: run.reservations.len(),
+            work_attempts_advisory: run.attempt_limit.is_none(),
+            dispatches_by_kind,
+            experiments: run
+                .reservations
+                .values()
+                .filter(|reservation| reservation.is_experiment())
+                .count(),
             commands: command_count(run),
             command_seconds: elapsed_cost(run),
         }
+    }
+}
+
+/// Each limit the run has, with its current value and origin; `None` means no such limit.
+#[derive(Serialize)]
+struct Limits {
+    attempt_limit: Option<ReportedLimit<usize>>,
+    command_limit: Option<ReportedLimit<usize>>,
+    command_seconds: Option<ReportedLimit<f64>>,
+    /// Seconds from the run's start to its current deadline, including extensions.
+    time_limit_seconds: Option<ReportedLimit<f64>>,
+    worker_limit: ReportedLimit<usize>,
+    measurement_limit: ReportedLimit<usize>,
+}
+
+impl Limits {
+    fn of(run: &Run) -> Self {
+        Self {
+            attempt_limit: run
+                .attempt_limit
+                .map(|value| ReportedLimit::of(run, Limit::AttemptLimit, value)),
+            command_limit: run
+                .command_limit
+                .map(|value| ReportedLimit::of(run, Limit::CommandLimit, value)),
+            command_seconds: run
+                .command_seconds
+                .map(|value| ReportedLimit::of(run, Limit::CommandSeconds, value)),
+            time_limit_seconds: run.deadline.map(|deadline| {
+                // Millisecond rounding removes the float error of storing an absolute deadline.
+                let seconds = ((deadline - run.started_at) * 1000.0).round() / 1000.0;
+                ReportedLimit::of(run, Limit::TimeLimitSeconds, seconds)
+            }),
+            worker_limit: ReportedLimit::of(run, Limit::WorkerLimit, run.worker_limit),
+            measurement_limit: ReportedLimit::of(
+                run,
+                Limit::MeasurementLimit,
+                run.measurement_limit,
+            ),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ReportedLimit<T> {
+    value: T,
+    origin: LimitOrigin,
+}
+
+impl<T> ReportedLimit<T> {
+    fn of(run: &Run, limit: Limit, value: T) -> Self {
+        Self {
+            value,
+            origin: run.origin(limit),
+        }
+    }
+}
+
+impl<T: std::fmt::Display> ReportedLimit<T> {
+    fn describe(&self, limit: Limit) -> String {
+        format!(
+            "{} {} ({})",
+            limit.to_possible_value().unwrap().get_name(),
+            self.value,
+            self.origin.describe()
+        )
     }
 }
 
@@ -1750,7 +1959,7 @@ fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
     let tasks = tasks::list(root, Some(area))?.value;
     let mut value = json!({"schema_version": 1, "area": area, "run": run, "stop_reason": live.stop,
         "accepted_baseline": live.settings.comparison, "tasks": tasks, "checkpoints": checkpoints(root, area)?,
-        "consumed": Consumed::of(run), "remaining": Remaining::of(run, live.now),
+        "limits": Limits::of(run), "consumed": Consumed::of(run), "remaining": Remaining::of(run, live.now),
         "elapsed_wall_seconds": (live.now - run.started_at).max(0.0),
         "unreachable_minimum_gain": live.unreachable_gain, "next_action": live.next_action});
     tasks::insert_cross_area_waits(&mut value, &live.summary.cross_area_waits);
@@ -1773,6 +1982,7 @@ struct Inspection<'a> {
     comparison_valid: bool,
     invalidation: Option<&'a str>,
     accepted_baseline: BaselineSummary<'a>,
+    limits: Limits,
     consumed: Consumed,
     remaining: Remaining,
     elapsed_wall_seconds: f64,
@@ -1864,6 +2074,7 @@ fn inspection(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
             aggregation: comparison.aggregation,
             aggregate: comparison.aggregate(&comparison.baseline_samples)?,
         },
+        limits: Limits::of(run),
         consumed: Consumed::of(run),
         remaining: Remaining::of(run, live.now),
         elapsed_wall_seconds: (live.now - run.started_at).max(0.0),
@@ -1906,10 +2117,19 @@ fn render_inspection(inspection: &Inspection) -> String {
             "Accepted baseline: {} {} at {}",
             baseline.metric, baseline.aggregate, baseline.revision
         ),
+        render_limits(&inspection.limits),
         format!(
-            "Consumed: {} work attempts, {} commands, {:.1} command seconds",
-            consumed.work_attempts, consumed.commands, consumed.command_seconds
+            "Consumed: {} work attempts{}, {} commands, {:.1} command seconds",
+            consumed.work_attempts,
+            if consumed.work_attempts_advisory {
+                " (advisory: no attempt limit)"
+            } else {
+                ""
+            },
+            consumed.commands,
+            consumed.command_seconds
         ),
+        render_dispatches(consumed),
         format!(
             "Remaining: {} work attempts, {} commands, {} command seconds, {} wall seconds, {} workers, {} measurements",
             or_unlimited(remaining.work_attempts.map(|value| value.to_string())),
@@ -1952,6 +2172,55 @@ fn render_inspection(inspection: &Inspection) -> String {
     }
     lines.push(format!("Next: {}", inspection.next_action));
     lines.join("\n")
+}
+
+fn render_limits(limits: &Limits) -> String {
+    let described = [
+        limits
+            .attempt_limit
+            .as_ref()
+            .map(|limit| limit.describe(Limit::AttemptLimit)),
+        limits
+            .command_limit
+            .as_ref()
+            .map(|limit| limit.describe(Limit::CommandLimit)),
+        limits
+            .command_seconds
+            .as_ref()
+            .map(|limit| limit.describe(Limit::CommandSeconds)),
+        limits
+            .time_limit_seconds
+            .as_ref()
+            .map(|limit| limit.describe(Limit::TimeLimitSeconds)),
+        Some(limits.worker_limit.describe(Limit::WorkerLimit)),
+        Some(limits.measurement_limit.describe(Limit::MeasurementLimit)),
+    ];
+    format!(
+        "Limits: {}",
+        described
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn render_dispatches(consumed: &Consumed) -> String {
+    let dispatched: Vec<String> = consumed
+        .dispatches_by_kind
+        .iter()
+        .filter(|(_, count)| **count > 0)
+        .map(|(kind, count)| format!("{count} {}", kind.to_possible_value().unwrap().get_name()))
+        .collect();
+    format!(
+        "Dispatches: {}; {} experiments",
+        if dispatched.is_empty() {
+            "none".to_owned()
+        } else {
+            dispatched.join(", ")
+        },
+        consumed.experiments
+    )
 }
 
 fn unix_seconds() -> f64 {

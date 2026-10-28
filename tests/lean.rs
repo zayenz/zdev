@@ -17565,6 +17565,7 @@ fn research_run_inspect_defaults_to_compact_view() {
             "consumed",
             "elapsed_wall_seconds",
             "invalidation",
+            "limits",
             "next_action",
             "next_task",
             "ready_tasks",
@@ -17585,7 +17586,13 @@ fn research_run_inspect_defaults_to_compact_view() {
             "checkpoints": ["work-001"], "pending_admissions": [], "acceptance": null})
     );
     let context = json_output(root, &["research", "run", "work", "context"]);
-    for key in ["consumed", "remaining", "stop_reason", "next_action"] {
+    for key in [
+        "limits",
+        "consumed",
+        "remaining",
+        "stop_reason",
+        "next_action",
+    ] {
         assert_eq!(compact[key], context[key], "{key}");
     }
 
@@ -17817,6 +17824,242 @@ fn research_run_counts_reserved_repairs_and_commands_and_preserves_limits_on_res
     assert!(!dispatch.status.success());
     assert!(String::from_utf8_lossy(&dispatch.stderr).contains("stopped: budget"));
     assert_eq!(fs::read(git_path(root, "evaluator-runs")).unwrap(), b"eeee");
+}
+
+#[test]
+fn research_run_reports_limit_origins_and_separate_dispatch_counts() {
+    let repository = isolated_candidate_fixture("wc -c < seed.txt");
+    let root = repository.path();
+    let start_and_end = |flags: &[&str]| {
+        let started = start_research_run(root, flags);
+        research_run_action(root, started["run"]["id"].as_str().unwrap(), "end", &[]);
+        started["limits"].clone()
+    };
+    let defaults = start_and_end(&[]);
+    assert_eq!(
+        defaults,
+        json!({"attempt_limit": {"value": 20, "origin": "default"}, "command_limit": null,
+            "command_seconds": null, "time_limit_seconds": null,
+            "worker_limit": {"value": 1, "origin": "default"},
+            "measurement_limit": {"value": 1, "origin": "default"}})
+    );
+    let supplied = start_and_end(&["--attempt-limit", "5", "--worker-limit", "1"]);
+    assert_eq!(
+        supplied["attempt_limit"],
+        json!({"value": 5, "origin": "user"})
+    );
+    assert_eq!(
+        supplied["worker_limit"],
+        json!({"value": 1, "origin": "user"})
+    );
+    assert_eq!(supplied["measurement_limit"]["origin"], "default");
+    let estimated = start_and_end(&["--command-seconds", "600", "--estimated", "command-seconds"]);
+    assert_eq!(
+        estimated["command_seconds"],
+        json!({"value": 600.0, "origin": "coordinator_estimate"})
+    );
+    assert_eq!(estimated["attempt_limit"]["origin"], "default");
+    let unsupplied = run_zdev(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "start",
+            "--scope",
+            "Estimated work.",
+            "--estimated",
+            "attempt-limit",
+        ],
+    );
+    assert!(!unsupplied.status.success());
+    assert!(String::from_utf8_lossy(&unsupplied.stderr).contains("not supplied"));
+
+    // A time-only authorization has no dispatch cap, so its attempt count is advisory.
+    let timed = start_research_run(root, &["--time-limit-seconds", "3600"]);
+    let identity = timed["run"]["id"].as_str().unwrap();
+    assert!(timed["run"]["attempt_limit"].is_null());
+    assert!(timed["limits"]["attempt_limit"].is_null());
+    assert_eq!(
+        timed["limits"]["time_limit_seconds"],
+        json!({"value": 3600.0, "origin": "user"})
+    );
+    assert_eq!(timed["consumed"]["work_attempts_advisory"], true);
+    assert!(
+        !run_zdev(
+            root,
+            &[
+                "research",
+                "run",
+                "work",
+                "extend",
+                "--run",
+                identity,
+                "--request",
+                "more-dispatches",
+                "--add-attempts",
+                "1",
+            ],
+        )
+        .status
+        .success()
+    );
+
+    // One serial measurement and one isolated measurement that is reconciled and measured again.
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "begin",
+            "--path",
+            "seed.txt",
+        ],
+    );
+    fs::write(root.join("seed.txt"), "serial candidate\n").unwrap();
+    json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "The longer seed is slower.",
+        ],
+    );
+    let sources = TempDir::new().unwrap();
+    let source = sources.path().join("candidate");
+    git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "-b",
+            "candidate",
+            source.to_str().unwrap(),
+            "HEAD",
+        ],
+    );
+    admit_isolated_candidate(root, &source, "work-002", &["seed.txt"]);
+    fs::write(source.join("seed.txt"), "isolated\n").unwrap();
+    isolated_action(root, "work-002", "return");
+    isolated_action(root, "work-002", "evaluate");
+    commit_file(
+        root,
+        "other-accepted.txt",
+        "supporting code\n",
+        "accepted supporting change",
+    );
+    research_run_action(root, identity, "rebaseline", &["--request", "current-code"]);
+    isolated_action(root, "work-002", "reconcile");
+    isolated_action(root, "work-002", "evaluate");
+    let measured = json_output(root, &["research", "run", "work", "context"]);
+    let reservations = measured["run"]["reservations"].as_object().unwrap();
+    assert!(
+        reservations
+            .values()
+            .all(|reservation| reservation["settled"] == true)
+    );
+    assert_eq!(
+        measured["consumed"]["dispatches_by_kind"],
+        json!({"supporting": 0, "preparation": 2, "repair": 0, "rerun": 2, "confirmation": 0,
+            "reconciliation": 1, "rebaseline": 1})
+    );
+    assert_eq!(measured["consumed"]["work_attempts"], 6);
+    assert_eq!(measured["consumed"]["experiments"], 3);
+    let compact = json_output(root, &["research", "run", "work", "inspect"]);
+    for key in ["limits", "consumed"] {
+        assert_eq!(compact[key], measured[key], "{key}");
+    }
+
+    // Supporting dispatches past the default 20 grow only the advisory count.
+    let bundle = json!({"schema_version": 1, "area": "work", "tasks": [{"key": "support",
+        "title": "Prepare inputs", "outcome": "Fixed inputs are ready.", "done_when": ["Inputs are ready."]}]});
+    let admitted = json_output_with_stdin(
+        root,
+        &[
+            "research",
+            "run",
+            "work",
+            "admit",
+            "--run",
+            identity,
+            "--request",
+            "support-tasks",
+            "--from",
+            "-",
+        ],
+        &serde_json::to_vec(&bundle).unwrap(),
+    );
+    let support = admitted["run"]["admissions"]["support-tasks"]["tasks"][0]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut supported = Value::Null;
+    for number in 1..=21 {
+        let request = format!("support-{number}");
+        supported = research_run_action(
+            root,
+            identity,
+            "reserve",
+            &[
+                "--request",
+                &request,
+                "--task",
+                &support,
+                "--kind",
+                "supporting",
+            ],
+        );
+        assert_eq!(supported["dispatch_authorized"], false);
+    }
+    assert!(supported["stop_reason"].is_null());
+    assert_eq!(supported["consumed"]["work_attempts"], 27);
+    assert_eq!(
+        supported["consumed"]["dispatches_by_kind"]["supporting"],
+        21
+    );
+    assert_eq!(supported["consumed"]["experiments"], 3);
+    let text = run_zdev(root, &["research", "run", "work", "inspect"]);
+    let text = String::from_utf8(text.stdout).unwrap();
+    assert!(
+        text.contains("Limits: time-limit-seconds 3600 (user), worker-limit 1 (default)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("27 work attempts (advisory: no attempt limit)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Dispatches: 21 supporting, 2 preparation, 2 rerun"),
+        "{text}"
+    );
+
+    // A run stored before origins and the durable experiment marker still reports both.
+    let run_path = git_path(root, "zdev/runs/work/current.json");
+    let mut stored: Value = serde_json::from_slice(&fs::read(&run_path).unwrap()).unwrap();
+    stored.as_object_mut().unwrap().remove("limit_origins");
+    for reservation in stored["reservations"].as_object_mut().unwrap().values_mut() {
+        reservation.as_object_mut().unwrap().remove("measured");
+    }
+    fs::write(&run_path, serde_json::to_vec_pretty(&stored).unwrap()).unwrap();
+    let older = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(
+        older["limits"]["time_limit_seconds"]["origin"],
+        "unrecorded"
+    );
+    assert_eq!(older["limits"]["worker_limit"]["origin"], "unrecorded");
+    assert_eq!(older["consumed"]["experiments"], 3);
 }
 
 #[test]

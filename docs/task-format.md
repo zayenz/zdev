@@ -34,7 +34,8 @@ confirmed worker stop, `return --worker-stopped` retains Git transport; `evaluat
 measures in the source; `integrate` claims the serialized destination acceptance
 lane and captures its verification snapshot. `reconcile` refreshes a stopped
 candidate after baseline drift and charges fresh measurement work. Separate
-positive `--worker-limit` and `--measurement-limit` run capacities default to one.
+positive `--worker-limit` and `--measurement-limit` run capacities default to
+one, which run context reports with origin `default`.
 
 Each attempt keeps its comparison facts. Evaluation changes pause candidates
 until an actual counted rebaseline; resumed candidates reconcile and remeasure.

@@ -35,12 +35,23 @@ $zdev resume the existing research run in work
 ```
 
 State the scope and any attempt, command, cumulative command-time or wall-time
-limits. The default run has 20 coordinator work attempts. `until interrupted`
-removes that default; supplied limits and the directional target still apply.
+limits. Without an attempt limit, the default run has 20 coordinator work
+attempts. `until interrupted` or a wall-time limit removes that default, so a
+run limited only by time has no dispatch cap. Supplied limits and the
+directional target still apply.
 This authorization allows the coordinator to generate both supporting tasks
 and hypotheses inside the brief and frozen policy without reviewing every new
 bundle. Ordinary task creation outside a run uses exact bundle approval by
 default; you can delegate creation and import without confirmation.
+
+The run reports where each limit came from: `user` for a limit you stated,
+`default` for a product default and `coordinator_estimate` for a value the
+coordinator chose itself, such as a safety ceiling on command time. Runs
+started before this was recorded show `unrecorded`. The coordinator may raise
+its own estimates without asking, but needs your grant to raise any other
+limit. Progress reports count every dispatch as a work attempt and show,
+separately, how many were measured experiments and how many were supporting
+work.
 
 The coordinator reads the accepted baseline and prior rejected, inconclusive
 and failed lessons before proposing work. It commits admitted task records

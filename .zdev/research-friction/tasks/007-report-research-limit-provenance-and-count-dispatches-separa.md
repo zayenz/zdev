@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-007"
 key = "limit-provenance"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -47,13 +47,13 @@ Starting test: `research_run_counts_reserved_repairs_and_commands_and_preserves_
 
 ## Done when
 
-- [ ] Start without limits reports `attempt_limit` 20 with origin `default`. Default worker and measurement limits report `default`.
-- [ ] `--attempt-limit 5` reports `user`, and `--command-seconds 600 --estimated command-seconds` reports `coordinator_estimate`.
-- [ ] A run started with only `--time-limit-seconds` stores no attempt limit and `load` accepts it. More than 20 supporting reservations succeed before the deadline, and run context reports the dispatch count as advisory.
-- [ ] Run context reports dispatch counts by kind and an experiment count separately from `work_attempts`. The experiment count covers non-`Rebaseline` reservations marked as measurements wherever `measurement` became true, including binding in `bind_work_with_capacity` and `claim_measurement` for reconciled isolated candidates, and still counts them after settlement.
-- [ ] A stored run without origins loads and reports `unrecorded`.
-- [ ] The research templates and `docs/cli/research.md`, `docs/research.md` and `docs/task-format.md` explain origins, the time-only rule and dispatch-versus-experiment counts. The templates let the coordinator extend its own estimates without asking, require the user's grant for `user` and `default` limits, and say that `extend --add-attempts` fails for a time-only run. The checked-in fixtures are regenerated.
-- [ ] One focused regression in `tests/lean.rs` covers origins, the time-only start, and the separate counts. The counts must include one serial evaluate and one reconciled isolated measurement, both still counted after settlement.
+- [x] Start without limits reports `attempt_limit` 20 with origin `default`. Default worker and measurement limits report `default`.
+- [x] `--attempt-limit 5` reports `user`, and `--command-seconds 600 --estimated command-seconds` reports `coordinator_estimate`.
+- [x] A run started with only `--time-limit-seconds` stores no attempt limit and `load` accepts it. More than 20 supporting reservations succeed before the deadline, and run context reports the dispatch count as advisory.
+- [x] Run context reports dispatch counts by kind and an experiment count separately from `work_attempts`. The experiment count covers non-`Rebaseline` reservations marked as measurements wherever `measurement` became true, including binding in `bind_work_with_capacity` and `claim_measurement` for reconciled isolated candidates, and still counts them after settlement.
+- [x] A stored run without origins loads and reports `unrecorded`.
+- [x] The research templates and `docs/cli/research.md`, `docs/research.md` and `docs/task-format.md` explain origins, the time-only rule and dispatch-versus-experiment counts. The templates let the coordinator extend its own estimates without asking, require the user's grant for `user` and `default` limits, and say that `extend --add-attempts` fails for a time-only run. The checked-in fixtures are regenerated.
+- [x] One focused regression in `tests/lean.rs` covers origins, the time-only start, and the separate counts. The counts must include one serial evaluate and one reconciled isolated measurement, both still counted after settlement.
 
 ## Validation
 
@@ -64,3 +64,16 @@ Starting test: `research_run_counts_reserved_repairs_and_commands_and_preserves_
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+Research run limits record their origin (user, default, coordinator_estimate; unrecorded for older runs) and start --estimated marks the coordinator's own values. A time-only run has no hard dispatch cap and reports its work-attempt count as advisory; load accepts it. Reservations keep a durable measured marker so context and compact inspect report limits with origins, dispatches by kind and experiments separately. Settlement, charging and capacity are unchanged. Templates, the Claude research workflow, docs and changelog updated. Verified by GPT-6 Astra (high) with full review.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 208, standalone run)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

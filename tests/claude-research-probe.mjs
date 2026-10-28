@@ -107,7 +107,8 @@ const agent = async (prompt, options) => {
     const value = JSON.parse(execute(binary, argv))
     if (argv.includes('start')) {
       runId = value.run.id
-      if (!optionsInput.until_interrupted && !Object.hasOwn(optionsInput, 'attempt_limit') && value.run.attempt_limit !== 20) throw new Error('Binary default allowance was overridden')
+      if (!optionsInput.until_interrupted && !Object.hasOwn(optionsInput, 'attempt_limit') && !Object.hasOwn(optionsInput, 'time_limit_seconds')
+        && (value.run.attempt_limit !== 20 || value.limits.attempt_limit.origin !== 'default')) throw new Error('Binary default allowance was overridden')
     }
     return JSON.stringify(value)
   }

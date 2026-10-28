@@ -48,10 +48,22 @@ completion and retained history.
 The coordinator supplies a distinct invocation_id for each fresh invocation.
 Use letters, numbers, underscores and hyphens. The first coordination prompt
 includes that identity and reads live state before dispatch. Omit attempt_limit
-to use the binary's default of 20 work attempts. Set until_interrupted true only
+to use the binary's default of 20 work attempts. With time_limit_seconds and no
+attempt_limit, the run has no dispatch cap. Set until_interrupted true only
 when explicitly requested; preserve supplied target, command_limit,
 command_seconds and time_limit_seconds. Unlimited authorization still obeys
 runtime and resource limits.
+
+When you choose a limit value yourself rather than taking it from the user,
+supply it and list its key in the start-only `estimated` array, for example
+`"command_seconds": 600, "estimated": ["command_seconds"]`. Never list a value
+the user stated. The returned report includes `limits`, where each limit has a
+`value` and an `origin`: `user`, `default`, `coordinator_estimate`, or
+`unrecorded` for runs started before origins were recorded. Its `consumed`
+reports `work_attempts` for every dispatch, `experiments` for measured
+experiments and `dispatches_by_kind` for the supporting work. When
+`work_attempts_advisory` is true, the dispatch count never stops the run. Tell
+the user each limit's origin and both counts.
 
 Resume with authorization resume, the same run_id, a fresh invocation_id and
 the execution, cleanup and frozen_profiles returned by the prior invocation.
@@ -60,7 +72,10 @@ checked acceptance repair requirements. An interrupted repair cannot use its old
 measurements or verification to accept code. Do not supply replacement
 scope, limits or target in the resume input. If the user explicitly grants more
 allowance, extend the durable run through the task-format contract before
-resuming. The identity, current deadline and costs survive. Pass retained_plans as the task-ID map of semantic plans returned by the
+resuming. You may extend your own `coordinator_estimate` limits the same way
+without asking. Raising a `user`, `default` or `unrecorded` limit needs the
+user's grant. A time-only run has no attempt limit, so `extend --add-attempts`
+fails on it. The identity, current deadline and costs survive. Pass retained_plans as the task-ID map of semantic plans returned by the
 prior invocation. Restore those advanced plans when continuing the same task;
 never plan again during same-task rework. If a conversation lacks concrete role
 choices, explain that and resolve all five Claude roles afresh through `zdev

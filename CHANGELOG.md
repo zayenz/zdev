@@ -51,8 +51,26 @@ This file records notable changes to zdev.
   invalidates comparisons until an actual rebaseline. Reconcile refuses,
   rather than overwrite them, when accepted code changes tracked paths under an
   output that holds untracked source files.
+- Research run context and `inspect` report each limit under `limits` with its
+  `value` and `origin`: `user` for a supplied flag, `default` for a product
+  default, and `coordinator_estimate` for a supplied value marked with the new
+  repeatable `zdev research run <area> start --estimated <limit>` flag, such as
+  `--estimated command-seconds`. Runs started before this change report
+  `unrecorded`, and extensions keep a limit's origin. `consumed` adds
+  `dispatches_by_kind`, `experiments` (dispatches that measured a candidate,
+  still counted after they settle) and `work_attempts_advisory`, and keeps
+  `work_attempts` as the count of every dispatch. The research skills tell the
+  coordinator to report origins and both counts, to raise its own estimates
+  without asking, and to raise other limits only with the user's grant.
 
 ### Changed
+
+- `zdev research run <area> start --time-limit-seconds <seconds>` without
+  `--attempt-limit` no longer applies the default limit of 20 work attempts.
+  The run has no dispatch cap, so supporting work cannot end it early, and its
+  work-attempt count is advisory. `extend --add-attempts` fails on such a run.
+  A run with neither a time limit nor an attempt limit still defaults to 20
+  unless `--until-interrupted` is given.
 
 - `zdev research run <area> inspect` returns a compact routine view: the run
   ID and scope, `stop_reason`, comparison validity and invalidation, the

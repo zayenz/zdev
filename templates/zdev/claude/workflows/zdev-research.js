@@ -36,6 +36,8 @@ const mode = input?.authorization
 const execution = input?.execution ?? 'serial'
 const capacities = ['worker_limit', 'measurement_limit']
 const limits = ['attempt_limit', 'command_limit', 'command_seconds', 'time_limit_seconds', 'target']
+// Keys the start-only `estimated` input may mark as coordinator-chosen; target is a goal, not a limit.
+const estimable = [...limits.filter(key => key !== 'target'), ...capacities]
 let nativeCalls = 0
 let reporting = false
 // Claude documents 1,000 agents per workflow. Keep room for draining and live-state reporting.
@@ -63,6 +65,7 @@ const report = (verdict, reason, crossAreaWaits = null) => JSON.stringify({
     .filter(checkpoint => checkpoint.index_updated && !completed.some(item => item.task_id === checkpoint.task))
     .map(checkpoint => ({ task_id: checkpoint.task, decision: checkpoint.final_record.decision, commit: checkpoint.commit }))],
   accepted_baseline: context?.accepted_baseline ?? null,
+  limits: context?.limits ?? null, consumed: context?.consumed ?? null,
   remaining: context?.remaining ?? null, stop_reason: reason,
   execution, cleanup: input?.cleanup === true, native_calls: nativeCalls, recovery_actions: recovery, frozen_profiles: profiles, retained_plans: retainedPlans, retained_candidates: retainedCandidates, verdict,
   ...(crossAreaWaits ? { cross_area_waits: crossAreaWaits } : {}),
@@ -80,7 +83,10 @@ if (!input || !/^[a-z0-9][a-z0-9-]*$/.test(area ?? '')
     && (typeof input[key] !== 'number' || !Number.isFinite(input[key])
       || (key !== 'target' && input[key] <= 0)
       || (['attempt_limit', 'command_limit'].includes(key) && !Number.isInteger(input[key]))))
-  || (mode === 'resume' && ['scope', 'until_interrupted', ...limits, ...capacities].some(key => Object.hasOwn(input, key)))
+  || (Object.hasOwn(input, 'estimated') && (!Array.isArray(input.estimated)
+    || new Set(input.estimated).size !== input.estimated.length
+    || input.estimated.some(key => !estimable.includes(key) || !Object.hasOwn(input, key))))
+  || (mode === 'resume' && ['scope', 'until_interrupted', 'estimated', ...limits, ...capacities].some(key => Object.hasOwn(input, key)))
   || (input.run_profile && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(input.run_profile))
   || (input.role_profiles && (!exactObject(input.role_profiles, Object.keys(input.role_profiles))
     || Object.entries(input.role_profiles).some(([role, profile]) => !roles.includes(role)
@@ -728,6 +734,7 @@ try {
     const flags = ['--scope', input.scope]
     if (input.until_interrupted === true) flags.push('--until-interrupted')
     for (const key of [...limits, ...capacities]) if (Object.hasOwn(input, key)) flags.push(`--${key.replaceAll('_', '-')}`, String(input[key]))
+    for (const key of input.estimated ?? []) flags.push('--estimated', key.replaceAll('_', '-'))
     startAttempted = true
     context = await command(['research', 'run', area, 'start', ...flags], 'start authorized run')
     if (!validRunContext(context)) throw new Error('Start did not establish run context')

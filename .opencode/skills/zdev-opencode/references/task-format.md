@@ -498,11 +498,18 @@ under that identity or unrelated destination edits. An admission does not
 consume a work attempt; dispatch does. Commit newly admitted records through
 the usual coordinator workflow before beginning a local experiment.
 
-The default allowance is **20 coordinator work attempts**. Each dispatch for
+Without `--attempt-limit`, the default allowance is **20 coordinator work
+attempts**. A run with `--time-limit-seconds` and no `--attempt-limit` has no
+dispatch cap instead. Each dispatch for
 supporting work, candidate preparation, repair, measurement rerun, confirmation,
 reconciliation or actual rebaseline consumes one attempt, even if it produces
 no usable observation. `begin` charges preparation and each `evaluate` charges
-another attempt. Before dispatching ordinary supporting work, reserve it:
+another attempt. Run context reports `consumed.work_attempts` for every
+dispatch, `consumed.dispatches_by_kind` with a count for each kind, and
+`consumed.experiments` for the dispatches that measured a candidate. A
+rebaseline is not an experiment. `consumed.work_attempts_advisory` is true when
+the run has no attempt limit, so the count never stops dispatch. Before
+dispatching ordinary supporting work, reserve it:
 
 ```text
 zdev research run work reserve --run <run> --request support-1 --task work-003 --kind supporting
@@ -523,14 +530,31 @@ can be settled without refunding its consumed attempt.
 
 `--until-interrupted` explicitly removes the default attempt limit. Supplied
 `--attempt-limit`, `--command-limit`, `--command-seconds`,
-`--time-limit-seconds`, and directional `--target` remain effective. Command
-limits count each ZDev correctness or evaluator invocation before launch.
+`--time-limit-seconds`, and directional `--target` remain effective.
+`--worker-limit` and `--measurement-limit` default to one. Command limits
+count each ZDev correctness or evaluator invocation before launch.
 `--command-seconds` limits their cumulative elapsed time; command timeouts are
 clipped to both that remaining allowance and the current authorized wall-clock deadline.
 Supporting workers consume work attempts; the binary does not sandbox their
 shells. Use the bound lifecycle for measurement while a run is active:
 standalone `research measure` and supplied `task research` observations refuse
 to bypass its accounting.
+
+Run context reports each limit under `limits` as
+`{"value": ..., "origin": ...}`; an absent limit is `null`. A supplied flag has
+origin `user`, and a product default, such as the 20 attempts or one worker,
+has origin `default`.
+When the coordinator chooses a limit value itself, it adds the repeatable
+`--estimated <limit>` flag, such as `--estimated command-seconds`, and the
+origin is `coordinator_estimate`. `--estimated` accepts `attempt-limit`,
+`command-limit`, `command-seconds`, `time-limit-seconds`, `worker-limit` and
+`measurement-limit`, and refuses a limit whose flag was not supplied. Runs
+started before origins were recorded report `unrecorded`. Every limit stops
+dispatch until it is extended, whatever its origin.
+
+```text
+zdev research run work start --scope "<authorized scope>" --time-limit-seconds 28800 --command-seconds 600 --estimated command-seconds --format json
+```
 
 Reserved work and invocations remain consumed through failure or interruption.
 Recover the owning experiment before dispatching more work when a command's
@@ -551,7 +575,11 @@ Stop and resume retain the same identity, scope, consumed allowance and current
 time boundary. An explicit allowance extension uses `research run work extend
 --run <run> --request <stable-id>` with authorized `--add-attempts`,
 `--add-commands`, `--add-command-seconds`, or `--add-time-seconds`. Additions
-increase finite limits; time is added to the existing deadline. Repeating the
+increase finite limits; time is added to the existing deadline. A time-only
+run has no attempt limit, so `--add-attempts` fails on it. An extended limit
+keeps its origin. The coordinator may raise its own `coordinator_estimate`
+limits without asking; raising a `user`, `default` or `unrecorded` limit needs
+the user's grant. Repeating the
 same request and additions never adds twice. Extension preserves costs, pending
 work, comparison policy, and stop state; recover and resume normally. Target, budget, interruption and shared environment blocker are
 distinct stop reasons. Stopping permits recording, restoration and previously

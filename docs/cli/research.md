@@ -41,13 +41,25 @@ zdev research run AREA COMMAND
 | `end` | End the authorization after reservations and checkpoints are settled. |
 
 `start` accepts `--attempt-limit`, `--command-limit`, `--command-seconds`,
-`--time-limit-seconds`, and `--target`. The default is 20 work attempts;
-`--until-interrupted` removes that default. `--worker-limit` and
-`--measurement-limit` both default to one.
+`--time-limit-seconds`, and `--target`. Without `--attempt-limit`, the default
+is 20 work attempts; `--until-interrupted` or `--time-limit-seconds` removes
+that default, so a time-only run has no dispatch cap. `--worker-limit` and
+`--measurement-limit` both default to one. The repeatable `--estimated <limit>`
+marks a supplied limit as the coordinator's own estimate, for example
+`--estimated command-seconds`; it refuses a limit whose flag was not supplied.
+
+Run context reports each limit under `limits` with its `value` and `origin`:
+`user` for a supplied flag, `default` for a product default,
+`coordinator_estimate` for a value marked with `--estimated`, and `unrecorded`
+for runs started before origins were recorded. `extend` keeps a limit's origin
+and cannot add attempts to a run without an attempt limit. `consumed` reports
+`work_attempts` for every dispatch, `dispatches_by_kind` with a count for each
+reservation kind, `experiments` for the dispatches that measured a candidate,
+and `work_attempts_advisory`, which is true when no attempt limit applies.
 
 `inspect` reports the run ID and scope, `stop_reason`, comparison validity and
-invalidation, the accepted baseline aggregate without samples, `consumed` and
-`remaining`, unsettled reservations, unfinished checkpoints, pending
+invalidation, the accepted baseline aggregate without samples, `limits`,
+`consumed` and `remaining`, unsettled reservations, unfinished checkpoints, pending
 admissions, the acceptance-lane task, ready and blocked task counts, the next ready task, `unreachable_minimum_gain`, any
 `cross_area_waits`, and `next_action`. Its size does not grow with recorded
 attempts, observations or tasks. `context`, `inspect --full`, and every command

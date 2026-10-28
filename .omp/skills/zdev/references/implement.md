@@ -171,10 +171,14 @@ After verification passes:
 
 ```text
 zdev task done <area> <task> --summary <summary> --validation <result>...
-git add <explicit-task-source-path>... .zdev/<area>/tasks/<exact-task-file> .zdev/<area>/TASKS.md
+git add <explicit-task-source-path>... .zdev/<area>/tasks/<exact-task-file> .zdev/<area>/TASKS.md <dependent-index>...
 git diff --cached
 zdev commit -m <message>
 ```
+
+Each `<dependent-index>` is a `TASKS.md` path that `zdev task done` reports in
+`dependent_indexes`, or after `Updated dependent indexes:` in text. It
+regenerates those indexes for other areas whose tasks this task blocks.
 
 Include any task or brief records intentionally clarified by coordination in
 the explicit staged paths and completion handoff. The verifier checks their
@@ -182,8 +186,9 @@ updated requirements and receives both the original baseline and the fresh
 post-adjustment snapshot. Unrelated record changes remain outside task
 ownership and stop completion.
 
-Stage only explicit task-owned source paths, the exact completed task file, and
-the generated `TASKS.md`; never stage the whole area directory. Before commit,
+Stage only explicit task-owned source paths, the exact completed task file,
+the generated `TASKS.md`, and the reported dependent indexes; never stage the
+whole area directory. Before commit,
 inspect `git status --short --untracked-files=all` and the full cached diff
 against the baseline and verified evidence. The index must contain only the
 intended task changes. Stop if pre-existing staged content, unexplained changes,

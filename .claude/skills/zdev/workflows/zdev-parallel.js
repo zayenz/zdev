@@ -443,7 +443,7 @@ const runDestinationGate = async candidate => {
       continue
     }
     const completed = strictObject(await agent(
-      `${repositoryGuidance}\n\nAct only as completion coordinator for verified parallel task ${candidate.task_id} in ${destinationRoot}. Before mutation compare snapshot ${snapshot} exactly once and require equal true. Then run zdev task done, stage only attributable task files and exact generated task records, inspect the staged diff, and run exactly one zdev commit. Do not spawn an agent. Return the requested committed result with full commit ID, or preserve the exact checkpoint on failure. Verification: ${JSON.stringify(verification)}`,
+      `${repositoryGuidance}\n\nAct only as completion coordinator for verified parallel task ${candidate.task_id} in ${destinationRoot}. Before mutation compare snapshot ${snapshot} exactly once and require equal true. Then run zdev task done, stage only attributable task files, exact generated task records, and every dependent TASKS.md path that task done reports in dependent_indexes or as Updated dependent indexes, inspect the staged diff, and run exactly one zdev commit. Do not spawn an agent. Return the requested committed result with full commit ID, or preserve the exact checkpoint on failure. Verification: ${JSON.stringify(verification)}`,
       { label: `zdev ${candidate.task_id}: complete and commit`, schema: gateSchema },
     ), ['task_id', 'status', 'summary', 'commit', 'findings', 'preserved'])
     const validCompletion = completed

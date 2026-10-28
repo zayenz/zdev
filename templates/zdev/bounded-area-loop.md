@@ -39,6 +39,11 @@ Classify the result as follows:
   worker and omit branch status and advisory.
 - Open `empty` or `exhausted` returns `PASS` after the ordinary open-work
   safety gate. The area remains open; start no worker.
+- Open `blocked`, where every open task waits on a task in another area, also
+  returns `PASS` after the ordinary open-work safety gate. The area remains
+  open; start no worker. Report each wait in the goal's `cross_area_waits` as
+  `<task> blocked by <id> (<area>: <status>)`. Do not select or start work in
+  the blocking area.
 - Open `ready` with `branch_status.task_work.safe: true` runs the one-task
   contract below for exactly the selected task. Report a stale-but-safe
   advisory once and continue.
@@ -79,7 +84,8 @@ derived apply, tell the user that task finished, then make one fresh selection
 using the same no-focus or focused rule before deciding the public result. If
 it reports open `ready` and safe task work, return `CONTINUE`, name that fresh
 next task, and stop. Do not start it or claim a background loop. If it reports
-open `empty`, open `exhausted`, or validated `closed`, return `PASS` and stop.
+open `empty`, open `exhausted`, open `blocked`, or validated `closed`, return
+`PASS` and stop.
 Any validation, safety, or refresh failure returns `BLOCKER`; do not count or
 start another task.
 
@@ -91,7 +97,8 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, an exact stale
+Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, `Cross-area
+waits` for an open `blocked` queue, an exact stale
 `Advisory` once when applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` for
 lifecycle or queue when validation failed before classification, and `none`
 when there is no task or commit. `CONTINUE` also includes `Next task` with the

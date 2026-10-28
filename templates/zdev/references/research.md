@@ -41,6 +41,10 @@ and concrete model/effort handling from the root Codex skill.
    untracked changes. Report a stale-but-safe advisory once and continue.
    Preserve unexplained or overlapping changes. An empty or exhausted queue
    permits generation after authorization; it is not a successful research stop.
+   An open `blocked` queue means every open task waits on a task in another
+   area. It is no-work: report each wait in the goal's `cross_area_waits` as
+   `<task> blocked by <id> (<area>: <status>)` and stop without starting,
+   resuming or generating work.
 3. Read `zdev research run <area> context --format json`; a reported absence
    of a run is expected for first authorization. For a new explicit
    authorization, start only when no unfinished run exists:
@@ -125,7 +129,10 @@ mixed TaskBundle of ordinary supporting tasks and hypotheses. Describe a
 testable mechanism, useful completion evidence and allowed code changes.
 Keep dependencies and context links distinct; admit a `requires_code` link
 only after the referenced candidate has completed verified acceptance. Empty
-or exhausted queues allow another scoped proposal while allowance remains.
+or exhausted queues allow another scoped proposal while allowance remains. When
+run context reports no ready task and lists `cross_area_waits`, the remaining
+work waits on other areas: record `stop --run <run>`, report those waits with
+stop reason `cross-area-wait`, and propose nothing.
 
 ```text
 zdev research run <area> admit --run <run> --request <unique-generation-request> --from <bundle.json> --format json
@@ -233,7 +240,8 @@ an unfinished run, reset its deadline/costs or close the area.
 Report the run identity, scope, native continuation or exact fallback extent,
 completed tasks/decisions and commits, accepted baseline, remaining allowance,
 stop reason and unfinished recovery actions. Distinguish `target`, `budget`,
-`interruption`, shared `blocker` and unsafe/user-owned state. Queue exhaustion
+`interruption`, shared `blocker`, `cross-area-wait` and unsafe/user-owned
+state. Queue exhaustion
 alone is a proposal boundary. A finite stop is not evidence that the area's
 optimization objective has been achieved.
 

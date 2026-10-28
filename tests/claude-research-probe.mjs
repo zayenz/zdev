@@ -176,6 +176,7 @@ const agent = async (prompt, options) => {
     return JSON.stringify(zdev(['work-context', 'work', '--compare', snapshot]))
   }
   if (options.label.includes('complete and commit')) {
+    if (!prompt.includes('every dependent TASKS.md path that task done reports in dependent_indexes')) throw new Error('Ordinary completion did not stage dependent indexes')
     const snapshot = prompt.match(/--compare (W[0-9a-f]{16})/)[1]
     if (!zdev(['work-context', 'work', '--compare', snapshot]).equal) throw new Error('Ordinary completion snapshot changed')
     zdev(['task', 'done', 'work', activeTask, '--summary', 'Completed supporting repair.', '--validation', 'Independent verification passed.'])

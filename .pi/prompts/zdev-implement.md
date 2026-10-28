@@ -103,8 +103,12 @@ lifecycle, queue, and task ID to agree and task work to be safe. Report a true s
 requesting a rebase. Inspect relevant untracked files, and stop on unexplained
 or overlapping changes or any user-owned decision.
 
-For implement, open/empty and open/exhausted are successful no-work results
-after the open-work gates above and start no worker. Explicit verify requires
+For implement, open/empty, open/exhausted, and open/blocked are successful
+no-work results after the open-work gates above and start no worker. Open/blocked
+means every open task waits on a task in another area; the result names each
+wait in the goal's `cross_area_waits` as `<task> blocked by <id> (<area>:
+<status>)`. The compact `--store` projection omits the waits, so read them from
+`zdev goal <area> --format json` or the shown snapshot. Explicit verify requires
 open/ready and returns `BLOCKER zdev-verify` without starting a verifier for
 every no-work result. Invalid records, task graphs, or context output are
 blockers. For open/ready, retain the complete context unchanged and its task ID
@@ -452,8 +456,10 @@ lifecycle, safety, HEAD, index, worktree, and untracked state because all are
 part of the stored canonical context. A false comparison or an unavailable,
 corrupt, cross-area, or malformed artifact blocks before mutation.
 On an accepted comparison, the coordinator runs `zdev task done`, stages only
-the attributed task-owned files and exact generated task records, inspects the
-staged diff, and runs `zdev commit`.
+the attributed task-owned files, exact generated task records, and each
+dependent `TASKS.md` path that `zdev task done` reports in `dependent_indexes`
+(`Updated dependent indexes:` in text), inspects the staged diff, and runs
+`zdev commit`.
 Completion or commit failure is a blocker that preserves and reports the exact
 state. Public output begins with
 `PASS zdev-implement <area> <task-id>` or
@@ -475,7 +481,7 @@ worker dispatch. It never reuses the completed task's pre-commit selection.
 the explicit ID to equal the current ready task before starting one fresh
 configured verifier. It never invokes an implementer, changes lifecycle state,
 stages, commits, or routes a derived proposal. Its public result is the coordinator-constructed verifier object above. Empty,
-exhausted, or closed goals, a different ready task, unsafe state, unavailable
+exhausted, blocked, or closed goals, a different ready task, unsafe state, unavailable
 independent verification, or an invalid worker envelope returns `BLOCKER zdev-verify`
 without mutation.
 

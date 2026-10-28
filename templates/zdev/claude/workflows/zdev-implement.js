@@ -137,7 +137,8 @@ const parseStoredContext = (raw, expectedArea, expected = null) => {
   if (stored.schema_version !== 1 || stored.area !== expectedArea) return null
   if (!/^W[0-9a-f]{16}$/.test(stored.snapshot ?? '')) return null
   if (!['open', 'closed'].includes(stored.lifecycle)
-    || !['ready', 'empty', 'exhausted'].includes(stored.queue)) return null
+    || !['ready', 'empty', 'exhausted', 'blocked'].includes(stored.queue)
+    || (stored.queue === 'blocked' && stored.lifecycle !== 'open')) return null
   if (stored.task_id === null) {
     if (stored.queue === 'ready' || expected) return null
     return { lifecycle: stored.lifecycle, queue: stored.queue, taskId: null, complexity: null,
@@ -548,10 +549,31 @@ const preflight = (label, selected = selectedTaskId) => agent(
   { label, model: 'claude-opus-5-5', effort: 'low' },
 )
 
+// A blocked queue waits only on tasks in other areas. The stored projection
+// omits the waits, so read them from the goal to name each blocker.
+const readCrossAreaWaits = async () => {
+  const raw = await agent(
+    `Act only as read-only coordination for area ${area}. Run zdev goal ${area} --format json exactly once and return its JSON stdout. Keep files and Git state unchanged.`,
+    { label: `zdev ${area}: read cross-area waits`, model: 'claude-opus-5-5', effort: 'low' },
+  )
+  const goal = decodeJsonObject(raw)?.value
+  const waits = goal?.cross_area_waits
+  if (goal?.area?.tag !== area || goal.lifecycle !== 'open' || goal.queue !== 'blocked'
+    || goal.task !== null || !Array.isArray(waits) || waits.length === 0) return null
+  const labels = waits.map(wait => [wait?.task, wait?.blocker?.id, wait?.blocker?.area, wait?.blocker?.status]
+    .every(value => typeof value === 'string' && value)
+    ? `${wait.task} blocked by ${wait.blocker.id} (${wait.blocker.area}: ${wait.blocker.status})` : null)
+  return labels.includes(null) ? null : labels
+}
+
 const preparedRaw = (await preflight(`zdev ${area}: select ready task`))?.trim()
 const prepared = parseStoredContext(preparedRaw, area)
 if (prepared && prepared.taskId === null) {
-  return `PASS zdev-implement ${area} none\n\nArea: ${area}\nTask: none\n${prepared.staleAdvisory ? `Advisory: ${advisoryText}\n` : ''}Summary: no ready work; ${prepared.lifecycle}/${prepared.queue} goal.\nChanged files: none.\nValidation: preflight only.\nVerifier evidence: no implementer or verifier was started.\nCommit ID: none.`
+  const waits = prepared.queue === 'blocked' ? await readCrossAreaWaits() : []
+  if (!waits) {
+    return blocker(area, 'none', 'preflight', 'the blocked queue did not name its cross-area waits.', 'no implementer or verifier was started.', prepared.staleAdvisory)
+  }
+  return `PASS zdev-implement ${area} none\n\nArea: ${area}\nTask: none\n${prepared.staleAdvisory ? `Advisory: ${advisoryText}\n` : ''}Summary: no ready work; ${prepared.lifecycle}/${prepared.queue} goal.\n${waits.length ? `Cross-area waits: ${waits.join(', ')}\n` : ''}Changed files: none.\nValidation: preflight only.\nVerifier evidence: no implementer or verifier was started.\nCommit ID: none.`
 }
 if (!prepared || prepared.queue !== 'ready') {
   return blocker(area, 'unknown', 'preflight', 'missing or invalid work-context evidence.', 'no implementer or verifier was started.')
@@ -903,7 +925,7 @@ if (verdict.result.verdict !== 'pass') {
 
 const advisory = staleAdvisory ? advisoryText : null
 const completed = await agent(
-  `${repositoryGuidance}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, before mutation run exactly one zdev work-context ${area} --compare ${verdict.approved} --format json. Accept the exact four-key JSON object {"schema_version":1,"area":"${area}","snapshot":"${verdict.approved}","equal":true}. On an exact match, run zdev task done, stage the attributed task-owned paths, every clarified record path in the handoff, and exact task records, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit needs recovery. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nCompletion handoff: ${JSON.stringify({ snapshot: verdict.approved, implementation: latestImplementation.summary, verification: verdict.result.summary, technical_adjustments: technicalAdjustments })}`,
+  `${repositoryGuidance}\n\nAct as the existing completion coordinator for verified task ${taskId} in area ${area}. Whether this completion is live or resumed, before mutation run exactly one zdev work-context ${area} --compare ${verdict.approved} --format json. Accept the exact four-key JSON object {"schema_version":1,"area":"${area}","snapshot":"${verdict.approved}","equal":true}. On an exact match, run zdev task done, stage the attributed task-owned paths, every clarified record path in the handoff, exact task records, and every dependent TASKS.md path that task done reports in dependent_indexes or as Updated dependent indexes, inspect the cached diff, and run zdev commit. Preserve the task-done and index state if staging, cached-diff inspection, or commit needs recovery. Return PASS zdev-implement ${area} ${taskId} or BLOCKER zdev-implement ${area} ${taskId} as the exact first line. Repeat exact Area: ${area} and Task: ${taskId} fields. ${advisory ? `Include Advisory: ${advisory} exactly once, ` : 'Omit Advisory, '}plus Summary, Changed files, Validation, Verifier evidence, and Commit ID on pass, or Failed stage, Reason, and Preserved state on blocker.\n\nCompletion handoff: ${JSON.stringify({ snapshot: verdict.approved, implementation: latestImplementation.summary, verification: verdict.result.summary, technical_adjustments: technicalAdjustments })}`,
   { label: `zdev ${taskId}: complete and commit` },
 )
 const result = completed?.trim()

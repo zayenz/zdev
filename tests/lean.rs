@@ -8819,9 +8819,31 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
     if (!completionPrompt.includes('"technical_adjustments":')) throw new Error(name + ': completion lost technical adjustments')
     if (completionPrompt.includes('"git_status":') || completionPrompt.includes('"git_diff":')) throw new Error(name + ': completion received raw Git evidence')
     if (!completionPrompt.includes('zdev work-context work --compare W0123456789abcdef --format json')) throw new Error(name + ': completion lost compact comparison')
+    if (!completionPrompt.includes('every dependent TASKS.md path that task done reports in dependent_indexes')) throw new Error(name + ': completion did not stage dependent indexes')
   }}
   return {{ result, verifierPrompts, completionPrompt, calls }}
 }}
+const blockedGoal = waits => JSON.stringify({{ schema_version: 1, area: {{ tag: area }}, lifecycle: 'open',
+  queue: 'blocked', task: null, cross_area_waits: waits }})
+const exerciseBlocked = async goal => {{
+  const labels = []
+  const result = await run({{ area }}, async (_prompt, options) => {{
+    labels.push(options.label)
+    if (options.agentType) throw new Error('blocked queue started a worker')
+    if (options.label === 'zdev work: select ready task') return JSON.stringify({{ schema_version: 1, area,
+      lifecycle: 'open', queue: 'blocked', task_id: null, stale_advisory: false, head,
+      snapshot: baselineSnapshot, path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json' }})
+    if (options.label === 'zdev work: read cross-area waits') return goal
+    throw new Error('blocked queue: unexpected coordination call ' + options.label)
+  }})
+  if (JSON.stringify(labels) !== JSON.stringify(['zdev work: select ready task', 'zdev work: read cross-area waits'])) throw new Error('blocked queue calls: ' + labels)
+  return result
+}}
+const blocked = await exerciseBlocked(blockedGoal([{{ task: taskId, blocker: {{ id: 'platform-009', area: 'platform', status: 'open' }} }}]))
+if (!blocked.startsWith('PASS zdev-implement work none') || !blocked.includes('Summary: no ready work; open/blocked goal.')
+  || !blocked.includes('Cross-area waits: work-001 blocked by platform-009 (platform: open)\n')) throw new Error('blocked queue: ' + blocked)
+const unnamedWaits = await exerciseBlocked(blockedGoal([]))
+if (!unnamedWaits.startsWith('BLOCKER zdev-implement work none') || !unnamedWaits.includes('Failed stage: preflight')) throw new Error('blocked queue without waits: ' + unnamedWaits)
 const routinePass = await exercise(
   'routine pass',
   'routine',
@@ -9399,6 +9421,9 @@ const exercise = async (name, contexts, workers, completions, expectedPrefix, de
     if (options.label.includes('confirm verifier') || options.label.endsWith(': confirm findings snapshot unchanged')) {{
       return JSON.stringify({{ schema_version: 1, area, snapshot: verificationSnapshot, equal: true }})
     }}
+    if (options.label === 'zdev work: read cross-area waits') return JSON.stringify({{ schema_version: 1,
+      area: {{ tag: area }}, lifecycle: 'open', queue: 'blocked', task: null,
+      cross_area_waits: [{{ task: 'work-003', blocker: {{ id: 'platform-009', area: 'platform', status: 'open' }} }}] }})
     if (options.label.includes('freeze loop worker profiles')) return dispatchSpec(lastContext)
     if (options.label.includes('freeze worker profiles')) return dispatchSpec(lastContext)
     if (options.label.endsWith(': check findings')) return prompt.split('Candidate review: ').at(-1)
@@ -9445,6 +9470,15 @@ for (const call of twoTask.calls.filter(call => call.type === null
 const noWork = await exercise('closed no-work', [closed], [], [], 'PASS', [], 'work')
 if (noWork.calls.length !== 1 || noWork.calls[0].label !== 'zdev work: select next task') throw new Error(JSON.stringify(noWork.calls))
 await exercise('closed no-work array args', [closed], [], [], 'PASS', [], ['work'])
+const blockedQueue = JSON.stringify({{
+  schema_version: 1, area, hypothesis: false, lifecycle: 'open', queue: 'blocked', task_id: null,
+  stale_advisory: false, head, snapshot: baselineSnapshot,
+  path: '.git/zdev/work-context/work/' + baselineSnapshot + '.json',
+}})
+const blockedWork = await exercise('blocked no-work', [blockedQueue], [], [], 'PASS')
+if (!blockedWork.result.includes('Lifecycle: open\nQueue: blocked\nCross-area waits: work-003 blocked by platform-009 (platform: open)\n')
+  || !blockedWork.result.includes('Stop reason: no ready work; open/blocked.')
+  || blockedWork.calls.some(call => call.type !== null)) throw new Error('blocked no-work: ' + blockedWork.result)
 let malformedLoopWorkers = 0
 const malformedLoop = await run({{ area }}, async (_prompt, options) => {{
   if (options.label === 'zdev work: select next task') return ready('work-001')
@@ -10005,6 +10039,12 @@ fn bounded_area_loop_aliases_share_one_stop_and_restart_contract() {
         assert!(canonical.contains("zdev task show <area>\n<task-id> --format json"));
         assert!(canonical.contains("--task <task-id> --store --format json"));
         assert!(canonical.contains("AFK, priority, then numeric order"));
+        assert!(
+            canonical.contains(
+                "- Open `blocked`, where every open task waits on a task in another area"
+            )
+        );
+        assert!(canonical.contains("`<task> blocked by <id> (<area>: <status>)`"));
         assert_eq!(
             json_output_with_env(
                 root,
@@ -10316,6 +10356,7 @@ fn parallel_route_is_shared_and_supported_harnesses_report_execution_support() {
             assert!(parallel.contains("Dispatch each task once"));
             assert!(parallel.contains("four independent task slots"));
             assert!(parallel.contains("configured implementation\nprofile"));
+            assert!(parallel.contains("reports in `dependent_indexes`"));
             assert!(!parallel.contains("## Unsupported adapter"));
         } else {
             assert!(parallel.contains("## Unsupported adapter"));
@@ -10605,7 +10646,10 @@ const agent = async (prompt, options) => {{
     safe: true, stale_advisory: false, checkout: '/repo' }}
   if (options.agentType === 'zdev:zdev-verifier') return {{ verdict: 'pass', summary: 'verified ' + task, findings: [], escalation: 'none' }}
   if (options.label.includes('compare verification snapshot')) return {{ schema_version: 1, area: 'work', snapshot: 'W' + task.at(-1).repeat(16), equal: true }}
-  if (options.label.includes('complete and commit')) return {{ task_id: task, status: 'committed', summary: 'done', commit: task.at(-1).repeat(40), findings: [], preserved: '' }}
+  if (options.label.includes('complete and commit')) {{
+    if (!prompt.includes('every dependent TASKS.md path that task done reports in dependent_indexes')) throw new Error('parallel completion did not stage dependent indexes')
+    return {{ task_id: task, status: 'committed', summary: 'done', commit: task.at(-1).repeat(40), findings: [], preserved: '' }}
+  }}
   throw new Error('unexpected call ' + options.label)
 }}
 const result = await run({{ area: 'work', task_ids: ids, destination_root: '/repo',

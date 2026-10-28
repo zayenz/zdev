@@ -26,8 +26,8 @@ A true `stale_advisory` is useful context: report its exact advisory once and
 continue verification.
 
 Return `BLOCKER zdev-verify <area> <task-id>` without starting a worker when
-the context is invalid or unsafe, the goal is closed, empty, or exhausted, or
-another task is ready. Include the failed stage, reason, and preserved state.
+the context is invalid or unsafe, the goal is closed, empty, exhausted, or
+blocked by tasks in other areas, or another task is ready. Include the failed stage, reason, and preserved state.
 
 The stored result is the dispatch snapshot for the admitted open, ready, safe
 area, task, HEAD, and checkout.

@@ -164,7 +164,10 @@ Read fresh run context and all rejected, inconclusive and failed-to-run lessons
 at each boundary. Check stop_reason and comparison validity before new costly
 work. Choose ready tasks using ordinary dependencies and eligibility; under a
 shared blocker choose only relevant ordinary supporting repairs. Keep explicit
-task selection through every refresh. Empty/exhausted queues permit a small
+task selection through every refresh. When no task is ready and fresh run
+context lists `cross_area_waits`, every open task waits on another area: record
+`stop --run <run>`, report `stopped` with stop reason `cross-area-wait` and
+those waits, and generate no work. Empty/exhausted queues permit a small
 nonempty scoped mixed TaskBundle, not successful completion. Check scope,
 graph links and requires_code; only verified acceptance establishes retained
 code. Admit with a unique request, inspect allocated task IDs/files, stage only
@@ -174,7 +177,9 @@ concrete failure rather than generating forever.
 
 Supporting tasks use the composed ordinary one-task workflow: advanced planning,
 implementation, strict worker results, fresh independent verification, rework,
-snapshot comparison and exact completion. Reserve kind supporting before every
+snapshot comparison and exact completion. Completion, including a recovered
+ordinary completion, also stages each dependent `TASKS.md` path that `zdev
+task done` reports in `dependent_indexes`. Reserve kind supporting before every
 planner, implementer, replacement/rework and verifier call; settle completed
 dispatches afterward. Command mediation and record helpers remain inexpensive
 coordination. Confirm task kind before the frozen-profile path too. After

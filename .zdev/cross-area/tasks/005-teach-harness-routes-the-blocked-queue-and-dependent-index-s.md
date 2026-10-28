@@ -3,7 +3,7 @@ schema_version = 1
 id = "cross-area-005"
 key = "harness-routes-handle-blocked-queue"
 area = "cross-area"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -39,11 +39,11 @@ Canonical sources live in `templates/zdev/`; the copies under `skills/`, `.claud
 
 ## Done when
 
-- [ ] The Claude loop and implement workflows accept an open `blocked` work-context and finish with the ordinary no-work `PASS`, start no worker, and report the cross-area blockers.
-- [ ] Every installed bounded, native, shared, plan-task and T3 contract lists open `blocked` with empty and exhausted as a no-work state, and explicit verify (`verify-workflow.md` and the verify routes) still returns no-work `BLOCKER` for it.
-- [ ] The research routes (`claude-research.md`, `references/research.md`) stop as no-work and report the blockers for a research area blocked only by other areas, instead of generating more work.
-- [ ] The implement Finish step and the completion prompts in `zdev-implement.js`, `zdev-parallel.js`, `zdev-research.js` and `claude-research.md` stage the dependent `TASKS.md` paths reported by `zdev task done`.
-- [ ] The checked-in generated integrations match the templates, and the fixture test passes.
+- [x] The Claude loop and implement workflows accept an open `blocked` work-context and finish with the ordinary no-work `PASS`, start no worker, and report the cross-area blockers.
+- [x] Every installed bounded, native, shared, plan-task and T3 contract lists open `blocked` with empty and exhausted as a no-work state, and explicit verify (`verify-workflow.md` and the verify routes) still returns no-work `BLOCKER` for it.
+- [x] The research routes (`claude-research.md`, `references/research.md`) stop as no-work and report the blockers for a research area blocked only by other areas, instead of generating more work.
+- [x] The implement Finish step and the completion prompts in `zdev-implement.js`, `zdev-parallel.js`, `zdev-research.js` and `claude-research.md` stage the dependent `TASKS.md` paths reported by `zdev task done`.
+- [x] The checked-in generated integrations match the templates, and the fixture test passes.
 
 ## Validation
 
@@ -54,3 +54,16 @@ Canonical sources live in `templates/zdev/`; the copies under `skills/`, `.claud
 - `cargo test --locked`
 - `cargo build --locked`
 - `git diff --check`
+
+## Result
+
+Loop, implement, plan-task, T3 and research routes treat an open blocked queue as a no-work stop that names each cross-area wait; explicit verify keeps its BLOCKER. Every completion route (Claude implement, parallel and research workflows; native implement, task-workflows, parallel and research references) stages each dependent TASKS.md path that zdev task done reports in dependent_indexes. The Claude research workflow stops a run when only cross-area waits remain. Independently verified, with one parallel staging correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 201)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

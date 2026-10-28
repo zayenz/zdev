@@ -257,8 +257,11 @@ unavailable after a committed iteration with fresh safe ready work, return
 honest `CONTINUE`, naming the next task and the lost continuation. Do not mark
 that ready-work state as goal completion or promise background execution.
 
-Validated closed context returns PASS without Git gates. Open empty/exhausted
-returns PASS after normal safety checks; the area stays open. A real blocker,
+Validated closed context returns PASS without Git gates. Open
+empty/exhausted/blocked returns PASS after normal safety checks; the area stays
+open and no worker starts. For open blocked, report each wait in the goal's
+`cross_area_waits` as `<task> blocked by <id> (<area>: <status>)`; never
+dispatch work in the blocking area. A real blocker,
 unsafe state, invalid result, failed completion or commit, or a user decision
 stops immediately and preserves unfinished work. Actionable task-owned rework
 follows the shared bounded correction cycle; exhausted corrections stop the

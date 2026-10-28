@@ -80,8 +80,10 @@ candidates one at a time in the destination:
    tree under **Bounded corrections** in [review.md](review.md). Carry the initial
    review into the focused recheck. Preserve review stage, snapshot comparison,
    and completion gates; another batch or recovery does not reset the allowance.
-4. Complete only that task, stage only its attributable source and generated
-   task records, inspect the staged diff, and make exactly one zdev commit.
+4. Complete only that task, stage only its attributable source, generated
+   task records, and each dependent `TASKS.md` path that `zdev task done`
+   reports in `dependent_indexes` (`Updated dependent indexes:` in text), never
+   whole directories. Inspect the staged diff and make exactly one zdev commit.
 
 A destination commit made by an earlier task in this batch is expected drift.
 Reconcile each sibling delta against the new destination before integration.

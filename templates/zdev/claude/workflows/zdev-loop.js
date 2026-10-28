@@ -106,15 +106,16 @@ const stateFrom = raw => {
   const context = loopJson(raw)
   return context?.area === loopArea
     && ['open', 'closed'].includes(context.lifecycle)
-    && ['ready', 'empty', 'exhausted'].includes(context.queue)
+    && (['ready', 'empty', 'exhausted'].includes(context.queue)
+      || (context.lifecycle === 'open' && context.queue === 'blocked'))
     ? { lifecycle: context.lifecycle, queue: context.queue, taskId: context.task_id,
       head: context.head, snapshot: context.snapshot, complexity: context.complexity }
     : { lifecycle: 'unknown', queue: 'unknown', taskId: null, head: null }
 }
 const list = values => values.length === 0 ? 'none' : values.join(', ')
 const advisoryLine = () => sawAdvisory ? `Advisory: ${loopAdvisory}\n` : ''
-const pass = (state, reason) =>
-  `PASS zdev-loop ${loopArea}\n\nArea: ${loopArea}\n${loopFocus ? `Focus: ${loopFocus}\n` : ''}Lifecycle: ${state.lifecycle}\nQueue: ${state.queue}\n${advisoryLine()}Tasks completed: ${list(completedTasks)}\nCommits: ${list(commits)}\nStop reason: ${reason}`
+const pass = (state, reason, crossAreaWaits = null) =>
+  `PASS zdev-loop ${loopArea}\n\nArea: ${loopArea}\n${loopFocus ? `Focus: ${loopFocus}\n` : ''}Lifecycle: ${state.lifecycle}\nQueue: ${state.queue}\n${crossAreaWaits ? `Cross-area waits: ${crossAreaWaits}\n` : ''}${advisoryLine()}Tasks completed: ${list(completedTasks)}\nCommits: ${list(commits)}\nStop reason: ${reason}`
 const block = (state, task, stage, reason, preserved) =>
   `BLOCKER zdev-loop ${loopArea || 'unknown'}\n\nArea: ${loopArea || 'unknown'}\n${loopFocus ? `Focus: ${loopFocus}\n` : ''}Lifecycle: ${state.lifecycle}\nQueue: ${state.queue}\n${advisoryLine()}Tasks completed: ${list(completedTasks)}\nCommits: ${list(commits)}\nStop reason: blocked.\nCurrent task: ${task}\nFailed stage: ${stage}\nReason: ${reason}\nPreserved state: ${preserved}`
 
@@ -226,8 +227,10 @@ while (true) {
   const task = loopField(result, 'Task')
   if (loopField(result, 'Advisory') === loopAdvisory) sawAdvisory = true
 
-  if (loopHasExactLine(result, `PASS zdev-implement ${loopArea} none`) && task === 'none') {
-    return pass(state, `no ready work; ${state.lifecycle}/${state.queue}.`)
+  const crossAreaWaits = loopField(result, 'Cross-area waits')
+  if (loopHasExactLine(result, `PASS zdev-implement ${loopArea} none`) && task === 'none'
+    && (state.queue === 'blocked') === (crossAreaWaits !== null)) {
+    return pass(state, `no ready work; ${state.lifecycle}/${state.queue}.`, crossAreaWaits)
   }
   if (task && task !== 'none' && loopHasExactLine(result, `PASS zdev-implement ${loopArea} ${task}`)) {
     const commit = plainCommit(loopField(result, 'Commit ID'))

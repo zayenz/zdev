@@ -9,8 +9,10 @@ Use normal area selection. If an area was named, run `zdev work-context <area>
 --store --format json`. If the user explicitly chose a ready task, add `--task
 <task-id>`. Preserve the compact snapshot and show it to validate the complete
 open, ready, safe context. Keep the selected task ID explicit in every later
-refresh. Closed, empty, exhausted, unsafe, ambiguous, or mismatched context
-stops without changing it.
+refresh. Closed, empty, exhausted, blocked, unsafe, ambiguous, or mismatched
+context stops without changing it. For an open `blocked` queue, report each
+wait in the goal's `cross_area_waits` as `<task> blocked by <id> (<area>:
+<status>)`.
 
 After storing and validating context, run the `config profile
 dispatch-spec plan-next-task` command described by the installed skill. It

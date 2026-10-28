@@ -48,6 +48,11 @@ before attempting native continuation:
   Start no worker and omit branch status and advisory.
 - Open `empty` or `exhausted` returns `PASS` after the ordinary open-work
   safety gate. The area remains open; start no worker.
+- Open `blocked`, where every open task waits on a task in another area, also
+  returns `PASS` after the ordinary open-work safety gate. The area remains
+  open; start no worker or native continuation. Report each wait in the goal's
+  `cross_area_waits` as `<task> blocked by <id> (<area>: <status>)`. Do not
+  select or start work in the blocking area.
 - Invalid records or dependencies, unsafe task work, unexplained Git state, or
   a required user-owned decision returns `BLOCKER` before a worker.
 - Open `ready` with `branch_status.task_work.safe: true` may start the area
@@ -106,8 +111,8 @@ unfinished goal is present; never risk layering fallback work over a goal.
 Complete at most one verified task, then obtain fresh work-context. Return
 `CONTINUE zdev-loop <area>` only when that task committed and the fresh state
 is open, ready, and safe; include its `Next task` and stop without claiming a
-background loop. Return `PASS` for open empty/exhausted or validated closed,
-and `BLOCKER` for every failure or unsafe state.
+background loop. Return `PASS` for open empty/exhausted/blocked or validated
+closed, and `BLOCKER` for every failure or unsafe state.
 
 Use exactly one public first line:
 
@@ -117,7 +122,8 @@ CONTINUE zdev-loop <area>
 BLOCKER zdev-loop <area>
 ```
 
-Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, an exact stale
+Then include `Area`, optional `Focus`, `Lifecycle`, `Queue`, `Cross-area
+waits` for an open `blocked` queue, an exact stale
 `Advisory` once when applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` when
 lifecycle or queue could not be validated and `none` when there is no task or
 commit. `CONTINUE` also includes `Next task`. `BLOCKER` also includes

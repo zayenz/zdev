@@ -56,7 +56,7 @@ let pendingRecoveryVerification = null
 const completed = []
 const recovery = []
 const nextRequest = kind => `${invocation}-${kind}-${++requestNumber}`
-const report = (verdict, reason) => JSON.stringify({
+const report = (verdict, reason, crossAreaWaits = null) => JSON.stringify({
   schema_version: 1, kind: 'research', area: area ?? 'unknown', run_id: runId,
   scope: context?.run?.scope ?? input?.scope ?? null,
   completed: [...completed, ...(context?.checkpoints ?? [])
@@ -65,6 +65,7 @@ const report = (verdict, reason) => JSON.stringify({
   accepted_baseline: context?.accepted_baseline ?? null,
   remaining: context?.remaining ?? null, stop_reason: reason,
   execution, cleanup: input?.cleanup === true, native_calls: nativeCalls, recovery_actions: recovery, frozen_profiles: profiles, retained_plans: retainedPlans, retained_candidates: retainedCandidates, verdict,
+  ...(crossAreaWaits ? { cross_area_waits: crossAreaWaits } : {}),
 })
 if (!input || !/^[a-z0-9][a-z0-9-]*$/.test(area ?? '')
   || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(invocation ?? '')
@@ -116,6 +117,15 @@ const command = async (argv, label) => control(label,
   `Act only as command mediation. Execute the following argument array exactly once, preserving argument boundaries, then return its complete JSON stdout unchanged. On failure return only {"error":"concrete command failure and preserved effects"}. Do not launch workers, retry commands or invent successful state. Research command: ${JSON.stringify(['zdev', ...argv, '--format', 'json'])}`)
 const runCommand = (action, flags = [], label = action) => command(
   ['research', 'run', area, action, '--run', runId, ...flags], label)
+// With no ready task, open tasks that wait on other areas mean no work exists
+// here until those blockers are done; generating more work would bypass them.
+const waitsOnlyOnOtherAreas = value => Array.isArray(value.cross_area_waits)
+  && value.cross_area_waits.length > 0 && !value.tasks.tasks.some(task => task.state === 'ready')
+const stopForCrossAreaWaits = async () => {
+  const waits = context.cross_area_waits
+  if (!context.stop_reason) { await runCommand('stop'); await refresh() }
+  return report('stopped', 'cross-area-wait', waits)
+}
 const refresh = async () => {
   const value = await command(['research', 'run', area, 'context'], 'fresh run context')
   if (!validRunContext(value) || (runId && value.run.id !== runId)) throw new Error('Fresh run context did not preserve the authorized identity')
@@ -206,7 +216,7 @@ const recoverEffects = async (allowDispatch = true) => {
       if (stored.complexity === 'advanced' && !retainedPlans[handoff.task_id]) throw new Error('Advanced completion rework requires the retained original semantic plan')
       await support(selected)
     } else {
-      const result = await callAgent(`${repositoryGuidance}\n\nUse absolute cwd ${JSON.stringify(root)}. Act as the existing ordinary completion coordinator for ${handoff.task_id}. Compare zdev work-context ${area} --compare ${stored.baselineSnapshot} --format json and require exact equal true before mutation. Read ${JSON.stringify(taskWorkflowContractPath)}. Run task done, stage exact attributed source paths and exact task/TASKS.md records, inspect full cached diff and zdev commit. Preserve unfinished checkpoint on failure. Return the standard PASS/BLOCKER zdev-implement ${area} ${handoff.task_id} result and required fields. Independent verification: ${JSON.stringify(semantic)}. Original baseline: ${handoff.baseline_snapshot}.`,
+      const result = await callAgent(`${repositoryGuidance}\n\nUse absolute cwd ${JSON.stringify(root)}. Act as the existing ordinary completion coordinator for ${handoff.task_id}. Compare zdev work-context ${area} --compare ${stored.baselineSnapshot} --format json and require exact equal true before mutation. Read ${JSON.stringify(taskWorkflowContractPath)}. Run task done, stage exact attributed source paths, exact task/TASKS.md records and every dependent TASKS.md path that task done reports in dependent_indexes or as Updated dependent indexes, inspect full cached diff and zdev commit. Preserve unfinished checkpoint on failure. Return the standard PASS/BLOCKER zdev-implement ${area} ${handoff.task_id} result and required fields. Independent verification: ${JSON.stringify(semantic)}. Original baseline: ${handoff.baseline_snapshot}.`,
         { label: `zdev ${handoff.task_id}: complete and commit` })
       recordSupportingCompletion(result, handoff.task_id)
     }
@@ -638,6 +648,7 @@ const runRollingResearch = async () => {
       }
       // Refill independently of the evaluator. Never wait for every sibling first.
       if (context.remaining.workers > 0 && !context.run.acceptance) {
+        if (!candidates.size && waitsOnlyOnOtherAreas(context)) return await stopForCrossAreaWaits()
         const repair = [...candidates.values()].find(candidate => candidate.needsRepair && !active.has(candidate.selected.task_id))
         if (repair) { await prepareRepair(repair); continue }
         const selected = await select(null, [...candidates.keys()])
@@ -753,6 +764,7 @@ try {
       await runCommand('rebaseline', ['--request', nextRequest('rebaseline')])
       continue
     }
+    if (context.stop_reason !== 'blocker' && waitsOnlyOnOtherAreas(context)) return await stopForCrossAreaWaits()
     const selected = await select()
     if (selected.task_id === null) {
       if (generatedWithoutWork) throw new Error('Proposal made no eligible progress; no further generation authorized by this invocation')

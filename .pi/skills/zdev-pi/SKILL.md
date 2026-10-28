@@ -282,8 +282,11 @@ Each ordinary sequential iteration uses the **Implement** route and stops intern
 verified commit, a blocker, or a user-owned decision. Tell the user which task
 was selected and when its verified commit completes. Before another task,
 repeat the selection rule above from fresh evidence; never reuse the completed
-task's selection. Finish on open `empty`, open `exhausted`, or validated
-`closed`. Closed is classified before Git and branch gates. Open work still
+task's selection. Finish on open `empty`, open `exhausted`, open `blocked`, or
+validated `closed`. Open `blocked` means every open task waits on a task in
+another area: report each wait in the goal's `cross_area_waits` as `<task>
+blocked by <id> (<area>: <status>)` and select no work in the blocking area.
+Closed is classified before Git and branch gates. Open work still
 requires `branch_status.task_work.safe`; a stale-but-safe base is one advisory,
 not a blocker.
 

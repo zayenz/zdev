@@ -2,8 +2,8 @@
 
 # Tasks: cross-area
 
-- Total: 6
-- Ready: 0
+- Total: 7
+- Ready: 1
 - Blocked: 0
 - Done: 6
 
@@ -15,3 +15,4 @@
 | [cross-area-004](tasks/004-project-the-blocked-queue-and-name-cross-area-blockers-in-ne.md) | Project the blocked queue and name cross-area blockers in next, status and close | done | cross-area-002 |
 | [cross-area-005](tasks/005-teach-harness-routes-the-blocked-queue-and-dependent-index-s.md) | Teach harness routes the blocked queue and dependent index staging | done | cross-area-004, cross-area-003 |
 | [cross-area-006](tasks/006-document-cross-area-blockers-and-record-them-in-the-changelo.md) | Document cross-area blockers and record them in the changelog | done | cross-area-005 |
+| [cross-area-007](tasks/007-publish-research-completions-that-other-areas-depend-on.md) | Publish research completions that other areas depend on | ready | — |

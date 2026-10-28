@@ -1486,13 +1486,15 @@ fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
         "resolve stop reason or record/recover already authorized work"
     } else if !valid {
         "resolve comparison conditions and run a counted actual rebaseline"
+    } else if matches!(summary.queue(), tasks::QueueState::Blocked) {
+        "no work: every open task waits on another area; stop until the cross-area blockers are done there"
     } else if summary.ready == 0 {
         "generate and admit more in-scope supporting work or hypotheses"
     } else {
         "reserve and dispatch ready authorized work"
     };
     let now = unix_seconds();
-    let value = json!({"schema_version": 1, "area": area, "run": projection, "stop_reason": stop,
+    let mut value = json!({"schema_version": 1, "area": area, "run": projection, "stop_reason": stop,
         "accepted_baseline": settings.comparison, "tasks": tasks, "checkpoints": checkpoints(root, area)?,
         "consumed": {"work_attempts": run.reservations.len(), "commands": command_count(&run), "command_seconds": elapsed_cost(&run)},
         "remaining": {"work_attempts": run.attempt_limit.map(|limit| limit.saturating_sub(run.reservations.len())),
@@ -1502,6 +1504,7 @@ fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
             "workers": run.worker_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.worker).count()),
             "measurements": run.measurement_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.measurement).count())},
         "elapsed_wall_seconds": (now - run.started_at).max(0.0), "next_action": next});
+    tasks::insert_cross_area_waits(&mut value, &summary.cross_area_waits);
     Ok(CommandOutput::new(
         serde_json::to_string_pretty(&value).unwrap(),
         value,

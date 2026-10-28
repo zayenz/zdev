@@ -7180,6 +7180,144 @@ fn derived_apply_refreshes_dependent_index_in_its_commit() {
     assert_eq!(json_output(root, &["check"])["status"], "ok");
 }
 
+/// A `kernel` area whose open tasks all wait on `platform-001`: `kernel-001`
+/// directly and `kernel-002` through `kernel-001`.
+fn import_kernel_waiting_on_platform(root: &Path) {
+    let bundle = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "kernel",
+        "tasks": [
+            {
+                "key": "port", "title": "Port to the platform", "blocked_by": ["platform-001"],
+                "outcome": "The port exists.", "done_when": ["The port exists."]
+            },
+            {
+                "key": "tune", "title": "Tune the port", "blocked_by": ["port"],
+                "outcome": "The port is tuned.", "done_when": ["The port is tuned."]
+            }
+        ]
+    }))
+    .expect("task bundle");
+    json_output_with_stdin(root, &["tasks", "import", "kernel", "--from", "-"], &bundle);
+}
+
+fn text_output(root: &Path, arguments: &[&str]) -> String {
+    let output = run_zdev(root, arguments);
+    assert!(
+        output.status.success(),
+        "zdev failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("text output")
+}
+
+#[test]
+fn cross_area_blocked_queue_is_projected_with_its_blockers() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_trunk_area(root, "platform");
+    create_trunk_area(root, "kernel");
+    import_one_task(root, "platform");
+    import_kernel_waiting_on_platform(root);
+    commit_all(root, "record cross-area work");
+    let wait = json!([{
+        "task": "kernel-001",
+        "blocker": {"id": "platform-001", "area": "platform", "status": "open"}
+    }]);
+    let label = "kernel-001 blocked by platform-001 (platform: open)";
+
+    let next = json_output(root, &["next", "kernel"]);
+    assert_eq!(next["queue"], "blocked");
+    assert_eq!(next["task"], Value::Null);
+    assert_eq!(next["cross_area_waits"], wait);
+    assert!(text_output(root, &["next", "kernel"]).contains(&format!("\n  {label}")));
+
+    let goal = json_output(root, &["goal", "kernel"]);
+    assert_eq!(goal["queue"], "blocked");
+    assert_eq!(goal["task"], Value::Null);
+    assert_eq!(goal["cross_area_waits"], wait);
+    assert!(text_output(root, &["goal", "kernel"]).contains(label));
+
+    let context = json_output(root, &["work-context", "kernel"]);
+    assert_eq!(context["queue"], "blocked");
+    assert_eq!(context["task_id"], Value::Null);
+    assert_eq!(context["status"]["queue"], context["goal"]["queue"]);
+    assert!(text_output(root, &["work-context", "kernel"]).contains(label));
+
+    let status = json_output(root, &["status", "kernel"]);
+    assert_eq!(status["queue"], "blocked");
+    assert_eq!(status["cross_area_waits"], wait);
+    assert!(
+        text_output(root, &["status", "kernel"])
+            .contains(&format!("Waiting on other areas:\n  {label}"))
+    );
+    let project = json_output(root, &["status"]);
+    let kernel = &project["areas"][0];
+    assert_eq!(
+        (&kernel["tag"], &kernel["queue"]),
+        (&json!("kernel"), &json!("blocked"))
+    );
+    assert_eq!(kernel["cross_area_waits"], wait);
+    assert!(text_output(root, &["status"]).contains(label));
+
+    let listed = text_output(root, &["tasks", "list", "kernel"]);
+    let lines = listed.lines().collect::<Vec<_>>();
+    assert!(lines[0].ends_with("  blocked by platform-001 (platform: open)"));
+    assert!(!lines[1].contains("blocked by"));
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+
+    let any = json_output(root, &["next", "--any"]);
+    assert_eq!(any["task"]["id"], "platform-001");
+
+    let metadata = root.join(".zdev/platform/area.toml");
+    let before = fs::read(&metadata).expect("platform metadata");
+    let refused = failure_text(&run_zdev(root, &["area", "close", "platform"]));
+    assert!(refused.contains("Cannot close area platform: 1 tasks are open"));
+    assert!(
+        refused
+            .contains("Open tasks block other areas:\n  platform-001 blocks kernel-001 (kernel)")
+    );
+    assert_eq!(fs::read(&metadata).expect("platform metadata"), before);
+
+    assert!(
+        run_task_done(root, "platform", "platform-001")
+            .status
+            .success()
+    );
+    assert_eq!(
+        json_output(root, &["area", "close", "platform"])["status"],
+        "closed"
+    );
+    json_output(root, &["area", "reopen", "platform"]);
+    let next = json_output(root, &["next", "kernel"]);
+    assert_eq!(
+        (&next["queue"], &next["task"]["id"]),
+        (&json!("ready"), &json!("kernel-001"))
+    );
+}
+
+#[test]
+fn next_any_names_areas_waiting_on_unsafe_blockers() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "platform", "missing-branch");
+    create_trunk_area(root, "kernel");
+    import_one_task(root, "platform");
+    import_kernel_waiting_on_platform(root);
+
+    let any = json_output(root, &["next", "--any"]);
+    assert_eq!(any["selection"], "unsafe");
+    assert_eq!(any["waiting_areas"][0]["area"], "kernel");
+    assert!(text_output(root, &["next", "--any"]).contains(
+        "\nWaiting on other areas:\n  kernel: kernel-001 blocked by platform-001 (platform: open)"
+    ));
+}
+
 #[cfg(unix)]
 #[test]
 fn failed_task_write_removes_earlier_and_current_partial_files() {
@@ -16756,6 +16894,40 @@ fn serial_research_keeps_discards_fails_and_generates_from_durable_lessons() {
     assert_eq!(
         resumed["tasks"]["tasks"][4]["hypothesis"]["context_tasks"],
         json!(["work-003"])
+    );
+}
+
+#[test]
+fn research_run_context_reports_work_blocked_by_another_area_as_no_work() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "accepted\n", "accepted code");
+    let baseline = git(root, &["rev-parse", "HEAD"]);
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "work", "main");
+    create_trunk_area(root, "platform");
+    import_one_task(root, "platform");
+    configure_research_fixture(root, &research_settings(&baseline));
+    import_research_fixture(
+        root,
+        json!([{
+            "key": "prepare", "title": "Prepare on the platform", "blocked_by": ["platform-001"],
+            "outcome": "The fixed input is ready.", "done_when": ["The input is ready."]
+        }]),
+    );
+    commit_all(root, "record research work");
+    start_research_run(root, &[]);
+
+    let context = json_output(root, &["research", "run", "work", "context"]);
+    let next_action = context["next_action"].as_str().unwrap();
+    assert!(next_action.starts_with("no work: every open task waits on another area"));
+    assert!(!next_action.contains("generate and admit"));
+    assert_eq!(
+        context["cross_area_waits"],
+        json!([{
+            "task": "work-001",
+            "blocker": {"id": "platform-001", "area": "platform", "status": "open"}
+        }])
     );
 }
 

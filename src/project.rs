@@ -1144,10 +1144,18 @@ fn set_area_lifecycle(
     tasks::validate_area_lifecycle(&area, &summary)?;
     let branch = require_task_work_area_link(root, tag)?;
     if lifecycle == AreaLifecycle::Closed && summary.open > 0 {
-        return Err(ZdevError::new(format!(
+        let mut message = format!(
             "Cannot close area {tag}: {} tasks are open. Complete them or keep the area open",
             summary.open
-        )));
+        );
+        let dependents = tasks::read_waiting_dependents(root, tag)?;
+        if !dependents.is_empty() {
+            message.push_str(". Open tasks block other areas:");
+            for dependent in dependents {
+                message.push_str(&format!("\n  {dependent}"));
+            }
+        }
+        return Err(ZdevError::new(message));
     }
     let unchanged = area.lifecycle == lifecycle;
     if !unchanged {

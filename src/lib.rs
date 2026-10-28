@@ -1867,10 +1867,17 @@ fn work_context_output(
     let git_untracked = work_context_untracked(root)?;
     let task_id = goal_task.as_deref().map(Value::from).unwrap_or(Value::Null);
     let task_text = goal_task.as_deref().unwrap_or("none");
-    let text = format!(
+    let mut text = format!(
         "Area: {area}\nLifecycle: open\nQueue: {queue}\nTask: {task_text}\nStale advisory: {}\nCaptured status, goal, and complete Git evidence.",
         if stale_advisory { "yes" } else { "no" }
     );
+    if queue == "blocked" {
+        let waits = tasks::summary(root, area)?.cross_area_waits;
+        text.push_str(&format!(
+            "\nEvery open task waits on another area:{}",
+            tasks::render_cross_area_waits(&waits)
+        ));
+    }
     Ok(CommandOutput::new(
         text,
         json!({
@@ -2247,6 +2254,10 @@ fn status_output_selected(
                 slice.key, slice.ready, slice.blocked, slice.done
             ));
         }
+        if !tasks.cross_area_waits.is_empty() {
+            text.push_str("\nWaiting on other areas:");
+            text.push_str(&tasks::render_cross_area_waits(&tasks.cross_area_waits));
+        }
         text.push('\n');
         text.push_str(&branch_line);
         if let Some(advisory) = &advisory {
@@ -2266,10 +2277,9 @@ fn status_output_selected(
         if metadata.mode == project::AreaMode::Trunk {
             fields.insert("base_commit".to_owned(), Value::Null);
         }
-        return Ok(CommandOutput::new(
-            text,
-            json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": area_view, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "next_complexity": tasks.next_complexity, "advisory": advisory}),
-        ));
+        let mut value = json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": area_view, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "next_complexity": tasks.next_complexity, "advisory": advisory});
+        tasks::insert_cross_area_waits(&mut value, &tasks.cross_area_waits);
+        return Ok(CommandOutput::new(text, value));
     }
     let mut summaries = Vec::new();
     let mut branch_lines = Vec::new();
@@ -2291,10 +2301,11 @@ fn status_output_selected(
             _ => String::new(),
         };
         branch_lines.push(format!(
-            "{}: {lifecycle}, {queue}{next}; {branch_detail}",
+            "{}: {lifecycle}, {queue}{next}; {branch_detail}{}",
             area.tag,
+            tasks::render_cross_area_waits(&tasks.cross_area_waits),
         ));
-        summaries.push(json!({
+        let mut summary = json!({
             "tag": area.tag,
             "title": area.title,
             "mode": area.mode.as_str(),
@@ -2307,7 +2318,9 @@ fn status_output_selected(
             "done": tasks.done,
             "next": tasks.next,
             "next_complexity": tasks.next_complexity,
-        }));
+        });
+        tasks::insert_cross_area_waits(&mut summary, &tasks.cross_area_waits);
+        summaries.push(summary);
     }
     let trunk = config.project.trunk.as_deref().unwrap_or("unbound");
     let mut text = format!(

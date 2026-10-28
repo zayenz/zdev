@@ -267,6 +267,8 @@ struct TaskView<'a> {
     afk: bool,
     priority: TaskPriority,
     blocked_by: &'a [String],
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    cross_area_blockers: Vec<CrossAreaBlocker>,
     #[serde(skip_serializing_if = "<[String]>::is_empty")]
     requires_code: &'a [String],
     slice: Option<&'a str>,
@@ -3032,15 +3034,173 @@ fn read_task_statuses(root: &Path, area: &str, tasks: &[Task]) -> Result<TaskSta
 /// a blocker in another area also with that area and its status, such as
 /// `platform-009 (platform: open)`.
 fn blocker_label(area: &str, blocker: &str, statuses: &TaskStatuses) -> String {
-    match task_id_area(blocker) {
-        Some(blocker_area) if blocker_area != area => {
-            let status = statuses
+    CrossAreaBlocker::of(area, blocker, statuses)
+        .map_or_else(|| blocker.to_owned(), |cross_area| cross_area.label())
+}
+
+/// A blocker of a task in one area that names a task in another area, with that
+/// task's status in the current checkout: `open`, `done`, or `missing`.
+#[derive(Clone, Serialize)]
+pub(super) struct CrossAreaBlocker {
+    id: String,
+    area: String,
+    status: &'static str,
+}
+
+impl CrossAreaBlocker {
+    /// `blocker` as a cross-area blocker of a task in `area`, or `None` when it
+    /// names a task in `area` itself.
+    fn of(area: &str, blocker: &str, statuses: &TaskStatuses) -> Option<Self> {
+        let blocker_area = task_id_area(blocker).filter(|blocker_area| *blocker_area != area)?;
+        Some(Self {
+            id: blocker.to_owned(),
+            area: blocker_area.to_owned(),
+            status: statuses
                 .status(blocker)
-                .map_or("missing", TaskStatus::as_str);
-            format!("{blocker} ({blocker_area}: {status})")
-        }
-        _ => blocker.to_owned(),
+                .map_or("missing", TaskStatus::as_str),
+        })
     }
+
+    /// The blocker as `platform-009 (platform: open)`.
+    fn label(&self) -> String {
+        format!("{} ({}: {})", self.id, self.area, self.status)
+    }
+}
+
+/// The cross-area blockers of `task`, a task in `area`, that are not done yet.
+fn pending_cross_area_blockers(
+    area: &str,
+    task: &Task,
+    statuses: &TaskStatuses,
+) -> Vec<CrossAreaBlocker> {
+    if task.header.status == TaskStatus::Done {
+        return Vec::new();
+    }
+    task.header
+        .blocked_by
+        .iter()
+        .filter(|blocker| statuses.status(blocker) != Some(TaskStatus::Done))
+        .filter_map(|blocker| CrossAreaBlocker::of(area, blocker, statuses))
+        .collect()
+}
+
+/// `  blocked by platform-009 (platform: open), ...` for a task waiting on other
+/// areas, or nothing.
+fn pending_blockers_annotation(blockers: &[CrossAreaBlocker]) -> String {
+    if blockers.is_empty() {
+        return String::new();
+    }
+    let labels = blockers
+        .iter()
+        .map(CrossAreaBlocker::label)
+        .collect::<Vec<_>>();
+    format!("  blocked by {}", labels.join(", "))
+}
+
+/// An open task waiting on a blocker in another area that is not done.
+#[derive(Clone, Serialize)]
+pub(super) struct CrossAreaWait {
+    task: String,
+    blocker: CrossAreaBlocker,
+}
+
+impl std::fmt::Display for CrossAreaWait {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} blocked by {}",
+            self.task,
+            self.blocker.label()
+        )
+    }
+}
+
+/// Every wait of an open task in `area` on another area, in task and authored
+/// blocker order.
+fn cross_area_waits(area: &str, tasks: &[Task], statuses: &TaskStatuses) -> Vec<CrossAreaWait> {
+    tasks
+        .iter()
+        .flat_map(|task| {
+            pending_cross_area_blockers(area, task, statuses)
+                .into_iter()
+                .map(|blocker| CrossAreaWait {
+                    task: task.header.id.clone(),
+                    blocker,
+                })
+        })
+        .collect()
+}
+
+/// Adds `waits` to a JSON object as `cross_area_waits` when there are any,
+/// leaving projections of areas without cross-area waits unchanged.
+pub(super) fn insert_cross_area_waits(value: &mut Value, waits: &[CrossAreaWait]) {
+    if waits.is_empty() {
+        return;
+    }
+    value
+        .as_object_mut()
+        .expect("command projections are JSON objects")
+        .insert("cross_area_waits".to_owned(), json!(waits));
+}
+
+/// The waits as indented lines, one per blocker, for command text.
+pub(super) fn render_cross_area_waits(waits: &[CrossAreaWait]) -> String {
+    waits.iter().map(|wait| format!("\n  {wait}")).collect()
+}
+
+/// An open task in another area that lists an open task of the area being
+/// closed as a blocker.
+pub(super) struct WaitingDependent {
+    blocker: String,
+    task: String,
+    area: String,
+}
+
+impl std::fmt::Display for WaitingDependent {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} blocks {} ({})",
+            self.blocker, self.task, self.area
+        )
+    }
+}
+
+/// The open tasks of other areas that wait on an open task of `area`, in area
+/// and task order.
+pub(super) fn read_waiting_dependents(
+    root: &Path,
+    area: &str,
+) -> Result<Vec<WaitingDependent>, ZdevError> {
+    let open_tasks = read_area_tasks(root, area)?
+        .into_iter()
+        .filter(|task| task.header.status == TaskStatus::Open)
+        .map(|task| task.header.id)
+        .collect::<BTreeSet<_>>();
+    let mut dependents = Vec::new();
+    for metadata in list_areas(root)? {
+        if metadata.tag == area || !area_has_tasks(root, &metadata.tag) {
+            continue;
+        }
+        for task in read_area_tasks(root, &metadata.tag)? {
+            if task.header.status != TaskStatus::Open {
+                continue;
+            }
+            for blocker in task
+                .header
+                .blocked_by
+                .iter()
+                .filter(|id| open_tasks.contains(*id))
+            {
+                dependents.push(WaitingDependent {
+                    blocker: blocker.clone(),
+                    task: task.header.id.clone(),
+                    area: metadata.tag.clone(),
+                });
+            }
+        }
+    }
+    Ok(dependents)
 }
 
 fn task_state(task: &Task, statuses: &TaskStatuses) -> &'static str {
@@ -3059,7 +3219,12 @@ fn task_state(task: &Task, statuses: &TaskStatuses) -> &'static str {
     }
 }
 
-fn views<'a>(root: &Path, tasks: &'a [Task], statuses: &TaskStatuses) -> Vec<TaskView<'a>> {
+fn views<'a>(
+    root: &Path,
+    area: &str,
+    tasks: &'a [Task],
+    statuses: &TaskStatuses,
+) -> Vec<TaskView<'a>> {
     tasks
         .iter()
         .map(|task| TaskView {
@@ -3071,6 +3236,7 @@ fn views<'a>(root: &Path, tasks: &'a [Task], statuses: &TaskStatuses) -> Vec<Tas
             afk: task.header.afk,
             priority: task.priority(),
             blocked_by: &task.header.blocked_by,
+            cross_area_blockers: pending_cross_area_blockers(area, task, statuses),
             requires_code: &task.header.requires_code,
             slice: task.header.slice.as_deref(),
             slice_brief: task_slice_brief_path(root, task),
@@ -3086,7 +3252,7 @@ pub(super) fn list(root: &Path, area: Option<&str>) -> Result<CommandOutput, Zde
         return list_area_summary(root);
     };
     let tasks = load_tasks(root, area)?;
-    let task_views = views(root, &tasks, &read_task_statuses(root, area, &tasks)?);
+    let task_views = views(root, area, &tasks, &read_task_statuses(root, area, &tasks)?);
     let text = if task_views.is_empty() {
         format!("No tasks in {area}")
     } else {
@@ -3107,7 +3273,7 @@ pub(super) fn list(root: &Path, area: Option<&str>) -> Result<CommandOutput, Zde
                     "  hypothesis"
                 } else {
                     ""
-                }
+                } + &pending_blockers_annotation(&task.cross_area_blockers)
             })
             .collect::<Vec<_>>()
             .join("\n")
@@ -3252,28 +3418,31 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
     let Some(task) = next_task(&tasks, &read_task_statuses(root, &area, &tasks)?) else {
         let summary = summary(root, &area)?;
         validate_area_lifecycle(&metadata, &summary)?;
-        let queue = summary.queue().as_str();
-        let mut text = if queue == "empty" {
-            format!(
+        let queue = summary.queue();
+        let mut text = match queue {
+            QueueState::Empty => format!(
                 "No tasks are recorded in open area {area}. Add approved tasks or run `zdev area close {area}`"
-            )
-        } else if queue == "exhausted" {
-            format!(
+            ),
+            QueueState::Exhausted => format!(
                 "The task queue is exhausted in open area {area}. Add approved tasks, reopen a task, or run `zdev area close {area}`"
-            )
-        } else {
-            return Err(ZdevError::new(
-                "Validated task graph has open work but no ready task",
-            ));
+            ),
+            QueueState::Blocked => format!(
+                "Every open task in area {area} waits on another area. Work here becomes ready when these blockers are done:{}",
+                render_cross_area_waits(&summary.cross_area_waits)
+            ),
+            QueueState::Ready => {
+                return Err(ZdevError::new(
+                    "Area summary has a ready task that selection did not find",
+                ));
+            }
         };
         if let Some(advisory) = &branch.advisory {
             text.push('\n');
             text.push_str(advisory);
         }
-        return Ok(CommandOutput::new(
-            text,
-            json!({"schema_version": SCHEMA_VERSION, "area": area, "mode": metadata.mode.as_str(), "branch": branch.branch_status["branch"], "branch_matches": branch.branch_status["branch_matches"], "lifecycle": "open", "queue": queue, "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory}),
-        ));
+        let mut value = json!({"schema_version": SCHEMA_VERSION, "area": area, "mode": metadata.mode.as_str(), "branch": branch.branch_status["branch"], "branch_matches": branch.branch_status["branch_matches"], "lifecycle": "open", "queue": queue.as_str(), "task": Value::Null, "branch_status": branch.branch_status, "advisory": branch.advisory});
+        insert_cross_area_waits(&mut value, &summary.cross_area_waits);
+        return Ok(CommandOutput::new(text, value));
     };
     require_retained_code(root, &task.header.requires_code, &tasks)?;
     let view = TaskView {
@@ -3285,6 +3454,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
         afk: task.header.afk,
         priority: task.priority(),
         blocked_by: &task.header.blocked_by,
+        cross_area_blockers: Vec::new(),
         requires_code: &task.header.requires_code,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, task),
@@ -3325,6 +3495,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         .collect::<BTreeMap<_, _>>();
     let mut candidates = Vec::new();
     let mut skipped = Vec::new();
+    let mut waiting_areas = Vec::new();
     let mut unsafe_open_work = false;
     let closed_areas = areas
         .iter()
@@ -3366,8 +3537,17 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             continue;
         }
 
-        if let Some(task) = next_task(&tasks, &read_task_statuses(root, &area.tag, &tasks)?) {
+        let statuses = read_task_statuses(root, &area.tag, &tasks)?;
+        if let Some(task) = next_task(&tasks, &statuses) {
             candidates.push((area, task.clone(), branch_status));
+            continue;
+        }
+        let waits = cross_area_waits(&area.tag, &tasks, &statuses);
+        if !waits.is_empty() {
+            waiting_areas.push(WaitingArea {
+                area: area.tag.clone(),
+                cross_area_waits: waits,
+            });
         }
     }
 
@@ -3391,6 +3571,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             }
             _ => "No open area has ready work. Open task queues are empty or exhausted".to_owned(),
         };
+        append_waiting_areas(&mut text, &waiting_areas);
         append_closed_areas(&mut text, &closed_areas);
         let reason = if selection == "none" {
             Some(if closed_areas.len() == areas.len() {
@@ -3401,7 +3582,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         } else {
             None
         };
-        let value = if let Some(reason) = reason {
+        let mut value = if let Some(reason) = reason {
             json!({
                 "schema_version": SCHEMA_VERSION,
                 "mode": "any",
@@ -3421,6 +3602,9 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
                 "closed_areas": closed_areas,
             })
         };
+        if !waiting_areas.is_empty() {
+            value["waiting_areas"] = json!(waiting_areas);
+        }
         return Ok(CommandOutput::new(text, value));
     };
     require_task_code(root, &area.tag, &task.header.id)?;
@@ -3443,6 +3627,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
         afk: task.header.afk,
         priority: task.priority(),
         blocked_by: &task.header.blocked_by,
+        cross_area_blockers: Vec::new(),
         requires_code: &task.header.requires_code,
         slice: task.header.slice.as_deref(),
         slice_brief: task_slice_brief_path(root, &task),
@@ -3491,6 +3676,26 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             "closed_areas": closed_areas,
         }),
     ))
+}
+
+/// A safe open area whose open tasks all wait, directly or through its own
+/// tasks, on other areas.
+#[derive(Serialize)]
+struct WaitingArea {
+    area: String,
+    cross_area_waits: Vec<CrossAreaWait>,
+}
+
+fn append_waiting_areas(text: &mut String, areas: &[WaitingArea]) {
+    if areas.is_empty() {
+        return;
+    }
+    text.push_str("\nWaiting on other areas:");
+    for area in areas {
+        for wait in &area.cross_area_waits {
+            text.push_str(&format!("\n  {}: {wait}", area.area));
+        }
+    }
 }
 
 fn append_closed_areas(text: &mut String, closed_areas: &[String]) {
@@ -4135,6 +4340,9 @@ pub(super) struct AreaTaskSummary {
     pub next: Option<String>,
     pub next_complexity: Option<TaskComplexity>,
     pub slices: Vec<SliceTaskSummary>,
+    /// The waits of open tasks on other areas. A `blocked` queue is valid only
+    /// while at least one remains.
+    pub cross_area_waits: Vec<CrossAreaWait>,
 }
 
 impl AreaTaskSummary {
@@ -4151,6 +4359,10 @@ impl AreaTaskSummary {
     }
 }
 
+/// Checks that a closed area has no open tasks and that an open area without a
+/// ready task waits on another area. In a valid acyclic graph every chain of
+/// unfinished blockers ends outside the area, so a `blocked` queue without a
+/// cross-area wait means the graph is corrupt.
 pub(super) fn validate_area_lifecycle(
     area: &AreaMetadata,
     summary: &AreaTaskSummary,
@@ -4161,7 +4373,7 @@ pub(super) fn validate_area_lifecycle(
             area.tag, summary.open
         )));
     }
-    if matches!(summary.queue(), QueueState::Blocked) {
+    if matches!(summary.queue(), QueueState::Blocked) && summary.cross_area_waits.is_empty() {
         return Err(ZdevError::new(
             "Validated task graph has open work but no ready task",
         ));
@@ -4252,6 +4464,7 @@ pub(super) fn summary_selected(
         next: next.map(|task| task.header.id.clone()),
         next_complexity: next.map(Task::complexity),
         slices,
+        cross_area_waits: cross_area_waits(area, &tasks, &statuses),
     })
 }
 

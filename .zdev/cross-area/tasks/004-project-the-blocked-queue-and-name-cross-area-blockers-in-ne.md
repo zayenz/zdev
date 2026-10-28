@@ -3,7 +3,7 @@ schema_version = 1
 id = "cross-area-004"
 key = "blocked-queue-and-blocker-display"
 area = "cross-area"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -46,14 +46,14 @@ Tests to model on: `work_context_returns_open_empty_and_exhausted_contexts`, `go
 
 ## Done when
 
-- [ ] With every open task in `kernel` blocked by an open `platform` task, `zdev next kernel` exits 0 in text and JSON with queue `blocked`, no task, and each blocker shown as `blocked by platform-001 (platform: open)`.
-- [ ] `zdev goal kernel` and `zdev work-context kernel` succeed with queue `blocked` and no task, their status and goal projections agree, and the text names the blockers.
-- [ ] `zdev status kernel` and project-wide `zdev status` report queue `blocked` and show the cross-area blocker with its area and state.
-- [ ] `zdev tasks list kernel` shows the annotation next to each task blocked by another area.
-- [ ] `zdev next --any` skips externally blocked areas, and its no-work message distinguishes them from empty or exhausted areas.
-- [ ] `zdev check` passes for such an area. An area with no ready task and no cross-area wait still fails with the existing error.
-- [ ] `zdev research run <area> context` for an active run whose open tasks are all blocked by another area names the cross-area blockers and no longer advises generating more work. An area with no open tasks keeps the existing advice.
-- [ ] `zdev area close platform` refuses while `platform-001` is open and blocks `kernel-001`, names both IDs and the `kernel` area, and leaves `area.toml` unchanged. It succeeds once platform has no open tasks.
+- [x] With every open task in `kernel` blocked by an open `platform` task, `zdev next kernel` exits 0 in text and JSON with queue `blocked`, no task, and each blocker shown as `blocked by platform-001 (platform: open)`.
+- [x] `zdev goal kernel` and `zdev work-context kernel` succeed with queue `blocked` and no task, their status and goal projections agree, and the text names the blockers.
+- [x] `zdev status kernel` and project-wide `zdev status` report queue `blocked` and show the cross-area blocker with its area and state.
+- [x] `zdev tasks list kernel` shows the annotation next to each task blocked by another area.
+- [x] `zdev next --any` skips externally blocked areas, and its no-work message distinguishes them from empty or exhausted areas.
+- [x] `zdev check` passes for such an area. An area with no ready task and no cross-area wait still fails with the existing error.
+- [x] `zdev research run <area> context` for an active run whose open tasks are all blocked by another area names the cross-area blockers and no longer advises generating more work. An area with no open tasks keeps the existing advice.
+- [x] `zdev area close platform` refuses while `platform-001` is open and blocks `kernel-001`, names both IDs and the `kernel` area, and leaves `area.toml` unchanged. It succeeds once platform has no open tasks.
 
 ## Validation
 
@@ -64,3 +64,16 @@ Tests to model on: `work_context_returns_open_empty_and_exhausted_contexts`, `go
 - `cargo test --locked`
 - `cargo build --locked`
 - `git diff --check`
+
+## Result
+
+An area whose open tasks all wait on other areas now projects queue blocked instead of an error. next and goal exit 0 with no task and list the waits; work-context, single-area and project-wide status, tasks list, next --any (waiting_areas), check and research run context (no-work instead of 'generate more work') name each blocker as '<task> blocked by <id> (<area>: <status>)'. area close refusal lists open tasks that block other areas. JSON adds optional cross_area_waits (area-level {task, blocker}) and per-task cross_area_blockers, both omitted when empty. Independently verified; area-level key renamed for a consistent contract and rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 201); focused recheck after rename: 28 pass
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev check and zdev status on this repository: pass

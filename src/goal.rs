@@ -101,6 +101,8 @@ struct GoalProjection {
     task: Option<GoalTask>,
     #[serde(skip_serializing_if = "Option::is_none")]
     native_goal: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    cross_area_waits: Vec<tasks::CrossAreaWait>,
 }
 
 pub(super) fn show(
@@ -225,13 +227,20 @@ fn render(
             Some(native_goal),
         )
     } else {
-        text.push_str(if lifecycle == "closed" {
-            "\n\nThe area is closed. Reopen it before adding or selecting work."
+        if lifecycle == "closed" {
+            text.push_str("\n\nThe area is closed. Reopen it before adding or selecting work.");
         } else if queue == "empty" {
-            "\n\nThe open area has no tasks. Create and approve a task, or close the area."
+            text.push_str(
+                "\n\nThe open area has no tasks. Create and approve a task, or close the area.",
+            );
+        } else if queue == "blocked" {
+            text.push_str(&format!(
+                "\n\nEvery open task waits on another area. Work here becomes ready when these blockers are done:{}",
+                tasks::render_cross_area_waits(&summary.cross_area_waits)
+            ));
         } else {
-            "\n\nThe open area's task queue is exhausted. Add approved work, reopen a task, or close the area."
-        });
+            text.push_str("\n\nThe open area's task queue is exhausted. Add approved work, reopen a task, or close the area.");
+        }
         (None, None)
     };
     let projection = GoalProjection {
@@ -248,6 +257,7 @@ fn render(
         counts,
         task,
         native_goal,
+        cross_area_waits: summary.cross_area_waits,
     };
     let json = to_string_pretty(&projection)
         .map_err(|error| ZdevError::new(format!("Cannot render zdev goal: {error}")))?;

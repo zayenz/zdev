@@ -38,8 +38,12 @@ pub(crate) enum Action {
     },
     /// Inspect current policy, task results, unfinished checkpoints and live remaining limits
     Context,
-    /// Read the same fresh projection as context
-    Inspect,
+    /// Read a compact routine view of the run; `--full` reads the same projection as context
+    Inspect {
+        /// Return the complete context projection
+        #[arg(long)]
+        full: bool,
+    },
     /// Admit an exact mixed bundle under the run's authorization; retry by request identity
     Admit {
         #[arg(long)]
@@ -271,7 +275,7 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
     } = action
     {
         rebaseline(root, area, run, request, untracked_outputs)?;
-    } else if !matches!(action, Action::Context | Action::Inspect) {
+    } else if !matches!(action, Action::Context | Action::Inspect { .. }) {
         let _lock = ZdevStateLock::acquire(root)?;
         match action {
             Action::Start {
@@ -430,8 +434,11 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
                 run.ended = true;
                 save(root, &run)?;
             }
-            Action::Context | Action::Inspect | Action::Rebaseline { .. } => unreachable!(),
+            Action::Context | Action::Inspect { .. } | Action::Rebaseline { .. } => unreachable!(),
         }
+    }
+    if let Action::Inspect { full: false } = action {
+        return inspection(root, area);
     }
     let mut output = context(root, area)?;
     if matches!(action, Action::Reserve { .. }) {
@@ -1618,25 +1625,57 @@ pub(crate) fn acceptance(
     save(root, &run)
 }
 
-fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+/// The run with its comparison validity checked against current settings and accepted code,
+/// and the decisions that every run projection reports.
+struct LiveRun {
+    run: Run,
+    settings: Settings,
+    stop: Option<&'static str>,
+    unreachable_gain: Option<super::UnreachableGain>,
+    summary: tasks::AreaTaskSummary,
+    next_action: &'static str,
+    now: f64,
+}
+
+fn live_run(root: &Path, area: &str) -> Result<LiveRun, ZdevError> {
     let mut run = load(root, area)?.ok_or_else(|| ZdevError::new("Area has no research run"))?;
     let settings = super::settings(root, area)?;
-    let valid = run.comparison_valid
+    run.comparison_valid = run.comparison_valid
         && settings.eq_ignoring_advisory(&run.policy)
         && accepted_code_matches(root, &settings)?;
     let unreachable_gain = settings.unreachable_gain()?;
-    run.comparison_valid = valid;
-    let projection = serde_json::to_value(&run).unwrap();
     let stop = reason(&run, &settings, true)?;
-    let tasks = tasks::list(root, Some(area))?.value;
     let summary = tasks::summary(root, area)?;
-    let next = if stop == Some("blocker") {
+    let next_action = next_action(
+        stop,
+        run.comparison_valid,
+        unreachable_gain.is_some(),
+        &summary,
+    );
+    Ok(LiveRun {
+        run,
+        settings,
+        stop,
+        unreachable_gain,
+        summary,
+        next_action,
+        now: unix_seconds(),
+    })
+}
+
+fn next_action(
+    stop: Option<&str>,
+    comparison_valid: bool,
+    gain_unreachable: bool,
+    summary: &tasks::AreaTaskSummary,
+) -> &'static str {
+    if stop == Some("blocker") {
         "admit and reserve supporting work to resolve the shared environment; measurements remain halted"
     } else if stop.is_some() {
         "resolve stop reason or record/recover already authorized work"
-    } else if !valid {
+    } else if !comparison_valid {
         "resolve comparison conditions and run a counted actual rebaseline"
-    } else if unreachable_gain.is_some() {
+    } else if gain_unreachable {
         "ask the user to decide the study: the frozen minimum gain is unreachable from the accepted baseline; keep the frozen study, end it, or declare a new study with its own threshold and measured baseline"
     } else if matches!(summary.queue(), tasks::QueueState::Blocked) {
         "no work: every open task waits on another area; stop until the cross-area blockers are done there"
@@ -1644,24 +1683,275 @@ fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
         "generate and admit more in-scope supporting work or hypotheses"
     } else {
         "reserve and dispatch ready authorized work"
-    };
-    let now = unix_seconds();
-    let mut value = json!({"schema_version": 1, "area": area, "run": projection, "stop_reason": stop,
-        "accepted_baseline": settings.comparison, "tasks": tasks, "checkpoints": checkpoints(root, area)?,
-        "consumed": {"work_attempts": run.reservations.len(), "commands": command_count(&run), "command_seconds": elapsed_cost(&run)},
-        "remaining": {"work_attempts": run.attempt_limit.map(|limit| limit.saturating_sub(run.reservations.len())),
-            "commands": run.command_limit.map(|limit| limit.saturating_sub(command_count(&run))),
-            "command_seconds": run.command_seconds.map(|limit| (limit - elapsed_cost(&run)).max(0.0)),
-            "wall_seconds": run.deadline.map(|deadline| (deadline - now).max(0.0)),
-            "workers": run.worker_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.worker).count()),
-            "measurements": run.measurement_limit.saturating_sub(run.reservations.values().filter(|r| !r.settled && r.measurement).count())},
-        "elapsed_wall_seconds": (now - run.started_at).max(0.0),
-        "unreachable_minimum_gain": unreachable_gain, "next_action": next});
-    tasks::insert_cross_area_waits(&mut value, &summary.cross_area_waits);
+    }
+}
+
+#[derive(Serialize)]
+struct Consumed {
+    work_attempts: usize,
+    commands: usize,
+    command_seconds: f64,
+}
+
+impl Consumed {
+    fn of(run: &Run) -> Self {
+        Self {
+            work_attempts: run.reservations.len(),
+            commands: command_count(run),
+            command_seconds: elapsed_cost(run),
+        }
+    }
+}
+
+/// Allowance left under each limit; `None` means the run has no such limit.
+#[derive(Serialize)]
+struct Remaining {
+    work_attempts: Option<usize>,
+    commands: Option<usize>,
+    command_seconds: Option<f64>,
+    wall_seconds: Option<f64>,
+    workers: usize,
+    measurements: usize,
+}
+
+impl Remaining {
+    fn of(run: &Run, now: f64) -> Self {
+        let occupied = |claims: fn(&Reservation) -> bool| {
+            run.reservations
+                .values()
+                .filter(|reservation| !reservation.settled && claims(reservation))
+                .count()
+        };
+        Self {
+            work_attempts: run
+                .attempt_limit
+                .map(|limit| limit.saturating_sub(run.reservations.len())),
+            commands: run
+                .command_limit
+                .map(|limit| limit.saturating_sub(command_count(run))),
+            command_seconds: run
+                .command_seconds
+                .map(|limit| (limit - elapsed_cost(run)).max(0.0)),
+            wall_seconds: run.deadline.map(|deadline| (deadline - now).max(0.0)),
+            workers: run
+                .worker_limit
+                .saturating_sub(occupied(|reservation| reservation.worker)),
+            measurements: run
+                .measurement_limit
+                .saturating_sub(occupied(|reservation| reservation.measurement)),
+        }
+    }
+}
+
+/// The complete projection: the whole run, task list, every checkpoint and baseline samples.
+fn context(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    let live = live_run(root, area)?;
+    let run = &live.run;
+    let tasks = tasks::list(root, Some(area))?.value;
+    let mut value = json!({"schema_version": 1, "area": area, "run": run, "stop_reason": live.stop,
+        "accepted_baseline": live.settings.comparison, "tasks": tasks, "checkpoints": checkpoints(root, area)?,
+        "consumed": Consumed::of(run), "remaining": Remaining::of(run, live.now),
+        "elapsed_wall_seconds": (live.now - run.started_at).max(0.0),
+        "unreachable_minimum_gain": live.unreachable_gain, "next_action": live.next_action});
+    tasks::insert_cross_area_waits(&mut value, &live.summary.cross_area_waits);
     Ok(CommandOutput::new(
         serde_json::to_string_pretty(&value).unwrap(),
         value,
     ))
+}
+
+/// The routine view: run state, limits, active work and the next decision. Its size depends
+/// only on active work, never on recorded attempts, observations, samples or tasks.
+#[derive(Serialize)]
+struct Inspection<'a> {
+    schema_version: u64,
+    area: &'a str,
+    run_id: &'a str,
+    scope: &'a str,
+    stop_reason: Option<&'static str>,
+    blocker: Option<&'a str>,
+    comparison_valid: bool,
+    invalidation: Option<&'a str>,
+    accepted_baseline: BaselineSummary<'a>,
+    consumed: Consumed,
+    remaining: Remaining,
+    elapsed_wall_seconds: f64,
+    active_work: ActiveWork<'a>,
+    ready_tasks: usize,
+    blocked_tasks: usize,
+    next_task: Option<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    cross_area_waits: Vec<tasks::CrossAreaWait>,
+    unreachable_minimum_gain: Option<&'a super::UnreachableGain>,
+    next_action: &'static str,
+}
+
+#[derive(Serialize)]
+struct BaselineSummary<'a> {
+    revision: &'a str,
+    metric: &'a str,
+    direction: Direction,
+    aggregation: super::Aggregation,
+    aggregate: f64,
+}
+
+/// Work that must be recovered or settled before the run can end.
+#[derive(Serialize)]
+struct ActiveWork<'a> {
+    reservations: Vec<ActiveReservation<'a>>,
+    checkpoints: Vec<String>,
+    pending_admissions: Vec<&'a str>,
+    acceptance: Option<&'a str>,
+}
+
+impl<'a> ActiveWork<'a> {
+    fn of(run: &'a Run, unfinished_checkpoints: Vec<String>) -> Self {
+        Self {
+            reservations: run
+                .reservations
+                .iter()
+                .filter(|(_, reservation)| !reservation.settled)
+                .map(|(request, reservation)| ActiveReservation {
+                    request,
+                    task: reservation.task.as_deref(),
+                    kind: reservation.kind,
+                })
+                .collect(),
+            checkpoints: unfinished_checkpoints,
+            pending_admissions: run
+                .admissions
+                .iter()
+                .filter(|(_, admission)| !admission.pending.is_empty())
+                .map(|(request, _)| request.as_str())
+                .collect(),
+            acceptance: run.acceptance.as_deref(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ActiveReservation<'a> {
+    request: &'a str,
+    task: Option<&'a str>,
+    kind: WorkKind,
+}
+
+fn inspection(root: &Path, area: &str) -> Result<CommandOutput, ZdevError> {
+    let live = live_run(root, area)?;
+    let run = &live.run;
+    let comparison = &live.settings.comparison;
+    let unfinished_checkpoints = checkpoints(root, area)?
+        .into_iter()
+        .filter(|checkpoint| checkpoint["index_updated"] != true)
+        .filter_map(|checkpoint| checkpoint["task"].as_str().map(str::to_owned))
+        .collect();
+    let inspection = Inspection {
+        schema_version: 1,
+        area,
+        run_id: &run.id,
+        scope: &run.scope,
+        stop_reason: live.stop,
+        blocker: match &run.stop {
+            Some(Stop::Blocker { description }) => Some(description),
+            _ => None,
+        },
+        comparison_valid: run.comparison_valid,
+        invalidation: run.invalidation.as_deref(),
+        accepted_baseline: BaselineSummary {
+            revision: &comparison.baseline_revision,
+            metric: &comparison.metric,
+            direction: comparison.direction,
+            aggregation: comparison.aggregation,
+            aggregate: comparison.aggregate(&comparison.baseline_samples)?,
+        },
+        consumed: Consumed::of(run),
+        remaining: Remaining::of(run, live.now),
+        elapsed_wall_seconds: (live.now - run.started_at).max(0.0),
+        active_work: ActiveWork::of(run, unfinished_checkpoints),
+        ready_tasks: live.summary.ready,
+        blocked_tasks: live.summary.blocked,
+        next_task: live.summary.next.as_deref(),
+        cross_area_waits: live.summary.cross_area_waits.clone(),
+        unreachable_minimum_gain: live.unreachable_gain.as_ref(),
+        next_action: live.next_action,
+    };
+    Ok(CommandOutput::new(
+        render_inspection(&inspection),
+        serde_json::to_value(&inspection).unwrap(),
+    ))
+}
+
+fn render_inspection(inspection: &Inspection) -> String {
+    let or_unlimited = |value: Option<String>| value.unwrap_or_else(|| "unlimited".to_owned());
+    let consumed = &inspection.consumed;
+    let remaining = &inspection.remaining;
+    let baseline = &inspection.accepted_baseline;
+    let active = &inspection.active_work;
+    let mut lines = vec![
+        format!("Run {}: {}", inspection.run_id, inspection.scope),
+        format!(
+            "Stop reason: {}{}",
+            inspection.stop_reason.unwrap_or("none"),
+            inspection
+                .blocker
+                .map(|blocker| format!(" ({blocker})"))
+                .unwrap_or_default()
+        ),
+        match (inspection.comparison_valid, inspection.invalidation) {
+            (true, _) => "Comparison: valid".to_owned(),
+            (false, Some(reason)) => format!("Comparison: invalid ({reason})"),
+            (false, None) => "Comparison: invalid".to_owned(),
+        },
+        format!(
+            "Accepted baseline: {} {} at {}",
+            baseline.metric, baseline.aggregate, baseline.revision
+        ),
+        format!(
+            "Consumed: {} work attempts, {} commands, {:.1} command seconds",
+            consumed.work_attempts, consumed.commands, consumed.command_seconds
+        ),
+        format!(
+            "Remaining: {} work attempts, {} commands, {} command seconds, {} wall seconds, {} workers, {} measurements",
+            or_unlimited(remaining.work_attempts.map(|value| value.to_string())),
+            or_unlimited(remaining.commands.map(|value| value.to_string())),
+            or_unlimited(remaining.command_seconds.map(|value| format!("{value:.1}"))),
+            or_unlimited(remaining.wall_seconds.map(|value| format!("{value:.0}"))),
+            remaining.workers,
+            remaining.measurements
+        ),
+    ];
+    for reservation in &active.reservations {
+        lines.push(format!(
+            "Unsettled reservation: {} ({} for {})",
+            reservation.request,
+            reservation.kind.to_possible_value().unwrap().get_name(),
+            reservation.task.unwrap_or("accepted code")
+        ));
+    }
+    for task in &active.checkpoints {
+        lines.push(format!("Unfinished checkpoint: {task}"));
+    }
+    for request in &active.pending_admissions {
+        lines.push(format!("Pending admission: {request}"));
+    }
+    if let Some(task) = active.acceptance {
+        lines.push(format!("Acceptance lane: {task}"));
+    }
+    lines.push(format!(
+        "Tasks: {} ready, {} blocked; next ready: {}{}",
+        inspection.ready_tasks,
+        inspection.blocked_tasks,
+        inspection.next_task.unwrap_or("none"),
+        tasks::render_cross_area_waits(&inspection.cross_area_waits)
+    ));
+    if let Some(gain) = inspection.unreachable_minimum_gain {
+        lines.push(format!(
+            "Unreachable minimum gain: {} exceeds the largest possible gain {}",
+            gain.minimum_gain, gain.largest_possible_gain
+        ));
+    }
+    lines.push(format!("Next: {}", inspection.next_action));
+    lines.join("\n")
 }
 
 fn unix_seconds() -> f64 {

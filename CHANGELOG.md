@@ -54,6 +54,16 @@ This file records notable changes to zdev.
 
 ### Changed
 
+- `zdev research run <area> inspect` returns a compact routine view: the run
+  ID and scope, `stop_reason`, comparison validity and invalidation, the
+  accepted baseline aggregate without samples, `consumed` and `remaining`,
+  unsettled reservations, unfinished checkpoints, pending admissions and the
+  acceptance-lane task under `active_work`, ready and blocked task counts with
+  `next_task`, `unreachable_minimum_gain`, any `cross_area_waits`, and
+  `next_action`. Its size no longer grows with
+  checkpoint attempts, observations or tasks. `inspect --full` returns the
+  previous complete projection, which `context` and the commands that change
+  the run still return.
 - Claude defaults use Claude Opus 5.5 (`claude-opus-5-5`) for every role and
   never `max` effort. In `normal`, routine implementation uses low effort,
   standard implementation and verification use medium, and advanced

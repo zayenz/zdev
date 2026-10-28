@@ -17451,7 +17451,7 @@ fn research_run_extension_preserves_costs_and_retries_without_double_allowance()
         ],
     );
     research_run_action(root, identity, "stop", &[]);
-    let before = json_output(root, &["research", "run", "work", "inspect"]);
+    let before = json_output(root, &["research", "run", "work", "inspect", "--full"]);
     let flags = [
         "--request",
         "another-day",
@@ -17498,6 +17498,125 @@ fn research_run_extension_preserves_costs_and_retries_without_double_allowance()
     let resumed = research_run_action(root, identity, "resume", &[]);
     assert_eq!(resumed["run"]["attempt_limit"], 3);
     assert_eq!(resumed["consumed"], before["consumed"]);
+}
+
+#[test]
+fn research_run_inspect_defaults_to_compact_view() {
+    let repository = local_experiment_fixture("printf 7");
+    let root = repository.path();
+    let started = start_research_run(root, &["--attempt-limit", "5"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "repair",
+            "--task",
+            "work-001",
+            "--kind",
+            "repair",
+        ],
+    );
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    let evaluate = ["research", "experiment", "work", "work-001", "evaluate"];
+    json_output(
+        root,
+        &[&evaluate[..], &["--reservation", "repair"]].concat(),
+    );
+    research_run_action(
+        root,
+        identity,
+        "reserve",
+        &[
+            "--request",
+            "confirm",
+            "--task",
+            "work-001",
+            "--kind",
+            "confirmation",
+        ],
+    );
+    // Wall-clock and cost fields change between calls; every other field must not.
+    let without_clock_and_costs = |mut value: Value| {
+        for key in ["elapsed_wall_seconds", "consumed", "remaining"] {
+            value.as_object_mut().unwrap().remove(key);
+        }
+        value
+    };
+    let compact = json_output(root, &["research", "run", "work", "inspect"]);
+    let keys: Vec<&str> = compact
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            "accepted_baseline",
+            "active_work",
+            "area",
+            "blocked_tasks",
+            "blocker",
+            "comparison_valid",
+            "consumed",
+            "elapsed_wall_seconds",
+            "invalidation",
+            "next_action",
+            "next_task",
+            "ready_tasks",
+            "remaining",
+            "run_id",
+            "schema_version",
+            "scope",
+            "stop_reason",
+            "unreachable_minimum_gain",
+        ]
+    );
+    assert_eq!(compact["run_id"], identity);
+    assert_eq!(compact["accepted_baseline"]["aggregate"], 11.0);
+    assert!(compact["accepted_baseline"]["baseline_samples"].is_null());
+    assert_eq!(
+        compact["active_work"],
+        json!({"reservations": [{"request": "confirm", "task": "work-001", "kind": "confirmation"}],
+            "checkpoints": ["work-001"], "pending_admissions": [], "acceptance": null})
+    );
+    let context = json_output(root, &["research", "run", "work", "context"]);
+    for key in ["consumed", "remaining", "stop_reason", "next_action"] {
+        assert_eq!(compact[key], context[key], "{key}");
+    }
+
+    // Another observation grows the full projection but leaves the compact view unchanged.
+    json_output(root, &evaluate);
+    let full = json_output(root, &["research", "run", "work", "inspect", "--full"]);
+    assert_eq!(
+        full["checkpoints"][0]["attempts"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(
+        without_clock_and_costs(json_output(root, &["research", "run", "work", "inspect"])),
+        without_clock_and_costs(compact)
+    );
+    let mut context = json_output(root, &["research", "run", "work", "context"]);
+    let mut full = full;
+    for value in [&mut context, &mut full] {
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("elapsed_wall_seconds");
+    }
+    assert_eq!(full, context);
+
+    let text = run_zdev(root, &["research", "run", "work", "inspect"]);
+    assert!(text.status.success());
+    let text = String::from_utf8(text.stdout).unwrap();
+    assert!(text.starts_with(&format!("Run {identity}: ")), "{text}");
+    assert!(text.contains("Unsettled reservation: confirm (confirmation for work-001)"));
+    assert!(text.contains("Unfinished checkpoint: work-001"));
+    assert!(text.lines().count() < 15, "{text}");
 }
 
 #[test]

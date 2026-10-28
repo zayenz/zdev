@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-006"
 key = "compact-run-inspect"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -49,11 +49,11 @@ Other places that change:
 
 ## Done when
 
-- [ ] The default `inspect` JSON contains only the compact fields, with `consumed` and `remaining` in their current shape. Its size does not grow with checkpoint, observation or task count: no checkpoint attempts, observations, baseline samples or full task list.
-- [ ] `inspect --full` equals `context` output for the same state.
-- [ ] The text format is a short human-readable summary.
-- [ ] The Codex research reference uses compact inspection for routine checks, `docs/cli/research.md` describes both views, the existing extension test reads full state through `context` or `inspect --full`, and the checked-in fixtures are regenerated.
-- [ ] One focused regression in `tests/lean.rs` covers the compact and full views.
+- [x] The default `inspect` JSON contains only the compact fields, with `consumed` and `remaining` in their current shape. Its size does not grow with checkpoint, observation or task count: no checkpoint attempts, observations, baseline samples or full task list.
+- [x] `inspect --full` equals `context` output for the same state.
+- [x] The text format is a short human-readable summary.
+- [x] The Codex research reference uses compact inspection for routine checks, `docs/cli/research.md` describes both views, the existing extension test reads full state through `context` or `inspect --full`, and the checked-in fixtures are regenerated.
+- [x] One focused regression in `tests/lean.rs` covers the compact and full views.
 
 ## Validation
 
@@ -64,3 +64,16 @@ Other places that change:
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+research run inspect now returns a compact routine view (run and stop state, comparison validity and reason, baseline summary without samples, consumed and remaining, active work, task counts, next task, unreachable gain, cross-area waits, next action) in JSON and short text; inspect --full equals context. context and every run mutation produce byte-identical output to before, verified against the baseline binary. Policy and history (amendments, relevant inputs, generated outputs) stay in the full view.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 207)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

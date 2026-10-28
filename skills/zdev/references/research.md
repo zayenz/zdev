@@ -90,11 +90,16 @@ blocks instead of layering fallback work over a possible goal.
 
 ## Coordinate each iteration
 
-Read fresh run context before any new work. It supplies current settings,
-accepted baseline, task evidence and lessons, admissions, reservations,
-unfinished checkpoints, costs, remaining allowance, `stop_reason` and
-`next_action`. Read rejected, inconclusive and failed-to-run lessons before
-proposing another hypothesis. Fresh task/work-context admission remains required
+Read fresh run state before any new work. For routine checks, use
+`zdev research run <area> inspect --format json`. It reports `stop_reason`,
+comparison validity and invalidation, the accepted baseline aggregate, consumed
+and remaining allowance, unsettled reservations, unfinished checkpoints, ready
+and blocked counts, the next ready task and `next_action`. When recovery needs
+checkpoint attempts, task lessons, admissions or reservation details, read
+`context` or `inspect --full` instead. Both return the complete projection with
+current settings, baseline samples, task evidence and lessons. Read rejected,
+inconclusive and failed-to-run lessons there before proposing another
+hypothesis. Fresh task/work-context admission remains required
 at each worker boundary and after every commit. Never reuse a completed task's
 selection or ignore `requires_code` and dependencies.
 

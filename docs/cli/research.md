@@ -29,7 +29,8 @@ zdev research run AREA COMMAND
 | Subcommand | Purpose |
 | --- | --- |
 | `start --scope TEXT` | Authorize generated work within an explicit scope and area policy. |
-| `context` or `inspect` | Read policy, results, unfinished checkpoints, and remaining limits. |
+| `context` or `inspect --full` | Read the complete run: policy, task results, checkpoints, reservations, and remaining limits. |
+| `inspect` | Read a compact routine view: stop reason, comparison validity, consumed and remaining limits, active work, and the next action. |
 | `admit` | Admit a task bundle under the run's authorization. |
 | `reserve` | Charge a work attempt before dispatch. |
 | `settle` | Settle completed supporting work. |
@@ -43,6 +44,14 @@ zdev research run AREA COMMAND
 `--time-limit-seconds`, and `--target`. The default is 20 work attempts;
 `--until-interrupted` removes that default. `--worker-limit` and
 `--measurement-limit` both default to one.
+
+`inspect` reports the run ID and scope, `stop_reason`, comparison validity and
+invalidation, the accepted baseline aggregate without samples, `consumed` and
+`remaining`, unsettled reservations, unfinished checkpoints, pending
+admissions, the acceptance-lane task, ready and blocked task counts, the next ready task, `unreachable_minimum_gain`, any
+`cross_area_waits`, and `next_action`. Its size does not grow with recorded
+attempts, observations or tasks. `context`, `inspect --full`, and every command
+that changes the run return the complete projection.
 
 Run operations that change existing authorization use the returned run and
 request identities where required. For their exact arguments, use, for

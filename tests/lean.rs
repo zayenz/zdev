@@ -1068,7 +1068,7 @@ fn goal_projects_the_sliced_ready_task_exactly_and_deterministically() {
     let second = run_zdev(root, &["goal", "checkout"]);
     assert!(first.status.success());
     assert_eq!(first.stdout, second.stdout);
-    let native_goal = "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.";
+    let native_goal = "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.";
     let expected_text = format!(
         "Area: checkout — Checkout reliability\nLifecycle: open\nQueue: ready\nObjective:\nMake checkout failures safe and understandable.\nCounts: 3 total; 2 open; 1 ready; 1 blocked; 1 done\n\nTask: checkout-002 — Reject duplicate payment submission\nComplexity: standard\nTask source: .zdev/checkout/tasks/002-reject-duplicate-payment.md\nOutcome:\nA repeated submission returns the original payment result without charging again.\n\nContext:\nThe provider can retry after losing our first response.\n\nSlice: payments — Payment submission\nSlice source: .zdev/checkout/slices/payments.md\nSlice objective:\nMake payment submission safe to retry.\nSlice boundaries:\n- Do not change provider selection.\n\nBoundaries:\n- Keep the public response schema unchanged.\n\nDone when:\n- [ ] Duplicate provider calls are prevented.\n- [ ] The original result is returned.\n\nValidation:\n- Run the focused payment integration test.\n\nNative goal:\n{native_goal}\n"
     );
@@ -7513,6 +7513,11 @@ fn skill_install_materializes_the_complete_embedded_skill_safely() {
 fn t3_coordination_reference_is_reachable_and_managed_for_both_main_harnesses() {
     let repository = repository();
     let root = repository.path();
+    let flat = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        !include_str!("../.omp/skills/zdev/references/area-loop.md").contains("t3-code.md"),
+        "harnesses without the T3 reference must not render its area-loop guard"
+    );
     for (harness, skill_root) in [("codex", "zdev"), ("claude", "skills/zdev")] {
         let destination = root.join(format!("installed {harness}"));
         let destination_text = destination.to_str().expect("destination");
@@ -7523,18 +7528,103 @@ fn t3_coordination_reference_is_reachable_and_managed_for_both_main_harnesses() 
         let skill = fs::read_to_string(destination.join(skill_root).join("SKILL.md"))
             .expect("installed router");
         assert!(skill.contains("(references/t3-code.md)"));
+        let router = flat(&skill);
+        for selection in [
+            "In that session, [T3 Code coordination](references/t3-code.md) is the default route for implementation, verification, plan-only work, audits, standalone review, and goal/loop.",
+            "An explicit request to use zdev **with T3 orchestration** also selects the T3 route.",
+            "An explicit request for **native orchestration** selects the native route instead. A session with neither T3 signal keeps the native route.",
+            "When the probe fails, report a blocker before dispatch and name the explicit request for native orchestration as the way to opt out. Never fall back to the native route silently.",
+            "Its verifier selection follows `t3.verifier-harness`.",
+            "Every goal continuation, completion wake, and explicitly requested recovery re-enters that route.",
+            "Neither a goal continuation nor a leading `/goal` switches a T3 run to native dispatch, the native area-loop, or packaged workflows.",
+            "a research-run request returns an unsupported-route result before any dispatch",
+            "names the native research route `references/research.md`, and states that an explicit request for native orchestration selects it.",
+        ] {
+            assert!(
+                router.contains(selection),
+                "{harness} router lacks {selection:?}"
+            );
+        }
+        let (native_route, unconditional_forms, native_loop) = if harness == "codex" {
+            (
+                [
+                    "This section is the native route. A run that selected T3 orchestration follows `references/t3-code.md` and never uses `dispatch-spec`, `spawn_agent`, or the native area-loop.",
+                    "On the native route, an explicitly authorized **Research run** uses",
+                    "On the native route, for plan-only and implementation interactions, run `zdev config profile dispatch-spec",
+                    "On the native route, for an active-zdev goal or loop request, follow the internal area-loop contract.",
+                ]
+                .as_slice(),
+                [
+                    "For plan-only and implementation interactions, run",
+                    "For an active-zdev goal or loop request, follow the internal area-loop contract",
+                    "An explicitly authorized **Research run** uses",
+                ]
+                .as_slice(),
+                "This contract applies only on the native route. A run that selected T3 orchestration follows **Continue an area** in `references/t3-code.md` instead; it creates no unprefixed native goal and dispatches no native worker.",
+            )
+        } else {
+            (
+                [
+                    "This section is the native route. A run that selected T3 orchestration follows [references/t3-code.md](references/t3-code.md) and never uses these subagents or packaged workflows.",
+                    "On the native route, when packaged workflows are available, the root zdev skill uses them internally",
+                    "On the native route, an explicit research-run request uses",
+                    "On the native route, an explicit parallel request uses the packaged `zdev-parallel` workflow",
+                    "On the native route, an active-zdev goal or loop request uses the packaged continuation workflow",
+                ]
+                .as_slice(),
+                [
+                    "For an active-zdev goal or loop request, use the packaged continuation workflow",
+                    "When packaged workflows are available, it uses them internally",
+                    "An explicit research-run request uses",
+                    "An explicit parallel request uses the packaged",
+                ]
+                .as_slice(),
+                "This contract applies only on the native route. A run that selected T3 orchestration follows **Continue an area** in `references/t3-code.md` instead; it starts no packaged `zdev-loop`, `zdev-goal`, or `zdev-parallel` workflow and dispatches no native worker.",
+            )
+        };
+        for native in native_route {
+            assert!(router.contains(native), "{harness} router lacks {native:?}");
+        }
+        for unconditional in [
+            "Availability of T3 tools alone does not select the route",
+            "Ordinary requests use the native harness route unless",
+        ]
+        .iter()
+        .chain(unconditional_forms)
+        {
+            assert!(
+                !router.contains(unconditional),
+                "{harness} router keeps {unconditional:?}"
+            );
+        }
+        let area_loop =
+            fs::read_to_string(destination.join(skill_root).join("references/area-loop.md"))
+                .expect("installed area loop");
+        assert!(
+            flat(&area_loop).contains(native_loop),
+            "{harness} area loop is not scoped to the native route"
+        );
         let reference = destination.join(skill_root).join("references/t3-code.md");
         let installed = fs::read(&reference).expect("reachable T3 route");
-        let route = String::from_utf8_lossy(&installed);
+        let route = flat(&String::from_utf8_lossy(&installed));
         for routing in [
             "zdev config get t3.verifier-harness --format json",
             "falls back to the inherited provider instance",
             "standalone review, audit, and task-bundle challenge",
             "perform **Full review**",
             "Verification of done conditions alone is not a",
+            "name the explicit request for native orchestration as the way to opt out",
+            "offer ordinary sequential work or an explicit request for native orchestration. Do not fall back to either silently.",
+            "The main-thread coordinator drives every goal/loop iteration itself.",
+            "including repairs and rechecks, as its own T3 child task with `delegate_task`.",
+            "It never delegates a whole loop, task cycle, or several phases to one child, packaged workflow, or background agent.",
+            "It posts these reports in the main thread, each before its own next dispatch or yield: the selected task, before that task's first dispatch; each dispatched role and its target; each validated phase result when it is collected; and each commit after `zdev commit`.",
         ] {
             assert!(route.contains(routing), "T3 route lacks {routing:?}");
         }
+        assert!(!route.contains(
+            "Run no separate native zdev loop, Claude JavaScript workflow, or native worker dispatch alongside it."
+        ));
         fs::remove_file(&reference).expect("remove route to exercise readiness");
         let checked = json_output_with_exit_code(
             root,

@@ -263,6 +263,11 @@ impl Harness {
         }
     }
 
+    /// Codex and Claude Code install `references/t3-code.md`, the T3 Code route.
+    fn installs_t3_code_route(self) -> bool {
+        matches!(self, Self::Codex | Self::Claude)
+    }
+
     fn question_tool_guidance(self) -> &'static str {
         match self {
             Self::Codex => {
@@ -608,7 +613,7 @@ impl Harness {
                 }
             }
         }
-        if matches!(self, Self::Codex | Self::Claude) {
+        if self.installs_t3_code_route() {
             let skill_root = if self == Self::Codex {
                 "zdev"
             } else {
@@ -941,6 +946,7 @@ struct TemplateContracts<'a> {
     task_workflows_contract_path_json: &'a str,
     parallel_supported: bool,
     research_supported: bool,
+    t3_code_supported: bool,
 }
 
 fn render_template(
@@ -995,6 +1001,7 @@ fn render_template(
             planner_effort => workers.planner.effort_literal(),
             parallel_supported => contracts.parallel_supported,
             research_supported => contracts.research_supported,
+            t3_code_supported => contracts.t3_code_supported,
         })
         .map_err(|error| {
             ZdevError::new(format!(
@@ -1052,6 +1059,7 @@ fn realize_templates(
             Harness::Codex | Harness::Claude | Harness::Pi | Harness::Omp | Harness::Agy
         ),
         research_supported: matches!(harness, Harness::Codex | Harness::Claude),
+        t3_code_supported: harness.installs_t3_code_route(),
         ..TemplateContracts::default()
     };
     let audit_contract = render_template(

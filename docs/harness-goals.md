@@ -26,9 +26,11 @@ validates records but never changes files, Git state, or a harness session.
 
 `--focus` retains the user's selection guidance without selecting a task in
 this read-only command. `--parallel` renders four independent task slots with
-serial integration and per-task verification and commits. Worktrees are the
-default; explicit workspace and worker choices remain in effect. Ordinary
-invocation renders sequential continuation. These options describe a run;
+serial integration and per-task verification and commits. Parallel slots use
+worktrees. Otherwise the condition keeps explicit workspace choices and, without
+one, follows `workspace.branching`, which implements in the current checkout
+by default. Explicit worker choices remain in effect. Ordinary invocation
+renders sequential continuation. These options describe a run;
 they create neither workers nor workspaces and do not authorize execution.
 
 ### Exact inputs
@@ -150,7 +152,7 @@ Validation:
 - Run the focused payment integration test.
 
 Native goal:
-Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.
+Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.
 ```
 
 The native condition uses a fixed template in `src/goal.rs`. It contains no
@@ -196,7 +198,7 @@ task or slice details. Paths are repository-relative and use `/` separators.
       "boundaries": "- Do not change provider selection."
     }
   },
-  "native_goal": "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
+  "native_goal": "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
 }
 ```
 

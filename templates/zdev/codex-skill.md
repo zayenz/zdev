@@ -11,16 +11,21 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 
 ## Codex orchestration
 
+This section is the native route. A run that selected T3 orchestration follows
+`references/t3-code.md` and never uses `dispatch-spec`, `spawn_agent`, or the
+native area-loop.
+
 The root `$zdev` skill selects the route and loads its contract from
 `references/`. Treat “goal” and “loop” as the same native continuation route.
 Codex supports the explicit **Parallel** route in `references/parallel.md`.
 Codex also supports the read-only **Plan one task** route in
 `references/plan-task.md`.
-An explicitly authorized **Research run** uses `references/research.md` for
-serial current-branch experiments or explicitly authorized rolling source
-worktrees, mixed task generation, counted role/measurement dispatch and durable
-recovery. Research continuation follows that contract; ordinary goal
-and loop requests keep `references/area-loop.md` and stop at queue exhaustion.
+On the native route, an explicitly authorized **Research run** uses
+`references/research.md` for serial current-branch experiments or explicitly
+authorized rolling source worktrees, mixed task generation, counted
+role/measurement dispatch and durable recovery. Research continuation follows
+that contract; ordinary goal and loop requests keep `references/area-loop.md`
+and stop at queue exhaustion.
 The exact installed task-workflows contract path for this installation is
 {{ task_workflows_contract_path_json }}. Decode that JSON string. Resolve a
 relative path against the directory containing this SKILL.md and include the
@@ -63,13 +68,13 @@ have stopped. Follow the exposed tools: a finished turn or interruption does
 not imply a closed thread, and runtimes without a close operation need only
 confirmed turn completion.
 
-For plan-only and implementation interactions, run `zdev config profile
-dispatch-spec <plan-next-task|implement> --area <area> --task <task-id>
---harness codex --snapshot <snapshot> ... --format json` after storing the explicit task
-context. Pass any run choice with `--run-profile`, a one-off choice with
-`--role-profile ROLE=PROFILE`, and retained-plan evidence with
-`--retained-plan <applicable|stale> --plan-snapshot <snapshot>`. Accept only its
-strict `dispatch-spec` object and execute its ordered `dispatches` until
+On the native route, for plan-only and implementation interactions, run
+`zdev config profile dispatch-spec <plan-next-task|implement> --area <area>
+--task <task-id> --harness codex --snapshot <snapshot> ... --format json` after
+storing the explicit task context. Pass any run choice with `--run-profile`, a
+one-off choice with `--role-profile ROLE=PROFILE`, and retained-plan evidence
+with `--retained-plan <applicable|stale> --plan-snapshot <snapshot>`. Accept
+only its strict `dispatch-spec` object and execute its ordered `dispatches` until
 the stated `stop` boundary. Retain the complete concrete specification in the
 conversation handoff; same-step retry reuses it instead of resolving again.
 The command compares the supplied explicit-task snapshot with current
@@ -102,12 +107,12 @@ wrapping text.
 {% if planner_has_model %}For the planner, pass `model={{ planner_model }}`{% if planner_has_effort %} and
 `reasoning_effort={{ planner_effort }}`{% endif %} together with `fork_turns="none"`.{% else %}Leave the planner's model and reasoning effort unset so it inherits them.{% endif %}
 
-For an active-zdev goal or loop request, follow the internal area-loop
-contract. It calls `get_goal` before repository work, preserves an unfinished
-goal, and calls `create_goal` with the shared condition only when native goal
-state is clear. Native unavailability falls back to at most one verified
-committed task and returns canonical `CONTINUE zdev-loop <area>` only when
-fresh ready work remains.
+On the native route, for an active-zdev goal or loop request, follow the
+internal area-loop contract. It calls `get_goal` before repository work,
+preserves an unfinished goal, and calls `create_goal` with the shared condition
+only when native goal state is clear. Native unavailability falls back to at
+most one verified committed task and returns canonical
+`CONTINUE zdev-loop <area>` only when fresh ready work remains.
 
 For ordinary Area loop only, the native condition completes the run after
 reporting a confirmed blocker or required user-owned decision. On that first terminal

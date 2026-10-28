@@ -65,6 +65,29 @@ This file records notable changes to zdev.
 
 ### Changed
 
+- Inside T3 Code, the Codex and Claude zdev skills use T3 orchestration by
+  default. A coordinator whose session has T3's orchestration instructions or
+  its orchestration MCP server dispatches implementation, verification,
+  plan-only, audit, standalone review and goal/loop workers as T3 child tasks,
+  so verifiers follow `t3.verifier-harness`. An explicit request for native
+  orchestration opts out, and the chosen route lasts across goal continuations
+  and completion wakes. When T3's orchestration tools are unreachable, the
+  coordinator reports a blocker that names the native opt-out instead of
+  falling back silently. Sessions outside T3 Code, including plain Claude Code
+  with its packaged workflows, are unchanged.
+- Under T3 orchestration, a goal or loop runs in the main thread. The
+  coordinator dispatches each planner, implementer and verifier as its own T3
+  child task and reports the selected task, each dispatched role, each phase
+  result and each commit in the main thread. It never hands a whole loop or
+  task cycle to one child or packaged workflow.
+- The T3 route does not support research runs. Inside T3 Code, a research-run
+  request returns an unsupported-route result before any dispatch that names
+  the native research route; an explicit request for native orchestration
+  selects it.
+- The `zdev goal` native condition no longer says "Use worktrees by default".
+  It now keeps the run's workspace choice and, without one, follows
+  `workspace.branching`, which uses the current checkout by default.
+
 - Under T3 orchestration, the Verifier role and the verifier dispatch payload
   now require reading `verify.md` and performing **Full review** in
   `review.md`, including the explicit naming and decomposition check, on every

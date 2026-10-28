@@ -66,7 +66,7 @@ Most inspection commands offer `--format json` for agent use. The
 - [Harness support](user-guide.md#harness-notes) describes what each integration can do.
 - [Orchestration](harness-orchestration.md) compares native delegation mechanisms.
 - [Harness goals](harness-goals.md) covers continuation limits and recovery.
-- [T3 Code](t3-code.md) explains explicitly selected coordination across Codex and Claude Code.
+- [T3 Code](t3-code.md) explains the default coordination across Codex and Claude Code inside T3 Code.
 - [Research and experiments](research.md) covers measured runs, budgets, and accepted or discarded candidates.
 - [Area reports](area-reports.md) describes reports of completed work.
 

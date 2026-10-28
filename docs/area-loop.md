@@ -6,15 +6,17 @@ is safe. Codex, Claude Code, and Oh My Pi support native continuation; OpenCode
 and Pi stop after one task. The harness research below was checked on
 2026-08-20.
 
-Inside a T3 Code main thread running Codex or Claude Code, an explicit request
-to use [T3 orchestration](t3-code.md) selects completion-driven continuation.
-Each child result wakes the coordinator; after a verified commit it selects
-fresh work and dispatches the next worker before yielding. This route uses
-T3's visible parent `/goal`, backed by the coordinator provider, and avoids
-Claude's JavaScript loop. Goal turns and child wakes reconcile the same pending
-worker before dispatch. The task and stop semantics below remain common;
-the per-harness native adapters apply to ordinary
-requests.
+Inside a T3 Code main thread running Codex or Claude Code,
+[T3 orchestration](t3-code.md) is the default and selects completion-driven
+continuation; an explicit request for native orchestration opts out. The main
+thread dispatches each phase as its own T3 child task and reports the selected
+task, each phase result, and each commit. Each child result wakes the
+coordinator; after a verified commit it selects fresh work and dispatches the
+next worker before yielding. This route uses T3's visible parent `/goal`,
+backed by the coordinator provider, and avoids Claude's JavaScript loop. Goal
+turns and child wakes reconcile the same pending worker before dispatch. The
+task and stop semantics below remain common; the per-harness native adapters
+apply outside T3 Code and to explicitly native requests.
 
 Codex serial research has a separate [research route](research.md#serial-research-in-codex-and-claude-code).
 An explicit research-run authorization permits scoped generation after queue

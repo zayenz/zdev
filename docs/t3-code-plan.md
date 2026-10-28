@@ -13,12 +13,14 @@ zdev can stop after the pilot.
 
 ## Implementation status
 
-The coordinator route is now packaged in both root skills and selected by an
-explicit request **with T3 orchestration**. It includes mixed-harness profile
+The coordinator route is now packaged in both root skills. Inside T3 Code it
+is the default route; outside T3 Code the native routes are unchanged. An
+explicit request **with T3 orchestration** also selects it, and an explicit
+request for native orchestration opts out. It includes mixed-harness profile
 resolution and goal/loop continuation through one visible T3 parent goal.
-Native goal turns and child wakes reconcile the same coordinator state. Ordinary
-native routes remain the default. No installer flag, scheduler, or additional
-stored state was needed. See [usage and current limits](t3-code.md).
+Native goal turns and child wakes reconcile the same coordinator state. No
+installer flag, scheduler, or additional stored state was needed. See
+[usage and current limits](t3-code.md).
 
 Packaging preceded the live pilot so the same instructions can be tested from
 either coordinator. Source-contract and repository checks do not establish live
@@ -172,10 +174,11 @@ subagents when they can supply the chosen model.
 ## Goal and loop continuation
 
 Goal and loop remain aliases for the same zdev operation: complete approved work
-in one named area, one independently verified task and commit at a time. Select
-the T3 route explicitly, for example: "Use zdev with T3 orchestration to loop
-through area X." The root skill loads this route before choosing a native Codex
-goal or Claude workflow.
+in one named area, one independently verified task and commit at a time. Inside
+T3 Code the root skill selects the T3 route by default and loads it before
+choosing a native Codex goal or Claude workflow. An explicit request such as
+"Use zdev with T3 orchestration to loop through area X." also selects it, and
+an explicit request for native orchestration opts out.
 
 Start the loop with T3's visible `/goal`, carrying the zdev stop condition and
 worker choices; [the usage guide](t3-code.md) supplies the exact command. Exposed
@@ -283,12 +286,15 @@ and the coordinator has received and validated the expected envelopes.
 ### 2. Package the coordinator route
 
 Add a short T3 dispatch reference under `templates/zdev/`, rendered through the
-existing integration installer. It replaces worker dispatch for an explicitly
-selected T3 route while retaining the shared task and verification contracts.
+existing integration installer. It replaces worker dispatch for the selected
+T3 route while retaining the shared task and verification contracts.
 Keep reusable worker role text accessible by file locator.
 
-The implemented interface is an explicit request **with T3 orchestration**
-through the root skill. Both installers package the reference; no installation
+The interface first shipped as an explicit request **with T3 orchestration**
+through the root skill. That explicit-only selection is superseded: the T3
+route is now the default inside T3 Code, and an explicit request for native
+orchestration opts out. See [Coordinate zdev in T3 Code](t3-code.md) for the
+current behavior. Both installers package the reference; no installation
 option is needed. The coordinator selects the dispatch contract for that run,
 while its worker models still belong to their actual harnesses.
 

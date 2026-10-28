@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-028"
 key = "t3-default-route-visible-loop"
 area = "general"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "high"
@@ -40,16 +40,29 @@ Further decisions (coordinator, 2026-10-28, after review):
 
 ## Done when
 
-- [ ] t3-code-routing.md makes the T3 route the default when the coordinator is positively identified as running in T3 Code, keeps explicit 'with T3 orchestration' working, lets an explicit native request opt out, reports a blocker when a T3 session cannot reach orchestration, and no longer says tool availability alone does not select the route.
-- [ ] In the installed Claude and Codex instructions, native dispatch (dispatch-spec, spawn_agent, native area-loop) and the packaged Claude workflows (implement, verify, audit, loop/goal, parallel, research) are stated as conditional on the native route; a T3-selected coordinator is never directed to them, and the T3 selection persists across goal continuations and completion wakes.
-- [ ] t3-code.md states that the main-thread coordinator drives every goal/loop iteration itself: it dispatches each planner, implementer and verifier as its own T3 child task, posts the selected task, each phase result and each commit in the main thread around each dispatch, and never delegates a whole loop or task cycle to one child or workflow.
-- [ ] A research-run request inside T3 Code returns an explicit unsupported-route result naming the native research route before any dispatch.
-- [ ] native_goal no longer says 'Use worktrees by default'; it keeps the run's workspace choice and follows workspace.branching, with pinned tests and docs updated.
-- [ ] The verifier selection under this default follows t3.verifier-harness (general-024).
-- [ ] docs/t3-code.md (and any user-guide mention of T3 routing) and CHANGELOG.md Unreleased describe the new default, the native opt-out and the visible loop.
-- [ ] Generated copies match the templates and `zdev skill check` reports every harness ready.
+- [x] t3-code-routing.md makes the T3 route the default when the coordinator is positively identified as running in T3 Code, keeps explicit 'with T3 orchestration' working, lets an explicit native request opt out, reports a blocker when a T3 session cannot reach orchestration, and no longer says tool availability alone does not select the route.
+- [x] In the installed Claude and Codex instructions, native dispatch (dispatch-spec, spawn_agent, native area-loop) and the packaged Claude workflows (implement, verify, audit, loop/goal, parallel, research) are stated as conditional on the native route; a T3-selected coordinator is never directed to them, and the T3 selection persists across goal continuations and completion wakes.
+- [x] t3-code.md states that the main-thread coordinator drives every goal/loop iteration itself: it dispatches each planner, implementer and verifier as its own T3 child task, posts the selected task, each phase result and each commit in the main thread around each dispatch, and never delegates a whole loop or task cycle to one child or workflow.
+- [x] A research-run request inside T3 Code returns an explicit unsupported-route result naming the native research route before any dispatch.
+- [x] native_goal no longer says 'Use worktrees by default'; it keeps the run's workspace choice and follows workspace.branching, with pinned tests and docs updated.
+- [x] The verifier selection under this default follows t3.verifier-harness (general-024).
+- [x] docs/t3-code.md (and any user-guide mention of T3 routing) and CHANGELOG.md Unreleased describe the new default, the native opt-out and the visible loop.
+- [x] Generated copies match the templates and `zdev skill check` reports every harness ready.
 
 ## Validation
 
 - Update the T3 routing and reference rendering assertions in tests/lean.rs (around lines 7525-7534) so they check, in the installed Claude and Codex instructions: the T3 default and native opt-out; that native dispatch and packaged workflows are conditional on the native route; persistence of the T3 selection; the main-thread loop rule; the research unsupported-route result; and the new native_goal wording. Check for the absence of contradictory unconditional instructions, not only for new phrases. No live T3 or harness run.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+Inside T3 Code the Codex and Claude skills select the T3 route by default (T3 instructions or the t3-code MCP server present); 'with T3 orchestration' still selects it, an explicit native request opts out, and an unreachable orchestrator is a blocker naming the opt-out. Native dispatch, packaged Claude workflows and the native area-loop are explicitly native-route only, and the selection persists across continuations and wakes. The main-thread coordinator dispatches each planner, implementer and verifier as its own T3 child and posts the selected task, each phase result and each commit in the thread. Research runs in T3 return an unsupported-route result. native_goal follows workspace.branching instead of 'Use worktrees by default'. Verified by GPT-6 Astra (high), with one doc correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (211)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

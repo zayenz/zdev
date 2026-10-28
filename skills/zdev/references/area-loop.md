@@ -1,5 +1,9 @@
 # Zdev area loop (native)
 
+This contract applies only on the native route. A run that selected T3
+orchestration follows **Continue an area** in `references/t3-code.md` instead;
+it creates no unprefixed native goal and dispatches no native worker.
+
 An explicitly authorized research run uses the separate installed research
 reference. This ordinary loop does not generate work or dispatch hypotheses.
 

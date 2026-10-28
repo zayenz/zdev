@@ -2,12 +2,14 @@
 
 ## Admit the route
 
-Use this route only after the root skill selected T3 orchestration. The main
-thread must run in T3 Code with Codex or Claude Code. The coordinating agent
-uses its own file and shell tools for zdev commands and Git, and T3's MCP for
-worker execution. Goal/loop uses one matching parent goal displayed by T3;
-its native provider continues this same coordinator. Run no separate native
-zdev loop, Claude JavaScript workflow, or native worker dispatch alongside it.
+Use this route only after the root skill selected T3 orchestration, either by
+default in a T3 Code session or by an explicit request. The main thread must
+run in T3 Code with Codex or Claude Code. The coordinating agent uses its own
+file and shell tools for zdev commands and Git, and T3's MCP for worker
+execution. Goal/loop uses one matching parent goal displayed by T3; its native
+provider continues this same coordinator. Run no separate native zdev loop,
+Claude JavaScript workflow, or native worker dispatch, either instead of this
+route or alongside it.
 
 Resolve the selected ordinary zdev intent. Load `task-workflows.md` for
 implementation, verification, and planning, plus `implement.md`, `verify.md`,
@@ -30,15 +32,18 @@ tools, including the live tool-discovery mechanism when tools are attached
 lazily. Tool prefixes vary by harness; use the exposed names. Require callable
 `delegate_task`, `task_status`, and `task_cancel` and an available inherited
 provider. If discovery or the call fails, report the concrete blocker before
-dispatch. Do not start a substitute native workflow or install another runtime.
+dispatch and name the explicit request for native orchestration as the way to
+opt out. Do not start a substitute native workflow or install another runtime.
 
 All delegated workers share the calling thread's T3 workspace binding. Before
 dispatch, compare the main thread's actual cwd and branch with the admitted
 authoritative checkout. Include that absolute root and require each worker to
 confirm its cwd and branch before work. This route supports sequential workers
 in that checkout. An assigned source worktree or parallel implementation request
-is unsupported: report that before worker or source mutation, with ordinary
-sequential work as an option. A `cd` instruction does not create T3 isolation.
+is unsupported: report that before worker or source mutation, and offer
+ordinary sequential work or an explicit request for native orchestration. Do
+not fall back to either silently. A `cd` instruction does not create T3
+isolation.
 
 ## Resolve workers by their harness
 
@@ -203,6 +208,15 @@ handles, phase, review stage and findings, accepted plan, escalation, and
 completed task/commit pairs in
 the coordinator conversation across wakes and native goal continuations.
 
+The main-thread coordinator drives every goal/loop iteration itself. It
+dispatches each planner, implementer, and verifier, including repairs and
+rechecks, as its own T3 child task with `delegate_task`. It never delegates a
+whole loop, task cycle, or several phases to one child, packaged workflow, or
+background agent. It posts these reports in the main thread, each before its
+own next dispatch or yield: the selected task, before that task's first dispatch;
+each dispatched role and its target; each validated phase result when it is
+collected; and each commit after `zdev commit`.
+
 ### Use the visible coordinator goal
 
 Use T3's `/goal` surface for the parent coordinator only. T3 mirrors Codex or
@@ -241,9 +255,9 @@ result still distinguishes PASS from BLOCKER.
 On every native continuation or child-completion wake, reconcile retained
 handles and phase before any new dispatch. If a worker is still active, retain
 it and await its completion; a goal check is not a retry or replacement.
-Ignore duplicate results and perform each phase once. Surface selected and
-completed tasks, pending role, task/commit pairs, and final context in the
-coordinator transcript so native evaluation sees the actual stop evidence.
+Ignore duplicate results and perform each phase once. The main-thread reports
+required under **Continue an area**, the pending role, and the final context
+are the stop evidence that the native evaluator sees.
 An active owned child means the run is not finished. Fresh safe ready work
 continues the run only when no terminal blocker or required user decision exists.
 

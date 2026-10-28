@@ -1,5 +1,10 @@
 # Claude Code area continuation
 
+This contract applies only on the native route. A run that selected T3
+orchestration follows **Continue an area** in `references/t3-code.md` instead;
+it starts no packaged `zdev-loop`, `zdev-goal`, or `zdev-parallel` workflow and
+dispatches no native worker.
+
 Resolve and retain the run's concrete role settings before the first admitted
 iteration. Every continued iteration uses those values.
 

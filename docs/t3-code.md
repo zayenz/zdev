@@ -18,10 +18,34 @@ project-scope and explicit-destination options work as usual. For Claude, enable
 the installed zdev plugin as you do for its native integration. T3 provides its
 own authenticated orchestration MCP tools to supported provider sessions.
 
-Invoke the root zdev skill and select T3 explicitly:
+Inside T3 Code, zdev uses T3 orchestration by default. The coordinator
+recognizes a T3 Code session when T3's orchestration instructions are present
+or T3's orchestration MCP server is connected. In that session, implementation,
+verification, plan-only work, audits, standalone review, and goal/loop all
+dispatch their workers as T3 child tasks. Verifiers then follow the
+`t3.verifier-harness` preference described under
+[Workers and profiles](#workers-and-profiles). Sessions outside T3 Code keep
+native orchestration, and Claude Code outside T3 keeps its packaged workflows.
+
+You can still name the route explicitly:
 
 > Use zdev with T3 orchestration to implement the next task in area scheduling,
 > using Codex for implementation and Claude Code for verification.
+
+To use the harness's own subagents or Claude's packaged workflows inside T3
+Code, ask for native orchestration explicitly, for example “Use zdev with native
+orchestration to loop through area scheduling.” The chosen route lasts for the
+whole run, including goal continuations and completion wakes.
+
+Before any dispatch, the coordinator checks that T3's orchestration tools are
+reachable. If they are not, it reports a blocker that names the native
+orchestration request as the way to opt out. It never switches to native
+orchestration on its own.
+
+The T3 route does not support research runs yet. Inside T3 Code, a research-run
+request stops before any dispatch and reports that the T3 route does not
+support it. The native research route is
+[research and experiments](research.md); ask for native orchestration to use it.
 
 To continue through the area's ready work, use T3's composer `/goal` command.
 Check `/goal` first if this thread might already have an unfinished goal;
@@ -33,13 +57,12 @@ prepares this condition and uses exposed native goal tools when available;
 otherwise it returns the ready-to-send command before starting work.
 
 “Goal” and “loop” mean the same operation. Optional focus text guides selection
-from the complete ready frontier. The route also supports explicit verification,
-plan-only work, and audits. Ordinary zdev requests retain native orchestration.
-T3 tools being available does not change the default.
+from the complete ready frontier.
 
 Use the natural-language request through the root skill. Claude's packaged
-`zdev-loop` and `zdev-goal` workflow commands still execute their native scripts;
-adding “T3” to their arguments does not select this route.
+`zdev-loop` and `zdev-goal` workflow commands bypass the root skill and still
+execute their native scripts, even inside T3 Code; adding “T3” to their
+arguments does not select this route.
 
 ## Workers and profiles
 
@@ -72,10 +95,17 @@ keeps lifecycle, staging, and commits; every verification round is a fresh child
 
 ## Goal and loop
 
-One visible parent goal continues the T3 coordinator. It selects a task and
-delegates its first worker. For long steps, it yields while T3 runs the child.
-Native goal continuations and child-completion wakes enter the same coordinator,
-which checks its pending handle and phase before dispatch. An active worker
+One visible parent goal continues the T3 coordinator, and the main thread shows
+the loop's progress. The coordinator drives every iteration itself and
+dispatches each planner, implementer, verifier, repair, and recheck as its own
+T3 child task. It never hands a whole loop or task cycle to one child or
+packaged workflow. In the main thread it reports the selected task, each
+dispatched role and target, each phase result, and each commit.
+
+The coordinator selects a task and delegates its first worker. For long steps,
+it yields while T3 runs the child. Native goal continuations and
+child-completion wakes enter the same coordinator, which checks its pending
+handle and phase before dispatch. An active worker
 stays active; another goal turn never creates a duplicate worker. A completed
 result is validated before implementation, verification, or rework follows.
 After a verifier pass and snapshot comparison, the coordinator completes and
@@ -118,7 +148,10 @@ This integration packages coordinator instructions; it adds no server, scheduler
 or durable loop record. Codex and Claude Code are the supported coordinator and
 worker targets. Delegated workers share the main thread's checkout, so this route
 supports sequential work. Parallel implementation and assigned source worktrees
-stop before mutation until workspace isolation is supported.
+stop before mutation until workspace isolation is supported; the coordinator
+offers sequential work or an explicit request for native orchestration instead.
+Research runs are not supported on the T3 route; ask for native orchestration
+to run them.
 
 The contracts were checked against T3 nightly
 `v0.0.46-nightly.20261008.2801`. Repository checks validate installation and

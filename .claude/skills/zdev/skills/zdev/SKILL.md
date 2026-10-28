@@ -7,21 +7,42 @@ description: "Zdev manages durable software work through briefs, tasks, implemen
 
 ## Select orchestration before the workflow
 
-An explicit request to use zdev **with T3 orchestration** selects
-[T3 Code coordination](references/t3-code.md). Read that reference before
-selecting native dispatch, worker profiles, or continuation. It supports
-implementation, verification, plan-only work, audits, and goal/loop in a T3
-main thread running Codex or Claude Code. Keep this selection for the logical
-run, its native goal continuations, completion wakes, and explicitly requested
-recovery. Goal/loop uses the visible parent `/goal` described in that reference;
-a leading `/goal` does not switch workers back to native dispatch. Ordinary
-requests use the native harness route unless they continue that selected T3 run.
+Select the orchestration route before any worker dispatch, packaged workflow,
+or native goal. The native route is this harness's orchestration section below.
 
-For the selected T3 route, the reference replaces the native dispatch, scoped
-profile resolution, and goal/workflow instructions below. The shared zdev
-ownership, safety, result, verification, and commit contracts still apply.
-Availability of T3 tools alone does not select the route. An unavailable T3
-route reports a blocker instead of substituting native orchestration.
+A session runs in T3 Code when T3's orchestration instructions are present in
+it or T3's orchestration MCP server (`t3-code`) is connected. In that session,
+[T3 Code coordination](references/t3-code.md) is the default route for
+implementation, verification, plan-only work, audits, standalone review, and
+goal/loop. An explicit request to use zdev **with T3 orchestration** also
+selects the T3 route. An explicit request for **native orchestration** selects
+the native route instead. A session with neither T3 signal keeps the native
+route.
+
+On the T3 route, read that reference and make its bounded
+`orchestrator_capabilities` probe before any dispatch. When the probe fails,
+report a blocker before dispatch and name the explicit request for native
+orchestration as the way to opt out. Never fall back to the native route
+silently.
+
+On the T3 route, the reference replaces the native dispatch, scoped profile
+resolution, packaged workflows, and goal/workflow instructions below. Its
+verifier selection follows `t3.verifier-harness`. The shared zdev ownership,
+safety, result, verification, and commit contracts still apply.
+
+Keep the selected route, whether it is the default or was requested, for the
+whole logical run. Every goal continuation, completion wake, and explicitly
+requested recovery re-enters that route. The T3 goal condition keeps its
+"Use zdev with T3 orchestration." prefix. Neither a goal continuation nor a
+leading `/goal` switches a T3 run to native dispatch, the native area-loop, or
+packaged workflows. An explicitly native run likewise stays native.
+
+The T3 route does not support research runs yet. When the T3 route is selected,
+a research-run request returns an unsupported-route result before any dispatch
+and before any research-run start or resume. The result states that the T3
+route does not support research runs, names the native research route
+`references/research.md`, and states that an explicit request for native
+orchestration selects it. Start no packaged or native research worker.
 
 Example: “Use zdev with T3 orchestration to loop through area scheduling,
 using Codex for implementation and Claude Code for verification.”
@@ -420,6 +441,10 @@ what remains; mention commands only when they help the user continue or recover.
 
 ## Claude Code orchestration
 
+This section is the native route. A run that selected T3 orchestration follows
+[references/t3-code.md](references/t3-code.md) and never uses these subagents or
+packaged workflows.
+
 Route the goal's authored complexity through `zdev:zdev-routine-implementer`,
 `zdev:zdev-implementer`, or `zdev:zdev-advanced-implementer`. Advanced work
 first uses one read-only `zdev:zdev-planner`. Always verify with a fresh
@@ -434,33 +459,34 @@ human-facing prose plainly` section in its prompt. Other workers do not need
 that editorial guidance.
 
 The root zdev skill selects the route and loads its contract from `references/`.
-When packaged workflows are available, it uses them internally for a full task
-cycle, explicit verification, audit, or continuing area work. “Goal” and
-“loop” select the same continuation workflow. The ordinary subagent loop also
-works.
+On the native route, when packaged workflows are available, the root zdev skill
+uses them internally for a full task cycle, explicit verification, audit, or
+continuing area work. “Goal” and “loop” select the same continuation workflow.
+The ordinary subagent loop also works.
 
-An explicit research-run request uses [references/research.md](references/research.md)
-and the packaged `zdev-research` workflow. Pass structured start/resume arguments,
-a fresh invocation identity, execution serial (default) or rolling, and retained
+On the native route, an explicit research-run request uses
+[references/research.md](references/research.md) and the packaged
+`zdev-research` workflow. Pass structured start/resume arguments, a fresh
+invocation identity, execution serial (default) or rolling, and retained
 concrete profiles. Rolling start accepts separate positive worker_limit and
 measurement_limit values; resume carries execution, cleanup, retained_plans and
 retained_candidates from its prior report. After stop/failure,
 use a new resume invocation of the same durable run. Ordinary Loop keeps its
 existing continuation behavior.
 
-An explicit parallel request uses the packaged `zdev-parallel` workflow when
-it is installed. Resolve the finite task list and destination, use four workers
-and source worktrees by default, and retain explicit overrides and cleanup
-authority. The parallel request supplies consent. If the
-workflow runtime is unavailable, report that parallel execution is unavailable
-and offer the unchanged sequential Implement route.
+On the native route, an explicit parallel request uses the packaged
+`zdev-parallel` workflow when it is installed. Resolve the finite task list and
+destination, use four workers and source worktrees by default, and retain
+explicit overrides and cleanup authority. The parallel request supplies
+consent. If the workflow runtime is unavailable, report that parallel execution
+is unavailable and offer the unchanged sequential Implement route.
 
-For an active-zdev goal or loop request, use the packaged continuation workflow
-when available. It repeats the ordinary one-task route, refreshes work
-context after every verified commit, and applies the shared stop states. It
-does not inspect or invoke Claude Code's separate `/goal` command. If the
-packaged workflows are unavailable, continue under coordinator control or stop
-after one task and report the fresh next state.
+On the native route, an active-zdev goal or loop request uses the packaged
+continuation workflow when it is available. It repeats the ordinary one-task
+route, refreshes work context after every verified commit, and applies the
+shared stop states. It does not inspect or invoke Claude Code's separate
+`/goal` command. If the packaged workflows are unavailable, continue under
+coordinator control or stop after one task and report the fresh next state.
 
 Before launching a packaged workflow, tell the user which area and fuzzy focus
 will be used. Workflow labels report selection, the chosen task ID, planning,

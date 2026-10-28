@@ -197,8 +197,10 @@ planner, implementer, replacement/rework and verifier call; settle completed
 dispatches afterward. Command mediation and record helpers remain inexpensive
 coordination. Confirm task kind before the frozen-profile path too. After
 accepted supporting code or comparison-condition changes, run actual counted
-rebaseline on clean accepted HEAD before comparing another candidate. Preserve
-metric, direction, correctness and acceptance policy.
+rebaseline on clean accepted HEAD before comparing another candidate. With
+declared `relevant_inputs`, only changes inside them count as accepted
+supporting code changes. Preserve metric, direction, correctness and acceptance
+policy.
 
 For hypotheses, explicitly admit the ready task and read full task/policy.
 Declare exact clean owned files before edits, including named new files;

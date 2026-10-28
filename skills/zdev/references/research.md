@@ -125,7 +125,9 @@ comparisons or unfinished experiments.
 
 When comparison conditions or accepted supporting code change, retain or
 restore unfinished candidates, then run actual rebaseline on clean accepted
-HEAD. Supplied baseline samples cannot clear invalidation. A supporting task
+HEAD. With declared `relevant_inputs`, only changes inside them count as
+accepted supporting code changes; without them, every path outside `.zdev`
+counts. Supplied baseline samples cannot clear invalidation. A supporting task
 cannot change the metric, direction or correctness rules to make a candidate win.
 An unsafe checkout or a user-owned scope/correctness decision stops with the
 current work preserved.

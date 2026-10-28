@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(super) mod experiment;
 pub(super) mod run;
 use std::io::{self, Read};
-use std::path::Path;
+use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
 
@@ -52,9 +52,45 @@ pub(super) struct Settings {
     pub timeout_seconds: f64,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub correctness_commands: BTreeMap<String, String>,
+    /// Literal repository paths whose changes can affect measurements; frozen material policy.
+    /// Absent means every path outside `.zdev`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relevant_inputs: Option<Vec<String>>,
     /// Advisory best value the metric can reach; never part of the frozen policy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metric_bound: Option<f64>,
+}
+
+/// Repository paths whose changes can affect accepted measurements.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum InputBoundary<'a> {
+    /// Nothing declared: every path outside `.zdev` counts.
+    WholeRepository,
+    /// Declared literal files or directories, validated by `validate_repository_path`.
+    Declared(&'a [String]),
+}
+
+impl InputBoundary<'_> {
+    /// Git pathspecs that select exactly the paths inside the boundary.
+    pub fn pathspecs(&self) -> Vec<String> {
+        match self {
+            Self::WholeRepository => vec![".".to_owned(), ":(exclude).zdev".to_owned()],
+            Self::Declared(inputs) => inputs
+                .iter()
+                .map(|input| format!(":(top,literal){input}"))
+                .collect(),
+        }
+    }
+
+    /// Whether a repository-relative path lies inside the boundary; callers exclude `.zdev`.
+    pub fn contains(&self, path: &str) -> bool {
+        match self {
+            Self::WholeRepository => true,
+            Self::Declared(inputs) => inputs
+                .iter()
+                .any(|input| Path::new(path).starts_with(input)),
+        }
+    }
 }
 
 /// The frozen minimum gain exceeds what even a candidate at the metric bound achieves.
@@ -190,6 +226,34 @@ fn validate_names(values: &[String], label: &str) -> Result<(), ZdevError> {
     Ok(())
 }
 
+/// Accepts only a normalized, literal repository-relative path outside `.git` and `.zdev`.
+fn validate_repository_path(path: &str, label: &str) -> Result<(), ZdevError> {
+    // Only plain names count; `Path` silently drops `.` and repeated or trailing separators,
+    // so the rejoined names must also reproduce the original text.
+    let names: Option<Vec<&str>> = Path::new(path)
+        .components()
+        .map(|component| match component {
+            Component::Normal(name) => name.to_str(),
+            _ => None,
+        })
+        .collect();
+    let normalized = names
+        .as_ref()
+        .is_some_and(|names| !names.is_empty() && names.join("/") == path);
+    let reserved = names
+        .as_ref()
+        .and_then(|names| names.first())
+        .is_some_and(|first| {
+            first.eq_ignore_ascii_case(".git") || first.eq_ignore_ascii_case(".zdev")
+        });
+    if !normalized || reserved || path.contains('\\') || path.chars().any(char::is_control) {
+        return Err(ZdevError::new(format!(
+            "{label} must be a normalized repository-relative path outside .git and .zdev: {path}"
+        )));
+    }
+    Ok(())
+}
+
 fn validate_samples(values: &[f64]) -> Result<(), ZdevError> {
     if values.iter().any(|value| !value.is_finite()) {
         return Err(ZdevError::new("Research samples must be finite numbers"));
@@ -293,7 +357,26 @@ impl Settings {
         if self.metric_bound.is_some_and(|bound| !bound.is_finite()) {
             return Err(ZdevError::new("Metric bound must be finite"));
         }
+        if let Some(inputs) = &self.relevant_inputs {
+            if inputs.is_empty() {
+                return Err(ZdevError::new(
+                    "Relevant inputs must list at least one path when declared",
+                ));
+            }
+            validate_names(inputs, "Relevant input")?;
+            for input in inputs {
+                validate_repository_path(input, "Relevant input")?;
+            }
+        }
         Ok(())
+    }
+
+    /// The declared relevant inputs, or the whole repository when none are declared.
+    pub fn input_boundary(&self) -> InputBoundary<'_> {
+        match &self.relevant_inputs {
+            Some(inputs) => InputBoundary::Declared(inputs),
+            None => InputBoundary::WholeRepository,
+        }
     }
 
     /// Equality for every settings comparison: advisory fields never invalidate or refuse work.

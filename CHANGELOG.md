@@ -27,6 +27,17 @@ This file records notable changes to zdev.
   consumed costs and comparison validity, and run context lists each amendment
   under `run.amendments`. Any other policy change, an added or removed check, or
   unfinished experiments, measurements or rebaselines make zdev refuse it.
+- Research settings accept an optional `relevant_inputs` list of literal
+  repository-relative files or directories that measurements depend on. When
+  it is declared, a commit that changes only other paths, such as a
+  documentation edit, no longer invalidates the accepted baseline or blocks
+  experiment `begin`. `begin` and isolated `admit` refuse an owned `--path`
+  outside the list. When a declared input changes, the run's invalidation
+  reason names a changed path. Without the list, zdev still compares every path
+  outside `.zdev`. An active run freezes the list as material policy, so an
+  administrative amendment cannot change it. `zdev area research` rejects an
+  empty list, duplicate entries, absolute or non-normalized paths such as
+  `./src`, `../src` or `src/`, and paths in `.git` or `.zdev`.
 
 ### Changed
 

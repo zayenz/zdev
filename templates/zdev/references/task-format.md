@@ -101,6 +101,7 @@ All JSON objects reject unknown fields. Settings require the shown fields except
 | `attempt_limit` | Positive finite limit per hypothesis. Each observation counts as one attempt. |
 | `timeout_seconds` | Positive finite timeout per correctness or evaluator invocation, in seconds; defaults to 60. |
 | `correctness_commands` | Optional map from required check names to shell commands. Managed experiments require a command for every required check. During an active run, only a declared administrative amendment may change a command's text; see below. |
+| `relevant_inputs` | Optional non-empty list of unique, literal, repository-relative files or directories outside `.git` and `.zdev` that the evaluator, workload and correctness commands depend on. No globs, and no `./`, `..`, absolute paths or trailing `/`. When declared, only changes to these paths invalidate the accepted baseline or block `begin`, and every owned candidate path must lie inside them. When absent, every path outside `.zdev` counts. Entries must match the tracked path spelling exactly, including letter case, even on case-insensitive filesystems. An active run freezes the list, including its order; it is never an administrative or advisory change. Renaming a declared input needs a new run with an updated list, because changes at the new name fall outside the frozen list. |
 | `metric_bound` | Optional finite best value the metric can reach, such as `0` for a nonnegative minimized metric. Advisory only: it never changes acceptance and never invalidates comparisons, runs, or unfinished experiments. |
 
 Fields below `comparison.metric` through `significance` in the table also
@@ -131,8 +132,9 @@ zdev area research <area> --from <file> --administrative "<reason>"
 zdev accepts the amendment only when the new settings differ from the run's
 frozen policy in the command text of existing checks and, at most, the advisory
 `metric_bound`. It refuses an added, removed or renamed check and every other
-field change. It also refuses the amendment while an experiment, measurement,
-rebaseline or acceptance is unfinished, and when the area has no active run.
+field change, including `relevant_inputs`. It also refuses the amendment while
+an experiment, measurement, rebaseline or acceptance is unfinished, and when the
+area has no active run.
 The run keeps its ID, consumed costs and comparison validity. Run `context`
 lists the reason and each check's `before` and `after` command under
 `run.amendments`. zdev runs no command during configuration; the next managed
@@ -421,6 +423,8 @@ zdev research experiment work work-002 inspect --format json
 
 `begin` records the accepted baseline and a work-context snapshot. Baseline code
 must match HEAD; intervening commits containing only `.zdev` records are valid.
+With declared `relevant_inputs`, intervening commits that change only other
+paths are also valid, and every owned file must lie inside those inputs.
 Owned files must have no preexisting staged, unstaged or untracked changes.
 Unrelated changes on other files may remain. `permitted_changes` describes the
 human-reviewed scope; `--path` names exact files for Git retention and restoration.
@@ -561,10 +565,13 @@ close the area nor establish that its objective has been achieved. A
 the run as no-work and names each wait.
 
 A run freezes metric, direction, permitted changes, repetitions, aggregation,
-minimum gain, significance policy and correctness requirements/commands. Evaluator identity,
-command or workload condition changes invalidate comparisons;
-supplied replacement baseline samples cannot clear invalidation. Changes to
-accepted supporting code also require a fresh baseline. Actual rebaseline
+minimum gain, significance policy, relevant inputs and correctness
+requirements/commands. Evaluator identity, command or workload condition
+changes invalidate comparisons; supplied replacement baseline samples cannot
+clear invalidation. Changes to accepted supporting code also require a fresh
+baseline. With declared `relevant_inputs`, only changes inside them count;
+without them, every path outside `.zdev` counts. When dispatch finds a changed
+input, the recorded `run.invalidation` names a changed path. Actual rebaseline
 measures clean accepted HEAD with the current executable correctness commands
 and evaluator, charges its attempt and commands, and stores new samples in
 area settings:
@@ -893,8 +900,10 @@ destination HEAD, accepted revision and measurement requirements at dispatch,
 source root/branch/base and authoritative record locations. It charges one
 preparation reservation before worker dispatch. A source root or branch already
 owned by an unfinished or ambiguous candidate in any area refuses admission
-before claiming capacity or authorizing dispatch. A changed reservation identity
-also refuses admission replay. Ownership continues until
+before claiming capacity or authorizing dispatch. With declared
+`relevant_inputs`, an owned `--path` outside them also refuses admission before
+claiming capacity. A changed reservation identity also refuses admission replay.
+Ownership continues until
 durable completion and confirmed worker and measurement stop. Retrying the same
 admission returns the stored context with `dispatch_authorized: false`; only a new admission
 reports `dispatch_authorized: true`. It never authorizes another worker. An unconfirmed

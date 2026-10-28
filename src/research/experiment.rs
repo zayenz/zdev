@@ -488,28 +488,20 @@ fn begin_at(
         root,
         &["rev-parse", "--verify", &format!("{baseline}^{{commit}}")],
     )?;
-    if !git_output_bytes(
-        root,
-        &[
-            "diff",
-            "--name-only",
-            "-z",
-            baseline,
-            &head,
-            "--",
-            ".",
-            ":(exclude).zdev",
-        ],
-    )?
-    .is_empty()
-    {
-        return Err(ZdevError::new(
-            "Accepted baseline code differs from HEAD; record-only commits are permitted",
-        ));
+    if let Some(path) = super::run::changed_relevant_paths(root, &settings, &head)?.first() {
+        return Err(ZdevError::new(format!(
+            "Accepted baseline code differs from HEAD at {path}; only record-only commits and changes outside declared relevant inputs are permitted"
+        )));
     }
+    let boundary = settings.input_boundary();
     let mut seen = BTreeSet::new();
     for path in paths {
         validate_path(root, path)?;
+        if !boundary.contains(path) {
+            return Err(ZdevError::new(format!(
+                "Owned path lies outside the declared relevant inputs: {path}"
+            )));
+        }
         if seen
             .iter()
             .any(|other| Path::new(path).starts_with(other) || Path::new(other).starts_with(path))
@@ -2707,27 +2699,11 @@ fn refresh_source(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevEr
 }
 
 fn require_accepted_destination(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevError> {
-    let accepted = super::settings(root, &checkpoint.area)?
-        .comparison
-        .baseline_revision;
-    if !git_output_bytes(
-        root,
-        &[
-            "diff",
-            "--name-only",
-            "-z",
-            &accepted,
-            "HEAD",
-            "--",
-            ".",
-            ":(exclude).zdev",
-        ],
-    )?
-    .is_empty()
-    {
-        return Err(ZdevError::new(
-            "Destination HEAD does not contain the current accepted implementation",
-        ));
+    let settings = super::settings(root, &checkpoint.area)?;
+    if let Some(path) = super::run::changed_relevant_paths(root, &settings, "HEAD")?.first() {
+        return Err(ZdevError::new(format!(
+            "Destination HEAD does not contain the current accepted implementation: {path} differs"
+        )));
     }
     for path in &checkpoint.paths {
         require_clean_path(root, path)?;

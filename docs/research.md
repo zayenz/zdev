@@ -155,6 +155,34 @@ A changed horizon, workload, solver or acceptance rule inside a command is a
 material change, not an administrative one. It needs a new study and an actual
 measured baseline.
 
+## Declare relevant inputs
+
+By default, any commit that changes a path outside `.zdev` after the accepted
+baseline invalidates comparisons and blocks `begin`, even a documentation edit.
+To narrow this, list the files and directories that the evaluator, workload and
+correctness commands depend on in the research settings:
+
+```json
+"relevant_inputs": ["src", "bench/workload.txt", "evaluate"]
+```
+
+Entries are literal repository-relative paths outside `.git` and `.zdev`; a
+directory covers everything under it. Globs are not supported. When in doubt,
+list more: a missing input lets a real change go unnoticed. Every owned
+candidate path must lie inside the list, so `begin` and isolated `admit` refuse
+a `--path` outside it. Spell each entry exactly as Git tracks it, including
+letter case, even on a case-insensitive filesystem; a differently cased entry
+matches nothing.
+
+An active run freezes the list. To adopt or change it, end the run, configure
+the new settings and start a new run. Renaming a declared input also needs a
+new run with an updated list, because changes at the new name fall outside the
+frozen list. When a declared input changes, the
+recorded `run.invalidation` names a changed path, and an actual counted
+rebaseline is required as before. Reconciliation of isolated candidates still
+compares the whole repository, so a destination that advanced only outside the
+declared inputs still reconciles and remeasures the candidate.
+
 
 ## Rolling research in Codex and Claude Code
 

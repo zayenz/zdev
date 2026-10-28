@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-004"
 key = "relevant-input-boundary"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -33,12 +33,12 @@ No declaration exists today. Add an optional `relevant_inputs` to `Settings` in 
 
 ## Done when
 
-- [ ] With `relevant_inputs` declared, committing a change to an undeclared path (for example a docs file) leaves run context `comparison_valid` true and experiment begin succeeds.
-- [ ] Committing a change to a declared input invalidates the comparison, and the invalidation reason recorded by `require_policy` (run context `run.invalidation`) names at least one changed relevant path.
-- [ ] Without a declaration, a docs-only commit still invalidates as today.
-- [ ] `zdev area research` rejects invalid declarations. Begin and admit refuse owned paths outside a declared boundary.
-- [ ] The task-format reference documents the field, and the checked-in fixtures are regenerated.
-- [ ] One focused regression in `tests/lean.rs` covers the declared and undeclared cases.
+- [x] With `relevant_inputs` declared, committing a change to an undeclared path (for example a docs file) leaves run context `comparison_valid` true and experiment begin succeeds.
+- [x] Committing a change to a declared input invalidates the comparison, and the invalidation reason recorded by `require_policy` (run context `run.invalidation`) names at least one changed relevant path.
+- [x] Without a declaration, a docs-only commit still invalidates as today.
+- [x] `zdev area research` rejects invalid declarations. Begin and admit refuse owned paths outside a declared boundary.
+- [x] The task-format reference documents the field, and the checked-in fixtures are regenerated.
+- [x] One focused regression in `tests/lean.rs` covers the declared and undeclared cases.
 
 ## Validation
 
@@ -49,3 +49,16 @@ No declaration exists today. Add an optional `relevant_inputs` to `Settings` in 
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+Research settings take an optional relevant_inputs list of literal repository paths, validated and frozen as material policy. When declared, accepted-code checks (run start, require_policy, comparison_valid, context, publish_baseline, experiment begin, require_accepted_destination) compare only those paths through one helper, invalidation reasons and begin/destination errors name the changed path, and begin and isolated admit refuse owned paths outside the boundary before any charge. Without it, behavior is unchanged; reconcile, integrate and rebaseline clean checks stay whole-repository. Independently verified; docs note exact path spelling and renames.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 205)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

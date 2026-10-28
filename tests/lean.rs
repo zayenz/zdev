@@ -18224,6 +18224,147 @@ fn research_run_accepts_declared_administrative_correctness_amendment() {
 }
 
 #[test]
+fn research_relevant_inputs_ignore_unrelated_commits() {
+    let commit_docs = |root: &Path| {
+        fs::create_dir_all(root.join("docs")).unwrap();
+        commit_file(root, "docs/notes.md", "Notes.\n", "document the study");
+    };
+    let context = |root: &Path| json_output(root, &["research", "run", "work", "context"]);
+    let refused_with = |output: Output, error: &str| {
+        assert!(!output.status.success(), "unexpectedly succeeded");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(error), "unexpected error: {stderr}");
+    };
+    // A measurement reservation records the named invalidation before it is refused.
+    let assert_invalidated_by = |root: &Path, identity: &str, path: &str| {
+        let reserve = [
+            "research",
+            "run",
+            "work",
+            "reserve",
+            "--run",
+            identity,
+            "--request",
+            "prepare-again",
+            "--task",
+            "work-001",
+            "--kind",
+            "preparation",
+        ];
+        refused_with(run_zdev(root, &reserve), "Comparisons are invalid");
+        let invalidated = context(root);
+        assert_eq!(invalidated["run"]["comparison_valid"], false);
+        let reason = invalidated["run"]["invalidation"].as_str().unwrap();
+        assert!(reason.contains(path), "unexpected reason: {reason}");
+    };
+
+    let repository = local_experiment_fixture("printf 11");
+    let root = repository.path();
+    let area_path = root.join(".zdev/work/area.toml");
+    let original = json_output(root, &["area", "research", "work"])["research"].clone();
+    let assert_refused = |settings: &Value, administrative: bool, error: &str| {
+        let stored = fs::read(&area_path).unwrap();
+        let mut arguments = vec!["area", "research", "work", "--from", "-"];
+        if administrative {
+            arguments.extend(["--administrative", "Inputs moved"]);
+        }
+        let input = serde_json::to_vec(settings).unwrap();
+        refused_with(
+            json_output_with_stdin_status(root, &arguments, &input),
+            error,
+        );
+        assert_eq!(fs::read(&area_path).unwrap(), stored);
+    };
+    let with_inputs = |inputs: Value| {
+        let mut settings = original.clone();
+        settings["relevant_inputs"] = inputs;
+        settings
+    };
+    for inputs in [
+        json!([]),
+        json!(["seed.txt", "seed.txt"]),
+        json!(["../seed.txt"]),
+        json!(["./seed.txt"]),
+        json!(["seed.txt/"]),
+        json!([".zdev/work"]),
+        json!([".GIT/config"]),
+        json!(["/abs"]),
+    ] {
+        assert_refused(&with_inputs(inputs), false, "Relevant input");
+    }
+
+    let declared = with_inputs(json!([
+        "seed.txt",
+        "delete.txt",
+        "mode.txt",
+        "binary.dat",
+        "added.txt",
+        "unrelated-stage.txt"
+    ]));
+    configure_research_fixture(root, &declared);
+    commit_all(root, "declare relevant inputs");
+    let started = start_research_run(root, &["--time-limit-seconds", "3600"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    assert_refused(&original, false, "relevant inputs");
+    assert_refused(
+        &with_inputs(json!(["seed.txt"])),
+        true,
+        "only the command text of existing correctness checks",
+    );
+
+    commit_docs(root);
+    assert_eq!(context(root)["run"]["comparison_valid"], true);
+    let sources = TempDir::new().unwrap();
+    let source = sources.path().join("candidate");
+    let source_text = source.to_str().unwrap();
+    git(
+        root,
+        &["worktree", "add", "-b", "candidate", source_text, "HEAD"],
+    );
+    let experiment = ["research", "experiment", "work", "work-001"];
+    for action in [
+        &[
+            "admit",
+            "--source",
+            source_text,
+            "--path",
+            "unrelated-work.txt",
+        ][..],
+        &["begin", "--path", "unrelated-work.txt"],
+    ] {
+        let arguments = [&experiment[..], action].concat();
+        refused_with(
+            run_zdev(root, &arguments),
+            "Owned path lies outside the declared relevant inputs: unrelated-work.txt",
+        );
+    }
+    assert!(!git_path(root, "zdev/experiments/work/work-001.json").exists());
+    begin_local_experiment(root);
+    commit_file(
+        root,
+        "unrelated-stage.txt",
+        "changed\n",
+        "change a declared input",
+    );
+    assert_invalidated_by(root, identity, "unrelated-stage.txt");
+
+    let repository = local_experiment_fixture("printf 11");
+    let root = repository.path();
+    let started = start_research_run(root, &["--time-limit-seconds", "3600"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    commit_docs(root);
+    assert_eq!(context(root)["run"]["comparison_valid"], false);
+    refused_with(
+        run_zdev(
+            root,
+            &[&experiment[..], &["begin", "--path", "seed.txt"]].concat(),
+        ),
+        "differs from HEAD at docs/notes.md",
+    );
+    assert_invalidated_by(root, identity, "docs/notes.md");
+}
+
+#[test]
 fn research_run_command_exhaustion_recovers_without_free_or_duplicate_measurement() {
     let repository = local_experiment_fixture("printf 14");
     let root = repository.path();

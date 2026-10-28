@@ -611,7 +611,7 @@ fn start(
         ));
     }
     let policy = super::settings(root, area)?;
-    let valid = accepted_code_matches(root, &policy)?;
+    let invalidation = input_invalidation(&changed_relevant_paths(root, &policy, "HEAD")?);
     let started_at = unix_seconds();
     let run = Run {
         schema_version: 1,
@@ -630,8 +630,8 @@ fn start(
         measurement_limit,
         acceptance: None,
         stop: None,
-        comparison_valid: valid,
-        invalidation: (!valid).then(|| "Accepted code requires a measured baseline".to_owned()),
+        comparison_valid: invalidation.is_none(),
+        invalidation,
         ended: false,
         admissions: BTreeMap::new(),
         reservations: BTreeMap::new(),
@@ -713,20 +713,43 @@ fn require_area(root: &Path, area: &str) -> Result<(), ZdevError> {
 }
 
 fn accepted_code_matches(root: &Path, settings: &Settings) -> Result<bool, ZdevError> {
-    Ok(git_output_bytes(
-        root,
-        &[
-            "diff",
-            "--name-only",
-            "-z",
-            &settings.comparison.baseline_revision,
-            "HEAD",
-            "--",
-            ".",
-            ":(exclude).zdev",
-        ],
-    )?
-    .is_empty())
+    Ok(changed_relevant_paths(root, settings, "HEAD")?.is_empty())
+}
+
+/// Paths inside the settings' input boundary that differ between the accepted baseline and `head`.
+pub(super) fn changed_relevant_paths(
+    root: &Path,
+    settings: &Settings,
+    head: &str,
+) -> Result<Vec<String>, ZdevError> {
+    let pathspecs = settings.input_boundary().pathspecs();
+    let mut arguments = vec![
+        "diff",
+        "--name-only",
+        "-z",
+        &settings.comparison.baseline_revision,
+        head,
+        "--",
+    ];
+    arguments.extend(pathspecs.iter().map(String::as_str));
+    Ok(git_output_bytes(root, &arguments)?
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(|path| String::from_utf8_lossy(path).into_owned())
+        .collect())
+}
+
+/// The invalidation reason naming the changed relevant inputs, or `None` when nothing changed.
+fn input_invalidation(changed: &[String]) -> Option<String> {
+    let (first, others) = changed.split_first()?;
+    let more = if others.is_empty() {
+        String::new()
+    } else {
+        format!(" (and {} more)", others.len())
+    };
+    Some(format!(
+        "Accepted relevant input changed since the baseline: {first}{more}; actual rebaseline required"
+    ))
 }
 
 fn invalidate(run: &mut Run, reason: &str) {
@@ -746,6 +769,7 @@ fn policy_matches(frozen: &Settings, current: &Settings) -> bool {
         && a.significance == b.significance
         && frozen.correctness_commands == current.correctness_commands
         && frozen.permitted_changes == current.permitted_changes
+        && frozen.relevant_inputs == current.relevant_inputs
 }
 
 /// Changed text of existing correctness commands, or `None` when anything else in the frozen
@@ -802,7 +826,7 @@ pub(crate) fn configure(
     }
     if !policy_matches(&run.policy, current) {
         return Err(ZdevError::new(
-            "Active run freezes its metric, direction, scope and correctness/acceptance requirements",
+            "Active run freezes its metric, direction, scope, relevant inputs and correctness/acceptance requirements",
         ));
     }
     if previous.comparison.baseline_revision != current.comparison.baseline_revision
@@ -883,11 +907,13 @@ fn require_policy(root: &Path, run: &mut Run, comparison: bool) -> Result<(), Zd
             "Current research policy differs from the run's authorization",
         ));
     }
-    if !settings.eq_ignoring_advisory(&run.policy) || !accepted_code_matches(root, &settings)? {
-        invalidate(
-            run,
-            "Evaluator/workload or accepted supporting code changed; actual rebaseline required",
-        );
+    let invalidation = if settings.eq_ignoring_advisory(&run.policy) {
+        input_invalidation(&changed_relevant_paths(root, &settings, "HEAD")?)
+    } else {
+        Some("Evaluator or workload settings changed; actual rebaseline required".to_owned())
+    };
+    if let Some(reason) = invalidation {
+        invalidate(run, &reason);
         save(root, run)?;
     }
     if comparison && !run.comparison_valid {

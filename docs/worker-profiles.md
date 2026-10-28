@@ -144,7 +144,8 @@ planning to xhigh. No built-in Claude row uses `max`.
 
 Where a harness can use more than one provider, using a different model family
 for verification may reduce correlated misses. That is a zdev inference, not a
-benchmark result.
+benchmark result. T3 orchestration applies it across harnesses through
+`t3.verifier-harness`, described under **Runtime selection**.
 
 | Harness | Routine implementer | Standard implementer | Standard verifier | Advanced implementer |
 | --- | --- | --- | --- | --- |
@@ -264,6 +265,20 @@ and effort to the planner call. OpenCode, Pi, and Oh My Pi use the same frozen
 dispatch specification. Pi passes each concrete selection to its child
 process; OpenCode and Oh My Pi select a matching installed profile-qualified
 native agent. Their `zdev-plan` entrypoints stop after one read-only planner.
+
+Under [T3 orchestration](t3-code.md), the coordinator also chooses which
+harness runs the verifier role. Task verification, standalone review, audit,
+and task-bundle challenge use that one selection. A harness or model named in
+the user's request wins. Otherwise the coordinator reads
+`zdev config get t3.verifier-harness`, whose default is `codex`: when one Codex
+instance is available, a Claude Code coordinator dispatches verifiers to Codex
+with the Codex verifier profile (`gpt-6.1-sol`, `high` in `normal`). Set the
+key to `claude` to prefer Claude Code, or to `inherit` to keep verifiers on the
+coordinator's own provider. If the preferred harness has no available instance,
+or that instance does not advertise the resolved model, the coordinator uses
+its own provider and states the fallback at dispatch. Planners and implementers
+still use the coordinator's provider unless the request names another target.
+Native harness routes do not read this key.
 
 Claude's executable task workflows obtain one admitted dispatch specification
 at the start of a run. That specification contains the concrete five-role map;

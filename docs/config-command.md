@@ -8,7 +8,8 @@ Zdev separates project settings, work records, and worker preferences:
    controls repository topology and record handling.
 2. Area, slice, and task files describe the work. They are domain records, not
    preferences.
-3. Worker profiles choose harness model controls. They are preferences: a user
+3. Worker profiles choose harness model controls, and `t3.verifier-harness`
+   chooses the harness for T3 verifier workers. They are preferences: a user
    can have a useful default across repositories, and a repository can override
    it.
 
@@ -70,6 +71,7 @@ or `pull-request` record policy still determines whether `.zdev` is shared.
 | `worker.agy.verifier` | worker profile | global and local | Set or unset. |
 | `worker.agy.advanced-implementer` | worker profile | global and local | Set or unset. |
 | `worker.agy.planner` | worker profile | global and local | Set or unset. |
+| `t3.verifier-harness` | `codex`, `claude`, or `inherit`; absent means `codex` | global and local | Set or unset. |
 
 A worker profile is set as a whole. It is either `inherit`, or a non-empty
 model plus one effort from `inherit`, `low`, `medium`, `high`, `xhigh`, or
@@ -97,6 +99,18 @@ effective value `null` and means unbound. An absent default area has the
 effective value `null` and leaves the existing unambiguous-area selection in
 place. An absent guidance value has the effective value `auto`.
 
+`t3.verifier-harness` selects the harness for verifier-role workers under T3
+orchestration: task verification, standalone review, audit, and task-bundle
+challenge. With the default `codex`, a T3 coordinator dispatches these workers
+to its single available Codex instance with the Codex verifier profile, even
+when the coordinator runs Claude Code. `claude` prefers a Claude Code instance,
+and `inherit` uses the coordinator's own provider instance. A harness or model
+named in the user's request wins over this preference. When the preferred
+harness has no available instance or does not advertise the resolved model, the
+coordinator states the fallback and uses its own provider instance. The [T3
+Code reference](t3-code.md) describes the run behavior. Other roles and
+harness-native routes ignore this key.
+
 Area `tag`, `title`, `objective`, `branch`, `parent`, `base_commit`, and optional
 `execution_profiles` remain in `area.toml`. Use `zdev area profile AREA` to
 show the harness mapping, `zdev area profile AREA HARNESS` to inspect one
@@ -114,7 +128,8 @@ destination, and force are per-invocation controls and are not persisted.
 The repository files keep their current purposes:
 
 - `.zdev/config.toml` is the strict project record.
-- `.zdev/workers.toml` is the optional local worker-profile file.
+- `.zdev/workers.toml` is the optional local worker-preference file. It holds
+  worker profiles and `t3.verifier-harness`.
 
 The global worker path uses the first absolute base in this order:
 
@@ -158,9 +173,13 @@ effort = "high"
 
 [codex.verifier]
 inherit = true
+
+[t3]
+verifier-harness = "claude"
 ```
 
-The global and local files have the same schema. A missing worker file is an
+The `[t3]` table is optional and accepts only `verifier-harness`. The global
+and local files have the same schema. A missing worker file is an
 empty layer. Removing its final profile leaves a deterministic file containing
 only `schema_version = 1`; the command does not delete the file. The local
 project file is required for local and effective operations. Schema version 1
@@ -199,6 +218,7 @@ Scalar settings take exactly one value:
 zdev config set project.trunk main
 zdev config set project.default-area improvements
 zdev config set project.guidance docs/build.md
+zdev config set --global t3.verifier-harness inherit
 ```
 
 A worker key takes either the single value `inherit`, or exactly two values,
@@ -218,9 +238,10 @@ the record-policy documentation.
 A successful worker-profile `set` or `unset` reports that its harness
 integration must be refreshed; it does not refresh it. A local mutation names
 `zdev skill install <harness> --scope project --force`, and a global mutation
-names `zdev skill install <harness> --scope user --force`. Project-key
-mutations omit the refresh fields and hint because they do not change rendered
-worker controls.
+names `zdev skill install <harness> --scope user --force`. Project-key and
+`t3.verifier-harness` mutations omit the refresh fields and hint because they
+do not change rendered worker controls. The T3 coordinator reads
+`t3.verifier-harness` when it resolves workers for a run.
 
 `zdev config trunk [<branch>]` remains supported. It is the existing
 branch-aware convenience command: omission means the checked-out branch. With
@@ -236,7 +257,7 @@ result.
 Key order is the order in the scope table above: project keys first, then
 harnesses in `codex`, `claude`, `opencode`, `pi`, `omp`, `agy` order, with
 `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer`,
-and `planner` in that order. A scoped view omits keys not stored in that
+and `planner` in that order, then `t3.verifier-harness`. A scoped view omits keys not stored in that
 scope. Every JSON object uses the lexical key order produced by the current
 `serde_json::Value` map and existing `serde_json::to_string_pretty` renderer;
 arrays retain the registry and precedence order defined here. No
@@ -548,6 +569,7 @@ Additional key validation is narrow:
   existing safe repository-relative Markdown path rules. File presence and
   guidance markers are checked when an integration is installed or checked,
   where they matter.
+- `t3.verifier-harness` accepts only `codex`, `claude`, or `inherit`.
 - Worker validation is syntactic and adapter-specific. Zdev does not contact a
   provider or promise account access to a model.
 

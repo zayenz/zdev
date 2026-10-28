@@ -153,6 +153,49 @@ struct RawWorkerProfile {
     effort: Option<Effort>,
 }
 
+/// Harness that T3 orchestration prefers for verifier-role workers.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum VerifierHarness {
+    Codex,
+    Claude,
+    Inherit,
+}
+
+impl VerifierHarness {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::Claude => "claude",
+            Self::Inherit => "inherit",
+        }
+    }
+
+    fn parse(value: &str) -> Result<Self, ZdevError> {
+        match value {
+            "codex" => Ok(Self::Codex),
+            "claude" => Ok(Self::Claude),
+            "inherit" => Ok(Self::Inherit),
+            _ => Err(ZdevError::new(format!(
+                "Unknown T3 verifier harness {value}; expected codex, claude, or inherit"
+            ))),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct T3Preferences {
+    #[serde(rename = "verifier-harness", skip_serializing_if = "Option::is_none")]
+    verifier_harness: Option<VerifierHarness>,
+}
+
+impl T3Preferences {
+    fn is_empty(&self) -> bool {
+        self.verifier_harness.is_none()
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct HarnessProfiles {
@@ -212,6 +255,8 @@ struct WorkerFile {
     schema_version: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     default_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "T3Preferences::is_empty")]
+    t3: T3Preferences,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     codex: HarnessProfiles,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
@@ -281,6 +326,7 @@ impl Default for WorkerFile {
         Self {
             schema_version: SCHEMA_VERSION,
             default_profile: None,
+            t3: T3Preferences::default(),
             codex: HarnessProfiles::default(),
             claude: HarnessProfiles::default(),
             opencode: HarnessProfiles::default(),
@@ -321,6 +367,7 @@ impl WorkerFile {
 
 #[derive(Default)]
 struct WorkerLayer {
+    t3: T3Preferences,
     codex: RoleProfiles,
     claude: RoleProfiles,
     opencode: RoleProfiles,
@@ -729,6 +776,42 @@ enum ProjectKey {
 enum ConfigKey {
     Project(ProjectKey),
     Worker(WorkerKey),
+    Preference(PreferenceKey),
+}
+
+/// A scalar preference stored in the worker files beside the worker profiles.
+#[derive(Clone, Copy)]
+enum PreferenceKey {
+    T3VerifierHarness,
+}
+
+const PREFERENCE_KEYS: [PreferenceKey; 1] = [PreferenceKey::T3VerifierHarness];
+
+impl PreferenceKey {
+    fn name(self) -> &'static str {
+        match self {
+            Self::T3VerifierHarness => "t3.verifier-harness",
+        }
+    }
+
+    fn default_value(self) -> &'static str {
+        match self {
+            Self::T3VerifierHarness => VerifierHarness::Codex.as_str(),
+        }
+    }
+
+    fn stored(self, layer: &WorkerLayer) -> Option<&'static str> {
+        match self {
+            Self::T3VerifierHarness => layer.t3.verifier_harness.map(VerifierHarness::as_str),
+        }
+    }
+
+    /// Removes the stored value and reports whether one was present.
+    fn clear(self, file: &mut WorkerFile) -> bool {
+        match self {
+            Self::T3VerifierHarness => file.t3.verifier_harness.take().is_some(),
+        }
+    }
 }
 
 fn config_key(key: &str) -> Result<ConfigKey, ZdevError> {
@@ -745,6 +828,12 @@ fn config_key(key: &str) -> Result<ConfigKey, ZdevError> {
     }
     if let Some(worker) = WORKER_KEYS.iter().find(|worker| worker.name == key) {
         return Ok(ConfigKey::Worker(*worker));
+    }
+    if let Some(preference) = PREFERENCE_KEYS
+        .iter()
+        .find(|preference| preference.name() == key)
+    {
+        return Ok(ConfigKey::Preference(*preference));
     }
     Err(ZdevError::new(format!("Unknown configuration key {key}")))
 }
@@ -779,6 +868,7 @@ pub(super) fn set(
             values,
         ),
         ConfigKey::Worker(worker) => set_worker(root, scope, worker, values),
+        ConfigKey::Preference(preference) => set_preference(root, scope, preference, values),
     }
 }
 
@@ -795,6 +885,7 @@ pub(super) fn unset(
             key,
         ),
         ConfigKey::Worker(worker) => unset_worker(root, scope, worker),
+        ConfigKey::Preference(preference) => unset_preference(root, scope, preference),
     }
 }
 
@@ -953,6 +1044,67 @@ fn unset_worker(
         scope,
         key.harness,
     ))
+}
+
+fn set_preference(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    key: PreferenceKey,
+    values: &[String],
+) -> Result<CommandOutput, ZdevError> {
+    let requested = require_one_value(key.name(), values)?;
+    let path = match key {
+        PreferenceKey::T3VerifierHarness => {
+            let harness = VerifierHarness::parse(requested)?;
+            mutate_worker_file(root, scope, |file| {
+                file.t3.verifier_harness = Some(harness);
+                Ok(())
+            })?
+        }
+    };
+    Ok(set_output(
+        key.name(),
+        json!(requested),
+        worker_target_origin(scope, &path),
+    ))
+}
+
+fn unset_preference(
+    root: Option<&Path>,
+    scope: ConfigWriteScope,
+    key: PreferenceKey,
+) -> Result<CommandOutput, ZdevError> {
+    let default = scalar_candidate(json!(key.default_value()), default_origin());
+    let fallback = match scope {
+        ConfigWriteScope::Local => {
+            let global_path = global_worker_path()?;
+            read_worker_file(&global_path)?
+                .as_ref()
+                .and_then(|layer| key.stored(layer))
+                .map(|value| scalar_candidate(json!(value), global_origin_value(&global_path)))
+                .unwrap_or(default)
+        }
+        ConfigWriteScope::Global => default,
+    };
+    let path = mutate_worker_file(root, scope, |file| {
+        if key.clear(file) {
+            Ok(())
+        } else {
+            Err(not_set_error(key.name(), write_scope_name(scope)))
+        }
+    })?;
+    Ok(unset_output(
+        key.name(),
+        worker_target_origin(scope, &path),
+        fallback,
+    ))
+}
+
+fn write_scope_name(scope: ConfigWriteScope) -> &'static str {
+    match scope {
+        ConfigWriteScope::Local => "local",
+        ConfigWriteScope::Global => "global",
+    }
 }
 
 fn worker_target(root: Option<&Path>, scope: ConfigWriteScope) -> Result<PathBuf, ZdevError> {
@@ -1229,6 +1381,36 @@ fn read_values(root: Option<&Path>, scope: ConfigReadScope) -> Result<Vec<Config
             }
         }
     }
+    for key in PREFERENCE_KEYS {
+        let local_value = local.as_ref().and_then(|layer| key.stored(layer));
+        let global_value = global.as_ref().and_then(|layer| key.stored(layer));
+        let value = match scope {
+            ConfigReadScope::Effective => Some(effective_preference_value(
+                key,
+                local_value,
+                global_value,
+                global_path
+                    .as_deref()
+                    .expect("effective reads have a global path"),
+            )),
+            ConfigReadScope::Local => local_value.map(|value| {
+                scalar_value(key.name(), json!(value), local_origin_value(), Vec::new())
+            }),
+            ConfigReadScope::Global => global_value.map(|value| {
+                scalar_value(
+                    key.name(),
+                    json!(value),
+                    global_origin_value(
+                        global_path
+                            .as_deref()
+                            .expect("global reads have a global path"),
+                    ),
+                    Vec::new(),
+                )
+            }),
+        };
+        values.extend(value);
+    }
     Ok(values)
 }
 
@@ -1345,6 +1527,28 @@ fn effective_worker_value(
         origin,
         shadowed,
     }
+}
+
+fn effective_preference_value(
+    key: PreferenceKey,
+    local: Option<&str>,
+    global: Option<&str>,
+    global_path: &Path,
+) -> ConfigValue {
+    let default = scalar_candidate(json!(key.default_value()), default_origin());
+    let mut candidates = Vec::new();
+    if let Some(value) = local {
+        candidates.push(scalar_candidate(json!(value), local_origin_value()));
+    }
+    if let Some(value) = global {
+        candidates.push(scalar_candidate(
+            json!(value),
+            global_origin_value(global_path),
+        ));
+    }
+    candidates.push(default);
+    let winner = candidates.remove(0);
+    scalar_value(key.name(), winner.value, winner.origin, candidates)
 }
 
 fn scalar_value(
@@ -1714,6 +1918,7 @@ fn validate_worker_file(path: &Path, file: &WorkerFile) -> Result<WorkerLayer, Z
         }
     }
     Ok(WorkerLayer {
+        t3: file.t3.clone(),
         codex: validate_roles(path, WorkerHarness::Codex, &file.codex)?,
         claude: validate_roles(path, WorkerHarness::Claude, &file.claude)?,
         opencode: validate_roles(path, WorkerHarness::Opencode, &file.opencode)?,
@@ -2187,7 +2392,7 @@ pub(super) fn validate_named_profile_for_harness(
     }
 }
 
-fn mutate_profile(
+fn mutate_worker_file(
     root: Option<&Path>,
     scope: ConfigWriteScope,
     mutator: impl FnOnce(&mut WorkerFile) -> Result<(), ZdevError>,
@@ -2197,7 +2402,7 @@ fn mutate_profile(
     let _global_lock;
     match scope {
         ConfigWriteScope::Local => {
-            let project = root.expect("local profile write has project");
+            let project = root.expect("local worker-file write has project");
             _local_lock = Some(ZdevStateLock::acquire(project)?);
             _global_lock = None;
             read_config(project)?;
@@ -2253,7 +2458,7 @@ pub(super) fn profile_set(
         &raw,
     )?
     .value();
-    let path = mutate_profile(root, scope, |f| {
+    let path = mutate_worker_file(root, scope, |f| {
         f.profiles
             .entry(name.to_owned())
             .or_default()
@@ -2286,7 +2491,7 @@ pub(super) fn profile_unset(
     validate_profile_name(name)?;
     let harness = WorkerHarness::parse(harness)?;
     let role = WorkerRole::parse(role)?;
-    let path = mutate_profile(root, scope, |f| {
+    let path = mutate_worker_file(root, scope, |f| {
         let named = f
             .profiles
             .get_mut(name)
@@ -2341,7 +2546,7 @@ pub(super) fn profile_set_default(
             )));
         }
     }
-    let path = mutate_profile(root, scope, |f| {
+    let path = mutate_worker_file(root, scope, |f| {
         f.default_profile = Some(name.to_owned());
         Ok(())
     })?;
@@ -2359,7 +2564,7 @@ pub(super) fn profile_unset_default(
     root: Option<&Path>,
     scope: ConfigWriteScope,
 ) -> Result<CommandOutput, ZdevError> {
-    let path = mutate_profile(root, scope, |f| {
+    let path = mutate_worker_file(root, scope, |f| {
         if f.default_profile.take().is_none() {
             return Err(not_set_error("default_profile", "selected"));
         }

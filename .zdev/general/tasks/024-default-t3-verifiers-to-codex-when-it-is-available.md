@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-024"
 key = "t3-codex-verifier-default"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -32,13 +32,26 @@ Resolution order for the verifier role: an explicit harness or provider choice i
 
 ## Done when
 
-- [ ] `zdev config get t3.verifier-harness` returns `codex` with default origin, and `config set`/`unset` accept `codex`, `claude` and `inherit` and reject other values in the same way other fixed keys do.
-- [ ] `zdev config show` lists the key with its origin.
-- [ ] The T3 reference states the resolution order, the fallback when the preferred harness or model is unavailable, and that reviews, audits and bundle challenges use the same verifier selection.
-- [ ] Generated copies of the T3 reference match the template, and `zdev skill check` reports every harness ready.
-- [ ] `docs/worker-profiles.md` and `docs/config-command.md` describe the key and the T3 default, and `CHANGELOG.md` has an Unreleased entry.
+- [x] `zdev config get t3.verifier-harness` returns `codex` with default origin, and `config set`/`unset` accept `codex`, `claude` and `inherit` and reject other values in the same way other fixed keys do.
+- [x] `zdev config show` lists the key with its origin.
+- [x] The T3 reference states the resolution order, the fallback when the preferred harness or model is unavailable, and that reviews, audits and bundle challenges use the same verifier selection.
+- [x] Generated copies of the T3 reference match the template, and `zdev skill check` reports every harness ready.
+- [x] `docs/worker-profiles.md` and `docs/config-command.md` describe the key and the T3 default, and `CHANGELOG.md` has an Unreleased entry.
 
 ## Validation
 
 - Add focused config tests for the default, set, unset and an invalid value; extend an existing T3 rendering assertion to check the new routing text. No live T3 or harness run.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+Added the t3.verifier-harness preference (codex, claude, inherit; default codex), stored in the worker preference files at global and repository scope. The T3 route now sends verification, review, audit and bundle challenges to Codex when it is available, falling back to the inherited provider with a stated reason. Independently verified, with one test-naming correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass except claude_rolling_research_refills_and_reconciles_record_changes, which fails identically at the baseline and is tracked separately
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

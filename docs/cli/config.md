@@ -25,10 +25,12 @@ Project keys include `project.trunk`, `project.default-area`, and
 `project.guidance`. Project name and record policy are set at initialization
 and are read-only afterward. Worker keys have the form
 `worker.HARNESS.ROLE`; their value is either `inherit` or a model and effort
-provided together.
+provided together. `t3.verifier-harness` chooses the harness for T3 verifier
+workers: `codex` (the default), `claude`, or `inherit`.
 
-Project settings are repository-only. Worker settings can be local or global;
-use an explicit scope when changing them. `--allow-divergent` on `set` or
+Project settings are repository-only. Worker settings and
+`t3.verifier-harness` can be local or global; use an explicit scope when
+changing them. `--allow-divergent` on `set` or
 `trunk` permits a project-trunk ancestry discontinuity. The
 [configuration reference](../config-command.md) defines all keys, default
 write scopes, precedence, and validation rules.

@@ -6853,6 +6853,14 @@ fn t3_coordination_reference_is_reachable_and_managed_for_both_main_harnesses() 
         assert!(skill.contains("(references/t3-code.md)"));
         let reference = destination.join(skill_root).join("references/t3-code.md");
         let installed = fs::read(&reference).expect("reachable T3 route");
+        let route = String::from_utf8_lossy(&installed);
+        for routing in [
+            "zdev config get t3.verifier-harness --format json",
+            "falls back to the inherited provider instance",
+            "standalone review, audit, and task-bundle challenge",
+        ] {
+            assert!(route.contains(routing), "T3 route lacks {routing:?}");
+        }
         fs::remove_file(&reference).expect("remove route to exercise readiness");
         let checked = json_output_with_exit_code(
             root,
@@ -11115,7 +11123,8 @@ worker.omp.routine-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"m
 worker.omp.implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"high\" }}  [default]\n\
 worker.omp.verifier = {{ model = \"anthropic/claude-opus-5-5\", effort = \"low\" }}  [default]\n\
 worker.omp.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
-worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n"
+worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
+t3.verifier-harness = \"codex\"  [default]\n"
     )
     .replace("\nshadows", "\n  shadows");
     let shown_text = String::from_utf8(shown.stdout).expect("human output");
@@ -11131,7 +11140,7 @@ worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [
     let effective = json_output_with_env(root, &["config", "show"], &environment);
     assert_eq!(effective["scope"], "effective");
     let values = effective["values"].as_array().expect("effective values");
-    assert_eq!(values.len(), 35);
+    assert_eq!(values.len(), 36);
     assert_eq!(
         values
             .iter()
@@ -11173,6 +11182,7 @@ worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [
             "worker.agy.verifier",
             "worker.agy.advanced-implementer",
             "worker.agy.planner",
+            "t3.verifier-harness",
         ]
     );
     assert_eq!(values[2]["value"], Value::Null);
@@ -11375,6 +11385,62 @@ fn config_set_validates_typed_project_values_and_preserves_trunk_alias() {
     assert_eq!(unset["effective"]["origin"]["scope"], "default");
     assert!(unset.get("integration_refresh_required").is_none());
     assert!(unset.get("integration_refresh_command").is_none());
+}
+
+#[test]
+fn config_t3_verifier_harness_defaults_to_codex_and_accepts_only_known_values() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    let config_home = root.join("global-config");
+    let global_path = config_home.join("zdev/workers.toml");
+    let local_path = root.join(".zdev/workers.toml");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    let run = |arguments: &[&str]| json_output_with_env(root, arguments, &environment);
+
+    let default = run(&["config", "get", "t3.verifier-harness"]);
+    assert_eq!(default["value"], "codex");
+    assert_eq!(default["origin"], json!({"path": null, "scope": "default"}));
+
+    for value in ["codex", "claude", "inherit"] {
+        let set = run(&["config", "set", "t3.verifier-harness", value]);
+        assert_eq!(set["value"], value);
+        assert_eq!(
+            set["origin"],
+            json!({"path": ".zdev/workers.toml", "scope": "local"})
+        );
+        assert!(set.get("integration_refresh_required").is_none());
+    }
+    run(&["config", "set", "--global", "t3.verifier-harness", "codex"]);
+    let stored = fs::read(&local_path).expect("local preference");
+    assert_eq!(
+        String::from_utf8_lossy(&stored),
+        "schema_version = 1\n\n[t3]\nverifier-harness = \"inherit\"\n"
+    );
+
+    for arguments in [
+        vec!["config", "set", "t3.verifier-harness", "opencode"],
+        vec!["config", "set", "t3.verifier-harness", "codex", "claude"],
+    ] {
+        let failed = run_zdev_with_env(root, &arguments, &environment);
+        assert_eq!(failed.status.code(), Some(2));
+        assert!(failed.stdout.is_empty());
+        assert_eq!(fs::read(&local_path).expect("preserved preference"), stored);
+    }
+
+    let unset = run(&["config", "unset", "t3.verifier-harness"]);
+    assert_eq!(unset["effective"]["value"], "codex");
+    assert_eq!(unset["effective"]["origin"]["path"], json!(global_path));
+    let failed = run_zdev_with_env(
+        root,
+        &["config", "unset", "t3.verifier-harness"],
+        &environment,
+    );
+    assert_eq!(failed.status.code(), Some(2));
+
+    let unset_global = run(&["config", "unset", "--global", "t3.verifier-harness"]);
+    assert_eq!(unset_global["effective"]["value"], "codex");
+    assert_eq!(unset_global["effective"]["origin"]["scope"], "default");
 }
 
 #[test]

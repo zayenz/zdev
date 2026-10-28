@@ -43,8 +43,9 @@ sequential work as an option. A `cd` instruction does not create T3 isolation.
 ## Resolve workers by their harness
 
 Retain the user's role-to-provider choices in the conversation. Accept a chosen
-harness for a role, or explicit provider instance and model choices. When a
-role's harness is omitted, use the inherited main-thread provider instance.
+harness for a role, or explicit provider instance and model choices. When the
+harness of a planner or implementer is omitted, use the inherited main-thread
+provider instance. The verifier follows the order below.
 An implementation target applies to routine, standard, and advanced
 implementers unless the user chooses a target for a specific tier.
 Map T3 driver `codex` to zdev harness `codex`, and `claudeAgent` to `claude`.
@@ -52,6 +53,24 @@ These are the qualified routing targets for this integration. Another driver
 is unsupported until separately qualified; do not reinterpret it as Codex or
 Claude. If a requested harness has several available instances, ask which one
 to use rather than selecting an account silently.
+
+Task verification, standalone review, audit, and task-bundle challenge workers
+all use the one verifier selection. Choose its harness in this order:
+
+1. A harness, provider instance, or model that the user's request names for
+   verification.
+2. Otherwise read the stored preference with
+   `zdev config get t3.verifier-harness --format json` and use its `value`.
+   `codex` or `claude` names the preferred harness; zdev's default is `codex`.
+   `inherit` uses the inherited main-thread provider instance.
+
+The stored preference never creates a blocker. When the preferred harness has
+no available instance, or its instance does not advertise the resolved verifier
+model, the verifier falls back to the inherited provider instance and resolves
+the verifier profile for that harness. State the preferred harness, the reason,
+and the fallback target at dispatch. Several instances of the preferred harness
+still require asking the user which one to use. An unavailable harness or model
+that the user named remains a blocker under the model rules below.
 
 Resolve all roles the run can use before their first dispatch. For task work,
 freeze routine, standard, advanced, planner, and verifier selections for the

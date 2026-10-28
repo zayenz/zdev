@@ -43,7 +43,15 @@ adding “T3” to their arguments does not select this route.
 
 ## Workers and profiles
 
-An omitted worker target uses the main thread's inherited T3 provider instance.
+An omitted planner or implementer target uses the main thread's inherited T3
+provider instance. An omitted verifier target follows the stored
+`t3.verifier-harness` preference, which defaults to `codex`: verification,
+standalone review, audit, and task-bundle challenge workers run on the single
+available Codex instance with the Codex verifier profile. Run
+`zdev config set --global t3.verifier-harness inherit` to keep verifiers on the
+main thread's provider, or `claude` to prefer Claude Code. When the preferred
+harness or its resolved model is unavailable, the coordinator reports the
+fallback and uses the inherited provider instance.
 A general implementation target covers routine, standard, and advanced work;
 planner targeting follows the advanced implementer unless separately chosen.
 Several available instances of a requested harness require an account choice.

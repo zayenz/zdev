@@ -13,6 +13,14 @@ This file records notable changes to zdev.
   Opus 5.5 at high and xhigh. Claude workflow coordination steps use Opus 5.5
   at low effort, and the OpenCode, Pi and Oh My Pi verifiers default to
   `anthropic/claude-opus-5-5`.
+- Under T3 orchestration, verifier-role workers default to Codex. When the
+  request names no verifier target and one Codex instance is available, task
+  verification, standalone review, audit and task-bundle challenge run on Codex
+  with the Codex verifier profile (`gpt-6.1-sol`, high). The new
+  `t3.verifier-harness` key (`codex`, `claude` or `inherit`) changes or
+  disables this; `inherit` restores the coordinator's provider. When the
+  preferred harness or model is unavailable, the coordinator states the
+  fallback and verifies on its own provider.
 
 ## [2.0.0] - 2026-10-20
 

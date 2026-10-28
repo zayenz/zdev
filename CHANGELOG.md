@@ -21,6 +21,17 @@ This file records notable changes to zdev.
   disables this; `inherit` restores the coordinator's provider. When the
   preferred harness or model is unavailable, the coordinator states the
   fallback and verifies on its own provider.
+- Agents create branches and worktrees only on request by default. They create
+  new areas on the checked-out project trunk and implement single tasks in the
+  current checkout. This reverses the 2.0 default, which implemented in an
+  isolated worktree when no workspace was chosen. Without `--branch` or
+  `--trunk`, `zdev area create` on the checked-out trunk now creates a trunk
+  area; on another branch or with pull-request records it still binds the
+  checked-out branch. Parallel batches, rolling research, assigned source
+  worktrees and explicit requests still use separate checkouts. The new
+  `workspace.branching` key, settable globally or per repository, takes
+  `on-request` (the default) or `isolated`, which restores the 2.0 behavior.
+  Existing areas keep their recorded mode.
 
 ## [2.0.0] - 2026-10-20
 

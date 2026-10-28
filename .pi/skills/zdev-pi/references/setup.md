@@ -53,17 +53,22 @@ Confirm the selected record policy and installed integrations. Continue with
 the interaction that required durable state.
 
 When the user wants a standing home for one-off work, offer the conventional
-tag `general`. Use the normal isolated form on its own persistent branch:
+tag `general`. With personal or project records under the default
+`workspace.branching` value `on-request`, run this on the checked-out project
+trunk to create a trunk area:
 
 ```sh
 zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
 
-Or, for personal/project records when the user explicitly wants several areas
-to share configured trunk, offer:
+Pull-request records need a persistent review branch for `general`. With
+pull-request records, when the user asks for an isolated area, or when `zdev
+config get workspace.branching` reports `isolated`, select the branch with the
+shared workspace-choice rules, check it out, and run the same command there, or
+name the branch explicitly:
 
 ```sh
-zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks." --trunk
+zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks." --branch general
 ```
 
 Zdev does not create or switch branches automatically. Pull-request records

@@ -26,10 +26,13 @@ Project keys include `project.trunk`, `project.default-area`, and
 and are read-only afterward. Worker keys have the form
 `worker.HARNESS.ROLE`; their value is either `inherit` or a model and effort
 provided together. `t3.verifier-harness` chooses the harness for T3 verifier
-workers: `codex` (the default), `claude`, or `inherit`.
+workers: `codex` (the default), `claude`, or `inherit`. `workspace.branching`
+chooses when agents create branches and worktrees: `on-request` (the default)
+keeps work on the current checkout and project trunk, and `isolated` gives new
+areas and implementation their own branch or worktree.
 
-Project settings are repository-only. Worker settings and
-`t3.verifier-harness` can be local or global; use an explicit scope when
+Project settings are repository-only. Worker settings, `t3.verifier-harness`,
+and `workspace.branching` can be local or global; use an explicit scope when
 changing them. `--allow-divergent` on `set` or
 `trunk` permits a project-trunk ancestry discontinuity. The
 [configuration reference](../config-command.md) defines all keys, default

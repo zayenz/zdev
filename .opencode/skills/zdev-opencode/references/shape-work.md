@@ -17,11 +17,15 @@ material, then follows this workflow for the area brief.
 1. Begin in the current checkout: inspect the repository and discuss the
    objective before choosing a Git workspace. For a new objective, initialize
    zdev on project trunk when needed. Reuse a branch or worktree choice already
-   made for this work. Use the shared workspace-choice rules when it remains
-   undecided. Use the default isolated area after its branch is
-   selected, or use `--trunk` only when the user explicitly wants a
-   personal/project area on configured trunk. For an existing area, preserve
-   its recorded mode and resolved branch; reuse any authority to switch to it.
+   made for this work. Otherwise run `zdev config get workspace.branching
+   --format json`. With personal or project records under `on-request`, the
+   default, stay on the checked-out project trunk and run `zdev area create`
+   without a mode flag to create a trunk area; create an area branch only when
+   the user asks for one. Pull-request records need an area branch for review
+   under either setting. With pull-request records, or under `isolated`, select
+   the area's branch with the shared workspace-choice rules, check it out, and
+   create the isolated area there. For an existing area, preserve its recorded
+   mode and resolved branch; reuse any authority to switch to it.
 2. Read the conversation, current brief, repository instructions, relevant
    source and tests, domain documentation, and applicable ADRs.
 3. Resolve repository facts directly. Ask the user only about choices that
@@ -89,7 +93,9 @@ General one-off work does not require a separate Explore or Investigate pass
 when the standing brief applies and discussion or the request already settles
 the task's product and testing choices.
 
-Most areas remain isolated branches based on trunk. When a new isolated area
-builds on another in-progress isolated area, create its branch from the parent
-branch, create the area, then run `zdev area parent <child> <parent>`. Explicit
-trunk areas have no parent and need no managed rebase.
+Under the default `on-request` setting, new areas follow trunk unless the user
+asks for a branch. Pull-request records and the `isolated` setting keep areas on
+isolated branches based on trunk. When a new isolated area builds on another
+in-progress isolated area, create its branch from the parent branch, create the
+area, then run `zdev area parent <child> <parent>`. Trunk areas have no parent
+and need no managed rebase.

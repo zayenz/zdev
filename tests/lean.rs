@@ -9608,6 +9608,51 @@ fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
     );
     assert!(codex.contains("## Codex orchestration"));
     assert!(codex.contains("For an assigned source worktree"));
+
+    let flat = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let orientation = flat(codex);
+    for guidance in [
+        "zdev config get workspace.branching --format json",
+        "Under `on-request`, the default, implement in the current checkout",
+        "parallel batches, rolling research, and an assigned source worktree",
+        "Under `isolated`, use a worktree as the authoritative checkout",
+    ] {
+        assert!(
+            orientation.contains(guidance),
+            "orientation lacks {guidance:?}"
+        );
+    }
+    assert!(!orientation.contains("otherwise use a worktree"));
+    assert!(flat(implementation).contains(
+        "under the default `workspace.branching` value `on-request`, implement in the current checkout"
+    ));
+    let shaping = flat(include_str!("../templates/zdev/references/shape-work.md"));
+    assert!(shaping.contains("run `zdev area create` without a mode flag"));
+    assert!(!shaping.contains("Most areas remain isolated branches"));
+    let setup = flat(include_str!("../templates/zdev/references/setup.md"));
+    assert!(setup.contains("under the default `workspace.branching` value `on-request`"));
+    assert!(!setup.contains("Use the normal isolated form"));
+    let convention = flat(include_str!("../templates/zdev/references/task-format.md"));
+    for (route, branch_selection) in [
+        (
+            &shaping,
+            "With pull-request records, or under `isolated`, select the area's branch with the shared workspace-choice rules, check it out",
+        ),
+        (
+            &setup,
+            "With pull-request records, when the user asks for an isolated area, or when `zdev config get workspace.branching` reports `isolated`, select the branch with the shared workspace-choice rules, check it out",
+        ),
+        (
+            &convention,
+            "With pull-request records, when the user asks for an isolated branch, or when the setting is `isolated`, select the branch with the shared workspace-choice rules, check it out",
+        ),
+    ] {
+        assert!(
+            route.contains(branch_selection),
+            "pull-request route lacks {branch_selection:?}"
+        );
+        assert!(route.contains("With personal or project records under"));
+    }
 }
 
 #[test]
@@ -11124,7 +11169,8 @@ worker.omp.implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"high\" }}
 worker.omp.verifier = {{ model = \"anthropic/claude-opus-5-5\", effort = \"low\" }}  [default]\n\
 worker.omp.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
-t3.verifier-harness = \"codex\"  [default]\n"
+t3.verifier-harness = \"codex\"  [default]\n\
+workspace.branching = \"on-request\"  [default]\n"
     )
     .replace("\nshadows", "\n  shadows");
     let shown_text = String::from_utf8(shown.stdout).expect("human output");
@@ -11140,7 +11186,7 @@ t3.verifier-harness = \"codex\"  [default]\n"
     let effective = json_output_with_env(root, &["config", "show"], &environment);
     assert_eq!(effective["scope"], "effective");
     let values = effective["values"].as_array().expect("effective values");
-    assert_eq!(values.len(), 36);
+    assert_eq!(values.len(), 37);
     assert_eq!(
         values
             .iter()
@@ -11183,6 +11229,7 @@ t3.verifier-harness = \"codex\"  [default]\n"
             "worker.agy.advanced-implementer",
             "worker.agy.planner",
             "t3.verifier-harness",
+            "workspace.branching",
         ]
     );
     assert_eq!(values[2]["value"], Value::Null);
@@ -11441,6 +11488,150 @@ fn config_t3_verifier_harness_defaults_to_codex_and_accepts_only_known_values() 
     let unset_global = run(&["config", "unset", "--global", "t3.verifier-harness"]);
     assert_eq!(unset_global["effective"]["value"], "codex");
     assert_eq!(unset_global["effective"]["origin"]["scope"], "default");
+}
+
+#[test]
+fn config_workspace_branching_merges_scopes_and_accepts_only_known_values() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    let config_home = root.join("global-config");
+    let global_path = config_home.join("zdev/workers.toml");
+    let local_path = root.join(".zdev/workers.toml");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    let run = |arguments: &[&str]| json_output_with_env(root, arguments, &environment);
+    let shown = |arguments: &[&str]| {
+        run(arguments)["values"]
+            .as_array()
+            .expect("shown values")
+            .iter()
+            .find(|entry| entry["key"] == "workspace.branching")
+            .cloned()
+    };
+
+    let default = run(&["config", "get", "workspace.branching"]);
+    assert_eq!(default["value"], "on-request");
+    assert_eq!(default["origin"], json!({"path": null, "scope": "default"}));
+    assert_eq!(shown(&["config", "show", "--global"]), None);
+
+    run(&[
+        "config",
+        "set",
+        "--global",
+        "workspace.branching",
+        "isolated",
+    ]);
+    let global = run(&["config", "get", "workspace.branching"]);
+    assert_eq!(global["value"], "isolated");
+    assert_eq!(global["origin"]["path"], json!(global_path));
+
+    let set = run(&["config", "set", "workspace.branching", "on-request"]);
+    assert_eq!(
+        set["origin"],
+        json!({"path": ".zdev/workers.toml", "scope": "local"})
+    );
+    assert!(set.get("integration_refresh_required").is_none());
+    let stored = fs::read(&local_path).expect("local preference");
+    assert_eq!(
+        String::from_utf8_lossy(&stored),
+        "schema_version = 1\n\n[workspace]\nbranching = \"on-request\"\n"
+    );
+    let effective = shown(&["config", "show"]).expect("effective branching");
+    assert_eq!(effective["value"], "on-request");
+    assert_eq!(effective["origin"]["scope"], "local");
+    assert_eq!(effective["shadowed"][0]["value"], "isolated");
+    assert_eq!(effective["shadowed"][1]["origin"]["scope"], "default");
+    let local = shown(&["config", "show", "--local"]).expect("local branching");
+    assert_eq!(local["value"], "on-request");
+    assert_eq!(local["origin"]["scope"], "local");
+    let global = shown(&["config", "show", "--global"]).expect("global branching");
+    assert_eq!(global["value"], "isolated");
+    assert_eq!(global["origin"]["scope"], "global");
+
+    for value in ["trunk", "On-Request"] {
+        let failed = run_zdev_with_env(
+            root,
+            &["config", "set", "workspace.branching", value],
+            &environment,
+        );
+        assert_eq!(failed.status.code(), Some(2));
+        assert!(failed.stdout.is_empty());
+        assert_eq!(fs::read(&local_path).expect("preserved preference"), stored);
+    }
+
+    let unset = run(&["config", "unset", "workspace.branching"]);
+    assert_eq!(unset["effective"]["value"], "isolated");
+    assert_eq!(unset["effective"]["origin"]["path"], json!(global_path));
+    let unset_global = run(&["config", "unset", "--global", "workspace.branching"]);
+    assert_eq!(unset_global["effective"]["value"], "on-request");
+    assert_eq!(unset_global["effective"]["origin"]["scope"], "default");
+}
+
+#[test]
+fn area_create_without_mode_flag_follows_workspace_branching() {
+    let project = repository();
+    let root = project.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    let config_home = root.join("global-config");
+    let environment = [("XDG_CONFIG_HOME", config_home.as_path())];
+    let create = |tag: &str, flags: &[&str]| {
+        let mut arguments = vec![
+            "area",
+            "create",
+            tag,
+            "--title",
+            tag,
+            "--objective",
+            "Select the area mode.",
+        ];
+        arguments.extend_from_slice(flags);
+        json_output_with_env(root, &arguments, &environment)
+    };
+
+    let on_request = create("on-request", &[]);
+    assert_eq!(on_request["mode"], "trunk");
+    assert_eq!(on_request["branch"], "main");
+    assert_eq!(create("named", &["--branch", "named"])["mode"], "isolated");
+
+    json_output_with_env(
+        root,
+        &[
+            "config",
+            "set",
+            "--global",
+            "workspace.branching",
+            "isolated",
+        ],
+        &environment,
+    );
+    let isolated = create("isolated", &[]);
+    assert_eq!(isolated["mode"], "isolated");
+    assert_eq!(isolated["branch"], "main");
+    assert_eq!(create("trunk", &["--trunk"])["mode"], "trunk");
+
+    let reviewed = repository();
+    let reviewed_root = reviewed.path();
+    commit_file(reviewed_root, "seed.txt", "seed\n", "seed");
+    json_output(reviewed_root, &["init", "--record", "pull-request"]);
+    let created = json_output_with_env(
+        reviewed_root,
+        &[
+            "area",
+            "create",
+            "reviewed",
+            "--title",
+            "Reviewed",
+            "--objective",
+            "Keep pull-request areas isolated.",
+        ],
+        &[(
+            "XDG_CONFIG_HOME",
+            reviewed_root.join("global-config").as_path(),
+        )],
+    );
+    assert_eq!(created["mode"], "isolated");
+    assert_eq!(created["branch"], "main");
 }
 
 #[test]

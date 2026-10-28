@@ -108,8 +108,22 @@ merge. A normal merge or rebase that retains the feature commits also retains
 
 ## 4. Create an area
 
-An area groups one objective and its tasks. By default it owns an isolated
-feature branch, which you create first:
+An area groups one objective and its tasks. With a personal or project
+record, an area created on the checked-out trunk follows that trunk, which
+other trunk areas may also use:
+
+```sh
+git switch main
+zdev area create scheduling \
+  --title "Scheduling support" \
+  --objective "Add a tested scheduling API."
+```
+
+Trunk mode follows later `project.trunk` configuration changes dynamically. It
+does not weaken task ownership or stage unrelated trunk changes.
+
+For an isolated area on its own feature branch, create the branch first. Zdev
+binds the area to the checked-out branch when it is not the trunk:
 
 ```sh
 git switch -c scheduling
@@ -118,20 +132,16 @@ zdev area create scheduling \
   --objective "Add a tested scheduling API."
 ```
 
-For a personal or project record, use `--trunk` to work on the configured trunk
-branch, which other trunk areas may also use:
+Pull-request records always create isolated areas. `--branch <branch>` and
+`--trunk` choose the mode explicitly. The `workspace.branching` preference sets
+the default when neither flag is given: `on-request`, the default, gives trunk
+areas on the trunk and keeps agents in the current checkout unless you ask for a
+branch or worktree. `isolated` restores the earlier behavior, where an area
+binds the checked-out branch and implementation runs in a worktree:
 
 ```sh
-git switch main
-zdev area create scheduling \
-  --title "Scheduling support" \
-  --objective "Add a tested scheduling API." \
-  --trunk
+zdev config set --global workspace.branching isolated
 ```
-
-Trunk mode follows later `project.trunk` configuration changes dynamically. It
-does not weaken task ownership or stage unrelated trunk changes. Pull-request
-records remain isolated.
 
 Zdev creates this structure:
 
@@ -215,19 +225,17 @@ Creating the area alone does not create tasks or start implementation.
 ### Keep one-off work in a general area
 
 If you often have small, unrelated improvements, keep them in an ordinary area
-with the conventional tag `general`. First choose where it should live. For an
-isolated area, create or switch to its branch, then bind the area to the branch
-already checked out with:
+with the conventional tag `general`. With a personal or project record, run
+this on the checked-out trunk to create a trunk area:
 
 ```sh
-git switch -c general
 zdev area create general \
   --title "General work" \
   --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
 
-For a personal or project record that shares configured trunk, omit
-the new branch and add `--trunk` to the area command.
+For an isolated area, first run `git switch -c general`, then the same command
+binds the area to that branch.
 
 Maintain a short standing `brief.md` with the shared engineering boundaries,
 testing level, and validation commands. Each one-off task still needs its own

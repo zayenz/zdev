@@ -561,14 +561,19 @@ commands; run authorization itself does not launch a harness.
 ## General area convention
 
 `general` is the conventional tag for recurring one-off work. It is an ordinary
-area, not an area kind. Create or switch to its isolated branch and run:
+area, not an area kind. With personal or project records under the default
+`workspace.branching` value `on-request`, run this on the checked-out project
+trunk to create a trunk area:
 
 ```sh
 zdev area create general --title "General work" --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
 
-When the user explicitly prefers shared-trunk work, the same command may add
-`--trunk`; this changes only area branch mode, not task lifecycle or ownership.
+Pull-request records need an isolated persistent branch for review. With
+pull-request records, when the user asks for an isolated branch, or when the
+setting is `isolated`, select the branch with the shared workspace-choice
+rules, check it out, and run the same command there. The mode changes only the area's branch binding, not
+task lifecycle or ownership.
 
 Keep `brief.md` minimal and reusable. It records shared engineering boundaries,
 the testing level, and validation; each task records its own concrete outcome,

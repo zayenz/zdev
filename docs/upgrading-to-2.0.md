@@ -53,9 +53,11 @@ still needs a decision. Harness continuation limits remain in effect.
 
 ## Execution defaults and delegated work
 
-Implementation reuses the workspace you explicitly selected. Otherwise the
-harness uses an isolated worktree as its authoritative checkout and reports
-where to inspect the result. Read-only exploration starts in the current
+Implementation reuses the workspace you explicitly selected. In 2.0, the
+harness otherwise used an isolated worktree as its authoritative checkout and
+reported where to inspect the result. Later releases implement in the current
+checkout by default; set `workspace.branching` to `isolated` to restore the
+worktree default (see the [configuration reference](config-command.md)). Read-only exploration starts in the current
 checkout. Parallel work defaults to four task slots within available capacity;
 destination acceptance and commits remain serial.
 

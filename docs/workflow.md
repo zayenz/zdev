@@ -54,10 +54,14 @@ questions and unavailable required evidence prevent a passing result.
 
 ## Branch orientation
 
-Areas use isolated mode by default, recording a Git branch for each area. An
-independent isolated area's effective base is project trunk; a dependent area
-names one parent area, whose branch becomes its effective base. Personal and
-project records may instead create an explicit trunk area with `--trunk`.
+An area either follows the configured project trunk or records its own Git
+branch in isolated mode. With personal and project records, an area created on
+the checked-out trunk without a mode flag is a trunk area under the default
+`workspace.branching` value `on-request`. On another branch, under `isolated`,
+or with pull-request records, the area binds the checked-out branch. `--trunk`
+and `--branch` always choose the mode explicitly. An independent isolated
+area's effective base is project trunk; a dependent area names one parent area,
+whose branch becomes its effective base.
 One thread per area is the default. Several areas may share a thread, worktree,
 and branch, while task ownership remains area- and task-specific.
 
@@ -202,8 +206,8 @@ agent-ready implementation work enters the task queue.
 
 Use `general` as a conventional standing area when small, unrelated
 improvements do not justify a new area each time. It has no special lifecycle
-rules. Choose its workspace first. For an isolated area, create or switch to
-the desired branch, then bind the area to the branch already checked out with:
+rules. Run the command on the checked-out trunk to create a trunk area under
+the default `workspace.branching` value `on-request`:
 
 ```sh
 zdev area create general \
@@ -211,8 +215,9 @@ zdev area create general \
   --objective "Keep concrete one-off improvements as reviewed tasks."
 ```
 
-When a personal/project record should keep several areas on configured trunk,
-add `--trunk` instead of creating a separate branch.
+For an isolated area, create or switch to the desired branch first; the same
+command then binds the area to that branch. Pull-request records always use
+the isolated form.
 
 Keep its brief short and reusable: shared engineering boundaries, the agreed
 testing level, and repository validation. Put each one-off outcome, context,
@@ -260,9 +265,13 @@ question when the answer determines the next step, batches only independent
 questions, recommends an answer with its trade-off, and treats no answer as no
 consent. It reuses choices already stated for the work. Discussion and read-only
 orientation begin in the current checkout. Implementation reuses an explicit
-workspace choice; otherwise it creates an isolated worktree as its authoritative
-checkout and reports that location. A branch switch in the existing checkout
-still needs a user choice when it was not already authorized.
+workspace choice. Otherwise the harness reads `workspace.branching`: under the
+default `on-request`, it implements in the current checkout and creates a branch
+or worktree only when you ask or the route needs one, as parallel batches,
+rolling research, and an assigned source worktree do. Under `isolated`, it
+creates a worktree as its authoritative checkout and reports that location. A
+branch switch in the existing checkout still needs a user choice when it was
+not already authorized.
 
 An explicitly chosen assigned-worktree implementation keeps this admitted
 checkout as the destination. It stores context for the exact task, gives the

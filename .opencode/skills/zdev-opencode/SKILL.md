@@ -80,11 +80,15 @@ consent, and a choice already stated for this work does not need confirmation.
 Use OpenCode's `question` tool when it can request the needed input. Ask one focused question by default and put independent questions in one call only when batching helps. Give each question concrete options, put the recommended answer first, and use plain text for free-form input or approvals the tool cannot request.
 
 Begin read-only orientation in the current checkout. For implementation,
-reuse an explicit workspace choice; otherwise use a worktree as the
-authoritative checkout before admitting task work. Reuse a suitable worktree
-or create one on the area's required branch. State the selected workspace and
-apply the normal branch-safety and ownership checks. Ask only
-when the destination or ownership is ambiguous.
+reuse an explicit workspace choice. Otherwise run `zdev config get
+workspace.branching --format json`. Under `on-request`, the default, implement
+in the current checkout and create a branch or worktree only when the user asks
+for one or the route needs one: parallel batches, rolling research, and an
+assigned source worktree. Under `isolated`, use a worktree as the authoritative
+checkout before admitting task work: reuse a suitable worktree or create one on
+the area's required branch. State the selected workspace and apply the normal
+branch-safety and ownership checks. Ask only when the destination or ownership
+is ambiguous.
 
 Keep interaction boundaries explicit. Exploration presents the resulting brief
 for discussion unless the user also requested task creation. An explicit,
@@ -135,9 +139,10 @@ baseline ownership is clear, and the change stays within the approved semantic
 boundaries. File count alone is never scope expansion.
 
 Use `general` as the conventional tag for recurring one-off work when the user
-wants one standing area instead of a new area for each small improvement. It
-may use the default isolated branch or explicit `--trunk` mode when the user
-wants several areas to share configured trunk. Keep a minimal brief with shared
+wants one standing area instead of a new area for each small improvement. With
+personal or project records under the default `workspace.branching` value
+`on-request`, it is a trunk area on configured trunk. It uses an isolated persistent branch when the user asks for
+one, when the setting is `isolated`, or under pull-request records. Keep a minimal brief with shared
 boundaries, testing, and validation. Unsliced tasks are normal; use slice briefs
 only when several tasks share one narrower objective.
 

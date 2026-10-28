@@ -8,8 +8,9 @@ Zdev separates project settings, work records, and worker preferences:
    controls repository topology and record handling.
 2. Area, slice, and task files describe the work. They are domain records, not
    preferences.
-3. Worker profiles choose harness model controls, and `t3.verifier-harness`
-   chooses the harness for T3 verifier workers. They are preferences: a user
+3. Worker profiles choose harness model controls, `t3.verifier-harness`
+   chooses the harness for T3 verifier workers, and `workspace.branching`
+   chooses when agents create branches and worktrees. They are preferences: a user
    can have a useful default across repositories, and a repository can override
    it.
 
@@ -72,6 +73,7 @@ or `pull-request` record policy still determines whether `.zdev` is shared.
 | `worker.agy.advanced-implementer` | worker profile | global and local | Set or unset. |
 | `worker.agy.planner` | worker profile | global and local | Set or unset. |
 | `t3.verifier-harness` | `codex`, `claude`, or `inherit`; absent means `codex` | global and local | Set or unset. |
+| `workspace.branching` | `on-request` or `isolated`; absent means `on-request` | global and local | Set or unset. |
 
 A worker profile is set as a whole. It is either `inherit`, or a non-empty
 model plus one effort from `inherit`, `low`, `medium`, `high`, `xhigh`, or
@@ -111,6 +113,19 @@ coordinator states the fallback and uses its own provider instance. The [T3
 Code reference](t3-code.md) describes the run behavior. Other roles and
 harness-native routes ignore this key.
 
+`workspace.branching` chooses whether new work gets its own branch or worktree
+without being asked. With the default `on-request`, agents create areas on the
+checked-out project trunk and implement single tasks in the current checkout.
+They create a branch or worktree only when the user asks, or when the route
+needs one: parallel batches, rolling research, and an assigned source worktree.
+`zdev area create` without `--branch` or `--trunk` creates a trunk area when the
+configured trunk is checked out and the record policy allows trunk areas. With
+`isolated`, agents select an area branch and implement in a worktree, and
+`zdev area create` without a mode flag binds the checked-out branch. This was
+the 2.0 behavior. An explicit `--branch` or `--trunk`, or the user's branch or
+worktree request, always wins. Pull-request records always create isolated
+areas. Existing areas keep their recorded mode.
+
 Area `tag`, `title`, `objective`, `branch`, `parent`, `base_commit`, and optional
 `execution_profiles` remain in `area.toml`. Use `zdev area profile AREA` to
 show the harness mapping, `zdev area profile AREA HARNESS` to inspect one
@@ -129,7 +144,7 @@ The repository files keep their current purposes:
 
 - `.zdev/config.toml` is the strict project record.
 - `.zdev/workers.toml` is the optional local worker-preference file. It holds
-  worker profiles and `t3.verifier-harness`.
+  worker profiles, `t3.verifier-harness`, and `workspace.branching`.
 
 The global worker path uses the first absolute base in this order:
 
@@ -176,9 +191,13 @@ inherit = true
 
 [t3]
 verifier-harness = "claude"
+
+[workspace]
+branching = "isolated"
 ```
 
-The `[t3]` table is optional and accepts only `verifier-harness`. The global
+The `[t3]` table is optional and accepts only `verifier-harness`. The optional
+`[workspace]` table accepts only `branching`. The global
 and local files have the same schema. A missing worker file is an
 empty layer. Removing its final profile leaves a deterministic file containing
 only `schema_version = 1`; the command does not delete the file. The local
@@ -219,6 +238,7 @@ zdev config set project.trunk main
 zdev config set project.default-area improvements
 zdev config set project.guidance docs/build.md
 zdev config set --global t3.verifier-harness inherit
+zdev config set workspace.branching isolated
 ```
 
 A worker key takes either the single value `inherit`, or exactly two values,
@@ -238,10 +258,12 @@ the record-policy documentation.
 A successful worker-profile `set` or `unset` reports that its harness
 integration must be refreshed; it does not refresh it. A local mutation names
 `zdev skill install <harness> --scope project --force`, and a global mutation
-names `zdev skill install <harness> --scope user --force`. Project-key and
-`t3.verifier-harness` mutations omit the refresh fields and hint because they
-do not change rendered worker controls. The T3 coordinator reads
-`t3.verifier-harness` when it resolves workers for a run.
+names `zdev skill install <harness> --scope user --force`. Project-key,
+`t3.verifier-harness`, and `workspace.branching` mutations omit the refresh
+fields and hint because they do not change rendered worker controls. The T3
+coordinator reads `t3.verifier-harness` when it resolves workers for a run.
+`zdev area create` and the harness workflows read `workspace.branching` each
+time they need it.
 
 `zdev config trunk [<branch>]` remains supported. It is the existing
 branch-aware convenience command: omission means the checked-out branch. With
@@ -257,8 +279,8 @@ result.
 Key order is the order in the scope table above: project keys first, then
 harnesses in `codex`, `claude`, `opencode`, `pi`, `omp`, `agy` order, with
 `routine-implementer`, `implementer`, `verifier`, and `advanced-implementer`,
-and `planner` in that order, then `t3.verifier-harness`. A scoped view omits keys not stored in that
-scope. Every JSON object uses the lexical key order produced by the current
+and `planner` in that order, then `t3.verifier-harness` and
+`workspace.branching`. A scoped view omits keys not stored in that scope. Every JSON object uses the lexical key order produced by the current
 `serde_json::Value` map and existing `serde_json::to_string_pretty` renderer;
 arrays retain the registry and precedence order defined here. No
 preserve-order feature or config-specific serializer is needed. Every output
@@ -287,6 +309,7 @@ project.guidance = "auto"  [default]
 worker.codex.implementer = { model = "gpt-6.1-sol", effort = "high" }  [local .zdev/workers.toml]
   shadows { model = "gpt-5.5", effort = "xhigh" }  [global /home/alice/.config/zdev/workers.toml]
   shadows { model = "gpt-6.1-sol", effort = "high" }  [default]
+workspace.branching = "on-request"  [default]
 ```
 
 The same selected rows have this JSON shape:
@@ -381,6 +404,15 @@ The same selected rows have this JSON shape:
         "effort": "high",
         "model": "gpt-6.1-sol"
       }
+    },
+    {
+      "key": "workspace.branching",
+      "origin": {
+        "path": null,
+        "scope": "default"
+      },
+      "shadowed": [],
+      "value": "on-request"
     }
   ]
 }
@@ -570,6 +602,7 @@ Additional key validation is narrow:
   guidance markers are checked when an integration is installed or checked,
   where they matter.
 - `t3.verifier-harness` accepts only `codex`, `claude`, or `inherit`.
+- `workspace.branching` accepts only `on-request` or `isolated`.
 - Worker validation is syntactic and adapter-specific. Zdev does not contact a
   provider or promise account access to a model.
 

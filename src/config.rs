@@ -196,6 +196,48 @@ impl T3Preferences {
     }
 }
 
+/// Whether agents isolate new work on its own branch or worktree without being asked.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum WorkspaceBranching {
+    /// Keep work on the current checkout and project trunk unless the user asks.
+    OnRequest,
+    /// Give new areas and single-task implementation their own branch or worktree.
+    Isolated,
+}
+
+impl WorkspaceBranching {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::OnRequest => "on-request",
+            Self::Isolated => "isolated",
+        }
+    }
+
+    fn parse(value: &str) -> Result<Self, ZdevError> {
+        match value {
+            "on-request" => Ok(Self::OnRequest),
+            "isolated" => Ok(Self::Isolated),
+            _ => Err(ZdevError::new(format!(
+                "Unknown workspace branching {value}; expected on-request or isolated"
+            ))),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct WorkspacePreferences {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    branching: Option<WorkspaceBranching>,
+}
+
+impl WorkspacePreferences {
+    fn is_empty(&self) -> bool {
+        self.branching.is_none()
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct HarnessProfiles {
@@ -257,6 +299,8 @@ struct WorkerFile {
     default_profile: Option<String>,
     #[serde(default, skip_serializing_if = "T3Preferences::is_empty")]
     t3: T3Preferences,
+    #[serde(default, skip_serializing_if = "WorkspacePreferences::is_empty")]
+    workspace: WorkspacePreferences,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     codex: HarnessProfiles,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
@@ -327,6 +371,7 @@ impl Default for WorkerFile {
             schema_version: SCHEMA_VERSION,
             default_profile: None,
             t3: T3Preferences::default(),
+            workspace: WorkspacePreferences::default(),
             codex: HarnessProfiles::default(),
             claude: HarnessProfiles::default(),
             opencode: HarnessProfiles::default(),
@@ -368,6 +413,7 @@ impl WorkerFile {
 #[derive(Default)]
 struct WorkerLayer {
     t3: T3Preferences,
+    workspace: WorkspacePreferences,
     codex: RoleProfiles,
     claude: RoleProfiles,
     opencode: RoleProfiles,
@@ -783,26 +829,33 @@ enum ConfigKey {
 #[derive(Clone, Copy)]
 enum PreferenceKey {
     T3VerifierHarness,
+    WorkspaceBranching,
 }
 
-const PREFERENCE_KEYS: [PreferenceKey; 1] = [PreferenceKey::T3VerifierHarness];
+const PREFERENCE_KEYS: [PreferenceKey; 2] = [
+    PreferenceKey::T3VerifierHarness,
+    PreferenceKey::WorkspaceBranching,
+];
 
 impl PreferenceKey {
     fn name(self) -> &'static str {
         match self {
             Self::T3VerifierHarness => "t3.verifier-harness",
+            Self::WorkspaceBranching => "workspace.branching",
         }
     }
 
     fn default_value(self) -> &'static str {
         match self {
             Self::T3VerifierHarness => VerifierHarness::Codex.as_str(),
+            Self::WorkspaceBranching => WorkspaceBranching::OnRequest.as_str(),
         }
     }
 
     fn stored(self, layer: &WorkerLayer) -> Option<&'static str> {
         match self {
             Self::T3VerifierHarness => layer.t3.verifier_harness.map(VerifierHarness::as_str),
+            Self::WorkspaceBranching => layer.workspace.branching.map(WorkspaceBranching::as_str),
         }
     }
 
@@ -810,6 +863,7 @@ impl PreferenceKey {
     fn clear(self, file: &mut WorkerFile) -> bool {
         match self {
             Self::T3VerifierHarness => file.t3.verifier_harness.take().is_some(),
+            Self::WorkspaceBranching => file.workspace.branching.take().is_some(),
         }
     }
 }
@@ -1061,6 +1115,13 @@ fn set_preference(
                 Ok(())
             })?
         }
+        PreferenceKey::WorkspaceBranching => {
+            let branching = WorkspaceBranching::parse(requested)?;
+            mutate_worker_file(root, scope, |file| {
+                file.workspace.branching = Some(branching);
+                Ok(())
+            })?
+        }
     };
     Ok(set_output(
         key.name(),
@@ -1142,6 +1203,20 @@ fn worker_role_name(role: WorkerRole) -> &'static str {
         WorkerRole::AdvancedImplementer => "advanced-implementer",
         WorkerRole::Planner => "planner",
     }
+}
+
+/// Returns the effective `workspace.branching`: the repository value, then the
+/// global value, then `on-request`.
+pub(super) fn workspace_branching(root: &Path) -> Result<WorkspaceBranching, ZdevError> {
+    let local = read_worker_file(&root.join(".zdev/workers.toml"))?
+        .and_then(|layer| layer.workspace.branching);
+    let stored = match local {
+        Some(branching) => Some(branching),
+        None => {
+            read_worker_file(&global_worker_path()?)?.and_then(|layer| layer.workspace.branching)
+        }
+    };
+    Ok(stored.unwrap_or(WorkspaceBranching::OnRequest))
 }
 
 pub(super) fn validate_local_workers(root: &Path) -> Result<(), ZdevError> {
@@ -1919,6 +1994,7 @@ fn validate_worker_file(path: &Path, file: &WorkerFile) -> Result<WorkerLayer, Z
     }
     Ok(WorkerLayer {
         t3: file.t3.clone(),
+        workspace: file.workspace.clone(),
         codex: validate_roles(path, WorkerHarness::Codex, &file.codex)?,
         claude: validate_roles(path, WorkerHarness::Claude, &file.claude)?,
         opencode: validate_roles(path, WorkerHarness::Opencode, &file.opencode)?,

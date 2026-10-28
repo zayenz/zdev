@@ -6,7 +6,7 @@ configured trunk.
 
 ## Examples
 
-Create an area on the current branch:
+Create an area on the checked-out branch:
 
 ```sh
 zdev area create greeting \
@@ -30,8 +30,12 @@ zdev area reopen AREA
 
 Creation writes `area.toml`, `brief.md`, `TASKS.md`, and an empty `tasks`
 directory under `.zdev/TAG`. Tags use lowercase letters, digits, and hyphens.
-By default, the checked-out branch owns the area. Use `--branch` for an
-explicit owner or `--trunk` to follow project trunk.
+Use `--branch` for an explicit owner or `--trunk` to follow project trunk.
+Without either flag, the mode follows `workspace.branching`. Under
+`on-request`, the default, an area created on the checked-out project trunk is
+a trunk area. Under `isolated`, on another branch, or with pull-request
+records, the checked-out branch owns the area. See the
+[configuration reference](../config-command.md).
 
 Closing requires an empty or exhausted task queue. Reopening preserves task
 states. See [area lifecycle](../area-lifecycle.md) for completion and reopening.

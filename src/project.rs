@@ -589,7 +589,8 @@ pub(super) fn create_area(
         .map_err(|error| ZdevError::io("Cannot stage area", error))?;
     fs::create_dir(stage.path().join("tasks"))
         .map_err(|error| ZdevError::io("Cannot create task directory", error))?;
-    let (mode, branch, resolved_branch, base_commit) = if trunk {
+    let follows_trunk = trunk || (requested_branch.is_none() && defaults_to_trunk(root, &config)?);
+    let (mode, branch, resolved_branch, base_commit) = if follows_trunk {
         if config.project.record == RecordPolicy::PullRequest {
             return Err(ZdevError::new(
                 "Trunk areas are not supported with pull-request records; use an isolated area branch",
@@ -666,6 +667,25 @@ pub(super) fn create_area(
         text,
         json!({"schema_version": SCHEMA_VERSION, "status": "created", "area": tag, "mode": mode.as_str(), "branch": resolved_branch, "base_commit": metadata.base_commit, "path": relative(root, &path)}),
     ))
+}
+
+/// Chooses the mode of an area created without `--branch` or `--trunk`.
+///
+/// Under `workspace.branching = "on-request"`, an area created on the checked-out
+/// project trunk follows that trunk. On another branch, under `isolated`, with
+/// pull-request records (which require isolated areas), or before the trunk's
+/// first commit, the checked-out branch owns the area.
+fn defaults_to_trunk(root: &Path, config: &Config) -> Result<bool, ZdevError> {
+    if config.project.record == RecordPolicy::PullRequest {
+        return Ok(false);
+    }
+    let Some(trunk) = config.project.trunk.as_deref() else {
+        return Ok(false);
+    };
+    if current_branch(root)?.as_deref() != Some(trunk) || !local_branch_exists(root, trunk) {
+        return Ok(false);
+    }
+    Ok(super::config::workspace_branching(root)? == super::config::WorkspaceBranching::OnRequest)
 }
 
 pub(super) fn load_area(root: &Path, tag: &str) -> Result<(AreaMetadata, PathBuf), ZdevError> {

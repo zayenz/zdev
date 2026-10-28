@@ -79,10 +79,13 @@ zdev area bind <area> [<branch> | --trunk]
 positional branch on bind. A repeated flag or extra positional value is a CLI
 error.
 
-Create without either option uses the default: create an isolated area on
-the checked-out branch. `--branch` creates an isolated area on the canonical
-requested branch. `--trunk` creates a trunk area following the configured
-trunk. It requires a configured, locally existing trunk, a record policy that
+Create without either option follows the `workspace.branching` preference.
+Under `on-request`, the default, it creates a trunk area when the checked-out
+branch is the configured, locally existing trunk and the record policy supports
+trunk areas. In every other case, and always under `isolated`, it creates an
+isolated area on the checked-out branch, as before. `--branch` creates an
+isolated area on the canonical requested branch. `--trunk` creates a trunk area
+following the configured trunk. It requires a configured, locally existing trunk, a record policy that
 supports trunk areas, and no active Git operation. It does not create or check
 out the branch. Like explicit
 `--branch`, it can record the explicit target while HEAD is detached or on

@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-025"
 key = "branches-on-request"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "normal"
@@ -39,13 +39,26 @@ Docs that describe these defaults or the key reference: `docs/config-command.md`
 
 ## Done when
 
-- [ ] `zdev config get workspace.branching` returns `on-request` with default origin; `set`/`unset` work in global and repository scopes, the repository value wins, values other than `on-request` and `isolated` are rejected like other fixed keys, and `zdev config show` (including `--scope global` and `--scope local`) reports the correct origin for each.
-- [ ] On trunk with no mode flag, `zdev area create` creates a trunk-mode area under `on-request` and binds the checked-out branch under `isolated`; `--branch` and `--trunk` override both; with pull-request records and no flag it still creates an isolated area without error under `on-request`.
-- [ ] `shape-work.md` (step 1 and the closing paragraph), `setup.md` Finish, `shared-contract.md` (orientation and `general` paragraphs) and `implement.md` step 1 default to trunk areas and the current checkout under `on-request`, describe the `isolated` alternative, and still use worktrees for parallel, rolling research and explicit requests.
-- [ ] Generated harness copies match the templates and `zdev skill check` reports every harness ready.
-- [ ] `area create --help` states that the mode without a flag follows `workspace.branching` (default `on-request`, trunk). The listed docs, including the key table and examples in `docs/config-command.md`, describe the key and new default, and `CHANGELOG.md` has an Unreleased entry noting the change from the 2.0 worktree default.
+- [x] `zdev config get workspace.branching` returns `on-request` with default origin; `set`/`unset` work in global and repository scopes, the repository value wins, values other than `on-request` and `isolated` are rejected like other fixed keys, and `zdev config show` (including `--scope global` and `--scope local`) reports the correct origin for each.
+- [x] On trunk with no mode flag, `zdev area create` creates a trunk-mode area under `on-request` and binds the checked-out branch under `isolated`; `--branch` and `--trunk` override both; with pull-request records and no flag it still creates an isolated area without error under `on-request`.
+- [x] `shape-work.md` (step 1 and the closing paragraph), `setup.md` Finish, `shared-contract.md` (orientation and `general` paragraphs) and `implement.md` step 1 default to trunk areas and the current checkout under `on-request`, describe the `isolated` alternative, and still use worktrees for parallel, rolling research and explicit requests.
+- [x] Generated harness copies match the templates and `zdev skill check` reports every harness ready.
+- [x] `area create --help` states that the mode without a flag follows `workspace.branching` (default `on-request`, trunk). The listed docs, including the key table and examples in `docs/config-command.md`, describe the key and new default, and `CHANGELOG.md` has an Unreleased entry noting the change from the 2.0 worktree default.
 
 ## Validation
 
 - In `tests/lean.rs`, add focused tests for the config key (default, global and repository set, unset, invalid value) and for `area create` mode selection under both settings, an explicit flag, and pull-request records. Extend existing template rendering assertions for the changed workspace guidance. No live harness run.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+Added the workspace.branching preference (on-request by default, or isolated) at global and repository scope. With no mode flag, zdev area create on checked-out trunk now creates a trunk area under on-request; pull-request records, the isolated setting and other branches keep the checked-out-branch behavior. Shaping, setup and implementation guidance default to trunk and the current checkout, still select a review branch for pull-request records, and keep worktrees for parallel batches, rolling research and explicit requests. Independently verified, with one pull-request guidance correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (full suite, including the rolling research test)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

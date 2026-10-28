@@ -482,8 +482,11 @@ enum AreaCommand {
     /// Create an area for one objective on an isolated branch or project trunk
     ///
     /// Writes area.toml, brief.md, TASKS.md, and an empty tasks directory under
-    /// .zdev/<TAG>. By default the checked-out branch owns the area; --trunk follows
-    /// the configured project trunk instead.
+    /// .zdev/<TAG>. --trunk follows the configured project trunk, and --branch binds
+    /// the named branch. Without either flag, the mode follows workspace.branching:
+    /// under on-request (the default), an area created on the checked-out project
+    /// trunk is a trunk area; under isolated, on another branch, or with pull-request
+    /// records, the checked-out branch owns the area.
     Create {
         /// Short identifier used in paths and task IDs (lowercase letters, digits, and hyphens)
         tag: String,
@@ -493,7 +496,7 @@ enum AreaCommand {
         /// One-line description of the outcome this area should achieve
         #[arg(long)]
         objective: String,
-        /// Area branch; omit to use the checked-out branch
+        /// Area branch; omit both mode flags to follow workspace.branching
         #[arg(long, conflicts_with = "trunk")]
         branch: Option<String>,
         /// Follow the configured project trunk without storing a branch copy

@@ -25,8 +25,11 @@ operations. Ordinary supporting tasks in the same area keep this route.
    needs freshness or rebase ceremony. If the command reports unsafe
    state, return to the root **Recover** route. Recommend the explicit managed
    rebase when the task needs newer base changes or is approaching an
-   integration boundary. Reuse an already stated branch or worktree choice;
-   use the shared workspace-choice rules when that choice remains undecided.
+   integration boundary. Reuse an already stated branch or worktree choice.
+   When that choice remains undecided, apply the shared workspace-choice rules:
+   under the default `workspace.branching` value `on-request`, implement in the
+   current checkout; under `isolated`, use a worktree. Parallel batches, rolling
+   research, and an explicit user request still use separate worktrees.
    When the run calls for an assigned source worktree, follow
    **Optional assigned source worktree** in the installed task-workflows
    contract. Store and refresh destination context with `--task <task-id>` and

@@ -3,9 +3,9 @@
 # Tasks: research-friction
 
 - Total: 8
-- Ready: 4
+- Ready: 3
 - Blocked: 0
-- Done: 4
+- Done: 5
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -13,7 +13,7 @@
 | [research-friction-002](tasks/002-warn-when-the-frozen-minimum-gain-is-unreachable.md) | Warn when the frozen minimum gain is unreachable | done | — |
 | [research-friction-003](tasks/003-allow-declared-administrative-correctness-command-amendments.md) | Allow declared administrative correctness-command amendments in an active run | done | — |
 | [research-friction-004](tasks/004-limit-accepted-code-invalidation-to-declared-relevant-inputs.md) | Limit accepted-code invalidation to declared relevant inputs | done | — |
-| [research-friction-005](tasks/005-honor-declared-generated-output-paths-in-research-source-own.md) | Honor declared generated-output paths in research source-ownership checks | ready | research-friction-004 |
+| [research-friction-005](tasks/005-honor-declared-generated-output-paths-in-research-source-own.md) | Honor declared generated-output paths in research source-ownership checks | done | research-friction-004 |
 | [research-friction-006](tasks/006-give-research-run-inspect-a-compact-default-view.md) | Give research run inspect a compact default view | ready | — |
 | [research-friction-007](tasks/007-report-research-limit-provenance-and-count-dispatches-separa.md) | Report research limit provenance and count dispatches separately from experiments | ready | — |
 | [research-friction-008](tasks/008-report-research-progress-separately-from-engineering-progres.md) | Report research progress separately from engineering progress | ready | — |

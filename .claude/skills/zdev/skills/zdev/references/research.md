@@ -199,7 +199,8 @@ coordination. Confirm task kind before the frozen-profile path too. After
 accepted supporting code or comparison-condition changes, run actual counted
 rebaseline on clean accepted HEAD before comparing another candidate. With
 declared `relevant_inputs`, only changes inside them count as accepted
-supporting code changes. Preserve metric, direction, correctness and acceptance
+supporting code changes. Untracked files under declared `generated_outputs` do
+not make accepted HEAD unclean. Preserve metric, direction, correctness and acceptance
 policy.
 
 For hypotheses, explicitly admit the ready task and read full task/policy.

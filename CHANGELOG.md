@@ -38,6 +38,19 @@ This file records notable changes to zdev.
   administrative amendment cannot change it. `zdev area research` rejects an
   empty list, duplicate entries, absolute or non-normalized paths such as
   `./src`, `../src` or `src/`, and paths in `.git` or `.zdev`.
+- Research settings accept an optional `generated_outputs` list of literal
+  repository-relative paths where commands write generated output, such as
+  evaluator captures. Rebaseline then succeeds without `--untracked-output`
+  when untracked files exist only under those paths, and `--untracked-output`
+  adds to the declared list. Isolated return, evaluate, reconcile and
+  integrate accept untracked files under declared outputs and leave them in
+  place. Tracked or staged changes under an output, untracked files elsewhere
+  and `.zdev` edits still refuse. `zdev area research` rejects an output that
+  overlaps a declared relevant input, and `begin` and isolated `admit` refuse
+  an owned `--path` under an output. Changing the list during an active run
+  invalidates comparisons until an actual rebaseline. Reconcile refuses,
+  rather than overwrite them, when accepted code changes tracked paths under an
+  output that holds untracked source files.
 
 ### Changed
 

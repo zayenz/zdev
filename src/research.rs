@@ -56,6 +56,10 @@ pub(super) struct Settings {
     /// Absent means every path outside `.zdev`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relevant_inputs: Option<Vec<String>>,
+    /// Literal repository paths whose untracked files are generated output, never measured
+    /// inputs. Not frozen policy, but any change requires an actual rebaseline.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub generated_outputs: Vec<String>,
     /// Advisory best value the metric can reach; never part of the frozen policy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metric_bound: Option<f64>,
@@ -254,6 +258,25 @@ fn validate_repository_path(path: &str, label: &str) -> Result<(), ZdevError> {
     Ok(())
 }
 
+/// Whether one repository path equals or contains the other. Components are compared after
+/// `Path` normalization, so `a//b` and `a/./b` match `a/b`, and without ASCII case: on a
+/// case-insensitive filesystem a differently cased path names the same file, and treating it
+/// as an overlap keeps measured inputs and generated outputs strictly separated.
+fn paths_overlap(a: &str, b: &str) -> bool {
+    Path::new(a)
+        .components()
+        .zip(Path::new(b).components())
+        .all(|(a, b)| a.as_os_str().eq_ignore_ascii_case(b.as_os_str()))
+}
+
+/// Git pathspecs that leave untracked files under the given output paths out of a listing.
+fn untracked_exclusions<'a>(outputs: impl IntoIterator<Item = &'a String>) -> Vec<String> {
+    outputs
+        .into_iter()
+        .map(|output| format!(":(top,literal,exclude){output}"))
+        .collect()
+}
+
 fn validate_samples(values: &[f64]) -> Result<(), ZdevError> {
     if values.iter().any(|value| !value.is_finite()) {
         return Err(ZdevError::new("Research samples must be finite numbers"));
@@ -368,7 +391,28 @@ impl Settings {
                 validate_repository_path(input, "Relevant input")?;
             }
         }
+        validate_names(&self.generated_outputs, "Generated output")?;
+        for output in &self.generated_outputs {
+            validate_repository_path(output, "Generated output")?;
+            if let Some(input) = self
+                .relevant_inputs
+                .iter()
+                .flatten()
+                .find(|input| paths_overlap(output, input))
+            {
+                return Err(ZdevError::new(format!(
+                    "Generated output {output} overlaps relevant input {input}"
+                )));
+            }
+        }
         Ok(())
+    }
+
+    /// Whether a repository-relative path equals, contains or lies under a declared output.
+    pub fn overlaps_generated_output(&self, path: &str) -> bool {
+        self.generated_outputs
+            .iter()
+            .any(|output| paths_overlap(output, path))
     }
 
     /// The declared relevant inputs, or the whole repository when none are declared.

@@ -115,7 +115,8 @@ pub(crate) enum Action {
         run: String,
         #[arg(long)]
         request: String,
-        /// Explicit generated output path to preserve outside the clean-code check
+        /// Generated output path to preserve outside the clean-code check, in addition to the
+        /// declared `generated_outputs`
         #[arg(long = "untracked-output", value_name = "PATH")]
         untracked_outputs: Vec<String>,
     },
@@ -1677,7 +1678,6 @@ fn rebaseline(
     request: &str,
     untracked_outputs: &[String],
 ) -> Result<(), ZdevError> {
-    let mut exclusions = Vec::new();
     for output in untracked_outputs {
         let path = Path::new(output);
         if output.is_empty()
@@ -1693,18 +1693,7 @@ fn rebaseline(
                 "Untracked output must be a non-empty repository-relative path outside .git and .zdev",
             ));
         }
-        exclusions.push(format!(":(top,literal,exclude){output}"));
     }
-    let mut untracked_args = vec![
-        "ls-files",
-        "--others",
-        "--exclude-standard",
-        "-z",
-        "--",
-        ".",
-        ":(exclude).zdev",
-    ];
-    untracked_args.extend(exclusions.iter().map(String::as_str));
     {
         let _lock = ZdevStateLock::acquire(root)?;
         let mut run = authorized(root, area, identity)?;
@@ -1765,27 +1754,14 @@ fn rebaseline(
                 "Rebaseline request already consumed; use a new work identity",
             ));
         }
+        let settings = super::settings(root, area)?;
         // The baseline measures accepted HEAD, never a dirty candidate or supplied replacement samples.
-        if !git_output_bytes(
-            root,
-            &[
-                "diff",
-                "HEAD",
-                "--name-only",
-                "-z",
-                "--",
-                ".",
-                ":(exclude).zdev",
-            ],
-        )?
-        .is_empty()
-            || !git_output_bytes(root, &untracked_args)?.is_empty()
-        {
+        let outputs = settings.generated_outputs.iter().chain(untracked_outputs);
+        if !accepted_worktree_clean(root, &super::untracked_exclusions(outputs))? {
             return Err(ZdevError::new(
                 "Actual rebaseline requires clean accepted code; retain or restore unfinished candidates first",
             ));
         }
-        let settings = super::settings(root, area)?;
         for check in &settings.comparison.required_checks {
             if !settings.correctness_commands.contains_key(check) {
                 return Err(ZdevError::new(format!(
@@ -1899,22 +1875,14 @@ fn rebaseline(
     let mut run = authorized(root, area, identity)?;
     let baseline = run.rebaseline.as_ref().unwrap();
     let current = super::settings(root, area)?;
+    let outputs = baseline
+        .settings
+        .generated_outputs
+        .iter()
+        .chain(&baseline.untracked_outputs);
     if baseline.head != git_output(root, &["rev-parse", "HEAD"])?
         || !current.eq_ignoring_advisory(&baseline.settings)
-        || !git_output_bytes(
-            root,
-            &[
-                "diff",
-                "HEAD",
-                "--name-only",
-                "-z",
-                "--",
-                ".",
-                ":(exclude).zdev",
-            ],
-        )?
-        .is_empty()
-        || !git_output_bytes(root, &untracked_args)?.is_empty()
+        || !accepted_worktree_clean(root, &super::untracked_exclusions(outputs))?
     {
         run.reservations.get_mut(request).unwrap().settled = true;
         save(root, &run)?;
@@ -1935,6 +1903,32 @@ fn rebaseline(
     run.invalidation = None;
     save(root, &run)?;
     publish_baseline(root, &mut run)
+}
+
+/// Whether accepted code outside `.zdev` has no tracked changes and no untracked files other
+/// than those the exclusion pathspecs leave out.
+fn accepted_worktree_clean(root: &Path, exclusions: &[String]) -> Result<bool, ZdevError> {
+    let changed = [
+        "diff",
+        "HEAD",
+        "--name-only",
+        "-z",
+        "--",
+        ".",
+        ":(exclude).zdev",
+    ];
+    let mut untracked = vec![
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+        "--",
+        ".",
+        ":(exclude).zdev",
+    ];
+    untracked.extend(exclusions.iter().map(String::as_str));
+    Ok(git_output_bytes(root, &changed)?.is_empty()
+        && git_output_bytes(root, &untracked)?.is_empty())
 }
 
 fn publish_baseline(root: &Path, run: &mut Run) -> Result<(), ZdevError> {

@@ -62,13 +62,17 @@ halts affected experimentation but permits counted in-scope supporting repair;
 resolution also requires rebaseline.
 
 Rebaseline normally refuses tracked changes and untracked files outside `.zdev`.
-If accepted code is clean but saved measurements remain untracked, declare their
-output path explicitly, for example `research run work rebaseline --run RUN
---request baseline-1 --untracked-output results`. Repeat `--untracked-output`
-for additional repository-relative files or directories. This preserves those
-outputs without staging or ignoring them; other untracked paths and all tracked
-changes still block measurement. Only name generated output that does not change
-the code being measured. This option is not evidence of evaluator independence.
+When commands keep writing saved measurements to the same place, declare that
+place once as a generated output in the research settings (see
+[Declare generated outputs](#declare-generated-outputs)). For a one-off output,
+name its path on the command instead, for example `research run work rebaseline
+--run RUN --request baseline-1 --untracked-output results`. Repeat
+`--untracked-output` for additional repository-relative files or directories;
+these add to the declared outputs for that request only. Either way, zdev
+preserves those outputs without staging or ignoring them; other untracked paths
+and all tracked changes still block measurement. Only name generated output that
+does not change the code being measured. This option is not evidence of
+evaluator independence.
 
 Inspect durable progress with:
 
@@ -182,6 +186,41 @@ recorded `run.invalidation` names a changed path, and an actual counted
 rebaseline is required as before. Reconciliation of isolated candidates still
 compares the whole repository, so a destination that advanced only outside the
 declared inputs still reconciles and remeasures the candidate.
+
+## Declare generated outputs
+
+Evaluators often write captures into the repository. By default, any untracked
+file outside `.zdev` blocks rebaseline and the return or reconciliation of an
+isolated candidate. To keep captures where they are, list the paths that
+commands write generated output to:
+
+```json
+"generated_outputs": ["results", "logs/evaluator"]
+```
+
+Entries follow the same path rules as `relevant_inputs`. Only untracked files
+under these paths are tolerated. Rebaseline, and isolated return, evaluate,
+reconcile and integrate, then leave those files in place. Tracked or staged
+changes under these paths still refuse, as do untracked files anywhere else and
+any `.zdev` edit. zdev never stages, cleans or deletes declared outputs, and
+work-context snapshots still include them. No directory counts as output just
+because of its name, such as `results`; only declared paths do.
+
+Outputs must never contain anything a measurement consumes. When
+`relevant_inputs` is declared, `zdev area research` rejects an output that
+equals, contains or lies inside a relevant input, ignoring letter case. `begin`
+and isolated `admit` refuse an owned `--path` under an output. Isolated source
+admission still requires a clean new source worktree.
+
+Changing `generated_outputs` during an active run invalidates comparisons until
+an actual counted rebaseline, like other evaluator or workload changes. It is
+never an administrative amendment. An isolated candidate admitted before the
+change keeps its earlier outputs until reconciliation adopts the new settings,
+so move untracked files under newly declared outputs out of its source before
+reconciling. If accepted code changes a tracked path that overlaps a declared
+output (the output itself, a path under it, or a replaced ancestor, compared
+without letter case) while an isolated source holds untracked files under that
+output, reconcile refuses rather than let Git overwrite them. Move the source's untracked output, then run `recover`.
 
 
 ## Rolling research in Codex and Claude Code

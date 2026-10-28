@@ -19152,6 +19152,185 @@ fn isolated_candidates_reconcile_current_baseline_and_preserve_git_transport() {
 }
 
 #[test]
+fn research_declared_generated_outputs_preserve_captures() {
+    let refused_with = |output: Output, error: &str| {
+        assert!(!output.status.success(), "unexpectedly succeeded");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(error), "unexpected error: {stderr}");
+    };
+    let repository = isolated_candidate_fixture(
+        "mkdir -p results && printf x >> results/captures.log && wc -c < seed.txt",
+    );
+    let root = repository.path();
+    for directory in ["results", "cache"] {
+        fs::create_dir(root.join(directory)).unwrap();
+        fs::write(
+            root.join(directory).join("README.md"),
+            "Captures land here.\n",
+        )
+        .unwrap();
+    }
+    commit_all(root, "track the capture directories");
+    let mut settings = json_output(root, &["area", "research", "work"])["research"].clone();
+    settings["comparison"]["baseline_revision"] = json!(git(root, &["rev-parse", "HEAD"]));
+    configure_research_fixture(root, &settings);
+    commit_all(root, "baseline includes the capture directory");
+
+    let area_path = root.join(".zdev/work/area.toml");
+    let stored = fs::read(&area_path).unwrap();
+    for (inputs, outputs) in [
+        (Value::Null, json!(["results/"])),
+        (json!(["seed.txt"]), json!(["seed.txt"])),
+        (json!(["seed.txt", "bench/workload.txt"]), json!(["Bench"])),
+    ] {
+        let mut refused = settings.clone();
+        refused["relevant_inputs"] = inputs;
+        refused["generated_outputs"] = outputs;
+        refused_with(
+            json_output_with_stdin_status(
+                root,
+                &["area", "research", "work", "--from", "-"],
+                &serde_json::to_vec(&refused).unwrap(),
+            ),
+            "Generated output",
+        );
+        assert_eq!(fs::read(&area_path).unwrap(), stored);
+    }
+
+    let started = start_research_run(root, &["--worker-limit", "1", "--until-interrupted"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    let comparison_valid = || {
+        json_output(root, &["research", "run", "work", "context"])["run"]["comparison_valid"]
+            .clone()
+    };
+    assert_eq!(comparison_valid(), true);
+    let rebaseline = |request: &str, extra: &[&str]| {
+        let mut arguments = vec![
+            "research",
+            "run",
+            "work",
+            "rebaseline",
+            "--run",
+            identity,
+            "--request",
+            request,
+        ];
+        arguments.extend_from_slice(extra);
+        run_zdev(root, &arguments)
+    };
+    fs::write(root.join("results/capture.json"), "saved measurement\n").unwrap();
+    refused_with(rebaseline("undeclared", &[]), "clean accepted code");
+    settings["generated_outputs"] = json!(["results", "cache/runs"]);
+    configure_research_fixture(root, &settings);
+    assert_eq!(comparison_valid(), false);
+    // Declared outputs and a per-invocation output combine.
+    fs::create_dir(root.join("logs")).unwrap();
+    fs::write(root.join("logs/capture.txt"), "log\n").unwrap();
+    assert!(
+        rebaseline("declared", &["--untracked-output", "logs"])
+            .status
+            .success()
+    );
+    assert_eq!(comparison_valid(), true);
+    assert_eq!(
+        fs::read(root.join("results/capture.json")).unwrap(),
+        b"saved measurement\n"
+    );
+    assert_eq!(fs::read(root.join("logs/capture.txt")).unwrap(), b"log\n");
+    fs::remove_dir_all(root.join("logs")).unwrap();
+    git(root, &["add", ".zdev"]);
+    git(
+        root,
+        &["commit", "-m", "measured baseline with declared outputs"],
+    );
+
+    let sources = TempDir::new().unwrap();
+    let source = sources.path().join("candidate");
+    let source_text = source.to_str().unwrap();
+    git(
+        root,
+        &["worktree", "add", "-b", "candidate", source_text, "HEAD"],
+    );
+    let experiment = ["research", "experiment", "work", "work-001"];
+    // Owned paths compare by normalized components, so `//` cannot hide an output.
+    for path in ["results/owned.txt", "cache//runs/owned.txt"] {
+        for action in [
+            &["admit", "--source", source_text, "--path", path][..],
+            &["begin", "--path", path],
+        ] {
+            refused_with(
+                run_zdev(root, &[&experiment[..], action].concat()),
+                &format!("Owned path overlaps a declared generated output: {path}"),
+            );
+        }
+    }
+    assert!(!git_path(root, "zdev/experiments/work/work-001.json").exists());
+
+    admit_isolated_candidate(root, &source, "work-001", &["seed.txt"]);
+    fs::write(source.join("seed.txt"), "candidate\n").unwrap();
+    fs::write(source.join("results/capture.json"), "source capture\n").unwrap();
+    let return_work = [&experiment[..], &["return", "--worker-stopped"]].concat();
+    fs::write(source.join("stray.txt"), "preserve\n").unwrap();
+    refused_with(
+        run_zdev(root, &return_work),
+        "Source has unowned or research record changes: stray.txt",
+    );
+    assert_eq!(fs::read(source.join("stray.txt")).unwrap(), b"preserve\n");
+    fs::remove_file(source.join("stray.txt")).unwrap();
+    fs::write(source.join("results/README.md"), "edited\n").unwrap();
+    refused_with(
+        run_zdev(root, &return_work),
+        "Source has unowned or research record changes: results/README.md",
+    );
+    fs::write(source.join("results/README.md"), "Captures land here.\n").unwrap();
+    isolated_action(root, "work-001", "return");
+    isolated_action(root, "work-001", "evaluate");
+    assert_eq!(
+        fs::read(source.join("results/captures.log")).unwrap(),
+        b"xx"
+    );
+
+    commit_file(
+        root,
+        "other-accepted.txt",
+        "supporting code\n",
+        "accepted supporting change",
+    );
+    research_run_action(root, identity, "rebaseline", &["--request", "current-code"]);
+    isolated_action(root, "work-001", "reconcile");
+    assert_eq!(
+        fs::read(source.join("results/capture.json")).unwrap(),
+        b"source capture\n"
+    );
+    assert_eq!(fs::read(source.join("seed.txt")).unwrap(), b"candidate\n");
+    isolated_action(root, "work-001", "evaluate");
+    assert_eq!(
+        fs::read(source.join("results/captures.log")).unwrap(),
+        b"xxxx"
+    );
+
+    // Replacing an output's tracked ancestor directory with a file would delete its captures.
+    fs::create_dir(source.join("cache/runs")).unwrap();
+    fs::write(source.join("cache/runs/capture.log"), "nested capture\n").unwrap();
+    git(root, &["rm", "-q", "cache/README.md"]);
+    commit_file(root, "cache", "now a file\n", "replace the cache directory");
+    research_run_action(
+        root,
+        identity,
+        "rebaseline",
+        &["--request", "replaced-ancestor"],
+    );
+    refused_with(
+        run_zdev(root, &[&experiment[..], &["reconcile"]].concat()),
+        "move the source's untracked output before reconciling",
+    );
+    assert_eq!(
+        fs::read(source.join("cache/runs/capture.log")).unwrap(),
+        b"nested capture\n"
+    );
+}
+
+#[test]
 fn isolated_candidates_preserve_capacity_pause_and_recover_without_relaunch() {
     let controls = TempDir::new().unwrap();
     let gate = controls.path().join("pause");

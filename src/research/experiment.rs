@@ -502,6 +502,11 @@ fn begin_at(
                 "Owned path lies outside the declared relevant inputs: {path}"
             )));
         }
+        if settings.overlaps_generated_output(path) {
+            return Err(ZdevError::new(format!(
+                "Owned path overlaps a declared generated output: {path}"
+            )));
+        }
         if seen
             .iter()
             .any(|other| Path::new(path).starts_with(other) || Path::new(other).starts_with(path))
@@ -2391,10 +2396,7 @@ fn require_source_delta(checkpoint: &Checkpoint) -> Result<(), ZdevError> {
             &candidate.source_base,
         ],
     )?;
-    let untracked = git_output_bytes(
-        source,
-        &["ls-files", "--others", "--exclude-standard", "-z"],
-    )?;
+    let untracked = undeclared_untracked(source, &checkpoint.settings)?;
     let ignored = git_output_bytes(
         source,
         &[
@@ -2427,6 +2429,22 @@ fn require_source_delta(checkpoint: &Checkpoint) -> Result<(), ZdevError> {
         ));
     }
     Ok(())
+}
+
+/// NUL-separated untracked, non-ignored source files outside the declared generated outputs.
+/// Untracked `.zdev` files stay listed because settings never declare outputs there.
+fn undeclared_untracked(source: &Path, settings: &Settings) -> Result<Vec<u8>, ZdevError> {
+    let exclusions = super::untracked_exclusions(&settings.generated_outputs);
+    let mut arguments = vec![
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+        "--",
+        ".",
+    ];
+    arguments.extend(exclusions.iter().map(String::as_str));
+    git_output_bytes(source, &arguments)
 }
 
 fn return_candidate(
@@ -2666,7 +2684,7 @@ fn refresh_source(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevEr
     }
     if actual != target {
         // Validate the complete old source before resetting exclusively owned stopped work.
-        checkpoint.isolated.as_mut().unwrap().source_base = from;
+        checkpoint.isolated.as_mut().unwrap().source_base = from.clone();
         let valid = require_source_delta(checkpoint).and_then(|_| {
             if candidate_matches(root, checkpoint, &transport)? {
                 Ok(())
@@ -2676,6 +2694,11 @@ fn refresh_source(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevEr
         });
         checkpoint.isolated.as_mut().unwrap().source_base = target.clone();
         valid?;
+        if reset_may_replace_generated_output(&source, &checkpoint.settings, &from, &target)? {
+            return Err(ZdevError::new(
+                "Accepted code changed tracked paths that overlap a declared generated output (the output, a path under it or a replaced ancestor, ignoring letter case); move the source's untracked output before reconciling; work was preserved",
+            ));
+        }
         // Track owned additions so reset removes them too; the retained commit restores the full delta.
         for path in &checkpoint.paths {
             if fs::symlink_metadata(source.join(path)).is_ok() {
@@ -2689,13 +2712,58 @@ fn refresh_source(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevEr
             "Source refresh conflicts remain; repair and return stopped work",
         ));
     }
-    let clean =
-        git_output(&source, &["status", "--porcelain", "--untracked-files=all"])?.is_empty();
+    let clean = git_output(&source, &["status", "--porcelain", "--untracked-files=no"])?.is_empty()
+        && undeclared_untracked(&source, &checkpoint.settings)?.is_empty();
     if clean {
         git_output(&source, &["cherry-pick", "--no-commit", &transport])?;
     }
     // A completed application or an explicitly resolved source is retained; measurement is still required.
     return_candidate(root, checkpoint, true)
+}
+
+/// Whether resetting the source from `from` to `target` could overwrite or delete untracked
+/// generated output: `git reset --hard` replaces untracked files that block tracked ones,
+/// including a whole output directory when a tracked ancestor turns into a file.
+fn reset_may_replace_generated_output(
+    source: &Path,
+    settings: &Settings,
+    from: &str,
+    target: &str,
+) -> Result<bool, ZdevError> {
+    if settings.generated_outputs.is_empty() {
+        return Ok(false);
+    }
+    let changed = git_output_bytes(source, &["diff", "--name-only", "-z", from, target])?;
+    // A non-UTF-8 name keeps its valid components, so a changed path still overlaps by prefix.
+    let changed: Vec<_> = changed
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(String::from_utf8_lossy)
+        .collect();
+    for output in &settings.generated_outputs {
+        if !changed
+            .iter()
+            .any(|path| super::paths_overlap(output, path))
+        {
+            continue;
+        }
+        let pathspec = format!(":(top,literal){output}");
+        let untracked = git_output_bytes(
+            source,
+            &[
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                "--",
+                &pathspec,
+            ],
+        )?;
+        if !untracked.is_empty() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn require_accepted_destination(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevError> {

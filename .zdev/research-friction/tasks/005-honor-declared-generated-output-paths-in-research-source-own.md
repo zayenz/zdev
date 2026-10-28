@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-005"
 key = "generated-output-boundary"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -40,11 +40,11 @@ Add an optional `generated_outputs` to `Settings` in `src/research.rs` (serde de
 
 ## Done when
 
-- [ ] With declared outputs, rebaseline succeeds without `--untracked-output` when untracked files exist only under them, and those files keep their bytes.
-- [ ] An isolated source with evaluator captures under a declared output can return and reconcile. An undeclared untracked file, or a tracked change under the output path, still refuses.
-- [ ] `zdev area research` rejects outputs that overlap relevant inputs, and begin refuses owned paths under a declared output.
-- [ ] The task-format reference documents the field, and the checked-in fixtures are regenerated.
-- [ ] One focused regression in `tests/lean.rs` covers rebaseline and source return with declared outputs.
+- [x] With declared outputs, rebaseline succeeds without `--untracked-output` when untracked files exist only under them, and those files keep their bytes.
+- [x] An isolated source with evaluator captures under a declared output can return and reconcile. An undeclared untracked file, or a tracked change under the output path, still refuses.
+- [x] `zdev area research` rejects outputs that overlap relevant inputs, and begin refuses owned paths under a declared output.
+- [x] The task-format reference documents the field, and the checked-in fixtures are regenerated.
+- [x] One focused regression in `tests/lean.rs` covers rebaseline and source return with declared outputs.
 
 ## Validation
 
@@ -56,3 +56,16 @@ Add an optional `generated_outputs` to `Settings` in `src/research.rs` (serde de
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+Research settings take an optional generated_outputs list (validated literal paths that may not overlap declared relevant_inputs). Rebaseline, isolated return, evaluate, prepare, reconcile and integrate exempt only untracked, non-ignored files under declared outputs; tracked or staged changes there, undeclared untracked files and .zdev edits still refuse, and admission still requires a clean source. Reconcile's clean test honors the same rule so transport is applied, and a guard refuses before git reset --hard when accepted code changes an overlapping tracked path (including a replaced ancestor or case-only variant). Begin and admit refuse owned paths under an output. Changing outputs mid-run invalidates until rebaseline. Independently verified, with two guard/normalization corrections rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 206)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

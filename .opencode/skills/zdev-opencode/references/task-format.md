@@ -99,6 +99,7 @@ All JSON objects reject unknown fields. Settings require the shown fields except
 | `timeout_seconds` | Positive finite timeout per correctness or evaluator invocation, in seconds; defaults to 60. |
 | `correctness_commands` | Optional map from required check names to shell commands. Managed experiments require a command for every required check. During an active run, only a declared administrative amendment may change a command's text; see below. |
 | `relevant_inputs` | Optional non-empty list of unique, literal, repository-relative files or directories outside `.git` and `.zdev` that the evaluator, workload and correctness commands depend on. No globs, and no `./`, `..`, absolute paths or trailing `/`. When declared, only changes to these paths invalidate the accepted baseline or block `begin`, and every owned candidate path must lie inside them. When absent, every path outside `.zdev` counts. Entries must match the tracked path spelling exactly, including letter case, even on case-insensitive filesystems. An active run freezes the list, including its order; it is never an administrative or advisory change. Renaming a declared input needs a new run with an updated list, because changes at the new name fall outside the frozen list. |
+| `generated_outputs` | Optional list of unique, literal, repository-relative files or directories outside `.git` and `.zdev` where commands write generated output, such as evaluator captures. The path rules match `relevant_inputs`. Only untracked files under these paths are tolerated: managed rebaseline and isolated Return, Evaluate, reconcile and integrate accept them and leave them in place. Tracked or staged changes under these paths, and untracked files anywhere else, still refuse. zdev never stages, cleans or deletes these files, and work-context snapshots still hash them. No directory counts as output unless it is declared here. When `relevant_inputs` is declared, an output may not equal, contain or lie inside a relevant input, compared without regard to letter case. An owned candidate path may not lie under an output. Changing the list during an active run invalidates comparisons until an actual rebaseline; it is never an administrative or advisory change. |
 | `metric_bound` | Optional finite best value the metric can reach, such as `0` for a nonnegative minimized metric. Advisory only: it never changes acceptance and never invalidates comparisons, runs, or unfinished experiments. |
 
 Fields below `comparison.metric` through `significance` in the table also
@@ -129,7 +130,7 @@ zdev area research <area> --from <file> --administrative "<reason>"
 zdev accepts the amendment only when the new settings differ from the run's
 frozen policy in the command text of existing checks and, at most, the advisory
 `metric_bound`. It refuses an added, removed or renamed check and every other
-field change, including `relevant_inputs`. It also refuses the amendment while
+field change, including `relevant_inputs` and `generated_outputs`. It also refuses the amendment while
 an experiment, measurement, rebaseline or acceptance is unfinished, and when the
 area has no active run.
 The run keeps its ID, consumed costs and comparison validity. Run `context`
@@ -422,6 +423,7 @@ zdev research experiment work work-002 inspect --format json
 must match HEAD; intervening commits containing only `.zdev` records are valid.
 With declared `relevant_inputs`, intervening commits that change only other
 paths are also valid, and every owned file must lie inside those inputs.
+No owned file may lie under a declared `generated_outputs` path.
 Owned files must have no preexisting staged, unstaged or untracked changes.
 Unrelated changes on other files may remain. `permitted_changes` describes the
 human-reviewed scope; `--path` names exact files for Git retention and restoration.
@@ -576,6 +578,10 @@ area settings:
 ```text
 zdev research run work rebaseline --run <run> --request baseline-1 --format json
 ```
+
+Untracked files under declared `generated_outputs` do not make accepted HEAD
+unclean. For a one-off output path, add `--untracked-output <path>` to the
+rebaseline command; it applies to that request in addition to the declared list.
 
 A completed rebaseline request is idempotent, including recovery of pending area
 publication. An interrupted request never launches commands again; resolve its
@@ -899,7 +905,8 @@ preparation reservation before worker dispatch. A source root or branch already
 owned by an unfinished or ambiguous candidate in any area refuses admission
 before claiming capacity or authorizing dispatch. With declared
 `relevant_inputs`, an owned `--path` outside them also refuses admission before
-claiming capacity. A changed reservation identity also refuses admission replay.
+claiming capacity, and so does an owned `--path` under a declared
+`generated_outputs` path. A changed reservation identity also refuses admission replay.
 Ownership continues until
 durable completion and confirmed worker and measurement stop. Retrying the same
 admission returns the stored context with `dispatch_authorized: false`; only a new admission
@@ -944,7 +951,9 @@ zdev research experiment work work-002 integrate --format json
 
 Return checks the full staged, unstaged and untracked source delta, refuses
 unowned paths and `.zdev` edits, and retains an ordinary Git transport commit
-and reference. It preserves refused changes. Evaluate runs correctness and
+and reference. It preserves refused changes. Untracked files under declared
+`generated_outputs` are exempt and stay in place; tracked or staged changes
+there still refuse. Evaluate runs correctness and
 measurement commands in the validated source directory, with authoritative
 observations and counted reservations. A competing measurement cannot launch
 while its capacity is occupied. Every attempt retains its own comparison facts.
@@ -961,7 +970,12 @@ When accepted code changes, use `reconcile` before another measurement or
 integration. Reconciliation charges a new reservation, retains the old source,
 refreshes exclusively owned stopped source work against current accepted HEAD
 and applies its Git transport. Repair preserved conflicts in the source and
-return with confirmed stopped work. The refresh retains its counted reservation;
+return with confirmed stopped work. If accepted code changed a tracked path that
+overlaps a declared generated output (the output itself, a path under it, or a
+replaced ancestor, compared without letter case) while the source holds
+untracked files under that output, reconcile refuses before resetting the
+source, so those files are never overwritten. Move the source's untracked output, then recover to finish the
+refresh. The refresh retains its counted reservation;
 measurement capacity is claimed when evaluate begins its actual attempt.
 Evaluate again against the current baseline;
 old improvement evidence cannot authorize keep. Repeated baseline changes repeat

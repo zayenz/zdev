@@ -20,7 +20,9 @@ This file records notable changes to zdev.
   `zdev task done` and `zdev task reopen` regenerate dependent areas'
   `TASKS.md` and list them in `dependent_indexes`. `zdev task reopen` refuses
   while a done task in another area depends on the task, and `zdev area close`
-  lists open tasks that block other areas in its refusal.
+  lists open tasks that block other areas in its refusal. `zdev research
+  experiment <area> <task> finalize` and `recover` commit the regenerated
+  `TASKS.md` of each dependent area together with the experiment's records.
 - `zdev area research <area> --from <file> --administrative "<reason>"`
   amends the command text of existing correctness checks during an active
   research run, such as after a moved admission file. The run keeps its ID,

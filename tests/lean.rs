@@ -16681,6 +16681,165 @@ fn local_experiment_recovers_each_finalization_boundary_and_refuses_overlap() {
     }
 }
 
+#[test]
+fn research_finalization_publishes_and_recovers_dependent_index() {
+    let repository = local_experiment_fixture("printf 20");
+    let root = repository.path();
+    create_trunk_area(root, "engines");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "engines", "--from", "-"],
+        &gated_bundle("engines", &["work-001"]),
+    );
+    create_trunk_area(root, "tools");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "tools", "--from", "-"],
+        &gated_bundle("tools", &[]),
+    );
+    git(root, &["add", ".zdev"]);
+    git(
+        root,
+        &["commit", "-m", "record work that waits on the hypothesis"],
+    );
+    begin_local_experiment(root);
+    edit_local_candidate(root);
+    json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    let checkpoint_path = git_path(root, "zdev/experiments/work/work-001.json");
+    let read_checkpoint =
+        || -> Value { serde_json::from_slice(&fs::read(&checkpoint_path).unwrap()).unwrap() };
+    let engines_index = root.join(".zdev/engines/TASKS.md");
+    let open_engines_index = fs::read(&engines_index).unwrap();
+    let original_head = git(root, &["rev-parse", "HEAD"]);
+    let recover = ["research", "experiment", "work", "work-001", "recover"];
+
+    // Local work in the dependent index is refused before it is adopted or written.
+    let local_edit = [open_engines_index.as_slice(), b"\nLocal note\n"].concat();
+    fs::write(&engines_index, &local_edit).unwrap();
+    let refused = failure_text(&run_zdev(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "The candidate is slower.",
+        ],
+    ));
+    assert!(refused.contains(".zdev/engines/TASKS.md"), "{refused}");
+    let before_completion = read_checkpoint();
+    assert_eq!(before_completion["records"].as_array().unwrap().len(), 3);
+    assert_eq!(before_completion["pending_records"], json!({}));
+    assert_eq!(
+        json_output(root, &["task", "show", "work", "work-001"])["status"],
+        "open"
+    );
+    assert_eq!(fs::read(&engines_index).unwrap(), local_edit);
+    fs::write(&engines_index, &open_engines_index).unwrap();
+
+    let finalized = json_output(root, &recover);
+    assert_eq!(finalized["next_action"], "complete");
+    assert!(
+        finalized["checkpoint"]["records"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(".zdev/engines/TASKS.md"))
+    );
+    assert_eq!(
+        git(root, &["rev-parse", "HEAD"]),
+        finalized["checkpoint"]["commit"].as_str().unwrap()
+    );
+    assert!(git(root, &["show", "HEAD:.zdev/engines/TASKS.md"]).contains("work-001 (work: done)"));
+    assert_eq!(git(root, &["status", "--porcelain", "--", ".zdev"]), "");
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+    let final_tree = git(root, &["rev-parse", "HEAD^{tree}"]);
+    let final_engines_index = fs::read(&engines_index).unwrap();
+
+    // A crash between publication writes: the dependent index still holds its old bytes.
+    git(root, &["update-ref", "refs/heads/main", &original_head]);
+    git(root, &["reset", "-q", &original_head, "--", ".zdev"]);
+    let mut interrupted = finalized["checkpoint"].clone();
+    interrupted["commit"] = Value::Null;
+    interrupted["completed"] = json!(false);
+    interrupted["index_updated"] = json!(false);
+    interrupted["record_hashes"] = before_completion["record_hashes"].clone();
+    interrupted["record_hashes"][".zdev/engines/TASKS.md"] = json!(git(
+        root,
+        &[
+            "rev-parse",
+            &format!("{original_head}:.zdev/engines/TASKS.md")
+        ]
+    ));
+    for path in [
+        ".zdev/work/tasks/001-candidate.md",
+        ".zdev/work/TASKS.md",
+        ".zdev/engines/TASKS.md",
+    ] {
+        interrupted["pending_records"][path] = json!(fs::read(root.join(path)).unwrap());
+    }
+    fs::write(&engines_index, &open_engines_index).unwrap();
+    fs::write(
+        &checkpoint_path,
+        serde_json::to_vec_pretty(&interrupted).unwrap(),
+    )
+    .unwrap();
+    let recovered = json_output(root, &recover);
+    assert_eq!(recovered["next_action"], "complete");
+    assert_eq!(fs::read(&engines_index).unwrap(), final_engines_index);
+    assert_eq!(git(root, &["rev-parse", "HEAD^{tree}"]), final_tree);
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+
+    // A crash after the commit was recorded but before the branch and index moved.
+    let commit = git(root, &["rev-parse", "HEAD"]);
+    let mut uncommitted = read_checkpoint();
+    uncommitted["index_updated"] = json!(false);
+    fs::write(
+        &checkpoint_path,
+        serde_json::to_vec_pretty(&uncommitted).unwrap(),
+    )
+    .unwrap();
+    git(root, &["update-ref", "refs/heads/main", &original_head]);
+    git(root, &["reset", "-q", &original_head, "--", ".zdev"]);
+    assert_eq!(json_output(root, &recover)["next_action"], "complete");
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), commit);
+    assert_eq!(git(root, &["status", "--porcelain", "--", ".zdev"]), "");
+
+    // Neither another area's task file nor the index of an area that does not
+    // depend on the task may join the publication.
+    let completed = read_checkpoint();
+    for path in [
+        ".zdev/engines/tasks/002-build-on-the-blocker.md",
+        ".zdev/tools/TASKS.md",
+    ] {
+        let mut tampered = completed.clone();
+        tampered["records"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!(path));
+        tampered["record_hashes"][path] = json!(git(root, &["hash-object", path]));
+        tampered["pending_records"][path] = json!(b"replacement\n".to_vec());
+        fs::write(
+            &checkpoint_path,
+            serde_json::to_vec_pretty(&tampered).unwrap(),
+        )
+        .unwrap();
+        let bytes = fs::read(root.join(path)).unwrap();
+        let refused = failure_text(&run_zdev(root, &recover));
+        assert!(refused.contains("invalid record ownership"), "{refused}");
+        assert_eq!(fs::read(root.join(path)).unwrap(), bytes);
+        assert_eq!(fs::read(&engines_index).unwrap(), final_engines_index);
+        assert_eq!(git(root, &["rev-parse", "HEAD"]), commit);
+        assert_eq!(git(root, &["status", "--porcelain", "--", ".zdev"]), "");
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn local_experiment_interruption_keeps_cost_and_never_relaunches_unresolved_measurement() {

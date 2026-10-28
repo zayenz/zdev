@@ -384,35 +384,79 @@ fn load(root: &Path, area: &str, task: &str) -> Result<Checkpoint, ZdevError> {
     for path in &checkpoint.paths {
         validate_path(root, path)?;
     }
-    let expected_records = [
-        format!(".zdev/{area}/TASKS.md"),
-        format!(".zdev/{area}/area.toml"),
-    ];
-    if checkpoint.records.len() != 3
-        || !expected_records
-            .iter()
-            .all(|path| checkpoint.records.contains(path))
-        || !checkpoint.records.iter().any(|path| {
-            path.starts_with(&format!(".zdev/{area}/tasks/"))
-                && Path::new(path)
-                    .components()
-                    .all(|component| matches!(component, Component::Normal(_)))
-        })
-        || checkpoint.record_hashes.len() != checkpoint.records.len()
-        || checkpoint
-            .records
-            .iter()
-            .any(|path| !checkpoint.record_hashes.contains_key(path))
-        || checkpoint
-            .pending_records
-            .keys()
-            .any(|path| !checkpoint.records.contains(path))
-    {
+    if !has_valid_records(root, &checkpoint) {
         return Err(ZdevError::new(
             "Experiment checkpoint has invalid record ownership",
         ));
     }
     Ok(checkpoint)
+}
+
+/// Whether the checkpoint's records are its area's task file, `TASKS.md` and
+/// `area.toml`, each once, plus the `TASKS.md` of areas that depend on the task,
+/// adopted when it completed, and whether its hashes and pending writes cover
+/// exactly those records. Any other record, or dependents that cannot be read,
+/// make the records invalid.
+fn has_valid_records(root: &Path, checkpoint: &Checkpoint) -> bool {
+    let area = checkpoint.area.as_str();
+    let own_index = format!(".zdev/{area}/TASKS.md");
+    let metadata = format!(".zdev/{area}/area.toml");
+    let task_directory = format!(".zdev/{area}/tasks/");
+    let is_task_file = |path: &str| {
+        path.starts_with(&task_directory)
+            && Path::new(path)
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)))
+    };
+    let records = &checkpoint.records;
+    let adopted: Vec<&String> = records
+        .iter()
+        .filter(|path| **path != own_index && **path != metadata && !is_task_file(path))
+        .collect();
+    records.iter().collect::<BTreeSet<_>>().len() == records.len()
+        && records.contains(&own_index)
+        && records.contains(&metadata)
+        && records.iter().filter(|path| is_task_file(path)).count() == 1
+        && (adopted.is_empty()
+            || dependent_index_paths(root, checkpoint)
+                .is_ok_and(|dependents| adopted.iter().all(|path| dependents.contains(*path))))
+        && checkpoint.record_hashes.len() == records.len()
+        && records
+            .iter()
+            .all(|path| checkpoint.record_hashes.contains_key(path))
+        && checkpoint
+            .pending_records
+            .keys()
+            .all(|path| records.contains(path))
+}
+
+/// The `TASKS.md` paths of the other areas in the checkout with a task blocked by
+/// the checkpoint's task. Only these indexes may join the experiment's records.
+fn dependent_index_paths(
+    root: &Path,
+    checkpoint: &Checkpoint,
+) -> Result<BTreeSet<String>, ZdevError> {
+    Ok(
+        tasks::dependent_areas(root, &checkpoint.area, &checkpoint.task)?
+            .into_iter()
+            .map(|area| format!(".zdev/{area}/TASKS.md"))
+            .collect(),
+    )
+}
+
+/// The area whose generated task index `path` names, when it is `.zdev/<area>/TASKS.md`.
+fn index_area(path: &str) -> Option<&str> {
+    let area = path.strip_prefix(".zdev/")?.strip_suffix("/TASKS.md")?;
+    crate::validate_segment(area, "Area tag")
+        .is_ok()
+        .then_some(area)
+}
+
+/// The area of index record `path` when the checkpoint publishes an isolated
+/// candidate. Admissions may regenerate those indexes during the experiment, so
+/// they are checked for freshness and regenerated instead of compared by hash.
+fn isolated_index_area<'a>(checkpoint: &Checkpoint, path: &'a str) -> Option<&'a str> {
+    checkpoint.isolated.as_ref().and(index_area(path))
 }
 
 fn save(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevError> {
@@ -720,8 +764,8 @@ fn research_settings_change_permitted(
 
 fn require_record_ownership(root: &Path, checkpoint: &Checkpoint) -> Result<(), ZdevError> {
     for (path, expected) in &checkpoint.record_hashes {
-        if checkpoint.isolated.is_some() && path == &format!(".zdev/{}/TASKS.md", checkpoint.area) {
-            tasks::validate_index(root, &checkpoint.area)?;
+        if let Some(area) = isolated_index_area(checkpoint, path) {
+            tasks::validate_index(root, area)?;
             require_clean_index(root, path)?;
             continue;
         }
@@ -744,25 +788,57 @@ fn require_record_ownership(root: &Path, checkpoint: &Checkpoint) -> Result<(), 
     Ok(())
 }
 
+/// Saves `planned` as the pending writes before they happen. The other areas'
+/// `TASKS.md` that a completion reports join the records with their current
+/// hashes in the same save, so recovery and the research commit cover them like
+/// the experiment's own records. Refuses any other path outside the records, and
+/// a dependent index with local work, before saving.
 fn prepare_publication(
     root: &Path,
     checkpoint: &mut Checkpoint,
-    files: &[(PathBuf, Vec<u8>)],
+    planned: &tasks::PlannedWrites<'_>,
 ) -> Result<(), ZdevError> {
     require_record_ownership(root, checkpoint)?;
-    checkpoint.pending_records = files
+    let pending: BTreeMap<String, Vec<u8>> = planned
+        .files
         .iter()
         .map(|(path, bytes)| (crate::relative(root, path), bytes.clone()))
         .collect();
-    if checkpoint
-        .pending_records
+    let dependent_indexes: Vec<String> = planned
+        .dependent_indexes
+        .iter()
+        .map(|path| crate::relative(root, path))
+        .collect();
+    let dependents = if dependent_indexes.is_empty() {
+        BTreeSet::new()
+    } else {
+        dependent_index_paths(root, checkpoint)?
+    };
+    if pending
         .keys()
-        .any(|path| !checkpoint.records.contains(path))
+        .any(|path| !checkpoint.records.contains(path) && !dependent_indexes.contains(path))
+        || dependent_indexes
+            .iter()
+            .any(|path| !dependents.contains(path))
     {
         return Err(ZdevError::new(
             "Publication includes an unowned experiment record",
         ));
     }
+    let adopted_hashes = dependent_indexes
+        .into_iter()
+        .filter(|path| !checkpoint.records.contains(path))
+        .map(|path| {
+            require_clean_path(root, &path)?;
+            let hash = git_output(root, &["hash-object", "--", &path])?;
+            Ok((path, hash))
+        })
+        .collect::<Result<Vec<_>, ZdevError>>()?;
+    for (path, hash) in adopted_hashes {
+        checkpoint.records.push(path.clone());
+        checkpoint.record_hashes.insert(path, hash);
+    }
+    checkpoint.pending_records = pending;
     save(root, checkpoint)
 }
 
@@ -776,10 +852,8 @@ fn recover_publication(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), Z
         if bytes != *expected
             && git_output(root, &["hash-object", "--", path])? != checkpoint.record_hashes[path]
         {
-            if checkpoint.isolated.is_some()
-                && path == &format!(".zdev/{}/TASKS.md", checkpoint.area)
-            {
-                tasks::validate_index(root, &checkpoint.area)?;
+            if let Some(area) = isolated_index_area(checkpoint, path) {
+                tasks::validate_index(root, area)?;
                 require_clean_index(root, path)?;
                 continue;
             }
@@ -796,16 +870,17 @@ fn recover_publication(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), Z
         }
     }
     for (path, bytes) in &checkpoint.pending_records {
-        if checkpoint.isolated.is_none() || path != &format!(".zdev/{}/TASKS.md", checkpoint.area) {
+        if isolated_index_area(checkpoint, path).is_none() {
             write_atomic(&root.join(path), bytes)?;
         }
     }
-    if checkpoint.isolated.is_some()
-        && checkpoint
-            .pending_records
-            .contains_key(&format!(".zdev/{}/TASKS.md", checkpoint.area))
+    // Regenerated after the task files, so each index shows the published status.
+    for area in checkpoint
+        .pending_records
+        .keys()
+        .filter_map(|path| isolated_index_area(checkpoint, path))
     {
-        tasks::write_index(root, &checkpoint.area)?;
+        tasks::write_index(root, area)?;
     }
     update_record_hashes(root, checkpoint)?;
     checkpoint.pending_records.clear();
@@ -1282,8 +1357,8 @@ fn publish_observations(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), 
     for record in &expected[actual.len()..] {
         let area = checkpoint.area.clone();
         let task = checkpoint.task.clone();
-        tasks::append_research_record_with_checkpoint(root, &area, &task, record, |files| {
-            prepare_publication(root, checkpoint, files)
+        tasks::append_research_record_with_checkpoint(root, &area, &task, record, |planned| {
+            prepare_publication(root, checkpoint, planned)
         })?;
         recover_publication(root, checkpoint)?;
     }
@@ -1729,10 +1804,13 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
         prepare_publication(
             root,
             checkpoint,
-            &[(
-                area_path,
-                toml::to_string_pretty(&metadata).unwrap().into_bytes(),
-            )],
+            &tasks::PlannedWrites {
+                files: &[(
+                    area_path,
+                    toml::to_string_pretty(&metadata).unwrap().into_bytes(),
+                )],
+                dependent_indexes: &[],
+            },
         )?;
         recover_publication(root, checkpoint)?;
     } else if !super::settings(root, &checkpoint.area)?.eq_ignoring_advisory(&checkpoint.settings)
@@ -1745,7 +1823,7 @@ fn finish(root: &Path, checkpoint: &mut Checkpoint) -> Result<(), ZdevError> {
         let task = checkpoint.task.clone();
         tasks::complete_with_checkpoint(root, &area, &task, &record.lesson,
             &["Correctness commands, evaluator observations, retained candidate and owned code state checked.".to_owned()],
-            |files| prepare_publication(root, checkpoint, files))?;
+            |planned| prepare_publication(root, checkpoint, planned))?;
         recover_publication(root, checkpoint)?;
         checkpoint.completed = true;
         update_record_hashes(root, checkpoint)?;

@@ -2853,6 +2853,15 @@ fn read_dependent_areas(root: &Path, area: &str, id: &str) -> Result<Vec<AreaTas
     Ok(dependents)
 }
 
+/// The tags of the other areas in the checkout with a task whose `blocked_by`
+/// names `id`, in area-tag order.
+pub(super) fn dependent_areas(root: &Path, area: &str, id: &str) -> Result<Vec<String>, ZdevError> {
+    Ok(read_dependent_areas(root, area, id)?
+        .into_iter()
+        .map(|dependent| dependent.tag)
+        .collect())
+}
+
 fn is_blocked_by(task: &Task, id: &str) -> bool {
     task.header.blocked_by.iter().any(|blocker| blocker == id)
 }
@@ -3877,7 +3886,7 @@ pub(super) fn append_research_record_with_checkpoint(
     area: &str,
     id: &str,
     result: &ResultRecord,
-    checkpoint: impl FnOnce(&[(PathBuf, Vec<u8>)]) -> Result<(), ZdevError>,
+    checkpoint: impl FnOnce(&PlannedWrites<'_>) -> Result<(), ZdevError>,
 ) -> Result<(), ZdevError> {
     let tasks = load_tasks(root, area)?;
     let task = find_task(&tasks, id)?;
@@ -3921,7 +3930,7 @@ pub(super) fn complete_with_checkpoint(
     id: &str,
     summary: &str,
     validation: &[String],
-    checkpoint: impl FnOnce(&[(PathBuf, Vec<u8>)]) -> Result<(), ZdevError>,
+    checkpoint: impl FnOnce(&PlannedWrites<'_>) -> Result<(), ZdevError>,
 ) -> Result<CommandOutput, ZdevError> {
     let branch = require_task_work_area_link(root, area)?;
     let tasks = load_tasks(root, area)?;
@@ -4066,16 +4075,25 @@ fn publish_task_and_index(
     publish_task_and_index_with_checkpoint(root, area, current, content, |_| Ok(()))
 }
 
+/// The files a task change is about to write, as passed to its checkpoint.
+pub(super) struct PlannedWrites<'a> {
+    /// Every file the change writes, with its new bytes, in write order.
+    pub files: &'a [(PathBuf, Vec<u8>)],
+    /// The other areas' `TASKS.md` paths among `files`, which show the changed
+    /// task's new status. Empty when the task's status does not change.
+    pub dependent_indexes: &'a [PathBuf],
+}
+
 /// Replaces `current` with `content` and regenerates its area's `TASKS.md`. When
 /// the task's status changes, also regenerates the `TASKS.md` of every other area
-/// that depends on it. Passes all planned writes to `checkpoint` before writing,
+/// that depends on it. Passes the planned writes to `checkpoint` before writing,
 /// writes them with rollback, and returns the dependent index paths it wrote.
 fn publish_task_and_index_with_checkpoint(
     root: &Path,
     area: &str,
     current: &Task,
     content: &str,
-    checkpoint: impl FnOnce(&[(PathBuf, Vec<u8>)]) -> Result<(), ZdevError>,
+    checkpoint: impl FnOnce(&PlannedWrites<'_>) -> Result<(), ZdevError>,
 ) -> Result<Vec<PathBuf>, ZdevError> {
     let index_path = root.join(".zdev").join(area).join("TASKS.md");
     let mut tasks = load_tasks(root, area)?;
@@ -4097,7 +4115,7 @@ fn publish_task_and_index_with_checkpoint(
     } else {
         render_dependent_indexes(root, area, &current.header.id, status)?
     };
-    let dependent_index_paths = dependent_indexes
+    let dependent_index_paths: Vec<PathBuf> = dependent_indexes
         .iter()
         .map(|(path, _)| path.clone())
         .collect();
@@ -4108,7 +4126,10 @@ fn publish_task_and_index_with_checkpoint(
     ];
     writes.extend(dependent_indexes);
     let originals = read_originals(&writes)?;
-    checkpoint(&writes)?;
+    checkpoint(&PlannedWrites {
+        files: &writes,
+        dependent_indexes: &dependent_index_paths,
+    })?;
     write_with_rollback(&writes, &originals)?;
     Ok(dependent_index_paths)
 }

@@ -3,7 +3,7 @@ schema_version = 1
 id = "cross-area-007"
 key = "research-publication-dependent-indexes"
 area = "cross-area"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "normal"
@@ -29,11 +29,23 @@ The verifier of cross-area-003 confirmed the failure writes nothing. Supporting 
 
 ## Done when
 
-- [ ] Finalizing a hypothesis whose task is a cross-area blocker succeeds, and its commit contains the dependent area's regenerated TASKS.md; `zdev check` passes afterwards.
-- [ ] Recovering an interrupted publication of such a task completes or rolls back the dependent index together with the experiment's own records.
-- [ ] A publication that would include any other unowned path is still refused with the existing error.
+- [x] Finalizing a hypothesis whose task is a cross-area blocker succeeds, and its commit contains the dependent area's regenerated TASKS.md; `zdev check` passes afterwards.
+- [x] Recovering an interrupted publication of such a task completes or rolls back the dependent index together with the experiment's own records.
+- [x] A publication that would include any other unowned path is still refused with the existing error.
 
 ## Validation
 
 - Add one focused research test in tests/lean.rs that creates a cross-area dependent on a hypothesis task, finalizes it, and checks the commit and `zdev check`; extend an existing recovery test or add one interrupted-publication case. Use the scripted research fixtures; no live harness.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+Research finalize and recover now complete a hypothesis task that other areas depend on: the dependent areas' regenerated TASKS.md files are adopted as records for that completion only, saved atomically with the pending bytes before any write, recovered at both crash points, and committed with the experiment's records. Load and adoption accept only indexes of areas that actually depend on the task; any other path is refused. Isolated candidates regenerate every index record after task files. Verified by GPT-6 Astra (high), with one ownership correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 209)
+- cargo build --locked: pass
+- git diff --check: pass

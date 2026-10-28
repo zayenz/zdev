@@ -122,8 +122,13 @@ zdev area create <child> --title <title> --objective <objective>
 zdev area parent <child> <parent>
 ```
 
-Area dependencies model branch ancestry. `blocked_by` models task order inside
-one area.
+Area dependencies model branch ancestry. `blocked_by` models task order, and
+may name a full task ID from another area, such as `platform-009`; bundle keys
+stay local to their bundle. A cross-area blocker does not change branch
+parents, rebase order or freshness checks. A task becomes ready when each
+blocker's task file in the current checkout is `done`. When every open task in
+an area waits on another area, the area's queue is `blocked`, and `zdev area
+close` refuses to close an area whose open tasks block tasks elsewhere.
 
 ## Managed rebases
 

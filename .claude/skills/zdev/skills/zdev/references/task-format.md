@@ -15,8 +15,13 @@ when the user explicitly wants a personal/project area on configured trunk;
 pull-request records remain isolated. Trunk work requires the resolved trunk
 checked out and safe, but never requires freshness or rebase ceremony.
 
-Task dependencies never cross areas. Use an area parent for branch ancestry
-and `blocked_by` for task sequencing within one area.
+`blocked_by` may name any existing task ID in the project, including a task in
+another area. Task IDs carry their area prefix, so `platform-009` resolves to
+`.zdev/platform/tasks/`. Bundle keys stay local to their bundle; only full task
+IDs cross areas. A cross-area blocker never changes branch ancestry: the area
+`parent` alone sets branch parents, rebase order and freshness checks. Write
+soft prerequisites, such as "uses X when it exists", as prose in the task's
+Context instead of `blocked_by`.
 
 ## Research settings and hypothesis evidence
 
@@ -516,7 +521,9 @@ authorized finalization without new costly dispatch. Ending authorization uses
 `end --run <run>` after reservations and experiment checkpoints are settled;
 a new `start` never replaces an unfinished run. Empty or exhausted queues
 request further authorized proposals while allowance remains. They neither
-close the area nor establish that its objective has been achieved.
+close the area nor establish that its objective has been achieved. A
+`blocked` queue, where every open task waits on a task in another area, stops
+the run as no-work and names each wait.
 
 A run freezes metric, direction, permitted changes, repetitions, aggregation,
 minimum gain, significance policy and correctness requirements/commands. Evaluator identity,
@@ -664,7 +671,8 @@ The frontmatter contains only routing state:
   complete unattended with the available repository-local authority;
 - optional `priority` is `high`, `normal`, or `low`;
 - optional `slice` names an existing slice brief in the same area; and
-- `blocked_by` contains stable task IDs.
+- `blocked_by` contains stable task IDs from this area or another area of the
+  project.
 
 Omitted complexity resolves to `standard` without rewriting the task. Use
 `routine` only for tightly specified, low-risk mechanical work, `standard` for
@@ -672,7 +680,14 @@ ordinary bounded implementation, and `advanced` when the approved task needs
 additional planning or reasoning. Complexity does not change readiness,
 lifecycle, or dependencies.
 
-An open task is ready when every blocker is done. Otherwise it is blocked. With
+An open task is ready when every blocker is done. A blocker in any area counts
+as done when its task file in the current checkout has status `done`; on an
+isolated branch that means its completion commit is reachable from the branch,
+and on trunk it follows trunk. Otherwise the task is blocked, and zdev shows
+each unfinished cross-area blocker as `blocked by <id> (<area>: <state>)`, for
+example `blocked by platform-009 (platform: open)`. When every open task waits
+on another area, the queue is `blocked`: `zdev next` and `zdev goal` exit 0 with
+no task and list each wait. With
 no user focus, zdev chooses from the ready frontier by AFK suitability first,
 then priority, then numeric task ID. Omitted values behave as `afk = false` and
 `priority = "normal"`. A fuzzy user focus is handled by the harness instead: it
@@ -701,7 +716,12 @@ Validation:
 ```
 
 `TASKS.md` is a generated list of all task files and their derived state. It is
-never an authored source.
+never an authored source. A cross-area blocker appears there with its area and
+state, for example `platform-009 (platform: open)`. `zdev task done` and
+`zdev task reopen` regenerate the `TASKS.md` of every other area that depends on
+the changed task and report those paths in `dependent_indexes`; stage them with
+the completion. `zdev task reopen` refuses while a done task in another area
+depends on the task.
 
 ## Task bundle
 
@@ -714,7 +734,8 @@ never an authored source.
 - optional `afk`; omitted means `false`;
 - optional `priority`; omitted means `normal`;
 - optional `slice`, naming an existing slice brief in the area;
-- `blocked_by`, using keys from the same bundle or existing task IDs;
+- `blocked_by`, using keys from the same bundle or existing task IDs from any
+  area; review and import reject a missing task ID and name its expected area;
 - `outcome`;
 - optional `context`, rendered as prose under `## Context`;
 - optional `boundaries` for task-specific non-goals and scope limits;

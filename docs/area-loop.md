@@ -131,6 +131,7 @@ in-scope rework continues under the ordinary task contract.
 | --- | --- |
 | `open` / `ready`, safe | Run exactly one task iteration. After PASS and commit, collect fresh work-context before deciding or dispatching again. |
 | `open` / `empty` | `PASS`; no worker. The area objective remains open. |
+| `open` / `blocked` | `PASS`; no worker. Every open task waits on another area; report each `cross_area_waits` entry. The area objective remains open. |
 | `open` / `exhausted` | `PASS`; no worker. The area objective remains open. |
 | `closed` / `empty` or `closed` / `exhausted` | `PASS`; no worker. Report the explicit closed lifecycle without branch status or advisory. The result works off-branch, detached, or during an unrelated Git operation. |
 | Unsafe task-work state or unexplained Git state | `BLOCKER`; no worker. Preserve and report exact state. |

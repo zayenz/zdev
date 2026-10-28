@@ -26,7 +26,8 @@ You can add a focus such as "prioritize command-line usability". The agent
 uses that as guidance among eligible tasks, not as an exact text filter.
 
 The loop reports each selected task and verified commit. It stops when the
-queue is empty or exhausted, the area is already closed, or progress requires
+queue is empty or exhausted, every open task waits on a task in another area,
+the area is already closed, or progress requires
 a decision or resolution of a blocker. Finishing the queue leaves an open area
 open. The ordinary loop does not invent more work when it runs out of tasks.
 

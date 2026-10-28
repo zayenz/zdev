@@ -1,8 +1,8 @@
 # Area lifecycle and task-queue state
 
 An area objective and its task queue answer different questions. The area is
-`open` until someone explicitly closes it. The queue is `empty`, `ready`, or
-`exhausted`; task validation rejects a blocked-only graph. Finishing the current
+`open` until someone explicitly closes it. The queue is `empty`, `ready`, `blocked`,
+or `exhausted`. Finishing the current
 task bundle therefore exhausts the queue but does not close the objective.
 
 Area lifecycle is separate from task status and Git operations. Task status
@@ -35,17 +35,20 @@ record with open tasks fails rather than hiding or selecting the tasks.
 - `blocked`: open tasks exist but none is ready;
 - `exhausted`: at least one task exists and every task is done.
 
-`blocked` is diagnostic vocabulary, not a reachable successful projection.
-The current dependency rules reject missing blockers and cycles. Every valid
-acyclic graph with an open task has a ready task. Commands fail task validation
-instead of returning a successful `blocked` projection.
+Dependency validation rejects missing blockers and cycles, so within one area
+every chain of open tasks reaches a ready task. The queue is `blocked` only
+when every open task waits, directly or through other open tasks, on a task in
+another area that is not done in the current checkout. zdev lists each wait as
+`<task> blocked by <id> (<area>: <status>)`, and JSON adds `cross_area_waits`,
+an array of `{task, blocker}` objects, omitted when empty. Each task object
+that has such a blocker also carries `cross_area_blockers`.
 
 ## State matrix
 
 | Lifecycle | Zero tasks (`empty`) | Ready work (`ready`) | Blocked-only work (`blocked`) | All tasks done (`exhausted`) |
 | --- | --- | --- | --- | --- |
-| `open` | Valid. The objective remains open for a first bundle. | Valid. Selection may return the first ready task. | Invalid task graph; validation fails without output or mutation. | Valid. The objective remains open for another reviewed bundle or an explicit close. |
-| `closed` | Valid. Explicitly closing an empty objective is allowed. | Invalid record combination; close and task creation prevent it, and validation rejects it. | Invalid task graph and invalid closed-area combination. | Valid. The objective is explicitly closed. |
+| `open` | Valid. The objective remains open for a first bundle. | Valid. Selection may return the first ready task. | Valid. Every open task waits on another area; selection returns no task and lists the waits. | Valid. The objective remains open for another reviewed bundle or an explicit close. |
+| `closed` | Valid. Explicitly closing an empty objective is allowed. | Invalid record combination; close and task creation prevent it, and validation rejects it. | Invalid record combination; close prevents it, and validation rejects it. | Valid. The objective is explicitly closed. |
 
 Task counts never change `lifecycle`. A closed area must have no open tasks.
 Closing an empty area records an explicit decision that the objective needs no
@@ -77,6 +80,18 @@ whether ready or blocked, before writing:
 Cannot close area <area>: <count> tasks are open. Complete them or keep the area open
 ```
 
+When open tasks in the area block tasks in other areas, the refusal also lists
+each pair:
+
+```text
+Cannot close area <area>: <count> tasks are open. Complete them or keep the area open. Open tasks block other areas:
+  <task> blocks <dependent> (<dependent-area>)
+```
+
+`area close` has no override flag. It succeeds only once every open task in
+the area is done. The listed pairs show which tasks in other areas still wait
+on this area.
+
 On a change, human output is `Closed area <area>`. Its JSON contains
 `schema_version: 1`, `status: "closed"`, `area`, `lifecycle: "closed"`, the
 complete `branch_status`, and `advisory` (a string or `null`). Closing an already
@@ -103,22 +118,25 @@ The human header is exactly:
 ```text
 Area: <tag> — <title>
 Lifecycle: <open|closed>
-Queue: <empty|ready|exhausted>
+Queue: <empty|ready|blocked|exhausted>
 Objective:
 <objective>
 Counts: <total> total; <open> open; <ready> ready; <blocked> blocked; <done> done
 ```
 
 Ready output then keeps the current task, slice, done-when, validation, and
-native-goal sections. The three no-work messages are:
+native-goal sections. The four no-work messages are:
 
 ```text
 The open area has no tasks. Create and approve a task, or close the area.
+Every open task waits on another area. Work here becomes ready when these blockers are done:
+  <task> blocked by <id> (<area>: <status>)
 The open area's task queue is exhausted. Add approved work, reopen a task, or close the area.
 The area is closed. Reopen it before adding or selecting work.
 ```
 
-They correspond to open/empty, open/exhausted, and either closed queue. Closed
+They correspond to open/empty, open/blocked, open/exhausted, and either closed
+queue. Closed
 output still reports whether its queue is `empty` or `exhausted` in the header.
 Every human result ends with one newline.
 
@@ -126,7 +144,8 @@ Goal JSON removes the ambiguous top-level `state` field. In deterministic key
 order it contains `schema_version`, `area`, `lifecycle`, `queue`, `counts`, and
 `task`; `native_goal` follows `task` only for `ready`. The `area` object keeps
 `tag`, `title`, `objective`, and `path`. `task` is exactly `null` for empty,
-exhausted, and closed projections. `native_goal` is omitted for all three.
+blocked, exhausted, and closed projections, and `native_goal` is omitted for
+all four. A blocked projection adds `cross_area_waits`.
 Thus neither `complete` nor a done count claims that the area objective closed.
 
 ### `zdev next <area>`
@@ -152,6 +171,8 @@ The exact no-work human messages are:
 
 ```text
 No tasks are recorded in open area <area>. Add approved tasks or run `zdev area close <area>`
+Every open task in area <area> waits on another area. Work here becomes ready when these blockers are done:
+  <task> blocked by <id> (<area>: <status>)
 The task queue is exhausted in open area <area>. Add approved tasks, reopen a task, or run `zdev area close <area>`
 Area <area> is closed. Run `zdev area reopen <area>` before adding or selecting work
 ```
@@ -231,14 +252,14 @@ branch diagnostics:
 ```text
 <title>
 Lifecycle: <open|closed>
-Queue: <empty|ready|exhausted>
+Queue: <empty|ready|blocked|exhausted>
 Counts: <total> total; <ready> ready; <blocked> blocked; <done> done
 ```
 
 Selected JSON keeps the current object and adds top-level `lifecycle` and
 `queue`; the embedded area metadata also contains `lifecycle`. Project-wide
 human output keeps the project header and lists each area as `<tag>:
-<open|closed>, <empty|ready|exhausted>; <branch> -> <relationship>
+<open|closed>, <empty|ready|blocked|exhausted>; <branch> -> <relationship>
 [<diagnostics>]`. Each project-wide JSON area summary contains `tag`, `title`,
 `lifecycle`, `queue`, `total`, `ready`, `blocked`, `done`, and the existing
 `branch_status`. Status includes closed areas and diagnoses their branches

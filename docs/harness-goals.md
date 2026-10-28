@@ -60,6 +60,9 @@ derived `queue` is one of:
 - `ready`: at least one open task has no unfinished blocker. `task` is the
   first such task.
 - `empty`: the area has no tasks. `task` is `null`.
+- `blocked`: open tasks exist, and every one waits on a task in another area
+  that is not done in the current checkout. `task` is `null`, and
+  `cross_area_waits` lists each wait as a `{task, blocker}` object.
 - `exhausted`: tasks exist and all are done. `task` is `null`.
 
 A closed area reports `queue: empty` or `queue: exhausted`, according to its
@@ -71,10 +74,12 @@ Each `blocked_by` array retains its authored order. The associated slice is
 read by key. No filesystem enumeration order, clock, current branch, harness,
 model, or Git status enters the output.
 
-A validated acyclic graph with an open task always has at least one ready task:
-the open subgraph has a task whose dependencies are already done. Missing
-blockers, cycles, and malformed graphs fail existing validation before this
-queue is projected. There is no successful `blocked` goal queue.
+Within one area, a validated acyclic graph with an open task always has a task
+whose same-area dependencies are done. That task is ready unless it waits on a
+task in another area. When every open task waits on another area, `zdev goal`
+exits 0 with `queue: blocked` and human output names each wait as
+`<task> blocked by <id> (<area>: <status>)`. Missing blockers, cycles, and
+malformed graphs fail existing validation before this queue is projected.
 
 The counts are always present and ordered `total`, `open`, `ready`, `blocked`,
 `done`. They describe all tasks, not just the selected task.
@@ -145,7 +150,7 @@ Validation:
 - Run the focused payment integration test.
 
 Native goal:
-Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.
+Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.
 ```
 
 The native condition uses a fixed template in `src/goal.rs`. It contains no
@@ -191,7 +196,7 @@ task or slice details. Paths are repository-relative and use `/` separators.
       "boundaries": "- Do not change provider selection."
     }
   },
-  "native_goal": "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
+  "native_goal": "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Use worktrees by default and retain the run's workspace and worker choices. Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
 }
 ```
 
@@ -333,9 +338,9 @@ JSON mode uses zdev's existing error envelope with `schema_version`, `command`,
 `ok: false`, and `error`. Both return nonzero and write no successful payload.
 
 In particular, a missing blocker or dependency cycle fails the existing graph
-validator. If open tasks somehow remain with no ready task after validation,
-that is a malformed internal projection and also fails; it is not rendered as
-a fourth state.
+validator. If open tasks remain with no ready task and no
+cross-area wait explains it, that is a malformed internal projection and also
+fails; it is not rendered as `blocked`.
 
 Failure is non-mutating. `zdev goal` does not acquire a write lock, repair an
 index, create a task, update status, touch Git, or call a harness. An adapter

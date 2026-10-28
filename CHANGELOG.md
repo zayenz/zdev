@@ -4,6 +4,24 @@ This file records notable changes to zdev.
 
 ## Unreleased
 
+### Added
+
+- A task's `blocked_by` may name a full task ID from another area of the same
+  project, such as `platform-009`. Bundle keys stay local to their bundle, and
+  the area `parent` still alone sets branch ancestry. Review, import and
+  `zdev check` reject a missing blocker and name its expected area, and cycle
+  detection follows blockers across areas. A blocker counts as done when its
+  task file in the current checkout is `done`. `zdev next`, `zdev goal`,
+  `work-context`, `tasks list` and `zdev status` show each pending blocker as
+  `blocked by platform-009 (platform: open)`, and the `TASKS.md` blocker column
+  shows it as `platform-009 (platform: open)`. An area whose open
+  tasks all wait on other areas reports the new `blocked` queue with
+  `cross_area_waits`; loops and research runs stop there as no-work.
+  `zdev task done` and `zdev task reopen` regenerate dependent areas'
+  `TASKS.md` and list them in `dependent_indexes`. `zdev task reopen` refuses
+  while a done task in another area depends on the task, and `zdev area close`
+  lists open tasks that block other areas in its refusal.
+
 ### Changed
 
 - Claude defaults use Claude Opus 5.5 (`claude-opus-5-5`) for every role and

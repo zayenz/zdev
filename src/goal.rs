@@ -34,7 +34,7 @@ fn native_condition(area: &str, options: &GoalOptions) -> String {
         None => "Let fresh work-context select the next task.".to_owned(),
     };
     format!(
-        "Continue zdev area {area}. Read .zdev/{area}/area.toml and .zdev/{area}/brief.md for the current objective and boundaries. {execution} Use worktrees by default and retain the run's workspace and worker choices. {selection} Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
+        "Continue zdev area {area}. Read .zdev/{area}/area.toml and .zdev/{area}/brief.md for the current objective and boundaries. {execution} Use worktrees by default and retain the run's workspace and worker choices. {selection} Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
     )
 }
 

@@ -3,7 +3,7 @@ schema_version = 1
 id = "cross-area-006"
 key = "document-cross-area-blockers"
 area = "cross-area"
-status = "open"
+status = "done"
 complexity = "routine"
 afk = true
 priority = "normal"
@@ -28,18 +28,20 @@ User docs that state the old rules:
 
 `docs/derived-work-handoffs.md` keeps excluding cross-area dependencies from derived proposals; leave it. Describe the behavior that `validate-cross-area-blockers`, `cross-area-readiness-and-index`, `refresh-dependent-indexes`, `blocked-queue-and-blocker-display` and `harness-routes-handle-blocked-queue` shipped: read their Results and the current CLI output rather than this draft. Follow the [brief](../brief.md) for the rule wording: full task IDs may cross areas, bundle keys stay local, area `parent` remains branch ancestry, soft prerequisites stay in Context prose, and readiness reads the current checkout. Add an `Unreleased` entry to `CHANGELOG.md` in the existing style. Regenerate the integration copies with the same `cargo run --locked -- skill install ...` commands as `harness-routes-handle-blocked-queue`.
 
+Coordinator clarification (2026-10-28), from findings in `harness-routes-handle-blocked-queue`: two wording gaps belong here. `templates/zdev/references/task-format.md` (about line 518) still says empty or exhausted queues allow research generation without the `blocked` exception; state that a research area whose open work only waits on other areas stops as no-work. The `native_goal` sentence in `src/goal.rs` (about line 37, "Finish when fresh context is closed or the queue is empty or exhausted") does not name `blocked`; add it so the goal condition matches the shipped no-work stop. Update any test that pins that sentence.
+
 ## Boundaries
 
 - Edit `templates/zdev/` sources and regenerate; never patch generated copies by hand.
-- Change documentation only; no Rust or workflow behavior changes.
+- Change documentation and wording only; no workflow behavior changes. The single exception is the `native_goal` string in `src/goal.rs` named above.
 
 ## Done when
 
-- [ ] `grep -rn "Task dependencies never cross areas"` over `templates`, `skills`, `.claude`, `.opencode`, `.pi`, `.omp` and `docs` finds nothing, and the canonical task-format reference states the new rule, including that bundle keys stay local and area `parent` remains branch ancestry.
-- [ ] The task-format readiness paragraph says a blocker in any area counts as done when its task file in the current checkout is `done`, and shows the `blocked by <id> (<area>: <state>)` form.
-- [ ] `docs/area-lifecycle.md`, `docs/harness-goals.md`, `docs/area-loop.md` and `docs/workflow.md` describe `blocked` as a reachable queue when every open task waits on another area, and describe the shipped close refusal.
-- [ ] `CHANGELOG.md` has an `Unreleased` entry for cross-area task dependencies.
-- [ ] The generated integrations match the templates.
+- [x] `grep -rn "Task dependencies never cross areas"` over `templates`, `skills`, `.claude`, `.opencode`, `.pi`, `.omp` and `docs` finds nothing, and the canonical task-format reference states the new rule, including that bundle keys stay local and area `parent` remains branch ancestry.
+- [x] The task-format readiness paragraph says a blocker in any area counts as done when its task file in the current checkout is `done`, and shows the `blocked by <id> (<area>: <state>)` form.
+- [x] `docs/area-lifecycle.md`, `docs/harness-goals.md`, `docs/area-loop.md` and `docs/workflow.md` describe `blocked` as a reachable queue when every open task waits on another area, and describe the shipped close refusal.
+- [x] `CHANGELOG.md` has an `Unreleased` entry for cross-area task dependencies.
+- [x] The generated integrations match the templates.
 
 ## Validation
 
@@ -49,3 +51,16 @@ User docs that state the old rules:
 - `cargo test --locked`
 - `cargo build --locked`
 - `git diff --check`
+
+## Result
+
+The canonical task-format reference, regenerated integrations, user docs (workflow, area-lifecycle, harness-goals, area-loop, commands/loop) and CHANGELOG describe cross-area blocked_by, readiness from the current checkout, the reachable blocked queue with cross_area_waits/cross_area_blockers, dependent_indexes, and the reopen and close refusals. native_goal now names a blocked queue. The brief was aligned with the shipped close behavior (no override flag). Independently verified, with one close-guidance correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (clean run, lean 201)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

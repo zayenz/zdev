@@ -21,7 +21,7 @@ and the production-release gate).
   `TASKS.md` treat a task as blocked while any blocker, in any area, is not
   done, and show it as for example `blocked by platform-009 (platform: open)`.
 - `zdev area close` refuses an area whose open tasks block tasks in another
-  area unless the caller passes an explicit override flag.
+  area and names those dependents.
 - `skills/zdev/references/task-format.md` (canonical template) states the new
   rule, and the generated copies are regenerated.
 
@@ -46,9 +46,9 @@ and the production-release gate).
   follows trunk. The first task must confirm that completion writes status in
   the completion commit; if it does not, stop and report before building on
   this assumption.
-- **Closing requires an override.** Closing an area with open tasks that block
-  other areas fails without an explicit flag. A warning alone lets the
-  dependents stay blocked unnoticed.
+- **Closing refuses open blockers.** `zdev area close` already refuses an area
+  with open tasks, so no override flag is needed. The refusal names each open
+  task that blocks another area. This supersedes the earlier override decision.
 - **Deleting or renaming a blocker is caught by `zdev check`.** A missing blocker
   fails validation with the dependent task and expected area named. zdev has
   no task-rename command to guard separately.
@@ -74,7 +74,7 @@ fixtures. Cover:
   but not yet in this branch;
 - `zdev check` after the blocking task file is deleted;
 - generated `TASKS.md` and `zdev status` output for a cross-area blocker;
-- `area close` refusal and override.
+- `area close` refusal naming the dependents.
 
 Do not add a broad matrix over every command; one assertion per surface is
 enough when the commands share a readiness function.

@@ -3,9 +3,9 @@
 # Tasks: cross-area
 
 - Total: 6
-- Ready: 1
+- Ready: 0
 - Blocked: 0
-- Done: 5
+- Done: 6
 
 | ID | Task | State | Blocked by |
 | --- | --- | --- | --- |
@@ -14,4 +14,4 @@
 | [cross-area-003](tasks/003-refresh-dependent-indexes-on-blocker-status-changes-and-guar.md) | Refresh dependent indexes on blocker status changes and guard cross-area reopen | done | cross-area-002 |
 | [cross-area-004](tasks/004-project-the-blocked-queue-and-name-cross-area-blockers-in-ne.md) | Project the blocked queue and name cross-area blockers in next, status and close | done | cross-area-002 |
 | [cross-area-005](tasks/005-teach-harness-routes-the-blocked-queue-and-dependent-index-s.md) | Teach harness routes the blocked queue and dependent index staging | done | cross-area-004, cross-area-003 |
-| [cross-area-006](tasks/006-document-cross-area-blockers-and-record-them-in-the-changelo.md) | Document cross-area blockers and record them in the changelog | ready | cross-area-005 |
+| [cross-area-006](tasks/006-document-cross-area-blockers-and-record-them-in-the-changelo.md) | Document cross-area blockers and record them in the changelog | done | cross-area-005 |

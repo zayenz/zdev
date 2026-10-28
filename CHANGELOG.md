@@ -2,7 +2,7 @@
 
 This file records notable changes to zdev.
 
-## Unreleased
+## [2.1.0] - 2026-10-28
 
 ### Added
 
@@ -14,9 +14,9 @@ This file records notable changes to zdev.
   task file in the current checkout is `done`. `zdev next`, `zdev goal`,
   `work-context`, `tasks list` and `zdev status` show each pending blocker as
   `blocked by platform-009 (platform: open)`, and the `TASKS.md` blocker column
-  shows it as `platform-009 (platform: open)`. An area whose open
-  tasks all wait on other areas reports the new `blocked` queue with
-  `cross_area_waits`; loops and research runs stop there as no-work.
+  shows it as `platform-009 (platform: open)`. An area whose open tasks all
+  wait on other areas reports the new `blocked` queue with `cross_area_waits`;
+  loops and research runs stop there as no-work.
   `zdev task done` and `zdev task reopen` regenerate dependent areas'
   `TASKS.md` and list them in `dependent_indexes`. `zdev task reopen` refuses
   while a done task in another area depends on the task, and `zdev area close`
@@ -50,9 +50,20 @@ This file records notable changes to zdev.
   and `.zdev` edits still refuse. `zdev area research` rejects an output that
   overlaps a declared relevant input, and `begin` and isolated `admit` refuse
   an owned `--path` under an output. Changing the list during an active run
-  invalidates comparisons until an actual rebaseline. Reconcile refuses,
-  rather than overwrite them, when accepted code changes tracked paths under an
-  output that holds untracked source files.
+  invalidates comparisons until an actual rebaseline. When an isolated source
+  holds untracked files under an output, reconcile refuses rather than let Git
+  overwrite them if accepted code changes a tracked path that overlaps that
+  output: the output itself, a path under it, or a replaced parent directory,
+  compared without letter case.
+- Research settings accept an optional advisory `metric_bound`, the best value
+  the metric can reach, such as `0` for a nonnegative minimized metric. When
+  even a candidate at the bound cannot meet the frozen `minimum_gain` from the
+  accepted baseline, `zdev area research`, research run `context` and `inspect`
+  report `unreachable_minimum_gain`, and `next_action` names the study decision
+  instead of more candidate preparation. The bound never refuses work: adding
+  or changing only the bound does not invalidate comparisons, runs or
+  unfinished experiments, and keep finalization accepts a candidate snapshot
+  that differs only in the bound.
 - Research run context and `inspect` report each limit under `limits` with its
   `value` and `origin`: `user` for a supplied flag, `default` for a product
   default, and `coordinator_estimate` for a supplied value marked with the new
@@ -67,74 +78,6 @@ This file records notable changes to zdev.
 
 ### Changed
 
-- Inside T3 Code, the Codex and Claude zdev skills use T3 orchestration by
-  default. A coordinator whose session has T3's orchestration instructions or
-  its orchestration MCP server dispatches implementation, verification,
-  plan-only, audit, standalone review and goal/loop workers as T3 child tasks,
-  so verifiers follow `t3.verifier-harness`. An explicit request for native
-  orchestration opts out, and the chosen route lasts across goal continuations
-  and completion wakes. When T3's orchestration tools are unreachable, the
-  coordinator reports a blocker that names the native opt-out instead of
-  falling back silently. Sessions outside T3 Code, including plain Claude Code
-  with its packaged workflows, are unchanged.
-- Under T3 orchestration, a goal or loop runs in the main thread. The
-  coordinator dispatches each planner, implementer and verifier as its own T3
-  child task and reports the selected task, each dispatched role, each phase
-  result and each commit in the main thread. It never hands a whole loop or
-  task cycle to one child or packaged workflow.
-- The T3 route does not support research runs. Inside T3 Code, a research-run
-  request returns an unsupported-route result before any dispatch that names
-  the native research route; an explicit request for native orchestration
-  selects it.
-- The `zdev goal` native condition no longer says "Use worktrees by default".
-  It now keeps the run's workspace choice and, without one, follows
-  `workspace.branching`, which uses the current checkout by default.
-
-- Under T3 orchestration, the Verifier role and the verifier dispatch payload
-  now require reading `verify.md` and performing **Full review** in
-  `review.md`, including the explicit naming and decomposition check, on every
-  initial task review. Checking done conditions alone is not a pass.
-
-- `zdev research run <area> start --time-limit-seconds <seconds>` without
-  `--attempt-limit` no longer applies the default limit of 20 work attempts.
-  The run has no dispatch cap, so supporting work cannot end it early, and its
-  work-attempt count is advisory. `extend --add-attempts` fails on such a run.
-  A run with neither a time limit nor an attempt limit still defaults to 20
-  unless `--until-interrupted` is given.
-
-- `zdev research run <area> inspect` returns a compact routine view: the run
-  ID and scope, `stop_reason`, comparison validity and invalidation, the
-  accepted baseline aggregate without samples, `consumed` and `remaining`,
-  unsettled reservations, unfinished checkpoints, pending admissions and the
-  acceptance-lane task under `active_work`, ready and blocked task counts with
-  `next_task`, `unreachable_minimum_gain`, any `cross_area_waits`, and
-  `next_action`. Its size no longer grows with
-  checkpoint attempts, observations or tasks. `inspect --full` returns the
-  previous complete projection, which `context` and the commands that change
-  the run still return.
-- The research skills tell the coordinator to report research progress
-  separately from engineering progress. Research progress lists questions
-  answered with their decisions, valid comparisons, negative findings with
-  their lessons, the current accepted result and the next useful experiment.
-  Engineering progress lists supporting tasks, commits, verification,
-  `consumed.experiments` and `consumed.dispatches_by_kind`. A supporting task,
-  a rejected candidate or an isolated screen win is never reported as a
-  measured improvement.
-- Claude defaults use Claude Opus 5.5 (`claude-opus-5-5`) for every role and
-  never `max` effort. In `normal`, routine implementation uses low effort,
-  standard implementation and verification use medium, and advanced
-  implementation and planning use high. The Claude `advanced` profile uses
-  Opus 5.5 at high and xhigh. Claude workflow coordination steps use Opus 5.5
-  at low effort, and the OpenCode, Pi and Oh My Pi verifiers default to
-  `anthropic/claude-opus-5-5`.
-- Under T3 orchestration, verifier-role workers default to Codex. When the
-  request names no verifier target and one Codex instance is available, task
-  verification, standalone review, audit and task-bundle challenge run on Codex
-  with the Codex verifier profile (`gpt-6.1-sol`, high). The new
-  `t3.verifier-harness` key (`codex`, `claude` or `inherit`) changes or
-  disables this; `inherit` restores the coordinator's provider. When the
-  preferred harness or model is unavailable, the coordinator states the
-  fallback and verifies on its own provider.
 - Agents create branches and worktrees only on request by default. They create
   new areas on the checked-out project trunk and implement single tasks in the
   current checkout. This reverses the 2.0 default, which implemented in an
@@ -146,15 +89,101 @@ This file records notable changes to zdev.
   `workspace.branching` key, settable globally or per repository, takes
   `on-request` (the default) or `isolated`, which restores the 2.0 behavior.
   Existing areas keep their recorded mode.
+- The `zdev goal` native condition no longer says "Use worktrees by default".
+  It now keeps the run's workspace choice and, without one, follows
+  `workspace.branching`.
+- Claude defaults use Claude Opus 5.5 (`claude-opus-5-5`) for every role and
+  never `max` effort. In `normal`, routine implementation uses low effort,
+  standard implementation and verification use medium, and advanced
+  implementation and planning use high. The Claude `advanced` profile uses
+  Opus 5.5 at high and xhigh. Claude workflow coordination steps use Opus 5.5
+  at low effort instead of Haiku, and the OpenCode, Pi and Oh My Pi verifiers
+  default to `anthropic/claude-opus-5-5`.
+- Inside T3 Code, the Codex and Claude zdev skills use T3 orchestration by
+  default. A coordinator whose session has T3's orchestration instructions or
+  its orchestration MCP server dispatches implementation, verification,
+  plan-only, audit, standalone review and goal/loop workers as T3 child tasks.
+  An explicit request for native orchestration opts out, and the chosen route
+  lasts across goal continuations and completion wakes. When T3's
+  orchestration tools are unreachable, the coordinator reports a blocker that
+  names the native opt-out instead of falling back silently. Sessions outside
+  T3 Code, including plain Claude Code with its packaged workflows, are
+  unchanged.
+- Under T3 orchestration, verifier-role workers default to Codex. When the
+  request names no verifier target and one Codex instance is available, task
+  verification, standalone review, audit and task-bundle challenge run on Codex
+  with the Codex verifier profile (`gpt-6.1-sol`, high). The new
+  `t3.verifier-harness` key (`codex`, `claude` or `inherit`) changes or
+  disables this; `inherit` restores the coordinator's provider. When the
+  preferred harness or model is unavailable, the coordinator states the
+  fallback and verifies on its own provider.
+- Under T3 orchestration, a goal or loop runs in the main thread. The
+  coordinator dispatches each planner, implementer and verifier as its own T3
+  child task and reports the selected task, each dispatched role, each phase
+  result and each commit in the main thread. It never hands a whole loop or
+  task cycle to one child or packaged workflow.
+- Under T3 orchestration, the Verifier role and the verifier dispatch payload
+  require reading `verify.md` and performing **Full review** in `review.md`,
+  including the explicit naming and decomposition check, on every initial task
+  review. Checking done conditions alone is not a pass.
+- The T3 route does not support research runs. Inside T3 Code, a research-run
+  request returns an unsupported-route result before any dispatch that names
+  the native research route; an explicit request for native orchestration
+  selects it.
+- `zdev research run <area> start --time-limit-seconds <seconds>` without
+  `--attempt-limit` no longer applies the default limit of 20 work attempts.
+  The run has no dispatch cap, so supporting work cannot end it early, and its
+  work-attempt count is advisory. `extend --add-attempts` fails on such a run.
+  A run with neither a time limit nor an attempt limit still defaults to 20
+  unless `--until-interrupted` is given.
+- `zdev research run <area> inspect` returns a compact routine view: the run
+  ID and scope, `stop_reason`, comparison validity and invalidation, the
+  accepted baseline aggregate without samples, `limits`, `consumed` and
+  `remaining`, unsettled reservations, unfinished checkpoints, pending
+  admissions and the acceptance-lane task under `active_work`, ready and
+  blocked task counts with `next_task`, `unreachable_minimum_gain`, any
+  `cross_area_waits`, and `next_action`. Its size no longer grows with
+  checkpoint attempts, observations or tasks. `inspect --full` returns the
+  previous complete projection, which `context` and the commands that change
+  the run still return.
+- The research skills tell the coordinator to report research progress
+  separately from engineering progress. Research progress lists questions
+  answered with their decisions, valid comparisons, negative findings with
+  their lessons, the current accepted result and the next useful experiment.
+  Engineering progress lists supporting tasks, commits, verification,
+  `consumed.experiments` and `consumed.dispatches_by_kind`. A supporting task,
+  a rejected candidate or an isolated screen win is never reported as a
+  measured improvement.
 
 ### Fixed
 
+- The packaged Claude `zdev-loop` and `zdev-goal` workflows no longer stop
+  after every committed task with "the one-task PASS omitted its commit ID".
+  The implement completion step now asks for the full 40-character commit SHA
+  that `zdev commit` reports and blocks a PASS whose `Commit ID` does not start
+  with one. The loop accepts a full SHA followed by other text, such as the
+  change ID, and still rejects short IDs.
+- `zdev work-context <area> --show <snapshot>` and the stored-snapshot read in
+  `--compare` no longer take the writable zdev state lock. Read-only
+  inspection works when the lock file cannot be opened for writing. Missing,
+  corrupt and cross-area snapshots still fail.
 - A research evaluator or correctness command, including a managed rebaseline
   command, now starts only after zdev has saved its process group in the
   checkpoint. If zdev dies before saving the group, the command never runs, so
   recovery, discard and finalization cannot restore files or release capacity
   while an unrecorded evaluator is still running. The interrupted attempt keeps
   its counted invocation and elapsed time.
+
+### Compatibility
+
+- Existing 2.0 records and worker configuration remain valid; the record schema
+  remains version 1. Several defaults changed. See
+  [Upgrade to 2.1](docs/upgrading-to-2.1.md) for each change and the setting
+  that restores the 2.0 behavior.
+- Refresh binary-installed integrations with
+  `zdev skill install <harness> --force` to receive the new guidance and
+  workflows. Use the same scope, destination and guidance selection as the
+  existing install.
 
 ## [2.0.0] - 2026-10-20
 
@@ -573,6 +602,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[2.1.0]: https://github.com/zayenz/zdev/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/zayenz/zdev/compare/v1.6.0...v2.0.0
 [1.6.0]: https://github.com/zayenz/zdev/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/zayenz/zdev/compare/v1.5.0...v1.5.1

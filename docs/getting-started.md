@@ -22,10 +22,10 @@ command-line agent you use to work on code, such as Codex or Claude Code. Zdev u
 zdev alone does not start agents or provide a model subscription.
 
 The binary supports macOS and Linux on x86-64 and Arm64. This guide uses
-zdev 2.0. Install it with a [Rust toolchain](https://rustup.rs/):
+zdev 2.1. Install it with a [Rust toolchain](https://rustup.rs/):
 
 ```sh
-cargo install zdev --version 2.0.0 --locked
+cargo install zdev --version 2.1.0 --locked
 zdev --version
 ```
 

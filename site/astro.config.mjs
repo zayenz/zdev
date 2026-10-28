@@ -25,6 +25,7 @@ export default defineConfig({
       { label: 'Start here', items: [
         { label: 'What zdev does', slug: '' },
         { label: 'Your first task', slug: 'guides/getting-started' },
+        { label: 'Upgrade to 2.1', slug: 'guides/upgrading-to-2-1' },
         { label: 'Upgrade to 2.0', slug: 'guides/upgrading-to-2' },
       ] },
       { label: 'Working with zdev', items: [

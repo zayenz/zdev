@@ -7514,8 +7514,22 @@ fn t3_coordination_reference_is_reachable_and_managed_for_both_main_harnesses() 
     let repository = repository();
     let root = repository.path();
     let flat = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    // Render rather than read the checked-in fixture, which the Cargo package excludes.
+    let omp = root.join("installed omp");
+    json_output(
+        root,
+        &[
+            "skill",
+            "install",
+            "omp",
+            "--to",
+            omp.to_str().expect("omp destination"),
+        ],
+    );
     assert!(
-        !include_str!("../.omp/skills/zdev/references/area-loop.md").contains("t3-code.md"),
+        !fs::read_to_string(omp.join("skills/zdev/references/area-loop.md"))
+            .expect("omp area loop")
+            .contains("t3-code.md"),
         "harnesses without the T3 reference must not render its area-loop guard"
     );
     for (harness, skill_root) in [("codex", "zdev"), ("claude", "skills/zdev")] {

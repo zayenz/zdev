@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-031"
 key = "prepare-2-1-0-release"
 area = "general"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -31,13 +31,26 @@ Default changes users must know about (for the upgrade note): Claude worker defa
 
 ## Done when
 
-- [ ] Cargo.toml and Cargo.lock declare zdev 2.1.0.
-- [ ] CHANGELOG.md turns Unreleased into `## [2.1.0] - 2026-10-28` with Added, Changed and Fixed subsections, covers every user-visible change in ee54046..HEAD including the two missing research-friction entries, and has the corrected generated-output wording; entries are plain and non-duplicated.
-- [ ] A new docs/upgrading-to-2.1.md explains each changed default listed in Context and how to restore the old behavior where a setting exists, and it is linked wherever docs link upgrading-to-2.0.md.
-- [ ] README.md and docs/getting-started.md install 2.1.0; generated fixtures are regenerated and `zdev skill check` reports every harness ready.
-- [ ] `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets --all-features -- -D warnings`, `cargo test --locked`, `cargo package --locked --allow-dirty`, and `scripts/release-smoke.sh` against a locally installed packaged build pass.
+- [x] Cargo.toml and Cargo.lock declare zdev 2.1.0.
+- [x] CHANGELOG.md turns Unreleased into `## [2.1.0] - 2026-10-28` with Added, Changed and Fixed subsections, covers every user-visible change in ee54046..HEAD including the two missing research-friction entries, and has the corrected generated-output wording; entries are plain and non-duplicated.
+- [x] A new docs/upgrading-to-2.1.md explains each changed default listed in Context and how to restore the old behavior where a setting exists, and it is linked wherever docs link upgrading-to-2.0.md.
+- [x] README.md and docs/getting-started.md install 2.1.0; generated fixtures are regenerated and `zdev skill check` reports every harness ready.
+- [x] `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets --all-features -- -D warnings`, `cargo test --locked`, `cargo package --locked --allow-dirty`, and `scripts/release-smoke.sh` against a locally installed packaged build pass.
 
 ## Validation
 
 - Report each command's result. The coordinator runs `scripts/check-release.sh v2.1.0` after committing, because it requires a clean tree.
 - git diff --check
+
+## Result
+
+zdev is at 2.1.0 (Cargo.toml, Cargo.lock, both plugin manifests). CHANGELOG.md has a complete [2.1.0] section with Added/Changed/Fixed/Compatibility and the compare link, including previously missing entries. New docs/upgrading-to-2.1.md explains each changed default and how to restore it, linked from README, reference, landing page and site sidebar. Install commands use 2.1.0. A packaging blocker was fixed: a test read a package-excluded .omp file. Verified by GPT-6 Astra (high), with one wording correction rechecked.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (213)
+- cargo package --locked and packaged test build: pass
+- release smoke on packaged install: pass
+- git diff --check: pass

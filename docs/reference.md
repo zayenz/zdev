@@ -70,5 +70,6 @@ Most inspection commands offer `--format json` for agent use. The
 - [Research and experiments](research.md) covers measured runs, budgets, and accepted or discarded candidates.
 - [Area reports](area-reports.md) describes reports of completed work.
 
-[Upgrade to 2.0](upgrading-to-2.0.md) is for existing installations. Contributor
-setup and release operations are in the Project section of the sidebar.
+[Upgrade to 2.1](upgrading-to-2.1.md) and [Upgrade to 2.0](upgrading-to-2.0.md)
+are for existing installations. Contributor setup and release operations are in
+the Project section of the sidebar.

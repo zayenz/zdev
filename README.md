@@ -30,14 +30,15 @@ Documentation: [zayenz.se/zdev](https://zayenz.se/zdev/).
 
 ## Install
 
-For an existing installation, follow [Upgrade to 2.0](docs/upgrading-to-2.0.md).
+For an existing installation, follow [Upgrade to 2.1](docs/upgrading-to-2.1.md);
+from 1.x, start with [Upgrade to 2.0](docs/upgrading-to-2.0.md).
 
 Versioned binaries are available from the
 [latest GitHub release](https://github.com/zayenz/zdev/releases/latest). For
 installation from source with a Rust toolchain, use Cargo:
 
 ```sh
-cargo install zdev --version 2.0.0 --locked
+cargo install zdev --version 2.1.0 --locked
 ```
 
 From a local checkout, use `cargo install --path . --locked`.

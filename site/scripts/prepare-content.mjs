@@ -12,8 +12,11 @@ const guides = [
   'area-loop', 'trunk-area-mode', 'derived-work-handoffs', 'config-command',
   'worker-profiles', 'task-complexity-routing', 'harness-orchestration',
   'harness-goals', 't3-code', 'workflow-round-trips', 'area-reports',
-  'adapted-methods', 'releasing', 'upgrading-to-2.0', 'research', 'reference',
+  'adapted-methods', 'releasing', 'upgrading-to-2.0', 'upgrading-to-2.1', 'research',
+  'reference',
 ];
+// Version guides keep dot-free slugs; 2.0 keeps its published URL.
+const guideSlugs = { 'upgrading-to-2.0': 'upgrading-to-2', 'upgrading-to-2.1': 'upgrading-to-2-1' };
 const commands = [
   'notes', 'explore', 'discuss', 'improve', 'audit', 'investigate', 'tasks',
   'plan', 'implement', 'review', 'verify', 'parallel', 'loop', 'recover',
@@ -29,7 +32,7 @@ const pages = new Map([
   ...cli.map((name) => [`docs/cli/${name}.md`, `cli/${name}`]),
   ['docs/commands/index.md', 'commands'],
   ...commands.map((name) => [`docs/commands/${name}.md`, `commands/${name}`]),
-  ...guides.map((name) => [`docs/${name}.md`, `guides/${name === 'upgrading-to-2.0' ? 'upgrading-to-2' : name}`]),
+  ...guides.map((name) => [`docs/${name}.md`, `guides/${guideSlugs[name] ?? name}`]),
   ['CHANGELOG.md', 'changelog'],
   ['CONTRIBUTING.md', 'contributing'],
 ]);

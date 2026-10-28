@@ -252,8 +252,9 @@ Relevant starting points are `src/lib.rs` (`dispatch_spec`, work-context
 collection and snapshot reads), `src/research/run.rs` (limits, renewal and
 policy matching), `templates/zdev/codex-skill.md`,
 `templates/zdev/references/research.md`, `docs/workflow-round-trips.md` and
-`docs/harness-goals.md`. The earlier specific report is
-[Rebaseline rejects unrelated untracked result captures](bugs/rebaseline-rejects-untracked-captures.md).
+`docs/harness-goals.md`. The earlier specific report, "Rebaseline rejects
+unrelated untracked result captures", was fixed by `--untracked-output` in
+308f5b2 and its note removed.
 
 This is feedback for later design work. It creates no tasks, changes no active
 research authorization and requests no interruption of the portfolio campaign.

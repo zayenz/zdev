@@ -21,6 +21,12 @@ This file records notable changes to zdev.
   `TASKS.md` and list them in `dependent_indexes`. `zdev task reopen` refuses
   while a done task in another area depends on the task, and `zdev area close`
   lists open tasks that block other areas in its refusal.
+- `zdev area research <area> --from <file> --administrative "<reason>"`
+  amends the command text of existing correctness checks during an active
+  research run, such as after a moved admission file. The run keeps its ID,
+  consumed costs and comparison validity, and run context lists each amendment
+  under `run.amendments`. Any other policy change, an added or removed check, or
+  unfinished experiments, measurements or rebaselines make zdev refuse it.
 
 ### Changed
 

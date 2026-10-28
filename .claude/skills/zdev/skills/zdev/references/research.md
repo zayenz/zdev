@@ -132,6 +132,15 @@ accepted-code rebaseline before paused comparisons resume. Preserve the frozen
 metric, direction, correctness and acceptance requirements. Unknown workers or
 processes keep their claims and sources occupied.
 
+Change correctness command text only for a moved or renamed file that keeps the
+check's meaning. After unfinished experiments, measurements and rebaselines
+finish, the coordinator declares it with
+`zdev area research <area> --from <file> --administrative "<reason>"`; the run
+keeps its costs and comparison validity. A changed horizon, workload, solver or
+acceptance rule inside a command is material and needs the user's decision on a
+new study with a newly measured baseline. Stop for the user when it is unclear
+whether a command change keeps the check's meaning.
+
 The workflow counts every agent call, including command mediation and composed
 ordinary helpers, toward Claude's documented 1,000-agent workflow cap. It stops
 refill at 900 calls with room to drain and report; a hard guard before 980 calls

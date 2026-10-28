@@ -175,6 +175,23 @@ struct Run {
     rebaseline: Option<Baseline>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     extensions: BTreeMap<String, Extension>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    amendments: Vec<Amendment>,
+}
+
+/// A declared administrative change to existing correctness command text, in adoption order.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Amendment {
+    reason: String,
+    commands: BTreeMap<String, CommandChange>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CommandChange {
+    before: String,
+    after: String,
 }
 
 #[derive(Deserialize, PartialEq, Serialize)]
@@ -399,9 +416,7 @@ pub(crate) fn run(root: &Path, area: &str, action: &Action) -> Result<CommandOut
                     .reservations
                     .values()
                     .any(|reservation| !reservation.settled)
-                    || checkpoints(root, area)?
-                        .iter()
-                        .any(|checkpoint| checkpoint["index_updated"] != true)
+                    || has_unfinished_checkpoint(root, area)?
                     || run
                         .admissions
                         .values()
@@ -490,6 +505,24 @@ fn load(root: &Path, area: &str) -> Result<Option<Run>, ZdevError> {
             ));
         }
     }
+    for amendment in &run.amendments {
+        crate::validate_nonempty_line(&amendment.reason, "Administrative amendment reason")?;
+        if amendment.commands.is_empty() {
+            return Err(ZdevError::new(
+                "Research run amendment records no command change",
+            ));
+        }
+        for (name, change) in &amendment.commands {
+            crate::validate_nonempty_line(name, "Correctness command name")?;
+            crate::validate_nonempty_line(&change.before, "Correctness command")?;
+            crate::validate_nonempty_line(&change.after, "Correctness command")?;
+            if change.before == change.after {
+                return Err(ZdevError::new(
+                    "Research run amendment records an unchanged command",
+                ));
+            }
+        }
+    }
     for admission in run.admissions.values() {
         for relative in admission.pending.keys() {
             if Path::new(relative)
@@ -572,10 +605,7 @@ fn start(
         let archive = path(root, area)?.with_file_name(format!("{}.json", previous.id));
         write_atomic(&archive, &serde_json::to_vec_pretty(&previous).unwrap())?;
     }
-    if checkpoints(root, area)?
-        .iter()
-        .any(|checkpoint| checkpoint["index_updated"] != true)
-    {
+    if has_unfinished_checkpoint(root, area)? {
         return Err(ZdevError::new(
             "Recover unfinished experiments before authorizing another run",
         ));
@@ -607,6 +637,7 @@ fn start(
         reservations: BTreeMap::new(),
         rebaseline: None,
         extensions: BTreeMap::new(),
+        amendments: Vec::new(),
     };
     save(root, &run)
 }
@@ -717,16 +748,58 @@ fn policy_matches(frozen: &Settings, current: &Settings) -> bool {
         && frozen.permitted_changes == current.permitted_changes
 }
 
+/// Changed text of existing correctness commands, or `None` when anything else in the frozen
+/// policy differs. Only the advisory metric bound may differ besides those commands.
+fn command_changes(
+    frozen: &Settings,
+    current: &Settings,
+) -> Option<BTreeMap<String, CommandChange>> {
+    let with_frozen_commands = Settings {
+        correctness_commands: frozen.correctness_commands.clone(),
+        ..current.clone()
+    };
+    if !with_frozen_commands.eq_ignoring_advisory(frozen)
+        || !frozen
+            .correctness_commands
+            .keys()
+            .eq(current.correctness_commands.keys())
+    {
+        return None;
+    }
+    Some(
+        frozen
+            .correctness_commands
+            .iter()
+            .filter_map(|(name, before)| {
+                let after = &current.correctness_commands[name];
+                (before != after).then(|| {
+                    let change = CommandChange {
+                        before: before.clone(),
+                        after: after.clone(),
+                    };
+                    (name.clone(), change)
+                })
+            })
+            .collect(),
+    )
+}
+
 /// Caller holds the state lock. Configuration cannot clear invalidation with supplied samples.
+/// A declared administrative amendment changes only correctness command text and keeps the
+/// run's comparison state; every other change follows the frozen-policy rules below.
 pub(crate) fn configure(
     root: &Path,
     area: &str,
     previous: &Settings,
     current: &Settings,
+    administrative: Option<&str>,
 ) -> Result<(), ZdevError> {
     let Some(mut run) = load(root, area)?.filter(|run| !run.ended) else {
         return Ok(());
     };
+    if let Some(reason) = administrative {
+        return amend(root, &mut run, current, reason);
+    }
     if !policy_matches(&run.policy, current) {
         return Err(ZdevError::new(
             "Active run freezes its metric, direction, scope and correctness/acceptance requirements",
@@ -747,6 +820,46 @@ pub(crate) fn configure(
         save(root, &run)?;
     }
     Ok(())
+}
+
+/// Adopts changed correctness command text as the run's policy without invalidating it.
+/// Nothing executes here; the next evaluate or rebaseline runs the amended commands.
+fn amend(root: &Path, run: &mut Run, current: &Settings, reason: &str) -> Result<(), ZdevError> {
+    let commands = command_changes(&run.policy, current).ok_or_else(|| {
+        ZdevError::new(
+            "An administrative amendment may change only the command text of existing correctness checks; a material change needs a new study and an actual measured baseline",
+        )
+    })?;
+    // The caller saves the run before the area settings; a retry after a crash between the two
+    // finds the commands already adopted and only completes the area write.
+    if commands.is_empty() {
+        return Ok(());
+    }
+    if has_unfinished_work(root, run)? {
+        return Err(ZdevError::new(
+            "Finish unfinished experiments, measurements and rebaselines before an administrative amendment",
+        ));
+    }
+    run.amendments.push(Amendment {
+        reason: reason.to_owned(),
+        commands,
+    });
+    run.policy = current.clone();
+    save(root, run)
+}
+
+/// Whether work that captured or measures the current policy is still open.
+fn has_unfinished_work(root: &Path, run: &Run) -> Result<bool, ZdevError> {
+    Ok(has_unfinished_checkpoint(root, &run.area)?
+        || run.acceptance.is_some()
+        || run.reservations.values().any(|reservation| {
+            !reservation.settled
+                && (reservation.measurement || reservation.kind == WorkKind::Rebaseline)
+        })
+        || run
+            .rebaseline
+            .as_ref()
+            .is_some_and(|baseline| baseline.complete && !baseline.published))
 }
 
 /// Historical evidence may be recorded/restored after comparison conditions change.
@@ -1359,6 +1472,12 @@ fn checkpoints(root: &Path, area: &str) -> Result<Vec<serde_json::Value>, ZdevEr
     }
     values.sort_by(|a, b| a["task"].as_str().cmp(&b["task"].as_str()));
     Ok(values)
+}
+
+fn has_unfinished_checkpoint(root: &Path, area: &str) -> Result<bool, ZdevError> {
+    Ok(checkpoints(root, area)?
+        .iter()
+        .any(|checkpoint| checkpoint["index_updated"] != true))
 }
 
 fn serial_capacity() -> usize {

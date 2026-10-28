@@ -18117,6 +18117,113 @@ fn research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failur
 }
 
 #[test]
+fn research_run_accepts_declared_administrative_correctness_amendment() {
+    let repository = local_experiment_fixture("printf 14");
+    let root = repository.path();
+    let area_path = root.join(".zdev/work/area.toml");
+    let reason = "Admission files moved to data/admission";
+    let original = json_output(root, &["area", "research", "work"])["research"].clone();
+    let amended_command = "printf a >> .git/correctness-runs; test -f seed.txt";
+    let mut amended = original.clone();
+    amended["correctness_commands"]["equivalent output"] = json!(amended_command);
+    let configure = |settings: &Value, administrative: bool| {
+        let mut arguments = vec!["area", "research", "work", "--from", "-"];
+        if administrative {
+            arguments.extend(["--administrative", reason]);
+        }
+        json_output_with_stdin_status(root, &arguments, &serde_json::to_vec(settings).unwrap())
+    };
+    let assert_refused = |settings: &Value, administrative: bool, error: &str| {
+        let stored = fs::read(&area_path).unwrap();
+        let refused = configure(settings, administrative);
+        assert!(!refused.status.success());
+        assert!(String::from_utf8_lossy(&refused.stderr).contains(error));
+        assert_eq!(fs::read(&area_path).unwrap(), stored);
+    };
+
+    assert_refused(&amended, true, "amends an active research run");
+    let started = start_research_run(root, &["--time-limit-seconds", "3600"]);
+    let identity = started["run"]["id"].as_str().unwrap();
+    json_output(
+        root,
+        &["work-context", "work", "--task", "work-001", "--store"],
+    );
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "begin",
+            "--path",
+            "seed.txt",
+        ],
+    );
+    assert_refused(&amended, true, "Finish unfinished experiments");
+    json_output(
+        root,
+        &["research", "experiment", "work", "work-001", "evaluate"],
+    );
+    json_output(
+        root,
+        &[
+            "research",
+            "experiment",
+            "work",
+            "work-001",
+            "finalize",
+            "--decision",
+            "discard",
+            "--lesson",
+            "The candidate loses against the accepted baseline.",
+        ],
+    );
+    assert_refused(&amended, false, "Active run freezes");
+    let mut added_check = amended.clone();
+    added_check["comparison"]["required_checks"] = json!(["equivalent output", "stable output"]);
+    added_check["correctness_commands"]["stable output"] = json!("true");
+    let administrative_only = "only the command text of existing correctness checks";
+    assert_refused(&added_check, true, administrative_only);
+    let mut weaker_gain = amended.clone();
+    weaker_gain["comparison"]["minimum_gain"] = json!(0.0);
+    assert_refused(&weaker_gain, true, administrative_only);
+
+    let before = json_output(root, &["research", "run", "work", "context"]);
+    assert!(configure(&amended, true).status.success());
+    let after = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(after["run"]["id"], identity);
+    assert_eq!(after["consumed"], before["consumed"]);
+    assert_eq!(after["run"]["comparison_valid"], true);
+    assert_eq!(after["run"]["invalidation"], before["run"]["invalidation"]);
+    assert_eq!(
+        after["run"]["amendments"],
+        json!([{"reason": reason, "commands": {"equivalent output": {
+            "before": original["correctness_commands"]["equivalent output"],
+            "after": amended_command,
+        }}}])
+    );
+    assert_eq!(
+        after["run"]["policy"]["correctness_commands"],
+        amended["correctness_commands"]
+    );
+    let repeated = json_output(root, &["research", "run", "work", "context"]);
+    assert_eq!(repeated["run"]["comparison_valid"], true);
+
+    research_run_action(
+        root,
+        identity,
+        "rebaseline",
+        &["--request", "baseline-amended"],
+    );
+    assert!(
+        fs::read(git_path(root, "correctness-runs"))
+            .unwrap()
+            .ends_with(b"a")
+    );
+}
+
+#[test]
 fn research_run_command_exhaustion_recovers_without_free_or_duplicate_measurement() {
     let repository = local_experiment_fixture("printf 14");
     let root = repository.path();

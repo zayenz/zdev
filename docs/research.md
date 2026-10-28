@@ -130,6 +130,31 @@ policy, target, consumed costs, active reservations, and checkpoints. An
 interruption or shared blocker remains in place. Resume or resolve it through
 the existing recovery route before dispatching more work.
 
+## Amend a correctness command path
+
+An active run freezes its correctness commands. When a file that a command names
+moves or is renamed and the check keeps its meaning, declare the change
+administrative instead of ending the run. For example, after editing the path in
+the settings file:
+
+```sh
+zdev area research work --from settings.json \
+  --administrative "Admission files moved to data/admission" --format json
+```
+
+zdev accepts the settings only when they differ from the run's frozen policy in
+the command text of existing checks. Adding, removing or renaming a check, or
+changing any other field, is refused. So is an amendment while an experiment,
+measurement, rebaseline or acceptance is unfinished, or when the area has no
+active run. The run keeps its ID, consumed costs and comparison validity, and
+`research run work context` lists each amendment's reason and before and after
+commands under `run.amendments`. zdev runs nothing during configuration; the
+next managed evaluate or rebaseline runs the amended command.
+
+A changed horizon, workload, solver or acceptance rule inside a command is a
+material change, not an administrative one. It needs a new study and an actual
+measured baseline.
+
 
 ## Rolling research in Codex and Claude Code
 

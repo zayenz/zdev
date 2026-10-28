@@ -3,7 +3,7 @@ schema_version = 1
 id = "research-friction-003"
 key = "administrative-policy-amendment"
 area = "research-friction"
-status = "open"
+status = "done"
 complexity = "advanced"
 afk = true
 priority = "high"
@@ -41,12 +41,12 @@ The brief keeps the comparison policy frozen during a study and requires a decla
 
 ## Done when
 
-- [ ] Under an active run, amending a correctness command string with `--administrative` succeeds. The run ID, consumed costs and `comparison_valid` are unchanged, and run context shows the amendment with its reason.
-- [ ] The same change without `--administrative` is still refused. With `--administrative`, adding a check or changing `minimum_gain` is refused.
-- [ ] An amendment is refused while an experiment checkpoint is unfinished.
-- [ ] The next managed evaluate or rebaseline executes the amended command.
-- [ ] The templates, `docs/research.md` and `templates/zdev/references/task-format.md` describe the administrative-versus-material rule, and the checked-in fixtures are regenerated.
-- [ ] One focused regression in `tests/lean.rs` covers it, following `research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failure`.
+- [x] Under an active run, amending a correctness command string with `--administrative` succeeds. The run ID, consumed costs and `comparison_valid` are unchanged, and run context shows the amendment with its reason.
+- [x] The same change without `--administrative` is still refused. With `--administrative`, adding a check or changing `minimum_gain` is refused.
+- [x] An amendment is refused while an experiment checkpoint is unfinished.
+- [x] The next managed evaluate or rebaseline executes the amended command.
+- [x] The templates, `docs/research.md` and `templates/zdev/references/task-format.md` describe the administrative-versus-material rule, and the checked-in fixtures are regenerated.
+- [x] One focused regression in `tests/lean.rs` covers it, following `research_run_guards_policy_rebaselines_actual_code_and_resolves_shared_failure`.
 
 ## Validation
 
@@ -57,3 +57,16 @@ The brief keeps the comparison policy frozen during a study and requires a decla
 - cargo test --locked
 - cargo build --locked
 - git diff --check
+
+## Result
+
+zdev area research --from <file> --administrative <reason> amends an active run when only the command text of existing correctness checks changes (metric_bound may also differ). The run keeps its id, costs, comparison validity and invalidation, records the reason and before/after commands in run.amendments (shown in context), and adopts the settings as its policy. It is refused without an active run, while experiments, the acceptance lane, measurement or rebaseline reservations, or an unpublished rebaseline are unfinished, and for any other policy change; without the flag behavior is unchanged. Independently verified.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 204)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

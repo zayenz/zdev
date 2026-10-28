@@ -130,6 +130,18 @@ cannot change the metric, direction or correctness rules to make a candidate win
 An unsafe checkout or a user-owned scope/correctness decision stops with the
 current work preserved.
 
+When a correctness command must change only because a file it names moved or
+was renamed, and the check keeps its meaning, the coordinator may declare an
+administrative amendment. First finish unfinished experiments, measurements and
+rebaselines, then run
+`zdev area research <area> --from <file> --administrative "<reason>"`.
+The run keeps its costs and comparison validity and records the amendment in
+run context. A changed horizon, workload, solver or acceptance rule inside a
+command is a material change: stop for the user's decision about a new study
+with a newly measured baseline. When it is unclear whether a command change
+keeps the check's meaning, stop for the user instead of declaring it
+administrative.
+
 ### Generate work
 
 Use the brief, current accepted result and prior lessons to propose a small

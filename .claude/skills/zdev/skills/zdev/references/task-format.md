@@ -99,7 +99,7 @@ All JSON objects reject unknown fields. Settings require the shown fields except
 | `permitted_changes` | At least one unique non-empty scope boundary. These are human-reviewed boundaries, not a path sandbox. |
 | `attempt_limit` | Positive finite limit per hypothesis. Each observation counts as one attempt. |
 | `timeout_seconds` | Positive finite timeout per correctness or evaluator invocation, in seconds; defaults to 60. |
-| `correctness_commands` | Optional map from required check names to shell commands. Managed experiments require a command for every required check. |
+| `correctness_commands` | Optional map from required check names to shell commands. Managed experiments require a command for every required check. During an active run, only a declared administrative amendment may change a command's text; see below. |
 | `metric_bound` | Optional finite best value the metric can reach, such as `0` for a nonnegative minimized metric. Advisory only: it never changes acceptance and never invalidates comparisons, runs, or unfinished experiments. |
 
 Fields below `comparison.metric` through `significance` in the table also
@@ -117,6 +117,28 @@ measured baseline under those conditions. Reconfigure the area with that full
 policy. Historical task evidence stays readable; it never becomes an alternate
 source of evaluator commands. An unfinished hypothesis cannot complete with
 evidence that differs from the current comparison or attempt limit.
+
+An active research run also freezes `correctness_commands`. When only the
+command text of existing checks must change, such as a relocated or renamed file
+that keeps each check's meaning, the coordinator declares an administrative
+amendment:
+
+```sh
+zdev area research <area> --from <file> --administrative "<reason>"
+```
+
+zdev accepts the amendment only when the new settings differ from the run's
+frozen policy in the command text of existing checks and, at most, the advisory
+`metric_bound`. It refuses an added, removed or renamed check and every other
+field change. It also refuses the amendment while an experiment, measurement,
+rebaseline or acceptance is unfinished, and when the area has no active run.
+The run keeps its ID, consumed costs and comparison validity. Run `context`
+lists the reason and each check's `before` and `after` command under
+`run.amendments`. zdev runs no command during configuration; the next managed
+`evaluate` or `rebaseline` runs the amended command. A changed horizon,
+workload, solver or acceptance rule inside a command is a material transition,
+not an administrative amendment: it needs a new study and an actual measured
+baseline. Without `--administrative`, an active run refuses a changed command.
 
 With `metric_bound` declared, `zdev area research` and research run `context`
 report `unreachable_minimum_gain` when even a candidate at the bound cannot pass

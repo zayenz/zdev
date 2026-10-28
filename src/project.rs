@@ -1020,19 +1020,30 @@ pub(crate) fn write_area_metadata(root: &Path, area: &AreaMetadata) -> Result<()
     write_atomic(&path, toml::to_string_pretty(area).unwrap().as_bytes())
 }
 
+/// `administrative` carries the reason for an amendment that changes only correctness command
+/// text under an active run.
 pub(super) fn configure_research(
     root: &Path,
     tag: &str,
     source: Option<&Path>,
+    administrative: Option<&str>,
 ) -> Result<CommandOutput, ZdevError> {
     let settings = if let Some(source) = source {
         let settings: super::research::Settings = super::research::read_json(source)?;
         settings.validate()?;
+        if let Some(reason) = administrative {
+            validate_nonempty_line(reason, "Administrative amendment reason")?;
+        }
         let _lock = ZdevStateLock::acquire(root)?;
         require_task_work_area_link(root, tag)?;
         let (mut area, _) = load_area(root, tag)?;
         if area.lifecycle != AreaLifecycle::Open {
             return Err(ZdevError::new("Cannot configure research in a closed area"));
+        }
+        if administrative.is_some() && !super::research::run::active(root, tag)? {
+            return Err(ZdevError::new(
+                "--administrative amends an active research run; without a run, configure settings without it",
+            ));
         }
         if let Some(previous) = &area.research
             && previous.evaluator_command != settings.evaluator_command
@@ -1043,7 +1054,7 @@ pub(super) fn configure_research(
             ));
         }
         if let Some(previous) = &area.research {
-            super::research::run::configure(root, tag, previous, &settings)?;
+            super::research::run::configure(root, tag, previous, &settings, administrative)?;
         }
         area.research = Some(settings);
         write_area_metadata(root, &area)?;

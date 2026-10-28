@@ -64,3 +64,7 @@ are managed by [config profile](config.md#execution-profiles).
 `zdev area research AREA` reads research settings. Add `--from PATH` to store
 validated JSON settings, or `--from -` to read standard input. This configures
 the policy without running an evaluator; [research](research.md) runs experiments.
+During an active research run, add `--administrative REASON` to change only the
+command text of existing correctness checks, such as a relocated path. The run
+records the amendment and keeps its comparison state; see
+[amending a correctness command](../research.md#amend-a-correctness-command-path).

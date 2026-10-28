@@ -478,6 +478,10 @@ enum AreaCommand {
         /// JSON settings file, or - for standard input
         #[arg(long = "from", value_name = "PATH_OR_DASH")]
         source: Option<PathBuf>,
+        /// Declare that only the command text of existing correctness checks changed, such as a
+        /// relocated path; requires an active research run and keeps its comparison state
+        #[arg(long, value_name = "REASON", requires = "source")]
+        administrative: Option<String>,
     },
     /// Create an area for one objective on an isolated branch or project trunk
     ///
@@ -1071,9 +1075,16 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             } => project::configure_trunk(&root, branch.as_deref(), *allow_divergent),
         },
         Command::Area { command } => match command {
-            AreaCommand::Research { area, source } => {
-                project::configure_research(&root, area, source.as_deref())
-            }
+            AreaCommand::Research {
+                area,
+                source,
+                administrative,
+            } => project::configure_research(
+                &root,
+                area,
+                source.as_deref(),
+                administrative.as_deref(),
+            ),
             AreaCommand::Create {
                 tag,
                 title,

@@ -7530,6 +7530,8 @@ fn t3_coordination_reference_is_reachable_and_managed_for_both_main_harnesses() 
             "zdev config get t3.verifier-harness --format json",
             "falls back to the inherited provider instance",
             "standalone review, audit, and task-bundle challenge",
+            "perform **Full review**",
+            "Verification of done conditions alone is not a",
         ] {
             assert!(route.contains(routing), "T3 route lacks {routing:?}");
         }

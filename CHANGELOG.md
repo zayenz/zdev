@@ -65,6 +65,11 @@ This file records notable changes to zdev.
 
 ### Changed
 
+- Under T3 orchestration, the Verifier role and the verifier dispatch payload
+  now require reading `verify.md` and performing **Full review** in
+  `review.md`, including the explicit naming and decomposition check, on every
+  initial task review. Checking done conditions alone is not a pass.
+
 - `zdev research run <area> start --time-limit-seconds <seconds>` without
   `--attempt-limit` no longer applies the default limit of 20 work attempts.
   The run has no dispatch cap, so supporting work cannot end it early, and its

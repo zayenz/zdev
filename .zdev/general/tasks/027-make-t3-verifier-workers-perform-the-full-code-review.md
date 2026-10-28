@@ -3,7 +3,7 @@ schema_version = 1
 id = "general-027"
 key = "t3-verifier-performs-full-review"
 area = "general"
-status = "open"
+status = "done"
 complexity = "routine"
 afk = true
 priority = "high"
@@ -27,10 +27,23 @@ On 2026-10-28 the maintainer asked that the T3 reviewer (by default Codex Sol at
 
 ## Done when
 
-- [ ] The T3 Verifier role and the T3 verifier dispatch payload description require reading verify.md and performing **Full review** in review.md, with the explicit naming and decomposition check, on every initial task review, and say that verification of done conditions alone is not a pass.
-- [ ] Generated copies match the templates and `zdev skill check` reports every harness ready.
+- [x] The T3 Verifier role and the T3 verifier dispatch payload description require reading verify.md and performing **Full review** in review.md, with the explicit naming and decomposition check, on every initial task review, and say that verification of done conditions alone is not a pass.
+- [x] Generated copies match the templates and `zdev skill check` reports every harness ready.
 
 ## Validation
 
 - Extend the existing T3 reference rendering assertion in tests/lean.rs to check the Full review requirement. No live harness run.
 - cargo fmt --all -- --check; cargo clippy --locked --all-targets --all-features -- -D warnings; cargo test --locked; cargo build --locked; git diff --check
+
+## Result
+
+The T3 Verifier role and the verifier dispatch payload now require verify.md and Full review in review.md, including the explicit naming and decomposition check, on every initial task review; verification of done conditions alone is not a pass. Focused rechecks, the result schema, audit and standalone review are unchanged. Verified by GPT-6 Astra (high).
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 208)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev skill check (codex portable, claude, opencode, pi, omp): ready

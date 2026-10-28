@@ -118,7 +118,10 @@ area and task identity or audit boundary, repository instruction paths, brief,
 slice and task paths, baseline snapshot and current snapshot when different,
 this reference's assigned **Worker roles** section, and relevant shared contract
 locators. Include the accepted semantic plan or exact repair findings when
-needed. A child receives no parent conversation history. It acts only as that
+needed. A verifier payload for an initial task review names
+[verify.md](verify.md) and **Full review** in [review.md](review.md), and
+requires that full review, including the explicit naming and decomposition
+check; verification of done conditions alone is not a pass. A child receives no parent conversation history. It acts only as that
 worker and returns its required envelope as the final answer; it starts no
 coordinator, native goal, or loop and delegates no nested work.
 
@@ -329,8 +332,12 @@ Keep coordination, `.zdev`, staging, commits, and delegation with the parent.
   evidence. In-scope remaining work or another attributable file is actionable,
   not a terminal blocker. Load the shared derived-work contract only if a split
   becomes necessary; the parent reviews and applies any proposal.
-- **Verifier:** fresh and read-only. Load the supplied snapshot, inspect the
-  entire task and diff on initial review; for a focused recheck follow the prior
+- **Verifier:** fresh and read-only. Load the supplied snapshot. On every
+  initial task review, read [verify.md](verify.md) and perform **Full review**
+  in [review.md](review.md) over the entire task and diff, including the
+  explicit naming and decomposition check, in addition to checking the task's
+  requirements and validation. Verification of done conditions alone is not a
+  pass. For a focused recheck follow the prior
   review and accepted corrections under [review.md](review.md). Run required
   checks. Return exactly `verdict`,
   `summary`, `findings`, and `escalation` under the shared semantic verifier

@@ -1025,7 +1025,7 @@ fn derived_mechanical_ineligibility(
             proposal.source_task
         )));
     }
-    if task_state(source, &tasks) != "ready" {
+    if task_state(source, &read_task_statuses(root, &proposal.area, &tasks)?) != "ready" {
         return Ok(Some(format!(
             "source task {} is not in the ready frontier",
             proposal.source_task
@@ -1550,10 +1550,11 @@ pub(super) fn apply_derived(
     }
     hypothetical.sort_by(compare_tasks_by_id);
     validate_graph(root, area, &hypothetical)?;
-    let index_content = render_index(area, &hypothetical);
+    let statuses = read_task_statuses(root, area, &hypothetical)?;
+    let index_content = render_index(area, &hypothetical, &statuses);
     let ready = hypothetical
         .iter()
-        .filter(|task| task_state(task, &hypothetical) == "ready")
+        .filter(|task| task_state(task, &statuses) == "ready")
         .map(|task| task.header.id.clone())
         .collect::<Vec<_>>();
 
@@ -1751,13 +1752,14 @@ pub(crate) fn prepare_generated_bundle(
         hypothetical.push(parse_task(content, path, area)?);
     }
     hypothetical.sort_by(compare_tasks_by_id);
+    let statuses = read_task_statuses(root, area, &hypothetical)?;
     let mut files = writes
         .into_iter()
         .map(|(path, content)| (path, content.into_bytes()))
         .collect::<Vec<_>>();
     files.push((
         root.join(format!(".zdev/{area}/TASKS.md")),
-        render_index(area, &hypothetical).into_bytes(),
+        render_index(area, &hypothetical, &statuses).into_bytes(),
     ));
     Ok(GeneratedBundle { ids, files })
 }
@@ -1848,9 +1850,10 @@ fn allocate_bundle(
     }
     hypothetical.sort_by(compare_tasks_by_id);
     validate_graph(root, area, &hypothetical)?;
+    let statuses = read_task_statuses(root, area, &hypothetical)?;
     let ready = hypothetical
         .iter()
-        .filter(|task| task_state(task, &hypothetical) == "ready")
+        .filter(|task| task_state(task, &statuses) == "ready")
         .map(|task| task.header.id.clone())
         .collect::<Vec<_>>();
     Ok((writes, ready))
@@ -2897,19 +2900,66 @@ fn find_cycle<'a>(starts: &'a [Task], by_id: &BTreeMap<&'a str, &'a Task>) -> Op
         .find_map(|task| visit(&task.header.id, by_id, &mut path, &mut visited))
 }
 
-fn task_state(task: &Task, tasks: &[Task]) -> &'static str {
+/// The recorded status of every task that readiness in one area depends on: the
+/// area's own tasks and the tasks of each other area its blockers name, as read
+/// from the current checkout. Every readiness decision goes through it, so a
+/// cross-area blocker counts as done exactly when its task file here says so.
+#[derive(Default)]
+struct TaskStatuses(BTreeMap<String, TaskStatus>);
+
+impl TaskStatuses {
+    fn status(&self, id: &str) -> Option<TaskStatus> {
+        self.0.get(id).copied()
+    }
+}
+
+/// Reads the statuses that readiness of `tasks`, the current or prospective tasks
+/// of `area`, depends on. A blocker that names no task in the checkout has no
+/// status and keeps its dependent blocked.
+fn read_task_statuses(root: &Path, area: &str, tasks: &[Task]) -> Result<TaskStatuses, ZdevError> {
+    let mut statuses = BTreeMap::new();
+    let blocking_areas = blocker_areas(tasks)
+        .into_iter()
+        .filter(|blocker_area| blocker_area != area)
+        .collect::<BTreeSet<_>>();
+    for blocking_area in blocking_areas {
+        if !area_has_tasks(root, &blocking_area) {
+            continue;
+        }
+        for task in read_area_tasks(root, &blocking_area)? {
+            statuses.insert(task.header.id, task.header.status);
+        }
+    }
+    for task in tasks {
+        statuses.insert(task.header.id.clone(), task.header.status);
+    }
+    Ok(TaskStatuses(statuses))
+}
+
+/// How a blocker of a task in `area` is shown: a same-area blocker by its ID, and
+/// a blocker in another area also with that area and its status, such as
+/// `platform-009 (platform: open)`.
+fn blocker_label(area: &str, blocker: &str, statuses: &TaskStatuses) -> String {
+    match task_id_area(blocker) {
+        Some(blocker_area) if blocker_area != area => {
+            let status = statuses
+                .status(blocker)
+                .map_or("missing", TaskStatus::as_str);
+            format!("{blocker} ({blocker_area}: {status})")
+        }
+        _ => blocker.to_owned(),
+    }
+}
+
+fn task_state(task: &Task, statuses: &TaskStatuses) -> &'static str {
     if task.header.status == TaskStatus::Done {
         return "done";
     }
-    let statuses = tasks
-        .iter()
-        .map(|task| (task.header.id.as_str(), task.header.status))
-        .collect::<BTreeMap<_, _>>();
     if task
         .header
         .blocked_by
         .iter()
-        .all(|id| statuses.get(id.as_str()) == Some(&TaskStatus::Done))
+        .all(|id| statuses.status(id) == Some(TaskStatus::Done))
     {
         "ready"
     } else {
@@ -2917,14 +2967,14 @@ fn task_state(task: &Task, tasks: &[Task]) -> &'static str {
     }
 }
 
-fn views<'a>(root: &Path, tasks: &'a [Task]) -> Vec<TaskView<'a>> {
+fn views<'a>(root: &Path, tasks: &'a [Task], statuses: &TaskStatuses) -> Vec<TaskView<'a>> {
     tasks
         .iter()
         .map(|task| TaskView {
             id: &task.header.id,
             title: &task.title,
             status: task.header.status.as_str(),
-            state: task_state(task, tasks),
+            state: task_state(task, statuses),
             complexity: task.complexity(),
             afk: task.header.afk,
             priority: task.priority(),
@@ -2944,7 +2994,7 @@ pub(super) fn list(root: &Path, area: Option<&str>) -> Result<CommandOutput, Zde
         return list_area_summary(root);
     };
     let tasks = load_tasks(root, area)?;
-    let task_views = views(root, &tasks);
+    let task_views = views(root, &tasks, &read_task_statuses(root, area, &tasks)?);
     let text = if task_views.is_empty() {
         format!("No tasks in {area}")
     } else {
@@ -3027,10 +3077,10 @@ fn list_area_summary(root: &Path) -> Result<CommandOutput, ZdevError> {
     ))
 }
 
-fn next_task(tasks: &[Task]) -> Option<&Task> {
+fn next_task<'a>(tasks: &'a [Task], statuses: &TaskStatuses) -> Option<&'a Task> {
     tasks
         .iter()
-        .filter(|task| task_state(task, tasks) == "ready")
+        .filter(|task| task_state(task, statuses) == "ready")
         .min_by(|left, right| {
             (!left.header.afk)
                 .cmp(&!right.header.afk)
@@ -3107,7 +3157,7 @@ pub(super) fn next(root: &Path, requested: Option<&str>) -> Result<CommandOutput
     }
     let branch = require_task_work_area_link(root, &area)?;
     let tasks = load_tasks(root, &area)?;
-    let Some(task) = next_task(&tasks) else {
+    let Some(task) = next_task(&tasks, &read_task_statuses(root, &area, &tasks)?) else {
         let summary = summary(root, &area)?;
         validate_area_lifecycle(&metadata, &summary)?;
         let queue = summary.queue().as_str();
@@ -3224,7 +3274,7 @@ pub(super) fn next_any(root: &Path) -> Result<CommandOutput, ZdevError> {
             continue;
         }
 
-        if let Some(task) = next_task(&tasks) {
+        if let Some(task) = next_task(&tasks, &read_task_statuses(root, &area.tag, &tasks)?) {
             candidates.push((area, task.clone(), branch_status));
         }
     }
@@ -3398,7 +3448,7 @@ pub(super) fn show(root: &Path, area: &str, id: &str) -> Result<CommandOutput, Z
         "id": task.header.id,
         "title": task.title,
         "status": task.header.status.as_str(),
-        "state": task_state(task, &tasks),
+        "state": task_state(task, &read_task_statuses(root, area, &tasks)?),
         "complexity": task.complexity(),
         "afk": task.header.afk,
         "priority": task.priority(),
@@ -3475,7 +3525,9 @@ pub(super) fn research_result(
             .ok_or_else(|| ZdevError::new("Area has no research settings"))?;
         let tasks = load_tasks(root, area)?;
         let task = find_task(&tasks, id)?;
-        if task.header.hypothesis.is_none() || task_state(task, &tasks) != "ready" {
+        if task.header.hypothesis.is_none()
+            || task_state(task, &read_task_statuses(root, area, &tasks)?) != "ready"
+        {
             return Err(ZdevError::new(
                 "Research results require a ready open hypothesis task",
             ));
@@ -3532,7 +3584,9 @@ pub(super) fn append_research_record_with_checkpoint(
 ) -> Result<(), ZdevError> {
     let tasks = load_tasks(root, area)?;
     let task = find_task(&tasks, id)?;
-    if task.header.hypothesis.is_none() || task_state(task, &tasks) != "ready" {
+    if task.header.hypothesis.is_none()
+        || task_state(task, &read_task_statuses(root, area, &tasks)?) != "ready"
+    {
         return Err(ZdevError::new(
             "Research results require a ready open hypothesis task",
         ));
@@ -3580,7 +3634,7 @@ pub(super) fn complete_with_checkpoint(
             json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "area": area, "task": id}),
         ));
     }
-    if task_state(task, &tasks) != "ready" {
+    if task_state(task, &read_task_statuses(root, area, &tasks)?) != "ready" {
         return Err(ZdevError::new(format!(
             "Cannot complete task {id}: it is blocked. Complete its blockers first"
         )));
@@ -3712,7 +3766,7 @@ fn publish_task_and_index_with_checkpoint(
     *slot = updated;
     validate_research_tasks(&tasks, load_area(root, area)?.0.research.is_some())?;
     validate_graph(root, area, &tasks)?;
-    let index = render_index(area, &tasks);
+    let index = render_index(area, &tasks, &read_task_statuses(root, area, &tasks)?);
 
     checkpoint(&[
         (current.path.clone(), content.as_bytes().to_vec()),
@@ -3733,14 +3787,14 @@ fn publish_task_and_index_with_checkpoint(
 }
 
 /// Renders `TASKS.md` for a task list whose graph the caller has validated.
-fn render_index(area: &str, tasks: &[Task]) -> String {
+fn render_index(area: &str, tasks: &[Task], statuses: &TaskStatuses) -> String {
     let ready = tasks
         .iter()
-        .filter(|task| task_state(task, tasks) == "ready")
+        .filter(|task| task_state(task, statuses) == "ready")
         .count();
     let blocked = tasks
         .iter()
-        .filter(|task| task_state(task, tasks) == "blocked")
+        .filter(|task| task_state(task, statuses) == "blocked")
         .count();
     let done = tasks
         .iter()
@@ -3760,7 +3814,12 @@ fn render_index(area: &str, tasks: &[Task]) -> String {
         let blockers = if task.header.blocked_by.is_empty() {
             "—".to_owned()
         } else {
-            task.header.blocked_by.join(", ")
+            task.header
+                .blocked_by
+                .iter()
+                .map(|blocker| blocker_label(area, blocker, statuses))
+                .collect::<Vec<_>>()
+                .join(", ")
         };
         let filename = task
             .path
@@ -3778,14 +3837,14 @@ fn render_index(area: &str, tasks: &[Task]) -> String {
                 "| [{}](tasks/{filename}) | {} | {slice} | {} | {blockers} |\n",
                 task.header.id,
                 table_text(&title),
-                task_state(task, tasks),
+                task_state(task, statuses),
             ));
         } else {
             result.push_str(&format!(
                 "| [{}](tasks/{filename}) | {} | {} | {blockers} |\n",
                 task.header.id,
                 table_text(&title),
-                task_state(task, tasks),
+                task_state(task, statuses),
             ));
         }
     }
@@ -3793,7 +3852,7 @@ fn render_index(area: &str, tasks: &[Task]) -> String {
 }
 
 pub(super) fn empty_index(area: &str) -> String {
-    render_index(area, &[])
+    render_index(area, &[], &TaskStatuses::default())
 }
 
 pub(super) struct GoalTaskRead {
@@ -3829,13 +3888,14 @@ pub(super) fn goal_tasks(
     selected: Option<&str>,
 ) -> Result<GoalTasksRead, ZdevError> {
     let tasks = load_tasks(root, area)?;
+    let statuses = read_task_statuses(root, area, &tasks)?;
     let ready = tasks
         .iter()
-        .filter(|task| task_state(task, &tasks) == "ready")
+        .filter(|task| task_state(task, &statuses) == "ready")
         .count();
     let blocked = tasks
         .iter()
-        .filter(|task| task_state(task, &tasks) == "blocked")
+        .filter(|task| task_state(task, &statuses) == "blocked")
         .count();
     let done = tasks
         .iter()
@@ -3843,14 +3903,14 @@ pub(super) fn goal_tasks(
         .count();
     let selected_task = if let Some(id) = selected {
         let task = find_task(&tasks, id)?;
-        if task_state(task, &tasks) != "ready" {
+        if task_state(task, &statuses) != "ready" {
             return Err(ZdevError::new(format!(
                 "Cannot select task {id}: it is not in the ready frontier"
             )));
         }
         Some(task)
     } else {
-        next_task(&tasks)
+        next_task(&tasks, &statuses)
     };
     let focus = selected_task
         .map(|task| {
@@ -3890,7 +3950,8 @@ pub(super) fn write_index(root: &Path, area: &str) -> Result<PathBuf, ZdevError>
     let (_, area_dir) = load_area(root, area)?;
     let tasks = load_tasks(root, area)?;
     let path = area_dir.join("TASKS.md");
-    write_atomic(&path, render_index(area, &tasks).as_bytes())?;
+    let statuses = read_task_statuses(root, area, &tasks)?;
+    write_atomic(&path, render_index(area, &tasks, &statuses).as_bytes())?;
     Ok(path)
 }
 
@@ -3966,13 +4027,14 @@ pub(super) fn summary_selected(
     selected: Option<&str>,
 ) -> Result<AreaTaskSummary, ZdevError> {
     let tasks = load_tasks(root, area)?;
+    let statuses = read_task_statuses(root, area, &tasks)?;
     let ready = tasks
         .iter()
-        .filter(|task| task_state(task, &tasks) == "ready")
+        .filter(|task| task_state(task, &statuses) == "ready")
         .count();
     let blocked = tasks
         .iter()
-        .filter(|task| task_state(task, &tasks) == "blocked")
+        .filter(|task| task_state(task, &statuses) == "blocked")
         .count();
     let done = tasks
         .iter()
@@ -3991,11 +4053,11 @@ pub(super) fn summary_selected(
                 path: relative(root, &slice.path),
                 ready: slice_tasks
                     .iter()
-                    .filter(|task| task_state(task, &tasks) == "ready")
+                    .filter(|task| task_state(task, &statuses) == "ready")
                     .count(),
                 blocked: slice_tasks
                     .iter()
-                    .filter(|task| task_state(task, &tasks) == "blocked")
+                    .filter(|task| task_state(task, &statuses) == "blocked")
                     .count(),
                 done: slice_tasks
                     .iter()
@@ -4010,14 +4072,14 @@ pub(super) fn summary_selected(
                 .iter()
                 .find(|task| task.header.id == id)
                 .ok_or_else(|| ZdevError::new(format!("Unknown task {id}")))?;
-            if task_state(task, &tasks) != "ready" {
+            if task_state(task, &statuses) != "ready" {
                 return Err(ZdevError::new(format!(
                     "Task {id} is not in the ready frontier"
                 )));
             }
             Some(task)
         }
-        None => next_task(&tasks),
+        None => next_task(&tasks, &statuses),
     };
     Ok(AreaTaskSummary {
         total: tasks.len(),
@@ -4033,10 +4095,11 @@ pub(super) fn summary_selected(
 
 pub(super) fn task_is_ready(root: &Path, area: &str, id: &str) -> Result<bool, ZdevError> {
     let tasks = load_tasks(root, area)?;
+    let statuses = read_task_statuses(root, area, &tasks)?;
     let task = tasks
         .iter()
         .find(|task| task.header.id == id)
-        .filter(|task| task_state(task, &tasks) == "ready");
+        .filter(|task| task_state(task, &statuses) == "ready");
     if let Some(task) = task {
         require_retained_code(root, &task.header.requires_code, &tasks)?;
     }
@@ -4051,13 +4114,13 @@ pub(super) fn require_task_code(root: &Path, area: &str, id: &str) -> Result<(),
 
 pub(super) fn validate_index(root: &Path, area: &str) -> Result<(), ZdevError> {
     let tasks = load_tasks(root, area)?;
-    let expected = render_index(area, &tasks);
+    let expected = render_index(area, &tasks, &read_task_statuses(root, area, &tasks)?);
     let path = root.join(".zdev").join(area).join("TASKS.md");
     let actual = fs::read_to_string(&path)
         .map_err(|error| ZdevError::io(format!("Cannot read {}", path.display()), error))?;
     if actual != expected {
         return Err(ZdevError::new(format!(
-            "Generated task summary is stale: {}",
+            "Generated task summary is stale: {}. Run `zdev tasks index {area}` to regenerate it",
             path.display()
         )));
     }

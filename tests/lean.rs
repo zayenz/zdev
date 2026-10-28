@@ -6871,6 +6871,180 @@ fn cross_area_dependency_cycles_fail_check_and_import_with_their_ids() {
     }
 }
 
+fn task_states(root: &Path, area: &str) -> Vec<(String, String)> {
+    json_output(root, &["tasks", "list", area])["tasks"]
+        .as_array()
+        .expect("task list")
+        .iter()
+        .map(|task| {
+            (
+                task["id"].as_str().expect("task ID").to_owned(),
+                task["state"].as_str().expect("task state").to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn run_task_done(root: &Path, area: &str, id: &str) -> Output {
+    run_zdev(
+        root,
+        &[
+            "task",
+            "done",
+            area,
+            id,
+            "--summary",
+            "Completed the task.",
+            "--validation",
+            "Focused check passed.",
+        ],
+    )
+}
+
+fn read_index(root: &Path, area: &str) -> String {
+    fs::read_to_string(root.join(format!(".zdev/{area}/TASKS.md"))).expect("task index")
+}
+
+#[test]
+fn cross_area_blockers_gate_readiness_and_index_on_trunk() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_trunk_area(root, "platform");
+    create_trunk_area(root, "engines");
+    import_one_task(root, "platform");
+    let imported = json_output_with_stdin(
+        root,
+        &["tasks", "import", "engines", "--from", "-"],
+        &gated_bundle("engines", &["platform-001"]),
+    );
+    assert_eq!(imported["ready"], json!(["engines-001"]));
+    assert_eq!(
+        task_states(root, "engines"),
+        [
+            ("engines-001".to_owned(), "ready".to_owned()),
+            ("engines-002".to_owned(), "blocked".to_owned()),
+        ]
+    );
+    assert!(read_index(root, "engines").contains(
+        "| [engines-002](tasks/002-build-on-the-blocker.md) | Build on the blocker | blocked | platform-001 (platform: open) |\n"
+    ));
+    assert!(
+        failure_text(&run_task_done(root, "engines", "engines-002"))
+            .contains("Cannot complete task engines-002: it is blocked")
+    );
+
+    assert!(
+        run_task_done(root, "platform", "platform-001")
+            .status
+            .success()
+    );
+    assert_eq!(
+        task_states(root, "engines")[1],
+        ("engines-002".to_owned(), "ready".to_owned())
+    );
+    let stale = failure_text(&run_zdev(root, &["check"]));
+    assert!(stale.contains("Generated task summary is stale: "));
+    assert!(
+        stale.contains(".zdev/engines/TASKS.md. Run `zdev tasks index engines` to regenerate it")
+    );
+    json_output(root, &["tasks", "index", "engines"]);
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+    assert!(read_index(root, "engines").contains(
+        "| [engines-002](tasks/002-build-on-the-blocker.md) | Build on the blocker | ready | platform-001 (platform: done) |\n"
+    ));
+
+    let more = serde_json::to_vec(&json!({
+        "schema_version": 1,
+        "area": "engines",
+        "tasks": [{
+            "key": "more", "title": "Extend the blocker", "blocked_by": ["platform-001"],
+            "outcome": "The extension exists.", "done_when": ["The extension exists."]
+        }]
+    }))
+    .expect("task bundle");
+    let imported =
+        json_output_with_stdin(root, &["tasks", "import", "engines", "--from", "-"], &more);
+    assert_eq!(
+        imported["ready"],
+        json!(["engines-001", "engines-002", "engines-003"])
+    );
+    commit_all(root, "record cross-area work");
+    let applied = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "apply", "engines", "--from", "-"],
+        &derived_proposal_bytes(
+            "engines",
+            "engines-001",
+            investigation_follow_up("engines", "engines-001", "follow", "Follow the base"),
+        ),
+    );
+    assert_eq!(
+        applied["ready"],
+        json!(["engines-002", "engines-003", "engines-004"])
+    );
+    assert!(
+        run_task_done(root, "engines", "engines-002")
+            .status
+            .success()
+    );
+}
+
+#[test]
+fn cross_area_blocker_done_on_another_branch_counts_after_rebase() {
+    let repository = repository();
+    let root = repository.path();
+    git(root, &["branch", "-m", "main"]);
+    commit_file(root, "seed.txt", "seed\n", "seed");
+    json_output(root, &["init", "--record", "project"]);
+    create_area(root, "platform", "platform");
+    create_area(root, "engines", "engines");
+    import_one_task(root, "platform");
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "engines", "--from", "-"],
+        &gated_bundle("engines", &["platform-001"]),
+    );
+    commit_all(root, "configure areas");
+    git(root, &["switch", "-q", "-c", "engines"]);
+    json_output(root, &["area", "rebase", "engines"]);
+    commit_all(root, "record engines base");
+    git(root, &["switch", "-q", "main"]);
+    git(root, &["switch", "-q", "-c", "platform"]);
+    json_output(root, &["area", "rebase", "platform"]);
+    assert!(
+        run_task_done(root, "platform", "platform-001")
+            .status
+            .success()
+    );
+    commit_all(root, "complete platform-001");
+    git(root, &["switch", "-q", "main"]);
+    git(root, &["merge", "-q", "--ff-only", "platform"]);
+    git(root, &["switch", "-q", "engines"]);
+
+    assert_eq!(
+        task_states(root, "engines")[1],
+        ("engines-002".to_owned(), "blocked".to_owned())
+    );
+    assert!(read_index(root, "engines").contains("platform-001 (platform: open)"));
+    assert_eq!(
+        json_output(root, &["area", "rebase", "engines"])["status"],
+        "rebased"
+    );
+    assert_eq!(
+        task_states(root, "engines")[1],
+        ("engines-002".to_owned(), "ready".to_owned())
+    );
+    assert!(
+        failure_text(&run_zdev(root, &["check"]))
+            .contains("Run `zdev tasks index engines` to regenerate it")
+    );
+    json_output(root, &["tasks", "index", "engines"]);
+    assert_eq!(json_output(root, &["check"])["status"], "ok");
+    assert!(read_index(root, "engines").contains("platform-001 (platform: done)"));
+}
+
 #[cfg(unix)]
 #[test]
 fn failed_task_write_removes_earlier_and_current_partial_files() {

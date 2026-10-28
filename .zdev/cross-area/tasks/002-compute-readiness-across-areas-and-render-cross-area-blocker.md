@@ -3,7 +3,7 @@ schema_version = 1
 id = "cross-area-002"
 key = "cross-area-readiness-and-index"
 area = "cross-area"
-status = "open"
+status = "done"
 complexity = "standard"
 afk = true
 priority = "high"
@@ -41,12 +41,12 @@ Tests to model on: `task_files_drive_selection_completion_and_generated_summary`
 
 ## Done when
 
-- [ ] On trunk, a task blocked by an open task in another area is `blocked` in `zdev tasks list`, and `zdev task done` refuses it. After `zdev task done` on the blocker, the dependent is `ready`.
-- [ ] The ready frontiers returned by `zdev tasks import` and by derived apply count cross-area blockers by their status in the checkout.
-- [ ] On an isolated area branch whose checkout still has the blocker open (it is done on another branch), the dependent stays blocked. After `zdev area rebase` brings in the completion, it is ready.
-- [ ] The dependent area's TASKS.md shows the cross-area blocker as `platform-001 (platform: open)` in the Blocked by column and the task's derived state, and `(platform: done)` once the blocker completes and the index is regenerated.
-- [ ] When a blocker's status changes without its dependent index being regenerated, `zdev check` fails with a message naming `zdev tasks index <area>`, and passes after that command runs.
-- [ ] Existing TASKS.md assertions in `tests/lean.rs` pass unchanged.
+- [x] On trunk, a task blocked by an open task in another area is `blocked` in `zdev tasks list`, and `zdev task done` refuses it. After `zdev task done` on the blocker, the dependent is `ready`.
+- [x] The ready frontiers returned by `zdev tasks import` and by derived apply count cross-area blockers by their status in the checkout.
+- [x] On an isolated area branch whose checkout still has the blocker open (it is done on another branch), the dependent stays blocked. After `zdev area rebase` brings in the completion, it is ready.
+- [x] The dependent area's TASKS.md shows the cross-area blocker as `platform-001 (platform: open)` in the Blocked by column and the task's derived state, and `(platform: done)` once the blocker completes and the index is regenerated.
+- [x] When a blocker's status changes without its dependent index being regenerated, `zdev check` fails with a message naming `zdev tasks index <area>`, and passes after that command runs.
+- [x] Existing TASKS.md assertions in `tests/lean.rs` pass unchanged.
 
 ## Validation
 
@@ -56,3 +56,16 @@ Tests to model on: `task_files_drive_selection_completion_and_generated_summary`
 - `cargo test --locked`
 - `cargo build --locked`
 - `git diff --check`
+
+## Result
+
+Readiness now has one source: a task is ready only when every blocker, in any area, has status done in the current checkout. All readiness consumers (next, tasks list, show, status, goal, task done, research and derived paths, import and derive ready frontiers) use it. TASKS.md renders cross-area blockers as 'platform-001 (platform: open)' and is byte-identical for areas without them; the stale-index error names zdev tasks index <area>.
+
+Validation:
+
+- cargo fmt --all -- --check: pass
+- cargo clippy --locked --all-targets --all-features -- -D warnings: pass
+- cargo test --locked: pass (lean 196)
+- cargo build --locked: pass
+- git diff --check: pass
+- zdev check on this repository: pass

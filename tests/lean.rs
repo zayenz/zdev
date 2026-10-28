@@ -15776,7 +15776,7 @@ fn research_measure_collects_samples_and_retains_execution_failures() {
     let revision = revision.trim();
     let mut settings = research_settings(revision);
     settings["evaluator_command"] = json!("echo $((ZDEV_REPETITION + 6))");
-    settings["timeout_seconds"] = json!(0.05);
+    settings["timeout_seconds"] = json!(10.0);
     configure_research_fixture(root, &settings);
     let args = [
         "research",
@@ -15823,6 +15823,9 @@ fn research_measure_collects_samples_and_retains_execution_failures() {
     ] {
         settings["evaluator_command"] = json!(command);
         settings["comparison"]["evaluator_identity"] = json!(format!("failure-{index}"));
+        // Only the timeout case needs a short deadline; others must tolerate CPU load.
+        let timeout_seconds = if outcome == "timed_out" { 0.05 } else { 10.0 };
+        settings["timeout_seconds"] = json!(timeout_seconds);
         configure_research_fixture(root, &settings);
         let failure = json_output_with_stdin(root, &args, checks);
         assert_eq!(failure["observation"]["outcome"], outcome);

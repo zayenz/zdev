@@ -519,23 +519,29 @@ fn named_profile_layers_seeds_dispatch_and_default_refresh_are_concrete() {
         ),
         ("simple", "codex", "planner", "gpt-6-luna", "xhigh"),
         ("simple", "codex", "verifier", "gpt-6.1-sol", "high"),
-        ("advanced", "claude", "routine-implementer", "haiku", "low"),
+        (
+            "advanced",
+            "claude",
+            "routine-implementer",
+            "claude-opus-5-5",
+            "low",
+        ),
         (
             "advanced",
             "claude",
             "implementer",
-            "claude-fable-5-1",
+            "claude-opus-5-5",
             "high",
         ),
         (
             "advanced",
             "claude",
             "advanced-implementer",
-            "claude-fable-5-1",
+            "claude-opus-5-5",
             "xhigh",
         ),
-        ("advanced", "claude", "planner", "claude-fable-5-1", "xhigh"),
-        ("advanced", "claude", "verifier", "claude-fable-5-1", "high"),
+        ("advanced", "claude", "planner", "claude-opus-5-5", "xhigh"),
+        ("advanced", "claude", "verifier", "claude-opus-5-5", "high"),
     ] {
         let value = invoke(&[
             "config",
@@ -7878,11 +7884,11 @@ const stored = JSON.stringify({{ schema_version: 1, area, lifecycle: 'open', que
 const comparison = equal => JSON.stringify({{ schema_version: 1, area, snapshot, equal }})
 const verifierProfiles = Object.fromEntries(['routine-implementer', 'implementer', 'advanced-implementer', 'planner', 'verifier']
   .map(role => [role, {{ schema_version: 1, profile: 'advanced', harness: 'claude', role,
-    value: {{ model: 'claude-fable-5-1', effort: role === 'advanced-implementer' || role === 'planner' ? 'xhigh' : 'high' }}, origin: {{}}, fallback: null }}]))
+    value: {{ model: 'claude-opus-5-5', effort: role === 'advanced-implementer' || role === 'planner' ? 'xhigh' : 'high' }}, origin: {{}}, fallback: null }}]))
 const dispatch = JSON.stringify({{ schema_version: 1, kind: 'dispatch-spec', harness: 'claude',
   route: 'implement', area, task_id: task, snapshot, dispatches: [
-    {{ role: 'implementer', profile: 'advanced', model: 'claude-fable-5-1', reasoning_effort: 'high', task_id: task, snapshot, next_phase: 'verification' }},
-    {{ role: 'verifier', profile: 'advanced', model: 'claude-fable-5-1', reasoning_effort: 'high', task_id: task, snapshot, next_phase: 'completion' }},
+    {{ role: 'implementer', profile: 'advanced', model: 'claude-opus-5-5', reasoning_effort: 'high', task_id: task, snapshot, next_phase: 'verification' }},
+    {{ role: 'verifier', profile: 'advanced', model: 'claude-opus-5-5', reasoning_effort: 'high', task_id: task, snapshot, next_phase: 'completion' }},
   ], profiles: verifierProfiles, stop: 'completion' }})
 const worker = (verdict, findings = [], escalation = 'none') => JSON.stringify({{
   verdict,
@@ -7905,9 +7911,9 @@ const exercise = async (response, equal = true, invocation = {{ area, task_id: t
 const valid = await exercise(worker('pass'))
 if (valid.prompts.length !== 4) throw new Error('explicit verify did not use four Claude calls')
 const nativeVerifier = valid.prompts.find(call => call.options.agentType)
-if (nativeVerifier.options.model !== 'claude-fable-5-1' || nativeVerifier.options.effort !== 'high') throw new Error('verifier lacked exact native profile')
+if (nativeVerifier.options.model !== 'claude-opus-5-5' || nativeVerifier.options.effort !== 'high') throw new Error('verifier lacked exact native profile')
 for (const call of valid.prompts.filter(call => !call.options.agentType)) {{
-  if (call.options.model !== 'haiku') throw new Error('deterministic verification coordination did not use Haiku')
+  if (call.options.model !== 'claude-opus-5-5' || call.options.effort !== 'low') throw new Error('deterministic verification coordination did not use low-effort Opus 5.5')
 }}
 const publicPass = JSON.stringify({{ schema_version: 1, kind: 'verifier', area, task_id: task, verdict: 'pass', summary: 'Checked task and validation.', evidence: ['work_context_snapshot: ' + snapshot], findings: [], escalation: 'none' }})
 if (valid.result !== publicPass) throw new Error(valid.result)
@@ -7996,7 +8002,7 @@ for (const [checked, unchanged, expected] of [
   if (expected === 'BLOCKER' ? !result.startsWith('BLOCKER zdev-verify') : JSON.parse(result).verdict !== expected)
     throw new Error('finding check accepted wrong outcome: ' + result)
   const vetters = calls.filter(call => call.options.label.endsWith(': check findings'))
-  if (vetters.length !== 1 || vetters[0].options.model !== 'claude-fable-5-1' || vetters[0].options.effort !== 'high')
+  if (vetters.length !== 1 || vetters[0].options.model !== 'claude-opus-5-5' || vetters[0].options.effort !== 'high')
     throw new Error('finding check did not use exactly one fresh frozen verifier')
   if (!vetters[0].prompt.includes('src/lib.rs:12: candidate defect') || !vetters[0].prompt.includes(snapshot))
     throw new Error('finding checker lost candidate or code state')
@@ -8073,19 +8079,19 @@ const dispatchSpec = (complexity, planOnly = false) => JSON.stringify({{
   schema_version: 1, kind: 'dispatch-spec', harness: 'claude', route: planOnly ? 'plan-next-task' : 'implement', area,
   task_id: taskId, snapshot: baselineSnapshot, stop: planOnly ? 'plan-only' : 'completion',
   dispatches: planOnly
-    ? [{{ role: 'planner', profile: 'advanced', model: 'claude-fable-5-1', reasoning_effort: 'xhigh', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'plan-only-stop' }}]
-    : [...(complexity === 'advanced' ? [{{ role: 'planner', profile: 'normal', model: 'claude-opus-5', reasoning_effort: 'high', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'implementation' }}] : []),
-      {{ role: complexity === 'routine' ? 'routine-implementer' : complexity === 'advanced' ? 'advanced-implementer' : 'implementer', profile: 'normal', model: complexity === 'routine' ? 'haiku' : 'claude-opus-5', reasoning_effort: complexity === 'advanced' ? 'high' : complexity === 'routine' ? 'low' : 'low', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'verification' }},
-      {{ role: 'verifier', profile: 'normal', model: 'claude-opus-5', reasoning_effort: 'low', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'completion' }}],
+    ? [{{ role: 'planner', profile: 'advanced', model: 'claude-opus-5-5', reasoning_effort: 'xhigh', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'plan-only-stop' }}]
+    : [...(complexity === 'advanced' ? [{{ role: 'planner', profile: 'normal', model: 'claude-opus-5-5', reasoning_effort: 'high', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'implementation' }}] : []),
+      {{ role: complexity === 'routine' ? 'routine-implementer' : complexity === 'advanced' ? 'advanced-implementer' : 'implementer', profile: 'normal', model: 'claude-opus-5-5', reasoning_effort: complexity === 'advanced' ? 'high' : complexity === 'routine' ? 'low' : 'medium', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'verification' }},
+      {{ role: 'verifier', profile: 'normal', model: 'claude-opus-5-5', reasoning_effort: 'medium', task_id: taskId, snapshot: baselineSnapshot, next_phase: 'completion' }}],
   profiles: Object.fromEntries([
-    ['routine-implementer', 'haiku', 'low'],
-    ['implementer', 'claude-opus-5', 'low'],
-    ['advanced-implementer', 'claude-opus-5', 'high'],
-    ['planner', 'claude-opus-5', 'high'],
-    ['verifier', 'claude-opus-5', 'low'],
+    ['routine-implementer', 'claude-opus-5-5', 'low'],
+    ['implementer', 'claude-opus-5-5', 'medium'],
+    ['advanced-implementer', 'claude-opus-5-5', 'high'],
+    ['planner', 'claude-opus-5-5', 'high'],
+    ['verifier', 'claude-opus-5-5', 'medium'],
   ].map(([role, model, effort]) => [role, {{ schema_version: 1,
     profile: planOnly && role === 'planner' ? 'advanced' : 'normal', role, harness: 'claude',
-    value: planOnly && role === 'planner' ? {{ model: 'claude-fable-5-1', effort: 'xhigh' }} : {{ model, effort }},
+    value: planOnly && role === 'planner' ? {{ model: 'claude-opus-5-5', effort: 'xhigh' }} : {{ model, effort }},
     origin: {{}}, fallback: null }}])),
 }})
 const passEvidence = [
@@ -8168,7 +8174,7 @@ const exercise = async (name, complexity, responses, expectedTypes, expectedPref
   for (const call of calls.filter(call => !call.options.agentType
     && !call.options.label.includes('coordinate derived split')
     && !call.options.label.includes('complete and commit'))) {{
-    if (call.options.model !== 'haiku') throw new Error(name + ': deterministic coordination did not use Haiku: ' + call.options.label)
+    if (call.options.model !== 'claude-opus-5-5' || call.options.effort !== 'low') throw new Error(name + ': deterministic coordination did not use low-effort Opus 5.5: ' + call.options.label)
   }}
   const completionPrompt = calls.find(call => call.options.label.includes('complete and commit'))?.prompt
   if (completionPrompt) {{
@@ -8203,8 +8209,8 @@ const planOnlyResult = await run({{ area, plan_only: true }}, async (prompt, opt
 if (planOnlyCalls.length !== 3 || planOnlyCalls.filter(call => call.options.agentType).length !== 1)
   throw new Error('plan-only did not stop after one fresh planner')
 const planOnly = JSON.parse(planOnlyResult)
-if (planOnly.task_id !== taskId || planOnly.model !== 'claude-fable-5-1' || planOnly.effort !== 'xhigh'
-  || planOnly.verdict !== 'plan') throw new Error('plan-only lost result or exact Fable controls')
+if (planOnly.task_id !== taskId || planOnly.model !== 'claude-opus-5-5' || planOnly.effort !== 'xhigh'
+  || planOnly.verdict !== 'plan') throw new Error('plan-only lost result or exact advanced planner controls')
 let malformedProfileWorkers = 0
 const malformedProfileResult = await run({{ area }}, async (_prompt, options) => {{
   if (options.label === 'zdev work: select ready task') return storedContext('standard')
@@ -8711,9 +8717,9 @@ const passEvidence = _contextHead => ['work_context_snapshot: W0123456789abcdef'
 const dispatchSpec = context => {{
   const current = JSON.parse(context)
   const profiles = Object.fromEntries([
-    ['routine-implementer', 'haiku', 'low'], ['implementer', 'claude-opus-5', 'low'],
-    ['advanced-implementer', 'claude-opus-5', 'high'], ['planner', 'claude-opus-5', 'high'],
-    ['verifier', 'claude-opus-5', 'low'],
+    ['routine-implementer', 'claude-opus-5-5', 'low'], ['implementer', 'claude-opus-5-5', 'medium'],
+    ['advanced-implementer', 'claude-opus-5-5', 'high'], ['planner', 'claude-opus-5-5', 'high'],
+    ['verifier', 'claude-opus-5-5', 'medium'],
   ].map(([role, model, effort]) => [role, {{ schema_version: 1, profile: 'normal', role, harness: 'claude', value: {{ model, effort }}, origin: {{}}, fallback: null }}]))
   const role = current.complexity === 'routine' ? 'routine-implementer'
     : current.complexity === 'advanced' ? 'advanced-implementer' : 'implementer'
@@ -8734,7 +8740,7 @@ const exercise = async (name, contexts, workers, completions, expectedPrefix, de
   const calls = []
   let lastContext = null
   const result = await run(invocation, async (prompt, options) => {{
-    calls.push({{ label: options.label, type: options.agentType ?? null, model: options.model ?? null, prompt }})
+    calls.push({{ label: options.label, type: options.agentType ?? null, model: options.model ?? null, effort: options.effort ?? null, prompt }})
     if (options.label === 'zdev work: choose from ready frontier') {{
       if (selections.length === 0) throw new Error(name + ': unexpected focus selection')
       return selections.shift()
@@ -8800,7 +8806,7 @@ if (twoTask.calls.filter(call => call.label.includes('freeze loop worker profile
   throw new Error('loop did not freeze one profile map across both tasks')
 for (const call of twoTask.calls.filter(call => call.type === null
   && !call.label.includes('complete and commit'))) {{
-  if (call.model !== 'haiku') throw new Error('loop deterministic coordination did not use Haiku: ' + call.label)
+  if (call.model !== 'claude-opus-5-5' || call.effort !== 'low') throw new Error('loop deterministic coordination did not use low-effort Opus 5.5: ' + call.label)
 }}
 
 const noWork = await exercise('closed no-work', [closed], [], [], 'PASS', [], 'work')
@@ -9026,7 +9032,7 @@ async function run(args, agent, pipeline) {{
 }}
 const publicResult = 'PASS zdev-audit\n\nBoundary: src\nInspected: src\nOmitted: none\nChecked evidence: cargo test'
 const profile = JSON.stringify({{ schema_version: 1, profile: 'advanced', harness: 'claude', role: 'verifier',
-  value: {{ model: 'claude-fable-5-1', effort: 'high' }}, origin: {{}}, fallback: null }})
+  value: {{ model: 'claude-opus-5-5', effort: 'high' }}, origin: {{}}, fallback: null }})
 const defaultCalls = []
 const defaultResult = await run(
   'src',
@@ -9045,7 +9051,7 @@ for (const checked of [publicResult, candidateAudit, 'BLOCKER zdev-audit\n\nBoun
   }}, async () => {{ throw new Error('default findings used pipeline') }})
   const vetters = calls.filter(call => call.options.label === 'audit evidence vetter')
   if (vetters.length !== 1 || !vetters[0].prompt.includes(candidateAudit)
-    || vetters[0].options.model !== 'claude-fable-5-1' || vetters[0].options.effort !== 'high')
+    || vetters[0].options.model !== 'claude-opus-5-5' || vetters[0].options.effort !== 'high')
     throw new Error('default audit did not vet findings with frozen profile')
   if (checked === 'invalid' ? !result.startsWith('BLOCKER zdev-audit') : result !== checked)
     throw new Error('audit returned unchecked or changed finding result: ' + result)
@@ -9061,7 +9067,7 @@ await run(
 )
 if (!areaResolvePrompt.includes('profile resolve claude verifier --area work --format json'))
   throw new Error('named-area audit omitted its harness-specific profile: ' + areaResolvePrompt)
-for (const [value, expectedModel] of [[{{ inherit: true }}, null], [{{ model: 'claude-fable-5-1', effort: 'inherit' }}, 'claude-fable-5-1']]) {{
+for (const [value, expectedModel] of [[{{ inherit: true }}, null], [{{ model: 'claude-opus-5-5', effort: 'inherit' }}, 'claude-opus-5-5']]) {{
   const inheritedProfile = JSON.stringify({{ schema_version: 1, profile: 'saved', harness: 'claude', role: 'verifier',
     value, origin: {{}}, fallback: null }})
   let workerOptions = null
@@ -9075,7 +9081,7 @@ for (const [value, expectedModel] of [[{{ inherit: true }}, null], [{{ model: 'c
 }}
 let duplicateProfileWorkers = 0
 const duplicateProfile = await run('src', async (_prompt, options) => {{
-  if (options.label.includes('freeze verifier')) return '{{"schema_version":1,"profile":"saved","harness":"claude","role":"verifier","value":{{"model":"claude-fable-5-1","effort":"high","effort":"low"}},"origin":{{}},"fallback":null}}'
+  if (options.label.includes('freeze verifier')) return '{{"schema_version":1,"profile":"saved","harness":"claude","role":"verifier","value":{{"model":"claude-opus-5-5","effort":"high","effort":"low"}},"origin":{{}},"fallback":null}}'
   duplicateProfileWorkers += 1
   return publicResult
 }}, async () => {{ throw new Error('duplicate profile used pipeline') }})
@@ -9847,9 +9853,9 @@ const assignment = (task_id, index) => ({{ task_id, worktree: '/tmp/' + task_id,
   branch: 'zdev/' + task_id, baseline, snapshot: 'W' + String(index).repeat(16),
   complexity: 'standard', task_path: '.zdev/work/tasks/' + task_id + '.md' }})
 const parallelProfiles = Object.fromEntries([
-  ['routine-implementer', 'haiku', 'low'], ['implementer', 'claude-opus-5', 'low'],
-  ['advanced-implementer', 'claude-opus-5', 'high'], ['planner', 'claude-opus-5', 'high'],
-  ['verifier', 'claude-opus-5', 'low'],
+  ['routine-implementer', 'claude-opus-5-5', 'low'], ['implementer', 'claude-opus-5-5', 'medium'],
+  ['advanced-implementer', 'claude-opus-5-5', 'high'], ['planner', 'claude-opus-5-5', 'high'],
+  ['verifier', 'claude-opus-5-5', 'medium'],
 ].map(([role, model, effort]) => [role, {{ schema_version: 1, profile: 'normal', harness: 'claude', role,
   value: {{ model, effort }}, origin: {{}}, fallback: null }}]))
 const parallelDispatch = first => {{
@@ -11063,7 +11069,7 @@ fn config_show_and_get_render_effective_and_scoped_layers() {
         .expect("global worker directory");
     fs::write(
         &global_path,
-        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.5\"\neffort = \"xhigh\"\n\n[codex.verifier]\nmodel = \"gpt-5.5\"\neffort = \"high\"\n\n[claude.verifier]\nmodel = \"claude-opus-5\"\neffort = \"medium\"\n\n[pi.implementer]\nmodel = \"openai/gpt-5.5\"\neffort = \"high\"\n",
+        "schema_version = 1\n\n[codex.implementer]\nmodel = \"gpt-5.5\"\neffort = \"xhigh\"\n\n[codex.verifier]\nmodel = \"gpt-5.5\"\neffort = \"high\"\n\n[claude.verifier]\nmodel = \"claude-opus-5-5\"\neffort = \"high\"\n\n[pi.implementer]\nmodel = \"openai/gpt-5.5\"\neffort = \"high\"\n",
     )
     .expect("global workers");
     let relative_xdg = Path::new("relative-config-home");
@@ -11087,27 +11093,27 @@ worker.codex.verifier = {{ model = \"gpt-5.5\", effort = \"high\" }}  [global {g
   shadows {{ model = \"gpt-6.1-sol\", effort = \"high\" }}  [default]\n\
 worker.codex.advanced-implementer = {{ model = \"gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.codex.planner = {{ model = \"gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
-worker.claude.routine-implementer = {{ model = \"haiku\", effort = \"low\" }}  [default]\n\
-worker.claude.implementer = {{ model = \"claude-opus-5\", effort = \"low\" }}  [default]\n\
+worker.claude.routine-implementer = {{ model = \"claude-opus-5-5\", effort = \"low\" }}  [default]\n\
+worker.claude.implementer = {{ model = \"claude-opus-5-5\", effort = \"medium\" }}  [default]\n\
 worker.claude.verifier = {{ inherit = true }}  [local .zdev/workers.toml]\n\
-  shadows {{ model = \"claude-opus-5\", effort = \"medium\" }}  [global {global}]\n\
-  shadows {{ model = \"claude-opus-5\", effort = \"low\" }}  [default]\n\
-worker.claude.advanced-implementer = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
-worker.claude.planner = {{ model = \"claude-opus-5\", effort = \"high\" }}  [default]\n\
+  shadows {{ model = \"claude-opus-5-5\", effort = \"high\" }}  [global {global}]\n\
+  shadows {{ model = \"claude-opus-5-5\", effort = \"medium\" }}  [default]\n\
+worker.claude.advanced-implementer = {{ model = \"claude-opus-5-5\", effort = \"high\" }}  [default]\n\
+worker.claude.planner = {{ model = \"claude-opus-5-5\", effort = \"high\" }}  [default]\n\
 worker.opencode.routine-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
 worker.opencode.implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"high\" }}  [default]\n\
-worker.opencode.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"inherit\" }}  [default]\n\
+worker.opencode.verifier = {{ model = \"anthropic/claude-opus-5-5\", effort = \"inherit\" }}  [default]\n\
 worker.opencode.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.opencode.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.pi.routine-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
 worker.pi.implementer = {{ model = \"openai/gpt-5.5\", effort = \"high\" }}  [global {global}]\n\
   shadows {{ model = \"openai/gpt-6.1-sol\", effort = \"high\" }}  [default]\n\
-worker.pi.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
+worker.pi.verifier = {{ model = \"anthropic/claude-opus-5-5\", effort = \"low\" }}  [default]\n\
 worker.pi.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.pi.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.omp.routine-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"medium\" }}  [default]\n\
 worker.omp.implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"high\" }}  [default]\n\
-worker.omp.verifier = {{ model = \"anthropic/claude-opus-5\", effort = \"low\" }}  [default]\n\
+worker.omp.verifier = {{ model = \"anthropic/claude-opus-5-5\", effort = \"low\" }}  [default]\n\
 worker.omp.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n"
     )
@@ -11176,7 +11182,7 @@ worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [
     assert_eq!(values[12]["value"], json!({"inherit": true}));
     assert_eq!(
         values[17]["value"],
-        json!({"model": "anthropic/claude-opus-5", "effort": "inherit"})
+        json!({"model": "anthropic/claude-opus-5-5", "effort": "inherit"})
     );
 
     let got = run_zdev_with_env(
@@ -13708,7 +13714,7 @@ fn codex_run_freezes_concrete_profiles_and_one_off_role_choices_expire() {
 }
 
 #[test]
-fn claude_dispatch_spec_freezes_fable_and_custom_role_profiles_without_writes() {
+fn claude_dispatch_spec_freezes_advanced_and_custom_role_profiles_without_writes() {
     let repository = repository();
     let root = repository.path();
     git(root, &["branch", "-m", "main"]);
@@ -13745,7 +13751,7 @@ fn claude_dispatch_spec_freezes_fable_and_custom_role_profiles_without_writes() 
     assert_eq!(spec["harness"], "claude");
     assert_eq!(
         spec["profiles"]["implementer"]["value"]["model"],
-        "claude-fable-5-1"
+        "claude-opus-5-5"
     );
     assert_eq!(spec["profiles"]["implementer"]["value"]["effort"], "high");
     assert_eq!(
@@ -13778,7 +13784,7 @@ fn claude_dispatch_spec_freezes_fable_and_custom_role_profiles_without_writes() 
         ],
     );
     assert_eq!(plan["dispatches"].as_array().unwrap().len(), 1);
-    assert_eq!(plan["dispatches"][0]["model"], "claude-fable-5-1");
+    assert_eq!(plan["dispatches"][0]["model"], "claude-opus-5-5");
     assert_eq!(plan["dispatches"][0]["reasoning_effort"], "xhigh");
     assert_eq!(plan["stop"], "plan-only");
 }

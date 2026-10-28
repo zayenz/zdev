@@ -2,8 +2,8 @@
 name: zdev-verifier
 description: Independently verify one zdev task or perform a read-only zdev review or audit.
 tools: Read, Bash, Grep, Glob
-model: "claude-opus-5"
-effort: "low"
+model: "claude-opus-5-5"
+effort: "medium"
 ---
 
 Read **Code standards** and **Review** in the supplied coding guidance before

@@ -232,7 +232,7 @@ if (!/^[a-z0-9][a-z0-9-]*$/.test(area) || !/^[a-z0-9][a-z0-9-]*$/.test(taskId)) 
 
 const storedRaw = await agent(
   `Act only as read-only admission for task ${taskId} in area ${area}. Run zdev work-context ${area} --task ${taskId} --store --format json exactly once and return its JSON stdout. Do not show the snapshot. Keep files and Git state unchanged.`,
-  { label: `zdev ${taskId}: capture verification snapshot`, model: 'haiku' },
+  { label: `zdev ${taskId}: capture verification snapshot`, model: 'claude-opus-5-5', effort: 'low' },
 )
 const stored = parseStoredContext(storedRaw?.trim())
 if (!stored) {
@@ -242,7 +242,7 @@ const advisory = stored.staleAdvisory ? advisoryText : null
 const profileFlags = `${runProfile ? ` --run-profile ${String(runProfile)}` : ''}${verifierProfile ? ` --role-profile verifier=${String(verifierProfile)}` : ''}`
 const dispatchRaw = await agent(
   `Act only as deterministic profile coordination. Run zdev config profile dispatch-spec implement --harness claude --area ${area} --task ${taskId} --snapshot ${stored.snapshot}${profileFlags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and Git state unchanged.`,
-  { label: `zdev ${taskId}: freeze verifier profile`, model: 'haiku' },
+  { label: `zdev ${taskId}: freeze verifier profile`, model: 'claude-opus-5-5', effort: 'low' },
 )
 const dispatch = decodeJsonObject(dispatchRaw)?.value
 const exact = (value, keys) => value && !Array.isArray(value) && typeof value === 'object'
@@ -289,7 +289,7 @@ const verified = await agent(
 let semantic = parseVerifierResult(verified?.trim())
 const comparedRaw = await agent(
   `Act only as deterministic post-verification coordination. Run zdev work-context ${area} --compare ${stored.snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
-  { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'haiku' },
+  { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'claude-opus-5-5', effort: 'low' },
 )
 const compared = parseComparison(comparedRaw?.trim(), stored.snapshot)
 if (!semantic || !compared || (!compared.equal && !reportsValidationWrite(semantic))) {
@@ -311,7 +311,7 @@ if (semantic.verdict === 'rework' && !onlyValidationWrites(semantic)) {
   const vetted = parseVerifierResult(typeof checked === 'string' ? checked.trim() : checked)
   const unchanged = parseComparison(await agent(
     `Act only as deterministic findings coordination. Run zdev work-context ${area} --compare ${stored.snapshot} --format json exactly once and return its JSON stdout unchanged. Keep files and Git state unchanged.`,
-    { label: `zdev ${taskId}: confirm findings snapshot unchanged`, model: 'haiku' },
+    { label: `zdev ${taskId}: confirm findings snapshot unchanged`, model: 'claude-opus-5-5', effort: 'low' },
   ), stored.snapshot)
   if (!vetted || !unchanged?.equal || vetted.findings.some(item => item.startsWith(validationWriteMarker))
     || (vetted.escalation !== 'none' && vetted.escalation !== semantic.escalation)) {

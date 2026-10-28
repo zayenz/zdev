@@ -83,10 +83,10 @@ The built-in worker defaults for `normal` are described in
 | Harness | Routine implementer | Implementer | Verifier | Advanced implementer |
 | --- | --- | --- | --- | --- |
 | Codex | `gpt-6.1-sol medium` | `gpt-6.1-sol high` | `gpt-6.1-sol high` | `gpt-6.1-sol xhigh` |
-| Claude | `haiku low` | `claude-opus-5 low` | `claude-opus-5 low` | `claude-opus-5 high` |
-| OpenCode | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5 inherit` | `openai/gpt-6.1-sol xhigh` |
-| Pi | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol xhigh` |
-| OMP | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5 low` | `openai/gpt-6.1-sol xhigh` |
+| Claude | `claude-opus-5-5 low` | `claude-opus-5-5 medium` | `claude-opus-5-5 medium` | `claude-opus-5-5 high` |
+| OpenCode | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5-5 inherit` | `openai/gpt-6.1-sol xhigh` |
+| Pi | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5-5 low` | `openai/gpt-6.1-sol xhigh` |
+| OMP | `openai/gpt-6.1-sol medium` | `openai/gpt-6.1-sol high` | `anthropic/claude-opus-5-5 low` | `openai/gpt-6.1-sol xhigh` |
 
 The Oh My Pi adapter renders these two abstract fields into its native combined
 representation. It must validate that the pair is expressible rather than

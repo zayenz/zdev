@@ -546,7 +546,7 @@ if ((runProfile !== null && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(runProfile))
 
 const preflight = (label, selected = selectedTaskId) => agent(
   `Act only as read-only coordination for area ${area}. Run zdev work-context ${area}${selected ? ` --task ${selected}` : ''} --store --format json exactly once and return its JSON stdout. Do not show the stored snapshot; workers load it when needed. Keep files and Git state unchanged.`,
-  { label, model: 'haiku' },
+  { label, model: 'claude-opus-5-5', effort: 'low' },
 )
 
 const preparedRaw = (await preflight(`zdev ${area}: select ready task`))?.trim()
@@ -585,7 +585,7 @@ if (suppliedFrozen && prepared.hypothesis !== false) {
 }
 const dispatchRaw = suppliedFrozen ? null : await agent(
   `Act only as deterministic profile coordination. Run zdev config profile dispatch-spec ${dispatchRoute} --harness claude --area ${area} --task ${taskId} --snapshot ${prepared.baselineSnapshot}${profileFlags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and Git state unchanged.`,
-  { label: `zdev ${taskId}: freeze worker profiles`, model: 'haiku' },
+  { label: `zdev ${taskId}: freeze worker profiles`, model: 'claude-opus-5-5', effort: 'low' },
 )
 const dispatchSpec = suppliedFrozen
   ? { profiles: input.frozenProfiles, route: dispatchRoute, task_id: taskId,
@@ -710,19 +710,19 @@ const refresh = async label => {
 }
 const compareSnapshot = async (snapshot, label) => parseComparison((await agent(
   `Act only as deterministic progress coordination. Run zdev work-context ${area} --compare ${snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
-  { label, model: 'haiku' },
+  { label, model: 'claude-opus-5-5', effort: 'low' },
 ))?.trim(), area, snapshot)
 const classifyImplementerBlocker = async (result, current, madeProgress, priorResult) => {
   const raw = await agent(
     `${repositoryGuidance}\n\nClassify an implementer blocker for task ${taskId} in area ${area}. Load current snapshot ${current.baselineSnapshot} with zdev work-context ${area} --show ${current.baselineSnapshot} --format json and inspect the authoritative task and attributable diff. Return action continue when directly actionable task work remains, including partial implementation, an underestimated file count, another necessary in-scope path, or new investigation or validation evidence that establishes a concrete next step. Return action stop only for unavailable external state, unsafe or ambiguous ownership, a user-owned product or scope decision, or another concrete impasse. ${madeProgress === null ? 'This is the first ordinary blocker.' : `The replacement ${madeProgress ? 'made attributable checkout progress' : 'left the checkout unchanged'}. Compare the prior and current blocker results. When the checkout is unchanged, stop if the same obstacle remains unresolved without a concrete new next step; continue if new evidence makes remaining task work directly actionable.`}\n\n${priorResult ? `Prior worker result: ${JSON.stringify(priorResult)}\n` : ''}Current worker result: ${JSON.stringify(result)}`,
-    { label: `zdev ${taskId}: classify implementer blocker`, model: 'haiku', schema: blockerDispositionSchema },
+    { label: `zdev ${taskId}: classify implementer blocker`, model: 'claude-opus-5-5', effort: 'low', schema: blockerDispositionSchema },
   )
   return parseBlockerDisposition(typeof raw === 'string' ? raw.trim() : raw)
 }
 const coordinateTechnicalAdjustment = async (proposal, current) => {
   const raw = await agent(
     `${repositoryGuidance}\n\nAct as coordination for one proposed incidental technical adjustment in active task ${taskId} in area ${area}. Load the original baseline with zdev work-context ${area} --show ${prepared.baselineSnapshot} --format json and current context with zdev work-context ${area} --show ${current.baselineSnapshot} --format json. Check the proposed helper or path against the agreed outcome, acceptance criteria, explicit user constraints, compatibility promises, original Git baseline, and ownership. If it changes only a planner-written technical restriction and ownership is clear, edit only the proposed active task or brief records, then return action adjusted with the exact edited record_paths and a concise explanation. Return action stop with no record paths for an explicit constraint, changed outcome or acceptance criterion, compatibility change, ambiguous ownership, or unresolved material choice. Do not edit a pending reviewed bundle or create state.\n\nProposal: ${JSON.stringify(proposal)}`,
-    { label: `zdev ${taskId}: coordinate technical adjustment`, model: 'haiku', schema: technicalAdjustmentSchema },
+    { label: `zdev ${taskId}: coordinate technical adjustment`, model: 'claude-opus-5-5', effort: 'low', schema: technicalAdjustmentSchema },
   )
   const result = parseTechnicalAdjustmentResult(typeof raw === 'string' ? raw.trim() : raw)
   return result?.action === 'adjusted'
@@ -803,7 +803,7 @@ const resolveImplementerResult = async (initial, initialContext, phase) => {
 const verify = async (priorReview = null) => {
   const storedRaw = (await agent(
     `Act only as read-only verification coordination. Run zdev work-context ${area} --task ${taskId} --store --format json exactly once and return its JSON stdout. Do not show the stored snapshot.`,
-    { label: `zdev ${taskId}: capture verification snapshot`, model: 'haiku' },
+    { label: `zdev ${taskId}: capture verification snapshot`, model: 'claude-opus-5-5', effort: 'low' },
   ))?.trim()
   const stored = parseStoredContext(storedRaw, area, {
     taskId, head: prepared.head, complexity, taskPath: prepared.taskPath,
@@ -820,7 +820,7 @@ const verify = async (priorReview = null) => {
   let semantic = parseVerifierResult(raw)
   const comparedRaw = (await agent(
     `Act only as deterministic post-verification coordination. Run zdev work-context ${area} --compare ${snapshot} --format json exactly once and return its complete JSON stdout unchanged, with no fence or other text. Keep files and Git state unchanged.`,
-    { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'haiku' },
+    { label: `zdev ${taskId}: confirm verifier left snapshot unchanged`, model: 'claude-opus-5-5', effort: 'low' },
   ))?.trim()
   const compared = parseComparison(comparedRaw, area, snapshot)
   if (!semantic || !compared) return null
@@ -1455,7 +1455,7 @@ if (!input || !/^[a-z0-9][a-z0-9-]*$/.test(area ?? '')
 
 const control = async (label, prompt, schema = null) => {
   const raw = await callAgent(`${repositoryGuidance}\n\n${root ? `Use absolute repository cwd ${JSON.stringify(root)} for every tool. ` : ''}Read installed research reference ${JSON.stringify(researchReferencePath)} and coding guidance ${JSON.stringify(codingReferencePath)}. Task contract: ${JSON.stringify(taskWorkflowContractPath)}. ${prompt}`,
-    { label: `zdev research ${area}: ${label}`, model: 'haiku', ...(schema ? { schema } : {}) })
+    { label: `zdev research ${area}: ${label}`, model: 'claude-opus-5-5', effort: 'low', ...(schema ? { schema } : {}) })
   const value = json(raw)
   if (!value || value.error) throw new Error(value?.error ?? `${label} returned invalid JSON; inspect effects before retrying`)
   return value

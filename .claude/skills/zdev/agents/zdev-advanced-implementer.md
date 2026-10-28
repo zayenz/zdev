@@ -2,7 +2,7 @@
 name: zdev-advanced-implementer
 description: Implement one advanced zdev task
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: "claude-opus-5"
+model: "claude-opus-5-5"
 effort: "high"
 ---
 

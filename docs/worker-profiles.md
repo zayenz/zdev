@@ -136,6 +136,11 @@ use high; advanced implementation and planning use xhigh. Task complexity
 selects the role within that profile.
 Codex's explicit `simple` profile selects GPT-6 Luna for implementation and
 planning. A routine task alone does not select Luna.
+Claude Code uses Claude Opus 5.5 for every role. In `normal`, routine work uses
+low effort; standard implementation and verification use medium; advanced
+implementation and planning use high. Its `advanced` profile raises standard
+implementation and verification to high and advanced implementation and
+planning to xhigh. No built-in Claude row uses `max`.
 
 Where a harness can use more than one provider, using a different model family
 for verification may reduce correlated misses. That is a zdev inference, not a
@@ -144,10 +149,10 @@ benchmark result.
 | Harness | Routine implementer | Standard implementer | Standard verifier | Advanced implementer |
 | --- | --- | --- | --- | --- |
 | Codex | `gpt-6.1-sol`, `medium` | `gpt-6.1-sol`, `high` | `gpt-6.1-sol`, `high` | `gpt-6.1-sol`, `xhigh` |
-| Claude Code | `haiku`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `low` | `claude-opus-5`, `high` |
-| OpenCode | `openai/gpt-6.1-sol`, `medium` | `openai/gpt-6.1-sol`, `high` | `anthropic/claude-opus-5`, effort inherited | `openai/gpt-6.1-sol`, `xhigh` |
-| Pi | `openai/gpt-6.1-sol`, `medium` | `openai/gpt-6.1-sol`, `high` | `anthropic/claude-opus-5`, `low` | `openai/gpt-6.1-sol`, `xhigh` |
-| Oh My Pi | `openai/gpt-6.1-sol:medium` | `openai/gpt-6.1-sol:high` | `anthropic/claude-opus-5:low` | `openai/gpt-6.1-sol:xhigh` |
+| Claude Code | `claude-opus-5-5`, `low` | `claude-opus-5-5`, `medium` | `claude-opus-5-5`, `medium` | `claude-opus-5-5`, `high` |
+| OpenCode | `openai/gpt-6.1-sol`, `medium` | `openai/gpt-6.1-sol`, `high` | `anthropic/claude-opus-5-5`, effort inherited | `openai/gpt-6.1-sol`, `xhigh` |
+| Pi | `openai/gpt-6.1-sol`, `medium` | `openai/gpt-6.1-sol`, `high` | `anthropic/claude-opus-5-5`, `low` | `openai/gpt-6.1-sol`, `xhigh` |
+| Oh My Pi | `openai/gpt-6.1-sol:medium` | `openai/gpt-6.1-sol:high` | `anthropic/claude-opus-5-5:low` | `openai/gpt-6.1-sol:xhigh` |
 
 The mixed-provider rows assume both providers are configured. A project that
 uses one provider should override both roles rather than depend on a hidden
@@ -178,7 +183,7 @@ model = "gpt-6.1-sol"
 effort = "high"
 
 [opencode.verifier]
-model = "anthropic/claude-opus-5"
+model = "anthropic/claude-opus-5-5"
 effort = "inherit"
 ```
 
@@ -264,5 +269,5 @@ Claude's executable task workflows obtain one admitted dispatch specification
 at the start of a run. That specification contains the concrete five-role map;
 planning, implementation, rework, escalation, and independent verification use
 that frozen map even if a preference file changes later. Coordination helpers
-retain their fixed inexpensive model. A new workflow run resolves again and
+use a fixed Claude Opus 5.5 at low effort. A new workflow run resolves again and
 does not rewrite worker configuration or installed files.

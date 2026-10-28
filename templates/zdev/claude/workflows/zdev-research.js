@@ -98,7 +98,7 @@ if (!input || !/^[a-z0-9][a-z0-9-]*$/.test(area ?? '')
 
 const control = async (label, prompt, schema = null) => {
   const raw = await callAgent(`${repositoryGuidance}\n\n${root ? `Use absolute repository cwd ${JSON.stringify(root)} for every tool. ` : ''}Read installed research reference ${JSON.stringify(researchReferencePath)} and coding guidance ${JSON.stringify(codingReferencePath)}. Task contract: ${JSON.stringify(taskWorkflowContractPath)}. ${prompt}`,
-    { label: `zdev research ${area}: ${label}`, model: 'haiku', ...(schema ? { schema } : {}) })
+    { label: `zdev research ${area}: ${label}`, model: 'claude-opus-5-5', effort: 'low', ...(schema ? { schema } : {}) })
   const value = json(raw)
   if (!value || value.error) throw new Error(value?.error ?? `${label} returned invalid JSON; inspect effects before retrying`)
   return value

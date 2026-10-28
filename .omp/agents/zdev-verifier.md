@@ -3,7 +3,7 @@ name: zdev-verifier
 description: Independently verify one zdev task or perform a read-only zdev review or audit
 tools: read, grep, bash
 blocking: true
-model: "anthropic/claude-opus-5"
+model: "anthropic/claude-opus-5-5"
 thinking-level: "low"
 ---
 

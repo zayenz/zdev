@@ -2,6 +2,18 @@
 
 This file records notable changes to zdev.
 
+## Unreleased
+
+### Changed
+
+- Claude defaults use Claude Opus 5.5 (`claude-opus-5-5`) for every role and
+  never `max` effort. In `normal`, routine implementation uses low effort,
+  standard implementation and verification use medium, and advanced
+  implementation and planning use high. The Claude `advanced` profile uses
+  Opus 5.5 at high and xhigh. Claude workflow coordination steps use Opus 5.5
+  at low effort, and the OpenCode, Pi and Oh My Pi verifiers default to
+  `anthropic/claude-opus-5-5`.
+
 ## [2.0.0] - 2026-10-20
 
 ### Changed

@@ -2,7 +2,7 @@
 name: zdev-routine-implementer
 description: Implement tightly specified, low-risk mechanical work for one authored routine zdev task
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: "haiku"
+model: "claude-opus-5-5"
 effort: "low"
 ---
 

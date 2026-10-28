@@ -49,7 +49,7 @@ if (requestedLenses.length > maxLenses) {
 
 const resolvedRaw = await agent(
   `Act only as deterministic profile coordination. Run zdev config profile resolve claude verifier${profileFlags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and configuration unchanged.`,
-  { label: 'audit: freeze verifier profile', model: 'haiku' },
+  { label: 'audit: freeze verifier profile', model: 'claude-opus-5-5', effort: 'low' },
 )
 let resolved
 try { resolved = typeof resolvedRaw === 'string' && !hasDuplicateObjectKeys(resolvedRaw)

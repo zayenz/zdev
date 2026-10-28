@@ -148,7 +148,7 @@ const selectFocusedTask = async () => {
 }
 const freshContext = async selected => agent(
   `Act only as the area-loop read-only preflight for area ${loopArea}. Run zdev work-context ${loopArea}${selected ? ` --task ${selected}` : ''} --store --format json exactly once and return its JSON stdout. Do not show the snapshot. Keep files and Git state unchanged.`,
-  { label: `zdev ${loopArea}: ${selected ? `prepare ${selected}` : 'select next task'}`, model: 'haiku' },
+  { label: `zdev ${loopArea}: ${selected ? `prepare ${selected}` : 'select next task'}`, model: 'claude-opus-5-5', effort: 'low' },
 )
 
 while (true) {
@@ -173,7 +173,7 @@ while (true) {
     const flags = `${loopRunProfile ? ` --run-profile ${String(loopRunProfile)}` : ''}${Object.entries(loopRoleProfiles).map(([role, profile]) => ` --role-profile ${role}=${profile}`).join('')}`
     const raw = await agent(
       `Act only as deterministic loop profile coordination. Run zdev config profile dispatch-spec implement --harness claude --area ${loopArea} --task ${state.taskId} --snapshot ${state.snapshot}${flags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and configuration unchanged.`,
-      { label: `zdev ${loopArea}: freeze loop worker profiles`, model: 'haiku' },
+      { label: `zdev ${loopArea}: freeze loop worker profiles`, model: 'claude-opus-5-5', effort: 'low' },
     )
     const spec = loopHasDuplicateKeys(raw) ? null : loopJson(raw)
     const roles = ['routine-implementer', 'implementer', 'advanced-implementer', 'planner', 'verifier']

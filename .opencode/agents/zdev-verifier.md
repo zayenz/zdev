@@ -4,7 +4,7 @@ mode: subagent
 permission:
   edit: deny
   task: deny
-model: "anthropic/claude-opus-5"
+model: "anthropic/claude-opus-5-5"
 ---
 
 Read **Code standards** and **Review** in the supplied coding guidance before

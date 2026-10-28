@@ -206,7 +206,7 @@ if (assignments.length > 0 && !batchProfiles) {
   const flags = `${runProfile ? ` --run-profile ${String(runProfile)}` : ''}${Object.entries(roleProfiles).map(([role, profile]) => ` --role-profile ${role}=${profile}`).join('')}`
   const raw = await agent(
     `${repositoryGuidance}\n\nAct only as deterministic batch profile coordination in ${destinationRoot}. Run zdev config profile dispatch-spec implement --harness claude --area ${area} --task ${first.task_id} --snapshot ${first.snapshot}${flags} --format json exactly once and return its complete JSON stdout unchanged. Keep files and configuration unchanged.`,
-    { label: `zdev ${area}: freeze parallel worker profiles`, model: 'haiku' },
+    { label: `zdev ${area}: freeze parallel worker profiles`, model: 'claude-opus-5-5', effort: 'low' },
   )
   const spec = strictObject(raw, ['schema_version', 'kind', 'harness', 'route', 'area', 'task_id', 'snapshot', 'dispatches', 'profiles', 'stop'])
   const exact = (value, keys) => value && !Array.isArray(value) && typeof value === 'object'

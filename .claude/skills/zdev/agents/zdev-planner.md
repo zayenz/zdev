@@ -2,7 +2,7 @@
 name: zdev-planner
 description: Produce the one read-only plan required before an advanced zdev task is edited
 tools: Read, Bash, Grep, Glob
-model: "claude-opus-5"
+model: "claude-opus-5-5"
 effort: "high"
 ---
 

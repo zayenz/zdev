@@ -374,7 +374,9 @@ if (scenario.startsWith('rolling')) {
   for (const checkpoint of final.checkpoints.filter(item => item.index_updated)) {
     for (const attempt of checkpoint.attempts) if (git(['rev-parse', attempt.retained_ref]) !== attempt.candidate) throw new Error('Rolling transport/history was lost')
   }
-  console.log(JSON.stringify({ report: first, consumed: final.consumed, workers, events, refill, overlapped }))
+  // Pipe writes are asynchronous on macOS; flush before exiting so the evidence is not truncated.
+  const evidence = `${JSON.stringify({ report: first, consumed: final.consumed, workers, events, refill, overlapped })}\n`
+  await new Promise(resolve => process.stdout.write(evidence, resolve))
   process.exit(0)
 }
 

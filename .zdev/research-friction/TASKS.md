@@ -2,8 +2,8 @@
 
 # Tasks: research-friction
 
-- Total: 8
-- Ready: 0
+- Total: 9
+- Ready: 1
 - Blocked: 0
 - Done: 8
 
@@ -17,3 +17,4 @@
 | [research-friction-006](tasks/006-give-research-run-inspect-a-compact-default-view.md) | Give research run inspect a compact default view | done | — |
 | [research-friction-007](tasks/007-report-research-limit-provenance-and-count-dispatches-separa.md) | Report research limit provenance and count dispatches separately from experiments | done | — |
 | [research-friction-008](tasks/008-report-research-progress-separately-from-engineering-progres.md) | Report research progress separately from engineering progress | done | — |
+| [research-friction-009](tasks/009-record-a-measurement-s-evaluator-before-starting-it-so-recov.md) | Record a measurement's evaluator before starting it so recovery never loses it | ready | — |

@@ -2,8 +2,8 @@
 
 # Tasks: general
 
-- Total: 24
-- Ready: 1
+- Total: 25
+- Ready: 2
 - Blocked: 0
 - Done: 23
 
@@ -33,3 +33,4 @@
 | [general-022](tasks/022-show-profile-details-in-human-readable-output.md) | Show profile details in human-readable output | done | — |
 | [general-023](tasks/023-honor-blanket-authorization-across-parallel-batches.md) | Honor blanket authorization across parallel batches | done | — |
 | [general-024](tasks/024-default-t3-verifiers-to-codex-when-it-is-available.md) | Default T3 verifiers to Codex when it is available | ready | — |
+| [general-025](tasks/025-create-branches-and-worktrees-only-on-request-by-default.md) | Create branches and worktrees only on request by default | ready | — |

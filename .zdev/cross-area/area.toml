@@ -2,6 +2,5 @@ schema_version = 1
 tag = "cross-area"
 title = "Task dependencies across areas"
 objective = "Let a task be blocked by an existing task in another area of the same project, with readiness, visibility and lifecycle guards that respect it."
-branch = "feature/cross-area"
+mode = "trunk"
 lifecycle = "open"
-base_commit = "ee54046344df2cebfae89d5bdf6540ecfeb281c4"

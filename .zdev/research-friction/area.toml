@@ -2,6 +2,5 @@ schema_version = 1
 tag = "research-friction"
 title = "Research workflow friction"
 objective = "Remove the remaining coordination and invalidation friction reported from the Gecode autoport campaign without weakening measurement checks."
-branch = "feature/research-friction"
+mode = "trunk"
 lifecycle = "open"
-base_commit = "ee54046344df2cebfae89d5bdf6540ecfeb281c4"

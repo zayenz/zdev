@@ -252,6 +252,14 @@ The CLI supplies the area continuation and stop conditions; current task
 assignments belong in worker payloads. Goal completion ends the run; the public
 result still distinguishes PASS from BLOCKER.
 
+A goal across all areas or several named areas builds its condition with
+`zdev goal --all --format json` or `zdev goal <area> <area>... --format json`,
+with the same prefix and options. When activation is unavailable, show the
+ready-to-send `/goal` command in one fenced `text` block and stop, without a
+BLOCKER envelope. Under that goal, each iteration selects its area as the
+condition says, then runs the task phases below in that area. A skipped area
+does not end the run.
+
 On every native continuation or child-completion wake, reconcile retained
 handles and phase before any new dispatch. If a worker is still active, retain
 it and await its completion; a goal check is not a retry or replacement.

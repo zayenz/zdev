@@ -58,6 +58,13 @@ shared stop states. It does not inspect or invoke Claude Code's separate
 `/goal` command. If the packaged workflows are unavailable, continue under
 coordinator control or stop after one task and report the fresh next state.
 
+Claude Code's `/goal` command is user-entered only; no model-callable goal
+operation exists. On the native route, **Goal across areas** shows `/goal
+<condition>` in the fenced block for the user to enter, then stops. Under that
+active goal, each task uses the ordinary Implement route, or the packaged
+`zdev-parallel` workflow when the condition grants parallel slots. Do not start
+the packaged `zdev-loop` workflow for one covered area.
+
 Before launching a packaged workflow, tell the user which area and fuzzy focus
 will be used. Workflow labels report selection, the chosen task ID, planning,
 implementation, verification, rework, and commit stages; do not replace them

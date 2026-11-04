@@ -68,6 +68,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Plan one task** — select and plan one ready task without implementation; exact request: “plan next task with advanced planner” | [references/plan-task.md](references/plan-task.md) and [references/task-workflows.md](references/task-workflows.md) |
 | **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](references/verify-workflow.md) and [references/verify.md](references/verify.md) |
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](references/area-loop.md) |
+| **Goal across areas** — set a goal or loop over all areas or several named areas | **Goal across areas** below |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
 | **Research run** — authorize or resume research experiments and generate scoped work | [references/research.md](references/research.md) |
@@ -356,6 +357,38 @@ never claims a background loop. On a harness with native goals, an unfinished
 native goal wins: do not replace, clear, edit, or layer work over it. Native
 goal failure leaves both session goal and zdev state unchanged.
 
+### Goal across areas
+
+A request to set a goal or loop over all areas, every area, or several named
+areas takes this direct route. It replaces the one-area loop contract for that
+request. Run `zdev goal --all --format json` for all areas, or `zdev goal <area>
+<area>... --format json` for named areas in the user's order. Add `--focus
+<text>` with the user's selection guidance and `--parallel` for blanket
+parallel authorization, as for one area. Parse the complete JSON before acting.
+On the T3 route, **Continue an area** in `references/t3-code.md` sets and runs
+the goal instead of the native instructions below.
+
+Without `native_goal`, no covered area has ready work. Report each area's
+lifecycle and queue, and any `cross_area_waits`, then stop.
+
+With `native_goal`, use it unchanged. When this harness's native section names
+a model-callable goal operation, inspect native goal state first. Preserve a
+different unfinished goal and report it as the blocker; otherwise create the
+goal with the condition and continue under it. When the harness has no
+model-callable goal operation, show the condition in one fenced `text` block in
+the form its native section names, so the user can copy it, and stop. Do not
+claim a goal was set, and start no worker.
+
+While a native goal whose condition contains `Continue zdev areas` or `Continue
+every open zdev area` is active, each iteration selects an area as the
+condition says, then applies the one-area selection rule above and the
+**Implement** route for one task in that area. A closed, empty, exhausted,
+blocked, or unsafe area is skipped and reported; it does not end the run.
+Report each selected area and task and each verified commit. Finish when no
+covered area has ready, safe work, or on a genuine blocker or required user
+decision. Use the harness's goal completion operation, when it has one, at
+that stop.
+
 ## Configuration
 
 Use `zdev config show`, `get <key>`, `set <key> <value>`, and `unset <key>` for
@@ -543,6 +576,12 @@ preserves an unfinished goal, and calls `create_goal` with the shared condition
 only when native goal state is clear. Native unavailability falls back to at
 most one verified committed task and returns canonical
 `CONTINUE zdev-loop <area>` only when fresh ready work remains.
+
+On the native route, **Goal across areas** inspects with `get_goal` and sets
+the condition with `create_goal`. When `create_goal` is absent or disabled,
+show `/goal <condition>` in the fenced block for the user to enter. At the
+run's terminal stop, call `update_goal` with `status: "complete"` for the
+matching active goal.
 
 For ordinary Area loop only, the native condition completes the run after
 reporting a confirmed blocker or required user-owned decision. On that first terminal

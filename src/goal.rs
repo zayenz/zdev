@@ -7,7 +7,7 @@ use super::{CommandOutput, SCHEMA_VERSION, ZdevError, project, relative, tasks};
 
 #[derive(Debug, clap::Args, Default)]
 pub struct GoalOptions {
-    /// User-supplied guidance for choosing work across the area
+    /// User-supplied guidance for choosing work across the covered areas
     #[arg(long)]
     focus: Option<String>,
     /// Continue compatible tasks in independent worktree slots
@@ -15,26 +15,67 @@ pub struct GoalOptions {
     parallel: bool,
 }
 
-fn native_condition(area: &str, options: &GoalOptions) -> String {
-    let execution = if options.parallel {
+fn execution_clause(options: &GoalOptions) -> &'static str {
+    if options.parallel {
         "Use four independent task slots by default under the installed parallel contract, bounded by available worker capacity. Refill each free slot from fresh compatible ready work without waiting for the other slots. Integrate serially; independently verify and commit each task separately."
     } else {
         "Run the installed one-task implementation contract, independently verifying and committing each task before selecting again."
-    };
-    let selection = match options
+    }
+}
+
+fn focus_text(options: &GoalOptions) -> Option<String> {
+    options
         .focus
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-    {
+        .map(|focus| serde_json::to_string(focus).unwrap())
+}
+
+fn native_condition(area: &str, options: &GoalOptions) -> String {
+    let execution = execution_clause(options);
+    let selection = match focus_text(options) {
         Some(focus) => format!(
-            "Fuzzy focus: {}. Choose from the complete ready frontier, preferring AFK tasks; use focus to rank eligible work.",
-            serde_json::to_string(focus).unwrap()
+            "Fuzzy focus: {focus}. Choose from the complete ready frontier, preferring AFK tasks; use focus to rank eligible work."
         ),
         None => "Let fresh work-context select the next task.".to_owned(),
     };
     format!(
         "Continue zdev area {area}. Read .zdev/{area}/area.toml and .zdev/{area}/brief.md for the current objective and boundaries. {execution} Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). {selection} Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
+    )
+}
+
+/// Which areas a multi-area goal covers.
+enum Coverage<'a> {
+    All,
+    Listed(&'a [String]),
+}
+
+fn multi_native_condition(coverage: &Coverage<'_>, options: &GoalOptions) -> String {
+    let (scope, order) = match coverage {
+        Coverage::All => (
+            "Continue every open zdev area in this repository (the covered areas); `zdev goal --all --format json` lists them with their queues.".to_owned(),
+            "in tag order",
+        ),
+        Coverage::Listed(areas) => (
+            format!(
+                "Continue zdev areas {} (the covered areas).",
+                areas.join(", ")
+            ),
+            "in the listed order",
+        ),
+    };
+    let execution = execution_clause(options);
+    let selection = match focus_text(options) {
+        Some(focus) => format!(
+            "Fuzzy focus: {focus}. Choose from the complete ready frontiers of the covered areas, preferring AFK tasks; use focus to rank eligible work."
+        ),
+        None => format!(
+            "Before each task, work in the first covered area {order} whose fresh work-context is open, ready, and safe, and let that work-context select the next task."
+        ),
+    };
+    format!(
+        "{scope} Before working in an area, read .zdev/<area>/area.toml and .zdev/<area>/brief.md for its current objective and boundaries. {execution} Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). {selection} Refresh repository state after each commit. Skip a covered area whose fresh context is closed, empty, blocked, exhausted, or unsafe for this checkout, and report why. Continue while a covered area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when no covered area has ready, safe work, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycles."
     )
 }
 
@@ -107,10 +148,29 @@ struct GoalProjection {
 
 pub(super) fn show(
     root: &Path,
-    area: &str,
+    areas: &[String],
+    all: bool,
     options: &GoalOptions,
 ) -> Result<CommandOutput, ZdevError> {
-    render(root, area, None, options)
+    if all {
+        let tags = project::list_areas(root)?
+            .into_iter()
+            .map(|area| area.tag)
+            .collect::<Vec<_>>();
+        return render_multi(root, &tags, &Coverage::All, options);
+    }
+    for (index, area) in areas.iter().enumerate() {
+        if areas[..index].contains(area) {
+            return Err(ZdevError::new(format!(
+                "Area {area} is named more than once"
+            )));
+        }
+    }
+    match areas {
+        [] => Err(ZdevError::new("Name at least one area, or pass --all")),
+        [area] => render(root, area, None, options),
+        _ => render_multi(root, areas, &Coverage::Listed(areas), options),
+    }
 }
 
 pub(super) fn show_selected(
@@ -258,6 +318,135 @@ fn render(
         task,
         native_goal,
         cross_area_waits: summary.cross_area_waits,
+    };
+    let json = to_string_pretty(&projection)
+        .map_err(|error| ZdevError::new(format!("Cannot render zdev goal: {error}")))?;
+    let value = to_value(projection)
+        .map_err(|error| ZdevError::new(format!("Cannot render zdev goal: {error}")))?;
+    Ok(CommandOutput::new(text, value).with_json(json))
+}
+
+#[derive(Serialize)]
+struct MultiGoalTask {
+    id: String,
+    title: String,
+    complexity: tasks::TaskComplexity,
+    path: String,
+}
+
+#[derive(Serialize)]
+struct MultiGoalArea {
+    tag: String,
+    title: String,
+    path: String,
+    lifecycle: &'static str,
+    queue: &'static str,
+    counts: GoalCounts,
+    task: Option<MultiGoalTask>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    cross_area_waits: Vec<tasks::CrossAreaWait>,
+}
+
+#[derive(Serialize)]
+struct MultiGoalProjection {
+    schema_version: u64,
+    scope: &'static str,
+    areas: Vec<MultiGoalArea>,
+    ready_areas: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    native_goal: Option<String>,
+}
+
+fn render_multi(
+    root: &Path,
+    tags: &[String],
+    coverage: &Coverage<'_>,
+    options: &GoalOptions,
+) -> Result<CommandOutput, ZdevError> {
+    let mut areas = Vec::new();
+    for tag in tags {
+        let (metadata, area_path) = project::load_area(root, tag)?;
+        let read = tasks::goal_tasks(root, tag, None)?;
+        let summary = tasks::summary(root, tag)?;
+        tasks::validate_area_lifecycle(&metadata, &summary)?;
+        let open = metadata.lifecycle == project::AreaLifecycle::Open;
+        areas.push(MultiGoalArea {
+            tag: metadata.tag,
+            title: metadata.title,
+            path: relative(root, &area_path),
+            lifecycle: metadata.lifecycle.as_str(),
+            queue: summary.queue().as_str(),
+            counts: GoalCounts {
+                total: read.total,
+                open: read.open,
+                ready: read.ready,
+                blocked: read.blocked,
+                done: read.done,
+            },
+            task: read.focus.filter(|_| open).map(|task| MultiGoalTask {
+                path: relative(root, &task.path),
+                id: task.id,
+                title: task.title,
+                complexity: task.complexity,
+            }),
+            cross_area_waits: summary.cross_area_waits,
+        });
+    }
+    let ready_areas = areas
+        .iter()
+        .filter(|area| area.task.is_some())
+        .map(|area| area.tag.clone())
+        .collect::<Vec<_>>();
+    let native_goal = (!ready_areas.is_empty()).then(|| multi_native_condition(coverage, options));
+    let mut text = match coverage {
+        Coverage::All => "Areas: all".to_owned(),
+        Coverage::Listed(tags) => format!("Areas: {}", tags.join(", ")),
+    };
+    text.push_str(&format!(
+        "\nReady areas: {}",
+        if ready_areas.is_empty() {
+            "none".to_owned()
+        } else {
+            ready_areas.join(", ")
+        }
+    ));
+    for area in &areas {
+        let counts = &area.counts;
+        text.push_str(&format!(
+            "\n\nArea: {} — {}\nLifecycle: {}\nQueue: {}\nCounts: {} total; {} open; {} ready; {} blocked; {} done",
+            area.tag,
+            area.title,
+            area.lifecycle,
+            area.queue,
+            counts.total,
+            counts.open,
+            counts.ready,
+            counts.blocked,
+            counts.done,
+        ));
+        if let Some(task) = &area.task {
+            text.push_str(&format!("\nNext task: {} — {}", task.id, task.title));
+        } else if area.lifecycle == "open" && area.queue == "blocked" {
+            text.push_str(&format!(
+                "\nWaiting on other areas:{}",
+                tasks::render_cross_area_waits(&area.cross_area_waits)
+            ));
+        }
+    }
+    match &native_goal {
+        Some(goal) => text.push_str(&format!("\n\nNative goal:\n{goal}")),
+        None if areas.is_empty() => text.push_str("\n\nNo zdev area exists."),
+        None => text.push_str("\n\nNo covered area has ready work."),
+    }
+    let projection = MultiGoalProjection {
+        schema_version: SCHEMA_VERSION,
+        scope: match coverage {
+            Coverage::All => "all",
+            Coverage::Listed(_) => "areas",
+        },
+        areas,
+        ready_areas,
+        native_goal,
     };
     let json = to_string_pretty(&projection)
         .map_err(|error| ZdevError::new(format!("Cannot render zdev goal: {error}")))?;

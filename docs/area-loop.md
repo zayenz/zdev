@@ -72,6 +72,15 @@ Each harness has one zdev skill. These requests select its continuation route:
 Harness-native workflows, commands, and prompts implement the selected route.
 They are adapters inside the installed zdev integration, not separate skills.
 
+A request to set a goal over all areas or several named areas takes a direct
+route instead. The skill runs `zdev goal --all` or `zdev goal <area> <area>...`
+and uses the rendered condition unchanged. Codex and Oh My Pi set it through
+their goal tools. Claude Code, OpenCode, and Pi have no goal operation the
+model can call, so the skill shows the condition in a code block for the user
+to copy. Under that goal, each iteration picks a covered area and runs the
+one-task route there. See
+[several areas](harness-goals.md#several-areas) for the condition.
+
 ## Shared workflow rules
 
 Claude guidance routes both names to the packaged workflow and does not

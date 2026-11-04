@@ -26,6 +26,7 @@ such as “audit,” “goal,” “loop,” and “implement” select the matc
 | **Plan one task** — select and plan one ready task without implementation; exact request: “plan next task with advanced planner” | [references/plan-task.md](skill://zdev/references/plan-task.md) and [references/task-workflows.md](skill://zdev/references/task-workflows.md) |
 | **Verify** — independently review the explicit current ready task | [references/verify-workflow.md](skill://zdev/references/verify-workflow.md) and [references/verify.md](skill://zdev/references/verify.md) |
 | **Goal / loop** — synonymous requests to continue a named area one task and commit at a time | **Goal and loop** below and [references/area-loop.md](skill://zdev/references/area-loop.md) |
+| **Goal across areas** — set a goal or loop over all areas or several named areas | **Goal across areas** below |
 | **Recover** — resume interrupted task work or a managed rebase | [references/recovery.md](skill://zdev/references/recovery.md) |
 | **Configure** — inspect or change project and worker settings; alias: “config” | Follow **Configuration** below and `zdev config --help` |
 | **Research records** — configure research settings or record/inspect hypothesis evidence | [references/task-format.md](skill://zdev/references/task-format.md#research-settings-and-hypothesis-evidence) |
@@ -313,6 +314,36 @@ never claims a background loop. On a harness with native goals, an unfinished
 native goal wins: do not replace, clear, edit, or layer work over it. Native
 goal failure leaves both session goal and zdev state unchanged.
 
+### Goal across areas
+
+A request to set a goal or loop over all areas, every area, or several named
+areas takes this direct route. It replaces the one-area loop contract for that
+request. Run `zdev goal --all --format json` for all areas, or `zdev goal <area>
+<area>... --format json` for named areas in the user's order. Add `--focus
+<text>` with the user's selection guidance and `--parallel` for blanket
+parallel authorization, as for one area. Parse the complete JSON before acting.
+
+Without `native_goal`, no covered area has ready work. Report each area's
+lifecycle and queue, and any `cross_area_waits`, then stop.
+
+With `native_goal`, use it unchanged. When this harness's native section names
+a model-callable goal operation, inspect native goal state first. Preserve a
+different unfinished goal and report it as the blocker; otherwise create the
+goal with the condition and continue under it. When the harness has no
+model-callable goal operation, show the condition in one fenced `text` block in
+the form its native section names, so the user can copy it, and stop. Do not
+claim a goal was set, and start no worker.
+
+While a native goal whose condition contains `Continue zdev areas` or `Continue
+every open zdev area` is active, each iteration selects an area as the
+condition says, then applies the one-area selection rule above and the
+**Implement** route for one task in that area. A closed, empty, exhausted,
+blocked, or unsafe area is skipped and reported; it does not end the run.
+Report each selected area and task and each verified commit. Finish when no
+covered area has ready, safe work, or on a genuine blocker or required user
+decision. Use the harness's goal completion operation, when it has one, at
+that stop.
+
 ## Configuration
 
 Use `zdev config show`, `get <key>`, `set <key> <value>`, and `unset <key>` for
@@ -452,6 +483,12 @@ replaces, or layers over an unfinished goal, and calls `op: "create"` with the
 shared condition only when native goal state is clear. Native unavailability falls back to at most one verified committed task
 and returns canonical `CONTINUE zdev-loop <area>` only when fresh ready work
 remains.
+
+**Goal across areas** inspects with `goal({ op: "get" })` and sets the
+condition with `goal({ op: "create", objective: condition })`, under the same
+conflict rules. When the goal tool is unavailable, show `/goal set <condition>`
+in the fenced block for the user to enter. At the run's terminal stop, call
+`goal({ op: "complete" })` for the matching active goal.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

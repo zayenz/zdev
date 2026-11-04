@@ -57,6 +57,9 @@ the ordinary route, returns canonical `CONTINUE zdev-loop <area>` only after a
 verified commit when fresh ready work remains, and never claims a continuing
 loop was started.
 
+With no goal operation, **Goal across areas** shows the bare condition in the
+fenced block for the user to copy, then stops.
+
 {{repository_guidance}}
 
 The [task format](references/task-format.md) defines imported task bundles.

@@ -151,10 +151,18 @@ enum Command {
         #[arg(long, conflicts_with = "area")]
         any: bool,
     },
-    /// Render an area continuation goal and current task context
+    /// Render a continuation goal for one area, several areas, or all areas
+    ///
+    /// One AREA renders that area's goal and current task context. Several
+    /// AREAs or --all render each covered area's queue and one goal that
+    /// continues across them.
     Goal {
-        /// Area tag to continue
-        area: String,
+        /// Area tags to continue, in priority order
+        #[arg(value_name = "AREA", required_unless_present = "all")]
+        areas: Vec<String>,
+        /// Cover every area in the repository
+        #[arg(long, conflicts_with = "areas")]
+        all: bool,
         #[command(flatten)]
         options: goal::GoalOptions,
     },
@@ -1207,7 +1215,11 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 tasks::next(&root, area.as_deref())
             }
         }
-        Command::Goal { area, options } => goal::show(&root, area, options),
+        Command::Goal {
+            areas,
+            all,
+            options,
+        } => goal::show(&root, areas, *all, options),
         Command::WorkContext {
             area,
             task,

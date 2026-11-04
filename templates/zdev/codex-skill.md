@@ -114,6 +114,12 @@ only when native goal state is clear. Native unavailability falls back to at
 most one verified committed task and returns canonical
 `CONTINUE zdev-loop <area>` only when fresh ready work remains.
 
+On the native route, **Goal across areas** inspects with `get_goal` and sets
+the condition with `create_goal`. When `create_goal` is absent or disabled,
+show `/goal <condition>` in the fenced block for the user to enter. At the
+run's terminal stop, call `update_goal` with `status: "complete"` for the
+matching active goal.
+
 For ordinary Area loop only, the native condition completes the run after
 reporting a confirmed blocker or required user-owned decision. On that first terminal
 `BLOCKER`, report its reason and preserved state, then call `update_goal` with

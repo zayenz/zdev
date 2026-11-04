@@ -2,6 +2,23 @@
 
 This file records notable changes to zdev.
 
+## [Unreleased]
+
+### Added
+
+- `zdev goal` accepts several areas, such as `zdev goal api docs`, or `--all`
+  for every area. It lists each covered area's lifecycle, queue, counts and
+  next task, and renders one `native_goal` that continues across the open
+  areas. Work goes to the first covered area with ready, safe work, in the
+  listed order or in tag order for `--all`. The run skips areas that are
+  closed, empty, blocked, exhausted or unsafe, and finishes when no covered
+  area has ready work. `--focus` and `--parallel` apply as for one area. JSON
+  output adds `scope`, `areas` and `ready_areas`; one area keeps its existing
+  output. The skills add a direct route for a goal over all or several areas:
+  Codex and Oh My Pi set the goal through their goal tools, and Claude Code,
+  OpenCode, Pi and a T3 session without goal tools show the condition in a code
+  block to copy.
+
 ## [2.1.0] - 2026-10-28
 
 ### Added

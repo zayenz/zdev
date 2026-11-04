@@ -18,9 +18,12 @@ not close the area.
 zdev goal <area>
 zdev goal <area> --format json
 zdev goal <area> --focus "payment retries" --parallel --format json
+zdev goal <area> <area>... [--focus <text>] [--parallel]
+zdev goal --all [--focus <text>] [--parallel]
 ```
 
-`<area>` is required. Unlike `zdev next`, this command does not infer a default
+At least one `<area>` or `--all` is required. The sections below describe the
+one-area projection; [Several areas](#several-areas) describes the others. Unlike `zdev next`, this command does not infer a default
 area and does not require a clean branch or a task-work branch. It reads and
 validates records but never changes files, Git state, or a harness session.
 
@@ -330,6 +333,62 @@ The area is closed. Reopen it before adding or selecting work.
 No native condition is generated for no-work states. An adapter must report
 the lifecycle and queue and stop rather than inventing work from an area
 objective or an unattached slice.
+
+## Several areas
+
+`zdev goal <area> <area>...` covers the named areas in the order given.
+`zdev goal --all` covers every area in tag order. Each area is read and
+validated as for one area; any failure fails the whole command. JSON output
+has this shape:
+
+```json
+{
+  "schema_version": 1,
+  "scope": "areas",
+  "areas": [
+    {
+      "tag": "checkout",
+      "title": "Checkout reliability",
+      "path": ".zdev/checkout",
+      "lifecycle": "open",
+      "queue": "ready",
+      "counts": { "total": 3, "open": 2, "ready": 1, "blocked": 1, "done": 1 },
+      "task": {
+        "id": "checkout-002",
+        "title": "Reject duplicate payment submission",
+        "complexity": "standard",
+        "path": ".zdev/checkout/tasks/002-reject-duplicate-payment.md"
+      }
+    }
+  ],
+  "ready_areas": ["checkout"],
+  "native_goal": "Continue zdev areas checkout, docs (the covered areas). ..."
+}
+```
+
+`scope` is `all` for `--all` and `areas` otherwise. `task` is `null` unless the
+area is open with a ready queue, and `cross_area_waits` appears for an area
+whose open tasks wait on other areas. `ready_areas` lists the areas with a
+ready task, in covered order. `native_goal` is present only when
+`ready_areas` is not empty. Human output starts with `Areas:` and `Ready
+areas:` lines, lists each area with its lifecycle, queue, counts and next task,
+and ends with the condition or `No covered area has ready work.`
+
+The condition names the covered areas, or every open area for `--all`. Before
+each task it selects the first covered area whose fresh work-context is open,
+ready and safe: in the listed order for named areas, in tag order for `--all`.
+That area's work-context then selects the task. With `--focus`, the
+coordinator instead ranks the combined ready frontier of the covered areas. The
+run skips covered areas that are closed, empty, blocked, exhausted, or unsafe
+for the checkout, and reports why. It finishes when no covered area has ready,
+safe work, or after a confirmed blocker or required user decision.
+
+The installed skills set this condition directly. Codex uses `get_goal` and
+`create_goal`, and Oh My Pi uses its `goal` tool; both preserve a different
+unfinished goal. Claude Code has no goal operation the model can call, so the
+skill shows `/goal <condition>` in a code block for the user to enter. OpenCode
+and Pi show the bare condition. In T3 Code the condition keeps the `Use zdev
+with T3 orchestration.` prefix.
 
 ## Failure behavior
 

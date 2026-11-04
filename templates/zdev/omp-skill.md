@@ -64,6 +64,12 @@ shared condition only when native goal state is clear. Native unavailability fal
 and returns canonical `CONTINUE zdev-loop <area>` only when fresh ready work
 remains.
 
+**Goal across areas** inspects with `goal({ op: "get" })` and sets the
+condition with `goal({ op: "create", objective: condition })`, under the same
+conflict rules. When the goal tool is unavailable, show `/goal set <condition>`
+in the fenced block for the user to enter. At the run's terminal stop, call
+`goal({ op: "complete" })` for the matching active goal.
+
 {{repository_guidance}}
 
 The [task format](references/task-format.md) defines imported task bundles.

@@ -2042,6 +2042,108 @@ fn goal_handles_empty_unsliced_and_exhausted_states() {
 }
 
 #[test]
+fn goal_covers_several_areas_or_all_areas_with_one_condition() {
+    let repository = repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "project"]);
+    for tag in ["alpha", "beta", "gamma"] {
+        let title = format!("Area {tag}");
+        let objective = format!("Objective {tag}.");
+        json_output(
+            root,
+            &[
+                "area",
+                "create",
+                tag,
+                "--title",
+                &title,
+                "--objective",
+                &objective,
+            ],
+        );
+    }
+    for tag in ["alpha", "beta"] {
+        fs::write(
+            root.join(format!(".zdev/{tag}/tasks/001-one.md")),
+            format!("+++\nschema_version = 1\nid = \"{tag}-001\"\nkey = \"one\"\narea = \"{tag}\"\nstatus = \"open\"\nblocked_by = []\n+++\n# Improve {tag}\n\n## Outcome\n\n{tag} improves.\n\n## Done when\n\n- [ ] It works.\n\n## Validation\n\n- Run the check.\n"),
+        )
+        .expect("ready task");
+    }
+
+    let listed = json_output(root, &["goal", "beta", "gamma", "alpha"]);
+    assert_eq!(listed["scope"], "areas");
+    let tags: Vec<_> = listed["areas"]
+        .as_array()
+        .expect("areas")
+        .iter()
+        .map(|area| area["tag"].as_str().expect("tag").to_owned())
+        .collect();
+    assert_eq!(tags, ["beta", "gamma", "alpha"]);
+    assert_eq!(listed["ready_areas"], json!(["beta", "alpha"]));
+    assert_eq!(listed["areas"][0]["task"]["id"], "beta-001");
+    assert_eq!(listed["areas"][1]["queue"], "empty");
+    assert_eq!(listed["areas"][1]["task"], Value::Null);
+    let condition = listed["native_goal"].as_str().expect("native goal");
+    assert!(condition.starts_with("Continue zdev areas beta, gamma, alpha (the covered areas)."));
+    assert!(condition.contains("first covered area in the listed order"));
+    assert!(condition.contains("Skip a covered area whose fresh context is closed"));
+    assert!(!condition.contains("beta-001"));
+
+    let focused = json_output(
+        root,
+        &[
+            "goal",
+            "alpha",
+            "beta",
+            "--focus",
+            "docs first",
+            "--parallel",
+        ],
+    );
+    let condition = focused["native_goal"].as_str().expect("focused goal");
+    assert!(condition.contains("Fuzzy focus: \"docs first\"."));
+    assert!(condition.contains("four independent task slots"));
+
+    json_output(root, &["area", "close", "gamma"]);
+    let all = run_zdev(root, &["goal", "--all"]);
+    assert!(all.status.success());
+    let text = String::from_utf8(all.stdout).expect("all goal");
+    assert!(text.starts_with("Areas: all\nReady areas: alpha, beta\n\nArea: alpha — Area alpha\nLifecycle: open\nQueue: ready\nCounts: 1 total; 1 open; 1 ready; 0 blocked; 0 done\nNext task: alpha-001 — Improve alpha\n"));
+    assert!(text.contains("\n\nArea: gamma — Area gamma\nLifecycle: closed\nQueue: empty\n"));
+    assert!(text.contains(
+        "\n\nNative goal:\nContinue every open zdev area in this repository (the covered areas);"
+    ));
+    assert!(text.contains("first covered area in tag order"));
+    assert!(text.ends_with(".\n"));
+    let all_json = json_output(root, &["goal", "--all"]);
+    assert_eq!(all_json["scope"], "all");
+    assert_eq!(all_json["areas"].as_array().expect("areas").len(), 3);
+
+    let single = json_output(root, &["goal", "alpha"]);
+    assert_eq!(single["area"]["tag"], "alpha");
+    assert!(single.get("scope").is_none());
+
+    let conflicting = run_zdev(root, &["goal", "gamma", "--all"]);
+    assert!(!conflicting.status.success());
+    let duplicate = run_zdev(root, &["goal", "alpha", "beta", "alpha"]);
+    assert!(!duplicate.status.success());
+    assert!(failure_text(&duplicate).contains("Area alpha is named more than once"));
+    let missing = run_zdev(root, &["goal"]);
+    assert!(!missing.status.success());
+
+    for tag in ["alpha", "beta"] {
+        fs::remove_file(root.join(format!(".zdev/{tag}/tasks/001-one.md"))).expect("remove task");
+    }
+    let exhausted = run_zdev(root, &["goal", "alpha", "gamma"]);
+    let text = String::from_utf8(exhausted.stdout).expect("no-work goal");
+    assert!(text.starts_with("Areas: alpha, gamma\nReady areas: none\n"));
+    assert!(text.ends_with("\n\nNo covered area has ready work.\n"));
+    let exhausted = json_output(root, &["goal", "--all"]);
+    assert_eq!(exhausted["ready_areas"], json!([]));
+    assert!(exhausted.get("native_goal").is_none());
+}
+
+#[test]
 fn malformed_goal_graph_fails_without_mutation() {
     let repository = repository();
     let root = repository.path();
@@ -8086,8 +8188,9 @@ fn every_help_page_explains_its_command_and_inputs() {
         (
             &["goal", "--help"],
             &[
-                "area continuation goal",
-                "Area tag to continue",
+                "continuation goal for one area, several areas, or all areas",
+                "Area tags to continue, in priority order",
+                "Cover every area in the repository",
                 "--focus",
                 "--parallel",
             ],

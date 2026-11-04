@@ -2,7 +2,7 @@
 
 This file records notable changes to zdev.
 
-## [Unreleased]
+## [2.2.0] - 2026-11-04
 
 ### Added
 
@@ -17,7 +17,8 @@ This file records notable changes to zdev.
   output. The skills add a direct route for a goal over all or several areas:
   Codex and Oh My Pi set the goal through their goal tools, and Claude Code,
   OpenCode, Pi and a T3 session without goal tools show the condition in a code
-  block to copy.
+  block to copy. Refresh installed integrations with `zdev skill install
+  <harness> --force`; see [Upgrade to 2.2](docs/upgrading-to-2.2.md).
 
 ## [2.1.0] - 2026-10-28
 
@@ -619,6 +620,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[2.2.0]: https://github.com/zayenz/zdev/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/zayenz/zdev/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/zayenz/zdev/compare/v1.6.0...v2.0.0
 [1.6.0]: https://github.com/zayenz/zdev/compare/v1.5.1...v1.6.0

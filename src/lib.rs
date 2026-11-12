@@ -233,7 +233,9 @@ enum Command {
     /// Commit the staged Git changes and add a stable change ID
     ///
     /// Runs `git commit` for the existing index and appends a
-    /// Zdev-Change-Id trailer. This command does not stage files.
+    /// Zdev-Change-Id trailer for project and pull-request records. Personal
+    /// and shadow records get no trailer in the main repository; a shadow
+    /// record's own commit carries it. This command does not stage files.
     Commit {
         /// Git commit subject
         #[arg(short = 'm', long)]
@@ -2750,12 +2752,18 @@ fn required_brief_section<'a>(
 
 fn commit(root: &Path, message: &str, body: &[String]) -> Result<CommandOutput, ZdevError> {
     validate_nonempty_line(message, "Commit message")?;
-    if body.iter().any(|paragraph| {
-        paragraph.lines().any(|line| {
-            line.split_once(':')
-                .is_some_and(|(key, _)| key.trim().eq_ignore_ascii_case(CHANGE_ID_TRAILER))
+    // Without a readable record configuration, such as in a repository that
+    // has not run `zdev init`, the commit is marked as it always was.
+    let marks_main_commit = project::read_config(root)
+        .map_or(true, |config| config.project.record.marks_main_commits());
+    if marks_main_commit
+        && body.iter().any(|paragraph| {
+            paragraph.lines().any(|line| {
+                line.split_once(':')
+                    .is_some_and(|(key, _)| key.trim().eq_ignore_ascii_case(CHANGE_ID_TRAILER))
+            })
         })
-    }) {
+    {
         return Err(ZdevError::new(format!(
             "Commit body must not contain a {CHANGE_ID_TRAILER} trailer; zdev adds one automatically"
         )));
@@ -2782,9 +2790,11 @@ fn commit(root: &Path, message: &str, body: &[String]) -> Result<CommandOutput, 
     for paragraph in body {
         command.arg("-m").arg(paragraph);
     }
-    command
-        .arg("-m")
-        .arg(format!("{CHANGE_ID_TRAILER}: {change_id}"));
+    if marks_main_commit {
+        command
+            .arg("-m")
+            .arg(format!("{CHANGE_ID_TRAILER}: {change_id}"));
+    }
     let output = command
         .current_dir(root)
         .env_remove("GIT_DIR")
@@ -2798,8 +2808,12 @@ fn commit(root: &Path, message: &str, body: &[String]) -> Result<CommandOutput, 
         )));
     }
     let revision = git_output(root, &["rev-parse", "HEAD"])?;
-    let text = format!("Committed {revision} ({change_id}): {message}");
-    let mut value = json!({"schema_version": SCHEMA_VERSION, "status": "committed", "commit": revision, "change_id": change_id});
+    let main_change_id = marks_main_commit.then_some(change_id.as_str());
+    let text = match main_change_id {
+        Some(change_id) => format!("Committed {revision} ({change_id}): {message}"),
+        None => format!("Committed {revision}: {message}"),
+    };
+    let mut value = json!({"schema_version": SCHEMA_VERSION, "status": "committed", "commit": revision, "change_id": main_change_id});
     if !shadow_record {
         return Ok(CommandOutput::new(text, value));
     }
@@ -2894,13 +2908,24 @@ fn inspect_change(root: &Path, revision: &str) -> Result<CommandOutput, ZdevErro
         [id] => return Err(ZdevError::new(format!("Invalid stable change ID: {id}"))),
         _ => return Err(ZdevError::new("Commit has more than one stable change ID")),
     };
-    Ok(CommandOutput::new(
-        match &change_id {
-            Some(id) => format!("{commit}  {id}  {subject}"),
-            None => format!("{commit} has no stable change ID"),
-        },
-        json!({"schema_version": SCHEMA_VERSION, "commit": commit, "subject": subject, "change_id": change_id}),
-    ))
+    let shadow_commits = shadow::commits_for_source(root, &commit);
+    let mut text = match &change_id {
+        Some(id) => format!("{commit}  {id}  {subject}"),
+        None => format!("{commit} has no stable change ID"),
+    };
+    for linked in &shadow_commits {
+        text.push_str(&format!(
+            "\nShadow record commit {}  {}  {}",
+            linked["commit"].as_str().unwrap_or_default(),
+            linked["change_id"].as_str().unwrap_or("(no change ID)"),
+            linked["subject"].as_str().unwrap_or_default()
+        ));
+    }
+    let mut value = json!({"schema_version": SCHEMA_VERSION, "commit": commit, "subject": subject, "change_id": change_id});
+    if shadow::is_shadow(root) {
+        value["shadow_commits"] = json!(shadow_commits);
+    }
+    Ok(CommandOutput::new(text, value))
 }
 
 fn lookup_change(root: &Path, change_id: &str) -> Result<CommandOutput, ZdevError> {
@@ -2942,10 +2967,10 @@ fn lookup_change(root: &Path, change_id: &str) -> Result<CommandOutput, ZdevErro
         matches
             .iter()
             .map(|value| {
-                let repository = if value["repository"] == "shadow" {
-                    "  (shadow record)"
-                } else {
-                    ""
+                let repository = match value["source_commit"].as_str() {
+                    Some(source) => format!("  (shadow record for {source})"),
+                    None if value["repository"] == "shadow" => "  (shadow record)".to_owned(),
+                    None => String::new(),
                 };
                 format!(
                     "{}  {}{repository}",

@@ -1396,6 +1396,11 @@ pub(super) fn apply_derived(
         root,
         &["ls-files", "--others", "--exclude-standard", "-z"],
     )?);
+    // An untracked personal record is not repository work; this command
+    // writes it and leaves it uncommitted.
+    if read_config(root)?.project.record == super::project::RecordPolicy::Personal {
+        unstaged.retain(|path| !path.starts_with(".zdev/"));
+    }
     if proposal.proposal == DerivedProposalKind::InvestigationFollowUp {
         for path in &prior_staged {
             validate_derived_path(root, path, true).map_err(|error| {
@@ -1604,7 +1609,7 @@ pub(super) fn apply_derived(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut created = Vec::new();
-    let apply = (|| -> Result<(super::shadow::RecordCommit, Vec<PathBuf>), ZdevError> {
+    let apply = (|| -> Result<super::shadow::RecordCommit, ZdevError> {
         write_atomic(&source_task.path, source_content.as_bytes())?;
         for (path, content) in &writes {
             let mut file = OpenOptions::new()
@@ -1647,11 +1652,10 @@ pub(super) fn apply_derived(
         paths.extend(created.iter().cloned());
         paths.push(index_path.clone());
         paths.extend(dependent_index_paths.iter().cloned());
-        let committed = commit_task_import(root, area, &paths)?;
-        Ok((committed, paths))
+        commit_task_import(root, area, &paths)
     })();
 
-    let (committed, paths) = match apply {
+    let committed = match apply {
         Ok(result) => result,
         Err(error) => {
             let mut rollback_errors = Vec::new();
@@ -1716,9 +1720,16 @@ pub(super) fn apply_derived(
         .iter()
         .map(|task| allocated[task.key.as_str()].clone())
         .collect::<Vec<_>>();
+    // A personal record keeps its task files uncommitted, so applying a
+    // proposal there commits only staged repository files, or nothing.
+    let status = if committed.revision.is_some() {
+        "committed"
+    } else {
+        "applied"
+    };
     let mut value = json!({
         "schema_version": SCHEMA_VERSION,
-        "status": "committed",
+        "status": status,
         "area": area,
         "source_task": proposal.source_task,
         "proposal": proposal.proposal.as_str(),
@@ -1727,7 +1738,7 @@ pub(super) fn apply_derived(
         "ready": ready,
         "commit": committed.revision,
         "change_id": committed.change_id,
-        "paths": relative_paths(root, &paths)?,
+        "paths": relative_paths(root, &committed.paths)?,
         "dependent_indexes": relative_paths(root, &dependent_index_paths)?,
     });
     let mut text = String::new();
@@ -1744,10 +1755,13 @@ pub(super) fn apply_derived(
             .expect("JSON object")
             .insert("split_ownership".to_owned(), json!(ownership));
     }
-    let mut output = CommandOutput::new(
-        format!("Applied derived tasks to {area} ({revision}).{text}"),
-        value,
-    );
+    let summary = match &revision {
+        Some(revision) => format!("Applied derived tasks to {area} ({revision})."),
+        None => {
+            format!("Applied derived tasks to {area}. The personal record keeps them uncommitted.")
+        }
+    };
+    let mut output = CommandOutput::new(format!("{summary}{text}"), value);
     output.exit_code = exit_code;
     Ok(output)
 }
@@ -1991,7 +2005,10 @@ pub(super) fn import(
         );
         return match commit_task_import(root, area, &paths) {
             Ok(committed) => {
-                let revision = &committed.revision;
+                let revision = committed
+                    .revision
+                    .as_deref()
+                    .ok_or_else(|| ZdevError::new("The task import made no commit"))?;
                 let mut value = json!({"schema_version": SCHEMA_VERSION, "status": "committed", "area": area, "tasks": ids, "ready": ready, "commit": revision, "change_id": committed.change_id, "paths": relative_paths(root, &paths)?});
                 let mut text = format!(
                     "Added and committed {} tasks to {area} ({revision})",

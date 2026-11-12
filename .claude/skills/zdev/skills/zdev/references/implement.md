@@ -205,7 +205,9 @@ against the baseline and verified evidence. The index must contain only the
 intended task changes. Stop if pre-existing staged content, unexplained changes,
 or ambiguous ownership would enter the commit. Do not rearrange the user's
 index automatically. Sharing trunk with other explicit areas does not broaden
-the selected task's ownership. `zdev commit` adds the stable change ID. Return control
+the selected task's ownership. With project and pull-request records, `zdev
+commit` adds the stable change ID; personal and shadow records keep it out of
+the main commit. Return control
 with the verified commit and stop without querying the next task. If the user
 explicitly asks to continue, or an authorized goal or loop is active, begin a
 new iteration with a fresh `zdev work-context <area> --format json` before

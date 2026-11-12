@@ -931,6 +931,7 @@ fn push_branch(shadow: &Path, branch: &str) -> PushOutcome {
 pub(super) struct ShadowCommit {
     pub commit: String,
     pub branch: String,
+    pub change_id: String,
     pub push: PushOutcome,
     /// A problem that left the commit incomplete, such as missing source
     /// trailers. The command reports it and exits with status 1.
@@ -943,6 +944,7 @@ impl ShadowCommit {
             "status": "committed",
             "commit": self.commit,
             "branch": self.branch,
+            "change_id": self.change_id,
             "push": self.push.value(),
         });
         if let Some(warning) = &self.warning {
@@ -1059,6 +1061,7 @@ pub(super) fn commit_all(
     Ok(Some(ShadowCommit {
         commit,
         branch,
+        change_id: change_id.to_owned(),
         push,
         warning: None,
     }))
@@ -1066,9 +1069,13 @@ pub(super) fn commit_all(
 
 /// The outcome of committing an explicit set of record paths.
 pub(super) struct RecordCommit {
-    /// The main commit when one was made, otherwise the shadow commit.
-    pub revision: String,
-    pub change_id: String,
+    /// The main commit when one was made, otherwise the shadow commit. `None`
+    /// when a personal record left every path uncommitted.
+    pub revision: Option<String>,
+    /// The change ID in `revision`'s message, if it has one.
+    pub change_id: Option<String>,
+    /// The paths committed, in either repository, in their given order.
+    pub paths: Vec<PathBuf>,
     pub shadow: Option<ShadowCommit>,
 }
 
@@ -1126,11 +1133,13 @@ fn relative_to(directory: &Path, paths: &[&PathBuf]) -> Result<Vec<String>, Zdev
         .collect()
 }
 
+/// Stages and commits exactly `relative`. `trailers`, when given, becomes the
+/// final message paragraph.
 fn commit_only(
     repo: Repo,
     directory: &Path,
     subject: &str,
-    trailers: &str,
+    trailers: Option<&str>,
     relative: &[String],
     what: &str,
 ) -> Result<(), ZdevError> {
@@ -1143,9 +1152,11 @@ fn commit_only(
             stderr(&output)
         )));
     }
-    let mut commit = vec![
-        "commit", "-q", "--only", "-m", subject, "-m", trailers, "--",
-    ];
+    let mut commit = vec!["commit", "-q", "--only", "-m", subject];
+    if let Some(trailers) = trailers {
+        commit.extend(["-m", trailers]);
+    }
+    commit.push("--");
     commit.extend(relative.iter().map(String::as_str));
     let output = repo.git(directory, &commit)?;
     if !output.status.success() {
@@ -1196,9 +1207,12 @@ pub(super) fn shadow_rollback_failure(error: &ZdevError) -> Option<&str> {
 }
 
 /// Commits exactly `paths`, which are files under `root`. For a shadow record,
-/// paths inside `.zdev` go to the shadow repository and any other paths to the
-/// main repository, under one change ID; the shadow commit then names the main
-/// commit. A failed shadow-side commit leaves both indexes as they were.
+/// paths inside `.zdev` go to the shadow repository with a change ID and any
+/// other paths to the main repository without one; the shadow commit then
+/// names the main commit. A failed shadow-side commit leaves both indexes as
+/// they were. A personal record's paths stay uncommitted, and only the other
+/// paths are committed. Main commits carry a change ID only under a record
+/// policy that [marks main commits](RecordPolicy::marks_main_commits).
 pub(super) fn commit_record_paths(
     root: &Path,
     subject: &str,
@@ -1207,13 +1221,49 @@ pub(super) fn commit_record_paths(
     let config = project::read_config(root)?;
     let change_id = generate_change_id()?;
     let plain = trailers(&change_id, None);
+    if config.project.record == RecordPolicy::Personal {
+        let main = paths
+            .iter()
+            .filter(|path| !path.starts_with(dir(root)))
+            .collect::<Vec<_>>();
+        if main.is_empty() {
+            return Ok(RecordCommit {
+                revision: None,
+                change_id: None,
+                paths: Vec::new(),
+                shadow: None,
+            });
+        }
+        commit_only(
+            Repo::Main,
+            root,
+            subject,
+            None,
+            &relative_to(root, &main)?,
+            "files",
+        )?;
+        return Ok(RecordCommit {
+            revision: Some(git_output(root, &["rev-parse", "HEAD"])?),
+            change_id: None,
+            paths: main.into_iter().cloned().collect(),
+            shadow: None,
+        });
+    }
     if config.project.record != RecordPolicy::Shadow {
         let all = paths.iter().collect::<Vec<_>>();
         let relative = relative_to(root, &all)?;
-        commit_only(Repo::Main, root, subject, &plain, &relative, "task files")?;
+        commit_only(
+            Repo::Main,
+            root,
+            subject,
+            Some(&plain),
+            &relative,
+            "task files",
+        )?;
         return Ok(RecordCommit {
-            revision: git_output(root, &["rev-parse", "HEAD"])?,
-            change_id,
+            revision: Some(git_output(root, &["rev-parse", "HEAD"])?),
+            change_id: Some(change_id),
+            paths: paths.to_vec(),
             shadow: None,
         });
     }
@@ -1237,7 +1287,7 @@ pub(super) fn commit_record_paths(
             Repo::Shadow,
             &shadow,
             subject,
-            &plain,
+            Some(&plain),
             &record_relative,
             "task files",
         )
@@ -1255,8 +1305,7 @@ pub(super) fn commit_record_paths(
     let mut revision = shadow_commit.clone();
     let mut warning = None;
     if !main_relative.is_empty() {
-        if let Err(error) = commit_only(Repo::Main, root, subject, &plain, &main_relative, "files")
-        {
+        if let Err(error) = commit_only(Repo::Main, root, subject, None, &main_relative, "files") {
             return Err(match &shadow_commit {
                 None => error,
                 Some(commit) => match undo_record_commit(&shadow, &record_relative) {
@@ -1284,14 +1333,16 @@ pub(super) fn commit_record_paths(
         Some(_) => Some(ShadowCommit {
             commit: head(&shadow)?,
             branch: branch.clone(),
+            change_id: change_id.clone(),
             push: push_after_commit(root, &shadow, &branch),
             warning,
         }),
         None => None,
     };
     Ok(RecordCommit {
-        revision: revision.ok_or_else(|| ZdevError::new("No paths to commit"))?,
-        change_id,
+        change_id: main_relative.is_empty().then_some(change_id),
+        revision: Some(revision.ok_or_else(|| ZdevError::new("No paths to commit"))?),
+        paths: paths.to_vec(),
         shadow,
     })
 }
@@ -1750,26 +1801,79 @@ pub(super) fn status_command(root: &Path) -> Result<CommandOutput, ZdevError> {
 
 /// Shadow commits carrying `change_id`, for `zdev change lookup`.
 pub(super) fn lookup_change(root: &Path, change_id: &str) -> Vec<Value> {
+    shadow_commits(root)
+        .into_iter()
+        .filter(|commit| commit.change_id.as_deref() == Some(change_id))
+        .map(ShadowLogEntry::value)
+        .collect()
+}
+
+/// The shadow commits that name `main_commit` in a `Zdev-Source-Commit`
+/// trailer. Main commits carry no change ID under a shadow record, so this is
+/// how `change inspect` finds a main commit's record change.
+pub(super) fn commits_for_source(root: &Path, main_commit: &str) -> Vec<Value> {
+    shadow_commits(root)
+        .into_iter()
+        .filter(|commit| commit.source_commit.as_deref() == Some(main_commit))
+        .map(ShadowLogEntry::value)
+        .collect()
+}
+
+/// One reachable shadow commit and its zdev trailers.
+struct ShadowLogEntry {
+    commit: String,
+    subject: String,
+    change_id: Option<String>,
+    source_commit: Option<String>,
+}
+
+impl ShadowLogEntry {
+    fn value(self) -> Value {
+        json!({
+            "commit": self.commit,
+            "subject": self.subject,
+            "repository": "shadow",
+            "change_id": self.change_id,
+            "source_commit": self.source_commit,
+        })
+    }
+}
+
+/// Every commit reachable in the shadow repository, or none when the record
+/// is not a shadow record or its history cannot be read.
+fn shadow_commits(root: &Path) -> Vec<ShadowLogEntry> {
     if !is_shadow(root) || !has_repository(root) {
         return Vec::new();
     }
-    let format = format!("--format=%H%x00%s%x00%(trailers:key={CHANGE_ID_TRAILER},valueonly)");
+    let format = format!(
+        "--format=%H%x00%s%x00%(trailers:key={CHANGE_ID_TRAILER},valueonly)%x00%(trailers:key={SOURCE_COMMIT_TRAILER},valueonly)"
+    );
     let Ok(log) = shadow_output(&dir(root), &["log", "--all", "-z", &format]) else {
         return Vec::new();
     };
-    let mut matches = Vec::new();
+    let first_value = |field: &str| {
+        field
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(str::to_owned)
+    };
+    let mut commits = Vec::new();
     let mut fields = log.split('\0').map(|field| field.trim_matches('\n'));
-    while let (Some(commit), Some(subject), Some(trailers)) =
-        (fields.next(), fields.next(), fields.next())
+    while let (Some(commit), Some(subject), Some(change_id), Some(source_commit)) =
+        (fields.next(), fields.next(), fields.next(), fields.next())
     {
         if commit.is_empty() {
             break;
         }
-        if trailers.lines().any(|line| line.trim() == change_id) {
-            matches.push(json!({"commit": commit, "subject": subject, "repository": "shadow"}));
-        }
+        commits.push(ShadowLogEntry {
+            commit: commit.to_owned(),
+            subject: subject.to_owned(),
+            change_id: first_value(change_id),
+            source_commit: first_value(source_commit),
+        });
     }
-    matches
+    commits
 }
 
 #[cfg(test)]
@@ -1878,9 +1982,13 @@ mod tests {
                 .is_some_and(|warning| warning.contains("--trailer"))
         );
         assert_eq!(record.value()["status"], "committed");
-        assert_eq!(run(root, &["rev-parse", "HEAD"]), committed.revision);
+        assert_eq!(Some(run(root, &["rev-parse", "HEAD"])), committed.revision);
         let message = run(&shadow, &["log", "-1", "--format=%B"]);
-        assert!(message.contains(&committed.change_id));
+        assert_eq!(
+            committed.change_id, None,
+            "the main commit has no change ID"
+        );
+        assert!(message.contains(&record.change_id));
         assert!(!message.contains("Zdev-Source-Commit"));
     }
 }

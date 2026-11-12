@@ -213,6 +213,9 @@ docs need a `shadow` row wherever `personal | project | pull-request` appear.
 - `shadow commit` and `shadow push` run despite a failed alignment, acting on
   the current shadow branch, so they can clear a blocked switch.
 - Shadow Git commands drop `GIT_INDEX_FILE`; main-repository commands keep it.
+- Main-repository commits get no `Zdev-Change-Id` under shadow (or personal)
+  records; only the shadow commit carries one, and it names the main commit in
+  `Zdev-Source-Commit`. `change inspect` follows that link from the main side.
 - Alignment recreates the empty `tasks` directory of areas without tasks,
   since Git does not track empty directories. Project records cloned fresh
   have the same gap, which is not addressed here.

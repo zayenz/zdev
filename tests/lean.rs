@@ -11420,11 +11420,10 @@ fn personal_task_completes_from_an_explicit_assigned_worktree() {
     assert!(git(destination, &["ls-files", ".zdev"]).is_empty());
     let completion = json_output(destination, &["commit", "-m", "complete chosen task"]);
     assert_eq!(completion["status"], "committed");
-    assert_eq!(
-        git(destination, &["log", "--format=%B"])
-            .matches("Zdev-Change-Id:")
-            .count(),
-        1
+    assert_eq!(completion["change_id"], Value::Null);
+    assert!(
+        !git(destination, &["log", "--format=%B"]).contains("Zdev-Change-Id:"),
+        "personal record commits carry no change ID"
     );
     let index = fs::read_to_string(destination.join(".zdev/assigned/TASKS.md"))
         .expect("authoritative personal task index");
@@ -21289,7 +21288,7 @@ fn shadow_init_keeps_the_record_out_of_the_main_repository() {
 }
 
 #[test]
-fn shadow_commits_link_to_main_commits_by_change_id() {
+fn shadow_commits_name_main_commits_that_carry_no_change_id() {
     let repository = shadow_repository();
     let root = repository.path();
     json_output(root, &["init", "--record", "shadow"]);
@@ -21298,8 +21297,12 @@ fn shadow_commits_link_to_main_commits_by_change_id() {
     fs::write(root.join("file.txt"), "one\n").expect("source file");
     git(root, &["add", "file.txt"]);
     let committed = json_output(root, &["commit", "-m", "feat: add one"]);
-    let change_id = committed["change_id"].as_str().expect("change ID");
+    assert_eq!(committed["change_id"], Value::Null);
+    let change_id = committed["shadow"]["change_id"]
+        .as_str()
+        .expect("shadow change ID");
     let main_commit = committed["commit"].as_str().expect("main commit");
+    assert_eq!(git(root, &["log", "-1", "--format=%B"]), "feat: add one");
     assert_eq!(committed["shadow"]["status"], "committed");
     assert_eq!(committed["shadow"]["branch"], "main");
     assert_eq!(committed["shadow"]["push"]["status"], "disabled");
@@ -21328,9 +21331,13 @@ fn shadow_commits_link_to_main_commits_by_change_id() {
     );
     assert_eq!(git(&shadow(root), &["status", "--porcelain"]), "");
 
+    let inspected = json_output(root, &["change", "inspect", "HEAD"]);
+    assert_eq!(inspected["change_id"], Value::Null);
+    assert_eq!(inspected["shadow_commits"][0]["change_id"], change_id);
     let found = json_output(root, &["change", "lookup", change_id]);
     let commits = found["commits"].as_array().expect("commits");
-    assert_eq!(commits.len(), 2);
+    assert_eq!(commits.len(), 1);
+    assert_eq!(commits[0]["source_commit"], main_commit);
     assert!(
         commits
             .iter()
@@ -21705,4 +21712,120 @@ fn shadow_commands_ignore_an_alternate_main_index() {
     assert_eq!(status["uncommitted_changes"], 1);
     json_output_with_env(root, &["shadow", "commit", "-m", "Notes"], &environment);
     assert_eq!(git(&shadow(root), &["status", "--porcelain"]), "");
+}
+
+#[test]
+fn personal_record_commits_carry_no_change_id() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "personal"]);
+    fs::write(root.join("file.txt"), "one\n").expect("source file");
+    git(root, &["add", "file.txt"]);
+
+    let committed = json_output(
+        root,
+        &[
+            "commit",
+            "-m",
+            "feat: add one",
+            "--body",
+            "Explain the change.",
+        ],
+    );
+
+    assert_eq!(committed["change_id"], Value::Null);
+    assert_eq!(
+        git(root, &["log", "-1", "--format=%B"]),
+        "feat: add one\n\nExplain the change."
+    );
+    let text = run_zdev(root, &["change", "inspect", "HEAD"]);
+    assert!(String::from_utf8_lossy(&text.stdout).contains("has no stable change ID"));
+    fs::write(root.join("file.txt"), "two\n").expect("source file");
+    git(root, &["add", "file.txt"]);
+    let output = run_zdev(root, &["commit", "-m", "feat: add two"]);
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).ends_with(": feat: add two\n"));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(" (Z"));
+}
+
+#[test]
+fn personal_derived_apply_never_commits_the_record() {
+    let repository = repository();
+    let root = repository.path();
+    commit_file(root, "finding.md", "draft\n", "seed finding");
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "follow", "main");
+    let source = json!({
+        "schema_version": 1, "area": "follow", "tasks": [
+            {
+                "key": "investigate", "title": "Investigate the boundary",
+                "outcome": "The boundary is known.", "done_when": ["The boundary is recorded."],
+                "validation": ["Check the finding."], "blocked_by": []
+            },
+            {
+                "key": "survey", "title": "Survey the callers",
+                "outcome": "The callers are known.", "done_when": ["The callers are listed."],
+                "validation": ["Check the list."], "blocked_by": []
+            }
+        ]
+    });
+    json_output_with_stdin(
+        root,
+        &["tasks", "import", "follow", "--from", "-"],
+        &serde_json::to_vec(&source).unwrap(),
+    );
+    let follow_up = |source_task: &str, key: &str| {
+        json!({
+            "schema_version": 1, "proposal": "investigation_follow_up", "area": "follow",
+            "source_task": source_task,
+            "source_result": {"status": "complete", "summary": "Settled it.", "validation": ["Checked it."]},
+            "tasks": [{
+                "key": key, "title": format!("Implement {key}"), "blocked_by": [],
+                "outcome": "The change is implemented.", "done_when": ["The change is complete."],
+                "validation": ["Run the focused check."]
+            }]
+        })
+    };
+
+    fs::write(root.join("finding.md"), "settled\n").expect("settled finding");
+    git(root, &["add", "finding.md"]);
+    let applied = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "apply", "follow", "--from", "-"],
+        &derived_proposal_bytes("follow", "follow-001", follow_up("follow-001", "boundary")),
+    );
+    assert_eq!(applied["status"], "committed");
+    assert_eq!(applied["change_id"], Value::Null);
+    assert_eq!(applied["paths"], json!(["finding.md"]));
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), applied["commit"]);
+    assert_eq!(
+        git(root, &["log", "-1", "--format=%B"]),
+        "Add tasks to follow"
+    );
+    assert_eq!(
+        git(root, &["show", "--name-only", "--format=", "HEAD"]),
+        "finding.md"
+    );
+    assert!(git(root, &["ls-files", ".zdev"]).is_empty());
+    assert!(
+        root.join(".zdev/follow/tasks/003-implement-boundary.md")
+            .is_file()
+    );
+
+    let head = git(root, &["rev-parse", "HEAD"]);
+    let applied = json_output_with_stdin(
+        root,
+        &["tasks", "derive", "apply", "follow", "--from", "-"],
+        &derived_proposal_bytes("follow", "follow-002", follow_up("follow-002", "callers")),
+    );
+    assert_eq!(applied["status"], "applied");
+    assert_eq!(applied["commit"], Value::Null);
+    assert_eq!(applied["paths"], json!([]));
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), head);
+    assert!(git(root, &["ls-files", ".zdev"]).is_empty());
+    assert!(
+        fs::read_to_string(root.join(".zdev/follow/tasks/002-survey-the-callers.md"))
+            .unwrap()
+            .contains("status = \"done\"")
+    );
 }

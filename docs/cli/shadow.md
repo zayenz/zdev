@@ -37,16 +37,18 @@ zdev reports each switch or integration on standard error, prefixed with
 When zdev runs Git itself, it changes the shadow repository in the same
 command:
 
-- `zdev commit` commits the main index, then the shadow record. The shadow
-  commit gets the same `Zdev-Change-Id` plus `Zdev-Source-Commit` and
-  `Zdev-Source-Branch` trailers that name the main commit. When the shadow
+- `zdev commit` commits the main index, then the shadow record. The main
+  commit gets no `Zdev-Change-Id`, so zdev leaves no trace in the main
+  history. The shadow commit gets a `Zdev-Change-Id` plus `Zdev-Source-Commit`
+  and `Zdev-Source-Branch` trailers that name the main commit. When the shadow
   index has staged changes, only those are committed; otherwise every record
   change is. With nothing staged in the main repository, `zdev commit` commits
   only the shadow record. If the main commit succeeds but the shadow commit
   fails, the command reports the problem and exits with status 1.
 - `zdev tasks import --commit` and `zdev tasks derive apply` commit the task
   files in the shadow repository. When derived work also commits files in the
-  main repository, both commits share one change ID. zdev makes the shadow
+  main repository, that main commit gets no change ID either, and the shadow
+  commit names it in its source trailers. zdev makes the shadow
   commit first and removes it again if the main commit fails, leaving other
   staged record changes alone. If the shadow commit cannot get its source
   trailers afterwards, both commits stand, and the command prints how to add
@@ -121,6 +123,10 @@ branch has records that are not merged and no main branch with its name. zdev
 never deletes shadow branches. `zdev status` and `zdev check` include the same
 report. `check` fails when the shadow repository is missing or the main
 repository tracks `.zdev` files.
+
+`zdev change inspect` on a main commit lists the shadow commits that name it.
+`zdev change lookup` finds shadow commits by change ID and shows the main
+commit each one names.
 
 `commit` commits record changes without a main commit, under a new change ID.
 

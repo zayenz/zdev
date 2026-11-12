@@ -513,7 +513,9 @@ For a `personal` record, leave `.zdev` excluded. Then commit the staged changes:
 zdev commit -m "feat: add scheduling model"
 ```
 
-`zdev commit` adds a stable `Zdev-Change-Id` trailer. Repeat `zdev next` until
+With a project or pull-request record, `zdev commit` adds a stable
+`Zdev-Change-Id` trailer; personal and shadow records add none to the main
+commit. Repeat `zdev next` until
 the open queue is exhausted. Queue exhaustion does not close the objective;
 close it explicitly after reviewing the result:
 

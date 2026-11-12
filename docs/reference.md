@@ -29,7 +29,7 @@ belong to the installed harness workflow.
 | `zdev check` | Check the planning record for inconsistencies. |
 | `zdev work-context` | Collect the current task, branch, and working-tree context. |
 | `zdev area rebase` | Start or recover a managed area rebase. |
-| `zdev commit` | Commit staged changes with a stable change ID. |
+| `zdev commit` | Commit staged changes, with a stable change ID for project and pull-request records. |
 | `zdev change` | Inspect or find a logical change by its stable ID. |
 | `zdev research` | Manage local research runs and experiments. |
 | `zdev cleanup squash` | Remove a pull-request planning record before squash merge. |

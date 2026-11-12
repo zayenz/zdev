@@ -366,8 +366,10 @@ stale-but-safe relationship with one advisory, and refuses unsafe branch,
 anchor, ancestry, history, or Git-operation state.
 
 After a pass, run `zdev task done`; it updates the task file and regenerates
-`TASKS.md`. Stage the intended source and area files, then run `zdev commit`. The
-commit command adds a stable `Zdev-Change-Id` trailer.
+`TASKS.md`. Stage the intended source and area files, then run `zdev commit`. With
+project and pull-request records, the commit command adds a stable
+`Zdev-Change-Id` trailer; personal and shadow records leave the commit message
+unchanged.
 
 Task completion records a short result and validation summary. It does not
 copy the prompt, response, diff, commit hash, or agent tree into another store.

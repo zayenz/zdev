@@ -173,8 +173,10 @@ A shadow record keeps `.zdev` out of this repository: `.zdev` is its own Git
 repository and never enters this repository's index. Stage record paths there,
 relative to `.zdev`, for example `git -C .zdev add <area>/TASKS.md`, and inspect
 `git -C .zdev diff --cached` beside the main cached diff. `zdev commit` commits
-the main index, then the shadow index with the same change ID and a link to the
-main commit; when nothing is staged in `.zdev`, it commits every record change.
+the main index without a change ID, then the shadow index with a change ID and a
+link to the main commit; when nothing is staged in `.zdev`, it commits every
+record change. With personal and shadow records, main-repository commits carry
+no `Zdev-Change-Id`.
 zdev makes the shadow repository follow this repository's branch and reports
 what it changed on standard error with a `zdev:` prefix; relay those notices.
 Do not switch, merge, or rebase branches inside `.zdev` yourself, except to

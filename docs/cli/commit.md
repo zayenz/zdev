@@ -1,8 +1,14 @@
 # zdev commit
 
-Commit the changes already staged in Git and add a stable `Zdev-Change-Id`
-trailer. The ID lets you find the same logical change after a rebase changes
-its Git commit hash.
+Commit the changes already staged in Git. With a project or pull-request
+record, or before `zdev init`, zdev adds a stable `Zdev-Change-Id` trailer. The
+ID lets you find the same logical change after a rebase changes its Git commit
+hash.
+
+With a personal or shadow record, the commit gets no trailer, so zdev leaves
+no trace in the repository's history. A shadow record's own commit carries the
+change ID instead and names the main commit in a `Zdev-Source-Commit` trailer;
+see [shadow](shadow.md).
 
 ## Examples
 

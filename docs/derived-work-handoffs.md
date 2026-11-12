@@ -295,6 +295,14 @@ the same field set and order but requires `split_ownership` immediately after
 source task, new child task files, and `TASKS.md`; retained and future source
 paths are not committed by the split.
 
+A personal record's task files are never committed. Apply writes them, leaves
+them uncommitted, and commits only the staged investigation artifacts, without
+a stable change ID. `paths` then lists only those artifacts. When nothing is
+staged, apply makes no commit: `status` is `applied`, and `commit` and
+`change_id` are `null`. A shadow record commits the task files in its own
+repository and the artifacts in the main repository; see
+[shadow](cli/shadow.md).
+
 After success, the coordinator shows that JSON unchanged. The user can inspect
 both the proposed work and the result without another confirmation turn.
 

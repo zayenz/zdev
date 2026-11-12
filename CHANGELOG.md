@@ -12,8 +12,8 @@ This file records notable changes to zdev.
   personal record with `zdev shadow adopt`. In a fresh clone, the same `init`
   command clones the shadow record from its remote. The shadow repository's
   branch follows the main repository's branch. `zdev commit` also commits the
-  shadow record, with the same change ID plus `Zdev-Source-Commit` and
-  `Zdev-Source-Branch` trailers. Committed task imports, derived-task
+  shadow record, with a change ID plus `Zdev-Source-Commit` and
+  `Zdev-Source-Branch` trailers that name the main commit. Committed task imports, derived-task
   application, and `zdev area rebase` act on the shadow repository too. When a
   merged shadow branch fast-forwards cleanly, zdev integrates it; otherwise
   `zdev status` lists it as awaiting integration. `zdev shadow status`,
@@ -24,6 +24,14 @@ This file records notable changes to zdev.
 
 ### Changed
 
+- With a personal or shadow record, `zdev commit` no longer adds a
+  `Zdev-Change-Id` trailer to the main commit, and its `change_id` output is
+  `null`, so zdev leaves no trace in the main history. Under a shadow record,
+  derived-task application's main commit also gets no trailer, and
+  `zdev change inspect` lists the shadow commits that name an inspected main
+  commit. Project and pull-request records, and repositories without
+  `zdev init`, keep the trailer. Refresh installed integrations with
+  `zdev skill install <harness> --force`.
 - A goal or loop that stops on a confirmed blocker or required decision now
   pauses its goal instead of completing it, where the agent can pause it. The
   `zdev goal` condition asks for the pause, and Codex, including Codex in T3
@@ -35,6 +43,13 @@ This file records notable changes to zdev.
   full goal condition. Goals set before upgrading keep the old wording and
   still complete on a blocker; set them again from `zdev goal`. Refresh
   installed integrations with `zdev skill install <harness> --force`.
+
+### Fixed
+
+- `zdev tasks derive apply` with a personal record no longer force-adds the
+  record's task files to a repository commit. It commits only the staged
+  investigation artifacts, or makes no commit and reports `status: "applied"`,
+  and its untracked-path check ignores the untracked record.
 
 ## [2.2.0] - 2026-11-04
 

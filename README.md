@@ -167,7 +167,8 @@ zdev commit -m "feat: add scheduling model"
 
 `zdev task done` records the supplied result and validation summary. It does
 not implement or review the code. `zdev commit` commits the existing Git index
-and adds a stable `Zdev-Change-Id` trailer.
+and, with project and pull-request records, adds a stable `Zdev-Change-Id`
+trailer. Personal and shadow records keep zdev out of the main history.
 
 A managed task-import commit, including a modified area brief when present,
 does not interrupt the selected task. Zdev considers the additions the next

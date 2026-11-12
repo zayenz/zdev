@@ -35,6 +35,13 @@ impl RecordPolicy {
             Self::Shadow => "shadow",
         }
     }
+
+    /// Whether zdev adds a `Zdev-Change-Id` trailer to commits in the main
+    /// repository. Personal and shadow records keep zdev out of the main
+    /// history entirely; a shadow record's own commits still carry one.
+    pub(super) fn marks_main_commits(self) -> bool {
+        matches!(self, Self::Project | Self::PullRequest)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

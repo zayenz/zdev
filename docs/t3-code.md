@@ -126,6 +126,15 @@ is reported as pending and preserved. A goal shown as complete says that the
 run ended; the canonical zdev result still distinguishes `PASS` from `BLOCKER`. It never
 substitutes for an independent verifier or snapshot comparison.
 
+A confirmed blocker or required decision pauses a Codex goal, because the
+area condition asks for that, and T3 shows the goal as paused. Resolve the
+blocker, then send `/goal resume` to continue the run. Claude goals cannot be
+paused, so the blocker report finishes the goal and Claude clears it. T3 cannot
+set a goal for you, so every `BLOCKER` under a goal, and a `CONTINUE` that
+reports a lost continuation, ends with `Resume goal:` and a command to paste
+into the composer: `/goal resume` for a paused Codex goal, and the full
+`/goal <condition>` otherwise.
+
 T3's Stop also stops delegated descendants. Codex Stop pauses its goal; Claude
 Stop ends the turn but keeps the goal set and may check it after your next
 message. The zdev route retains the stop and requires an explicit request to

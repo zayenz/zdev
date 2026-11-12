@@ -116,22 +116,22 @@ most one verified committed task and returns canonical
 
 On the native route, **Goal across areas** inspects with `get_goal` and sets
 the condition with `create_goal`. When `create_goal` is absent or disabled,
-show `/goal <condition>` in the fenced block for the user to enter. At the
-run's terminal stop, call `update_goal` with `status: "complete"` for the
-matching active goal.
+show `/goal <condition>` in the fenced block for the user to enter. Settle the
+matching active goal at the run's stop as below.
 
-For ordinary Area loop only, the native condition completes the run after
-reporting a confirmed blocker or required user-owned decision. On that first terminal
-`BLOCKER`, report its reason and preserved state, then call `update_goal` with
-`status: "complete"` for the matching active goal in the same turn and return
-the canonical `BLOCKER` result. This completes
-the run's stop-and-report objective; unfinished tasks and the area retain their
-exact state. Do not use `status: "blocked"` for this completed run, wait for
-three goal turns, or repeat workers to confirm the same impasse. Complete the
-matching active goal on terminal `PASS` as well. Preserve every other native
-goal and follow its own objective and lifecycle rules. Research follows its
-research reference: a blocker or exhausted allowance never completes an
-unfinished research objective.
+The zdev area conditions ask for a pause on a blocker; that request comes from
+the user who set the goal. On the first terminal `BLOCKER` for a confirmed
+blocker or required user-owned decision, report its reason and preserved state,
+then call `update_goal` with `status: "paused"` for the matching active goal in
+the same turn, end with `Resume goal:` and `/goal resume` in a fenced `text`
+block, and return the canonical `BLOCKER` result. Unfinished tasks and the area
+retain their exact state. Do not use `status: "complete"` or `status:
+"blocked"` for this stop, wait for three goal turns, or repeat workers to
+confirm the same impasse. On terminal `PASS`, call `update_goal` with
+`status: "complete"`. Preserve every other native goal and follow its own
+objective and lifecycle rules. Research follows its research reference: a
+blocker or exhausted allowance never completes an unfinished research
+objective.
 
 {{repository_guidance}}
 

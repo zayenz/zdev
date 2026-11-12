@@ -298,10 +298,23 @@ Use canonical `PASS zdev-loop <area>`, `CONTINUE zdev-loop <area>`, or
 the stale Advisory once when observed, Tasks completed, Commits, and Stop
 reason. CONTINUE adds Next task. BLOCKER adds Current task, Failed stage,
 Reason, and Preserved state. Count only successfully completed task/commit
-pairs; never treat exhaustion as explicit area closure. On terminal PASS or
-BLOCKER, settle the matching active goal with an exposed native completion tool
-when available; otherwise end the turn with the stop evidence for its native
-evaluator. Never complete an unrelated, paused, or budget-limited goal. T3's
+pairs; never treat exhaustion as explicit area closure.
+
+On terminal PASS, settle the matching active goal with an exposed native
+completion tool when available; otherwise end the turn with the stop evidence
+for its native evaluator. On terminal BLOCKER, the area condition asks for a
+pause, which comes from the user who set the goal. Under a Codex goal, call the
+exposed `update_goal` with `status: "paused"` in the same turn; T3 then shows
+the goal paused, and `/goal resume` continues the run. A Claude goal cannot be
+paused, so the report itself finishes it and its evaluator clears it.
+
+T3 cannot set a goal on the user's behalf. A BLOCKER under a matching goal, or
+a CONTINUE naming a lost continuation, therefore ends with Resume goal: a
+ready-to-send command in one fenced `text` block. For a paused Codex goal, it
+is `/goal resume`. For a cleared Claude goal or a lost continuation, it is
+`/goal` with the goal's exact condition, "Use zdev with T3 orchestration."
+prefix included. Never pause or complete an unrelated, paused, or
+budget-limited goal. T3's
 goal badge alone is not verification or completion evidence for a zdev task.
 
 ## Stop and recover
@@ -323,8 +336,11 @@ native goal check, or late wake does not authorize resuming it: only an explicit
 request does. Explain that Claude's retained goal can be removed with T3's Clear
 control or `/goal clear`; do not issue that command on the user's behalf.
 Budget or usage limits and an unexpectedly paused, cleared, or completed goal
-also prevent new dispatch. Report the observed state and reconcile active
-children before a later explicitly authorized resume.
+also prevent new dispatch. Report the observed state with the Resume goal
+command and reconcile active children before a later explicitly authorized
+resume. The user's `/goal resume` of a zdev goal paused at a BLOCKER is that
+explicit request: reconcile, collect fresh work-context, and continue the run
+only when the blocker has cleared; otherwise report it again and pause.
 
 After a server restart or uncertain delivery, inspect retained handles and
 their child execution before a new dispatch. Read fresh zdev context and Git

@@ -129,14 +129,23 @@ Each slot can advance without waiting for its peers; destination integration,
 verification, and commits remain serial. Adapters limited to finite task lists
 finish that invocation before admitting the next list.
 
-A confirmed blocker ends the run in the same turn. Reporting its reason and
-preserved state fulfills the area condition's explicit stop rule, so Codex
-calls `update_goal` with `status: "complete"` and Oh My Pi calls
-`goal({ op: "complete" })` for that matching active goal. The public result
+A confirmed blocker stops the run in the same turn. The area condition asks
+the agent to report its reason and preserved state and then pause the goal, so
+Codex calls `update_goal` with `status: "paused"`. Because the request is in
+the user's goal, Codex treats it as a user-requested pause, and it avoids
+Codex's three-turn threshold for marking an unfinished goal `blocked`. After
+resolving the blocker, `/goal resume` continues the run. Oh My Pi has no pause
+operation its model can call, so it calls `goal({ op: "complete" })`. Claude
+Code goals cannot be paused, so the report finishes the goal. The public result
 remains `BLOCKER`; unfinished tasks and area lifecycle retain their exact state.
-This avoids Codex's three-turn threshold for marking an unfinished native goal
-`blocked`. A different, paused, or budget-limited goal is preserved. Actionable
-in-scope rework continues under the ordinary task contract.
+A different, paused, or budget-limited goal is preserved. Actionable in-scope
+rework continues under the ordinary task contract.
+
+The `BLOCKER` result ends with `Resume goal:` and a ready-to-send command in a
+code block: `/goal resume` for a paused goal, otherwise the goal's exact
+condition as `/goal <condition>` (Codex, Claude Code, T3 Code) or
+`/goal set <condition>` (Oh My Pi). A `CONTINUE` that reports a lost goal
+continuation includes the full condition too.
 
 | Fresh state or event | Result |
 | --- | --- |

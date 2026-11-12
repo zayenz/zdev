@@ -357,6 +357,18 @@ never claims a background loop. On a harness with native goals, an unfinished
 native goal wins: do not replace, clear, edit, or layer work over it. Native
 goal failure leaves both session goal and zdev state unchanged.
 
+A `BLOCKER` under an active zdev native goal pauses or ends that goal, as the
+harness-native section says, and a `CONTINUE` can report that its continuation
+was lost. Either result ends with `Resume goal:` and a ready-to-send command in
+one fenced `text` block, so the user can continue after resolving the cause. For
+a paused goal, the command is the harness's resume command, `/goal resume`
+unless its native section names another. For an ended or lost goal, it is the
+goal's exact condition in the form this harness's native section names, or
+`/goal <condition>` when it names none. Copy that condition, prefix included,
+from native inspection, the activation receipt, or the user's `/goal` entry.
+When none is visible, rebuild it with `zdev goal` and the run's areas and
+options. Omit the field when no zdev goal was active.
+
 ### Goal across areas
 
 A request to set a goal or loop over all areas, every area, or several named
@@ -579,22 +591,22 @@ most one verified committed task and returns canonical
 
 On the native route, **Goal across areas** inspects with `get_goal` and sets
 the condition with `create_goal`. When `create_goal` is absent or disabled,
-show `/goal <condition>` in the fenced block for the user to enter. At the
-run's terminal stop, call `update_goal` with `status: "complete"` for the
-matching active goal.
+show `/goal <condition>` in the fenced block for the user to enter. Settle the
+matching active goal at the run's stop as below.
 
-For ordinary Area loop only, the native condition completes the run after
-reporting a confirmed blocker or required user-owned decision. On that first terminal
-`BLOCKER`, report its reason and preserved state, then call `update_goal` with
-`status: "complete"` for the matching active goal in the same turn and return
-the canonical `BLOCKER` result. This completes
-the run's stop-and-report objective; unfinished tasks and the area retain their
-exact state. Do not use `status: "blocked"` for this completed run, wait for
-three goal turns, or repeat workers to confirm the same impasse. Complete the
-matching active goal on terminal `PASS` as well. Preserve every other native
-goal and follow its own objective and lifecycle rules. Research follows its
-research reference: a blocker or exhausted allowance never completes an
-unfinished research objective.
+The zdev area conditions ask for a pause on a blocker; that request comes from
+the user who set the goal. On the first terminal `BLOCKER` for a confirmed
+blocker or required user-owned decision, report its reason and preserved state,
+then call `update_goal` with `status: "paused"` for the matching active goal in
+the same turn, end with `Resume goal:` and `/goal resume` in a fenced `text`
+block, and return the canonical `BLOCKER` result. Unfinished tasks and the area
+retain their exact state. Do not use `status: "complete"` or `status:
+"blocked"` for this stop, wait for three goal turns, or repeat workers to
+confirm the same impasse. On terminal `PASS`, call `update_goal` with
+`status: "complete"`. Preserve every other native goal and follow its own
+objective and lifecycle rules. Research follows its research reference: a
+blocker or exhausted allowance never completes an unfinished research
+objective.
 
 <!-- zdev:generated-repository-guidance:start -->
 ## Repository guidance discovery

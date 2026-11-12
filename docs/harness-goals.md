@@ -8,9 +8,11 @@ task details leave the condition unchanged.
 Use the condition unchanged when creating a native goal. Keep selected task IDs,
 snapshots, worker settings, and progress in the conversation. The area records
 supply the current objective and boundaries; each worker reads its task record.
-The run ends at queue exhaustion, area closure, or a reported confirmed blocker
-or required user decision. Ending the run preserves unfinished tasks and does
-not close the area.
+The run ends at queue exhaustion or area closure. A reported confirmed blocker
+or required user decision pauses the goal where the agent can pause it (Codex,
+including Codex in T3 Code), so `/goal resume` continues the run once the
+cause is resolved; elsewhere the report ends the run. Ending or pausing the run
+preserves unfinished tasks and does not close the area.
 
 ### Command
 
@@ -155,7 +157,7 @@ Validation:
 - Run the focused payment integration test.
 
 Native goal:
-Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle.
+Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted. On a confirmed blocker or required user decision, report its reason and preserved state, then pause this goal as requested here so resuming it continues the run; where the agent cannot pause it, that report finishes the run. Settle owned workers before finishing; preserve unfinished work and area lifecycle.
 ```
 
 The native condition uses a fixed template in `src/goal.rs`. It contains no
@@ -201,7 +203,7 @@ task or slice details. Paths are repository-relative and use `/` separators.
       "boundaries": "- Do not change provider selection."
     }
   },
-  "native_goal": "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted, or after reporting a confirmed blocker or required user decision with its reason and preserved state. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
+  "native_goal": "Continue zdev area checkout. Read .zdev/checkout/area.toml and .zdev/checkout/brief.md for the current objective and boundaries. Run the installed one-task implementation contract, independently verifying and committing each task before selecting again. Retain the run's workspace and worker choices; with no workspace choice, follow workspace.branching (current checkout by default). Let fresh work-context select the next task. Refresh repository state after each commit. Continue while the area is open, work is ready and safe, and the work remains authorized. Ordinary dispatch stops before hypotheses. Finish when fresh context is closed or the queue is empty, blocked or exhausted. On a confirmed blocker or required user decision, report its reason and preserved state, then pause this goal as requested here so resuming it continues the run; where the agent cannot pause it, that report finishes the run. Settle owned workers before finishing; preserve unfinished work and area lifecycle."
 }
 ```
 
@@ -381,7 +383,8 @@ That area's work-context then selects the task. With `--focus`, the
 coordinator instead ranks the combined ready frontier of the covered areas. The
 run skips covered areas that are closed, empty, blocked, exhausted, or unsafe
 for the checkout, and reports why. It finishes when no covered area has ready,
-safe work, or after a confirmed blocker or required user decision.
+safe work. A confirmed blocker or required user decision pauses or ends it as
+for one area.
 
 The installed skills set this condition directly. Codex uses `get_goal` and
 `create_goal`, and Oh My Pi uses its `goal` tool; both preserve a different

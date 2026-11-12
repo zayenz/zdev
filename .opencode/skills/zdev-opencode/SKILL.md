@@ -315,6 +315,18 @@ never claims a background loop. On a harness with native goals, an unfinished
 native goal wins: do not replace, clear, edit, or layer work over it. Native
 goal failure leaves both session goal and zdev state unchanged.
 
+A `BLOCKER` under an active zdev native goal pauses or ends that goal, as the
+harness-native section says, and a `CONTINUE` can report that its continuation
+was lost. Either result ends with `Resume goal:` and a ready-to-send command in
+one fenced `text` block, so the user can continue after resolving the cause. For
+a paused goal, the command is the harness's resume command, `/goal resume`
+unless its native section names another. For an ended or lost goal, it is the
+goal's exact condition in the form this harness's native section names, or
+`/goal <condition>` when it names none. Copy that condition, prefix included,
+from native inspection, the activation receipt, or the user's `/goal` entry.
+When none is visible, rebuild it with `zdev goal` and the run's areas and
+options. Omit the field when no zdev goal was active.
+
 ### Goal across areas
 
 A request to set a goal or loop over all areas, every area, or several named

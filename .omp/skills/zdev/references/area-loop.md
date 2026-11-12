@@ -66,14 +66,15 @@ refresh them as work advances. Retain the same goal across task completions.
 After activation, follow the selection rule above and the applicable execution
 contract. Report each selected task and its verified commit.
 
-Reporting a terminal `BLOCKER` satisfies this run's explicit stop condition.
-End the matching active native goal through the adapter's completion operation
-in that same turn. Keep the public result `BLOCKER` and preserve the exact task,
-area, and Git state; ending the run does not complete unfinished tasks or close
-the area. Do not repeat workers or wait for more goal turns to reconfirm an
-established impasse. Partial progress and actionable in-scope rework still
-continue under the one-task contract. Never complete a different, paused, or
-budget-limited native goal.
+Reporting a terminal `BLOCKER` satisfies this run's explicit stop condition,
+which asks for a pause. In that same turn, pause the matching active native goal
+through the adapter's pause operation when it has one; otherwise end it through
+its completion operation. Keep the public result `BLOCKER` and preserve the
+exact task, area, and Git state; neither pausing nor ending the run completes
+unfinished tasks or closes the area. Do not repeat workers or wait for more goal
+turns to reconfirm an established impasse. Partial progress and actionable
+in-scope rework still continue under the one-task contract. Never pause or
+complete a different, paused, or budget-limited native goal.
 
 The exact installed task-workflows contract path is
 "/Users/zayenz/projects/zdev/.omp/skills/zdev/references/task-workflows.md". Decode it. Resolve a relative path
@@ -605,7 +606,9 @@ waits` for an open `blocked` queue, an exact stale
 `Advisory` once when applicable, `Tasks completed`, `Commits`, and `Stop reason`. Use `unknown` when
 lifecycle or queue could not be validated and `none` when there is no task or
 commit. `CONTINUE` also includes `Next task`. `BLOCKER` also includes
-`Current task`, `Failed stage`, `Reason`, and `Preserved state`. A direct
+`Current task`, `Failed stage`, `Reason`, and `Preserved state`. After a native
+goal was active, a `BLOCKER`, or a `CONTINUE` reporting its lost continuation,
+ends with `Resume goal` as the root skill's goal section describes. A direct
 closed result never has an advisory.
 
 On a new invocation, inspect native goal state and repeat fresh work-context.

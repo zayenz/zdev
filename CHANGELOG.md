@@ -2,6 +2,22 @@
 
 This file records notable changes to zdev.
 
+## [Unreleased]
+
+### Changed
+
+- A goal or loop that stops on a confirmed blocker or required decision now
+  pauses its goal instead of completing it, where the agent can pause it. The
+  `zdev goal` condition asks for the pause, and Codex, including Codex in T3
+  Code, calls `update_goal` with `status: "paused"`; `/goal resume` continues
+  the run once the blocker is resolved. Claude Code and Oh My Pi goals still
+  end, because their agents cannot pause them. Every such `BLOCKER`, and a
+  `CONTINUE` that reports a lost goal continuation, ends with `Resume goal:`
+  and a ready-to-send command: `/goal resume` for a paused goal, otherwise the
+  full goal condition. Goals set before upgrading keep the old wording and
+  still complete on a blocker; set them again from `zdev goal`. Refresh
+  installed integrations with `zdev skill install <harness> --force`.
+
 ## [2.2.0] - 2026-11-04
 
 ### Added

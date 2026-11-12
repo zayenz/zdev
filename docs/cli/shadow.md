@@ -18,11 +18,18 @@ branch. Before each command, zdev compares the two:
   yet, zdev creates it from the current shadow branch. Uncommitted record
   changes carry over, as with `git switch`. If they would be overwritten, the
   command stops and asks you to commit them first. `status`, `check`, and
-  `change` still run and show the problem.
+  `change` still run and show the problem. `shadow commit` and `shadow push`
+  also still run, on the shadow repository's current branch, so
+  `zdev shadow commit` commits the changes where they were made and lets the
+  next command follow the switch.
 - With a detached HEAD, the shadow repository stays where it is.
 - A shadow branch whose main branch is already merged into the current branch
   is integrated when it fast-forwards cleanly. Otherwise `status` lists it as
-  awaiting integration.
+  awaiting integration. A main branch counts as merged only once it has
+  commits of its own: a shadow commit names a main commit, or the main branch
+  has moved past the commit it was at when zdev created the shadow branch. A
+  new branch that is still at its starting commit is therefore never merged
+  into trunk by accident.
 
 zdev reports each switch or integration on standard error, prefixed with
 `zdev:`.
@@ -39,7 +46,11 @@ command:
   fails, the command reports the problem and exits with status 1.
 - `zdev tasks import --commit` and `zdev tasks derive apply` commit the task
   files in the shadow repository. When derived work also commits files in the
-  main repository, both commits share one change ID.
+  main repository, both commits share one change ID. zdev makes the shadow
+  commit first and removes it again if the main commit fails, leaving other
+  staged record changes alone. If the shadow commit cannot get its source
+  trailers afterwards, both commits stand, and the command prints how to add
+  the trailers and exits with status 1.
 - `zdev area rebase` rebases the area's shadow branch onto its base's shadow
   branch. If the shadow record has uncommitted changes, or the shadow rebase
   conflicts, zdev leaves that branch unchanged and prints the command to finish
@@ -93,6 +104,8 @@ zdev shadow adopt [--shadow-remote URL]
 ```
 
 `init --record shadow` refuses when the main repository tracks `.zdev` files.
+If setup fails partway, for example because Git has no author identity, zdev
+removes the `.zdev` it created so the command can be retried.
 It creates `.zdev`, writes the configuration, creates the shadow repository on
 the main repository's current branch, makes the first commit, and adds
 `/.zdev/` to `.git/info/exclude` unless `.zdev` is already ignored. With

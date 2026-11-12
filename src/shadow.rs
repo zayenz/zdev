@@ -55,15 +55,60 @@ pub(super) fn repository(root: &Path) -> Result<PathBuf, ZdevError> {
     }
 }
 
-fn git(directory: &Path, arguments: &[&str]) -> Result<Output, ZdevError> {
-    ProcessCommand::new("git")
-        .args(arguments)
-        .current_dir(directory)
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE")
-        .env_remove("GIT_INDEX_FILE")
-        .output()
-        .map_err(|error| ZdevError::io("Cannot run git", error))
+/// The repository a Git command runs in. The two differ only in
+/// `GIT_INDEX_FILE`: a Git hook in the main repository may set it to an
+/// alternate main index, which main-repository commands keep, as zdev's other
+/// main-repository commands do, and shadow commands must never read.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Repo {
+    Main,
+    Shadow,
+}
+
+impl Repo {
+    fn git(self, directory: &Path, arguments: &[&str]) -> Result<Output, ZdevError> {
+        let mut command = ProcessCommand::new("git");
+        command
+            .args(arguments)
+            .current_dir(directory)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE");
+        if self == Self::Shadow {
+            command.env_remove("GIT_INDEX_FILE");
+        }
+        command
+            .output()
+            .map_err(|error| ZdevError::io("Cannot run git", error))
+    }
+
+    /// Runs Git and returns its trimmed standard output, or an error naming
+    /// the command.
+    fn output(self, directory: &Path, arguments: &[&str]) -> Result<String, ZdevError> {
+        let output = self.git(directory, arguments)?;
+        if !output.status.success() {
+            return Err(ZdevError::new(format!(
+                "git {} failed: {}",
+                arguments.join(" "),
+                stderr(&output)
+            )));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    }
+}
+
+/// Runs Git in the shadow repository.
+fn git(shadow: &Path, arguments: &[&str]) -> Result<Output, ZdevError> {
+    Repo::Shadow.git(shadow, arguments)
+}
+
+/// Runs Git in the main repository.
+fn main_git(root: &Path, arguments: &[&str]) -> Result<Output, ZdevError> {
+    Repo::Main.git(root, arguments)
+}
+
+/// Runs Git in the shadow repository and returns its trimmed output.
+fn shadow_output(shadow: &Path, arguments: &[&str]) -> Result<String, ZdevError> {
+    Repo::Shadow.output(shadow, arguments)
 }
 
 fn stderr(output: &Output) -> String {
@@ -75,8 +120,9 @@ fn stderr(output: &Output) -> String {
     }
 }
 
-fn git_checked(directory: &Path, arguments: &[&str], what: &str) -> Result<(), ZdevError> {
-    let output = git(directory, arguments)?;
+/// Runs Git in the shadow repository and turns a failure into `what: <error>`.
+fn git_checked(shadow: &Path, arguments: &[&str], what: &str) -> Result<(), ZdevError> {
+    let output = git(shadow, arguments)?;
     if output.status.success() {
         Ok(())
     } else {
@@ -85,7 +131,7 @@ fn git_checked(directory: &Path, arguments: &[&str], what: &str) -> Result<(), Z
 }
 
 fn has_changes(shadow: &Path) -> Result<bool, ZdevError> {
-    Ok(!git_output(
+    Ok(!shadow_output(
         shadow,
         &["status", "--porcelain=v1", "--untracked-files=all"],
     )?
@@ -93,7 +139,7 @@ fn has_changes(shadow: &Path) -> Result<bool, ZdevError> {
 }
 
 fn change_count(shadow: &Path) -> Result<usize, ZdevError> {
-    Ok(git_output(
+    Ok(shadow_output(
         shadow,
         &["status", "--porcelain=v1", "--untracked-files=all"],
     )?
@@ -107,7 +153,7 @@ pub(super) fn has_pending_changes(root: &Path) -> Result<bool, ZdevError> {
 }
 
 fn head(shadow: &Path) -> Result<String, ZdevError> {
-    git_output(shadow, &["rev-parse", "HEAD"])
+    shadow_output(shadow, &["rev-parse", "HEAD"])
 }
 
 /// Copy the main repository's own commit identity into the shadow
@@ -115,7 +161,7 @@ fn head(shadow: &Path) -> Result<String, ZdevError> {
 /// Global identity needs no copy; Git applies it to both repositories.
 fn inherit_identity(root: &Path, shadow: &Path) -> Result<(), ZdevError> {
     for key in ["user.name", "user.email"] {
-        let output = git(root, &["config", "--local", "--get", key])?;
+        let output = main_git(root, &["config", "--local", "--get", key])?;
         let value = String::from_utf8_lossy(&output.stdout).trim().to_owned();
         if output.status.success() && !value.is_empty() {
             git_checked(
@@ -142,7 +188,7 @@ fn tracked_in_main(root: &Path) -> bool {
 }
 
 fn excluded(root: &Path) -> Result<bool, ZdevError> {
-    let output = git(root, &["check-ignore", "-q", ".zdev/"])?;
+    let output = main_git(root, &["check-ignore", "-q", ".zdev/"])?;
     match output.status.code() {
         Some(0) => Ok(true),
         Some(1) => Ok(false),
@@ -198,7 +244,7 @@ fn ensure_excluded(root: &Path) -> Result<bool, ZdevError> {
 }
 
 fn remote_has_history(root: &Path, url: &str) -> Result<bool, ZdevError> {
-    let output = git(root, &["ls-remote", "--heads", url])?;
+    let output = main_git(root, &["ls-remote", "--heads", url])?;
     if !output.status.success() {
         return Err(ZdevError::new(format!(
             "Cannot read shadow remote {url}: {}",
@@ -250,16 +296,30 @@ pub(super) fn initialize(
     let shadow = dir(root);
     fs::create_dir(&shadow)
         .map_err(|error| ZdevError::io(format!("Cannot create {}", shadow.display()), error))?;
-    write_atomic(
+    let created = write_atomic(
         &shadow.join("config.toml"),
         toml::to_string_pretty(&config).unwrap().as_bytes(),
-    )?;
-    let created = create_repository(root, remote, INITIAL_SUBJECT)?;
+    )
+    .and_then(|()| create_repository(root, remote, INITIAL_SUBJECT))
+    .map_err(|error| discard_new_record(root, error))?;
     Ok(Setup {
         text: created.text(),
         value: created.value(),
         cloned: false,
     })
+}
+
+/// Removes the `.zdev` that a failed `init --record shadow` created, so the
+/// command can simply be retried, and returns the error to report.
+fn discard_new_record(root: &Path, error: ZdevError) -> ZdevError {
+    match fs::remove_dir_all(dir(root)) {
+        Ok(()) => ZdevError::new(format!(
+            "Could not create the shadow record, so zdev removed .zdev again. {error}"
+        )),
+        Err(removal) => ZdevError::new(format!(
+            "Could not create the shadow record: {error}. Removing the partial .zdev also failed ({removal}); remove it, then retry"
+        )),
+    }
 }
 
 /// Converts a personal record in place into a shadow record.
@@ -423,7 +483,7 @@ fn create_repository(
 /// branch when the remote has it, else the remote's default branch, else its
 /// only branch.
 fn clone_branch(root: &Path, clone: &Path) -> Result<String, ZdevError> {
-    let refs = git_output(
+    let refs = shadow_output(
         clone,
         &[
             "for-each-ref",
@@ -441,7 +501,7 @@ fn clone_branch(root: &Path, clone: &Path) -> Result<String, ZdevError> {
     {
         return Ok(branch);
     }
-    if let Ok(default) = git_output(
+    if let Ok(default) = shadow_output(
         clone,
         &[
             "symbolic-ref",
@@ -511,8 +571,9 @@ fn clone(root: &Path, url: &str) -> Result<Setup, ZdevError> {
     }
     fs::rename(&target, dir(root))
         .map_err(|error| ZdevError::io("Cannot move the shadow clone into .zdev", error))?;
-    let excluded = ensure_excluded(root)?;
-    let notices = align_locked(root)?;
+    let (excluded, notices) = ensure_excluded(root)
+        .and_then(|excluded| Ok((excluded, align_locked(root)?)))
+        .map_err(|error| discard_new_record(root, error))?;
     let branch = current_branch(&dir(root))?;
     let mut text = format!("Cloned the shadow record from {url}.");
     if let Some(branch) = &branch {
@@ -560,7 +621,13 @@ pub(super) fn align_locked(root: &Path) -> Result<Vec<String>, ZdevError> {
     let mut notices = Vec::new();
     let shadow_branch = current_branch(&shadow)?;
     if shadow_branch.as_deref() != Some(branch.as_str()) {
-        notices.push(switch_to(&shadow, &branch, shadow_branch.as_deref())?);
+        let main_commit = git_output(root, &["rev-parse", "HEAD"])?;
+        notices.push(switch_to(
+            &shadow,
+            &branch,
+            shadow_branch.as_deref(),
+            &main_commit,
+        )?);
     }
     notices.extend(auto_integrate(root, &shadow, &branch)?);
     restore_task_directories(&shadow)?;
@@ -592,7 +659,7 @@ fn restore_task_directories(shadow: &Path) -> Result<(), ZdevError> {
 }
 
 fn remote_branch(shadow: &Path, branch: &str) -> Option<String> {
-    let refs = git_output(
+    let refs = shadow_output(
         shadow,
         &["for-each-ref", "--format=%(refname:short)", "refs/remotes"],
     )
@@ -610,7 +677,27 @@ fn remote_branch(shadow: &Path, branch: &str) -> Option<String> {
     }
 }
 
-fn switch_to(shadow: &Path, branch: &str, from: Option<&str>) -> Result<String, ZdevError> {
+/// Shadow repository configuration key, per branch, holding the main commit
+/// the main branch was at when zdev created the shadow branch.
+fn fork_point_key(branch: &str) -> String {
+    format!("branch.{branch}.zdevForkPoint")
+}
+
+/// The main commit recorded when zdev created shadow branch `branch`.
+fn fork_point(shadow: &Path, branch: &str) -> Option<String> {
+    shadow_output(shadow, &["config", "--get", &fork_point_key(branch)]).ok()
+}
+
+/// Switches the shadow repository to `branch`, creating it when needed. A
+/// branch zdev creates records `main_commit` as its fork point, so later
+/// merge detection can tell new main commits from the commit it started at.
+fn switch_to(
+    shadow: &Path,
+    branch: &str,
+    from: Option<&str>,
+    main_commit: &str,
+) -> Result<String, ZdevError> {
+    let mut created = false;
     let (output, notice) = if local_branch_exists(shadow, branch) {
         (
             git(shadow, &["switch", "-q", branch])?,
@@ -625,6 +712,7 @@ fn switch_to(shadow: &Path, branch: &str, from: Option<&str>) -> Result<String, 
             format!("Shadow record switched to branch {branch} from {tracking}"),
         )
     } else {
+        created = true;
         (
             git(shadow, &["switch", "-q", "-c", branch])?,
             match from {
@@ -635,10 +723,17 @@ fn switch_to(shadow: &Path, branch: &str, from: Option<&str>) -> Result<String, 
     };
     if !output.status.success() {
         return Err(ZdevError::new(format!(
-            "The shadow record is on {} but the repository is on {branch}, and the shadow record cannot follow: {}. Commit the record changes with `zdev shadow commit -m <subject>` or resolve .zdev, then retry",
+            "The shadow record is on {} but the repository is on {branch}, and the shadow record cannot follow: {}. Commit the record changes to the shadow record's current branch with `zdev shadow commit -m <subject>`, or resolve .zdev, then retry",
             from.unwrap_or("a detached HEAD"),
             stderr(&output)
         )));
+    }
+    if created {
+        git_checked(
+            shadow,
+            &["config", &fork_point_key(branch), main_commit],
+            "Cannot record the shadow branch fork point",
+        )?;
     }
     Ok(notice)
 }
@@ -661,6 +756,13 @@ impl Pending {
 }
 
 /// Shadow branches with records missing from `current` that need attention.
+///
+/// A branch is merged when its main branch is contained in the main HEAD and
+/// has moved on since the shadow branch began: either a shadow commit names a
+/// main commit, or the main branch has left the fork point zdev recorded. A
+/// main branch that is still at its starting commit is contained in trunk
+/// without being merged, so its records stay put. For a deleted main branch,
+/// the newest named main commit decides.
 fn pending_branches(
     root: &Path,
     shadow: &Path,
@@ -669,21 +771,21 @@ fn pending_branches(
     if !local_branch_exists(shadow, current) {
         return Ok(Vec::new());
     }
-    let branches = git_output(
+    let branches = shadow_output(
         shadow,
         &["for-each-ref", "--format=%(refname:short)", "refs/heads"],
     )?;
     let mut pending = Vec::new();
     for branch in branches.lines().filter(|branch| *branch != current) {
         let range = format!("refs/heads/{current}..refs/heads/{branch}");
-        let ahead = git_output(shadow, &["rev-list", "--count", &range])
+        let ahead = shadow_output(shadow, &["rev-list", "--count", &range])
             .ok()
             .and_then(|count| count.parse::<u64>().ok())
             .unwrap_or(0);
         if ahead == 0 {
             continue;
         }
-        let sources = git_output(
+        let sources = shadow_output(
             shadow,
             &[
                 "log",
@@ -693,10 +795,15 @@ fn pending_branches(
         )?;
         let latest = sources.lines().map(str::trim).find(|line| !line.is_empty());
         let main_tip = branch_tip(root, branch)?;
-        let merged = match (&main_tip, latest) {
-            (_, None) => false,
-            (Some(tip), Some(_)) => commit_is_ancestor(root, tip, "HEAD") == Some(true),
-            (None, Some(source)) => commit_is_ancestor(root, source, "HEAD") == Some(true),
+        let merged = match &main_tip {
+            Some(tip) => {
+                let moved_on =
+                    latest.is_some() || fork_point(shadow, branch).is_some_and(|fork| fork != *tip);
+                moved_on && commit_is_ancestor(root, tip, "HEAD") == Some(true)
+            }
+            None => {
+                latest.is_some_and(|source| commit_is_ancestor(root, source, "HEAD") == Some(true))
+            }
         };
         if merged {
             pending.push((branch.to_owned(), Pending::Merged));
@@ -771,7 +878,7 @@ fn push_after_commit(root: &Path, shadow: &Path, branch: &str) -> PushOutcome {
 }
 
 fn push_branch(shadow: &Path, branch: &str) -> PushOutcome {
-    let upstream = git_output(
+    let upstream = shadow_output(
         shadow,
         &[
             "rev-parse",
@@ -796,7 +903,7 @@ fn push_branch(shadow: &Path, branch: &str) -> PushOutcome {
         )
         .map(|output| (output, upstream.clone()))
     } else {
-        let remotes = git_output(shadow, &["remote"]).unwrap_or_default();
+        let remotes = shadow_output(shadow, &["remote"]).unwrap_or_default();
         let remote = if remotes.lines().any(|remote| remote == "origin") {
             "origin".to_owned()
         } else {
@@ -825,16 +932,28 @@ pub(super) struct ShadowCommit {
     pub commit: String,
     pub branch: String,
     pub push: PushOutcome,
+    /// A problem that left the commit incomplete, such as missing source
+    /// trailers. The command reports it and exits with status 1.
+    pub warning: Option<String>,
 }
 
 impl ShadowCommit {
     pub(super) fn value(&self) -> Value {
-        json!({
+        let mut value = json!({
             "status": "committed",
             "commit": self.commit,
             "branch": self.branch,
             "push": self.push.value(),
-        })
+        });
+        if let Some(warning) = &self.warning {
+            value["warning"] = json!(warning);
+        }
+        value
+    }
+
+    /// The exit status for a command whose result includes this commit.
+    pub(super) fn exit_code(&self) -> u8 {
+        u8::from(self.warning.is_some())
     }
 
     pub(super) fn text(&self) -> String {
@@ -846,6 +965,9 @@ impl ShadowCommit {
         if let Some(push) = self.push.text() {
             text.push_str(". ");
             text.push_str(&push);
+        }
+        if let Some(warning) = &self.warning {
+            text.push_str(&format!("\nWarning: {warning}"));
         }
         text
     }
@@ -938,6 +1060,7 @@ pub(super) fn commit_all(
         commit,
         branch,
         push,
+        warning: None,
     }))
 }
 
@@ -956,6 +1079,18 @@ pub(super) struct RecordRepository {
     pub directory: PathBuf,
     pub prefix: &'static str,
     pub shadow: bool,
+}
+
+impl RecordRepository {
+    /// Runs Git in this repository and returns its trimmed output.
+    pub(super) fn output(&self, arguments: &[&str]) -> Result<String, ZdevError> {
+        let repo = if self.shadow {
+            Repo::Shadow
+        } else {
+            Repo::Main
+        };
+        repo.output(&self.directory, arguments)
+    }
 }
 
 /// The repository that versions the record, or `None` for a personal record.
@@ -992,6 +1127,7 @@ fn relative_to(directory: &Path, paths: &[&PathBuf]) -> Result<Vec<String>, Zdev
 }
 
 fn commit_only(
+    repo: Repo,
     directory: &Path,
     subject: &str,
     trailers: &str,
@@ -1000,7 +1136,7 @@ fn commit_only(
 ) -> Result<(), ZdevError> {
     let mut add = vec!["add", "-f", "--"];
     add.extend(relative.iter().map(String::as_str));
-    let output = git(directory, &add)?;
+    let output = repo.git(directory, &add)?;
     if !output.status.success() {
         return Err(ZdevError::new(format!(
             "Could not stage the new {what}. Resolve the Git error, then retry: {}",
@@ -1011,7 +1147,7 @@ fn commit_only(
         "commit", "-q", "--only", "-m", subject, "-m", trailers, "--",
     ];
     commit.extend(relative.iter().map(String::as_str));
-    let output = git(directory, &commit)?;
+    let output = repo.git(directory, &commit)?;
     if !output.status.success() {
         return Err(ZdevError::new(format!(
             "Could not commit the new {what}. Resolve the Git error, then retry: {}",
@@ -1021,13 +1157,42 @@ fn commit_only(
     Ok(())
 }
 
-fn unstage(directory: &Path, relative: &[String]) {
+/// Unstages `relative` in the shadow repository, back to its HEAD.
+fn unstage(shadow: &Path, relative: &[String]) -> Result<(), String> {
     if relative.is_empty() {
-        return;
+        return Ok(());
     }
     let mut reset = vec!["reset", "-q", "HEAD", "--"];
     reset.extend(relative.iter().map(String::as_str));
-    let _ = git(directory, &reset);
+    match git(shadow, &reset) {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => Err(stderr(&output)),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+/// Removes the shadow commit just made for `relative` and unstages those
+/// paths, leaving every other staged shadow change in place.
+fn undo_record_commit(shadow: &Path, relative: &[String]) -> Result<(), String> {
+    match git(shadow, &["reset", "-q", "--soft", "HEAD~1"]) {
+        Ok(output) if output.status.success() => unstage(shadow, relative),
+        Ok(output) => Err(stderr(&output)),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+/// Error detail key that marks a record commit whose shadow commit could not
+/// be undone after the main commit failed.
+const SHADOW_ROLLBACK_DETAIL: &str = "shadow_rollback_failure";
+
+/// The rollback failure recorded by [`commit_record_paths`], if any, so a
+/// caller that restores files does not claim a complete rollback.
+pub(super) fn shadow_rollback_failure(error: &ZdevError) -> Option<&str> {
+    error
+        .details
+        .as_ref()?
+        .get(SHADOW_ROLLBACK_DETAIL)?
+        .as_str()
 }
 
 /// Commits exactly `paths`, which are files under `root`. For a shadow record,
@@ -1045,7 +1210,7 @@ pub(super) fn commit_record_paths(
     if config.project.record != RecordPolicy::Shadow {
         let all = paths.iter().collect::<Vec<_>>();
         let relative = relative_to(root, &all)?;
-        commit_only(root, subject, &plain, &relative, "task files")?;
+        commit_only(Repo::Main, root, subject, &plain, &relative, "task files")?;
         return Ok(RecordCommit {
             revision: git_output(root, &["rev-parse", "HEAD"])?,
             change_id,
@@ -1068,32 +1233,50 @@ pub(super) fn commit_record_paths(
     let record_relative = relative_to(&shadow, &records)?;
     let main_relative = relative_to(root, &main)?;
     if !record_relative.is_empty()
-        && let Err(error) = commit_only(&shadow, subject, &plain, &record_relative, "task files")
+        && let Err(error) = commit_only(
+            Repo::Shadow,
+            &shadow,
+            subject,
+            &plain,
+            &record_relative,
+            "task files",
+        )
     {
-        unstage(&shadow, &record_relative);
-        return Err(error);
+        return Err(match unstage(&shadow, &record_relative) {
+            Ok(()) => error,
+            Err(rollback) => ZdevError::new(format!(
+                "{error}; cannot unstage the task files in .zdev during rollback: {rollback}"
+            )),
+        });
     }
     let shadow_commit = (!record_relative.is_empty())
         .then(|| head(&shadow))
         .transpose()?;
     let mut revision = shadow_commit.clone();
+    let mut warning = None;
     if !main_relative.is_empty() {
-        if let Err(error) = commit_only(root, subject, &plain, &main_relative, "files") {
-            if shadow_commit.is_some() {
-                let _ = git(&shadow, &["reset", "-q", "HEAD~1"]);
-            }
-            return Err(error);
+        if let Err(error) = commit_only(Repo::Main, root, subject, &plain, &main_relative, "files")
+        {
+            return Err(match &shadow_commit {
+                None => error,
+                Some(commit) => match undo_record_commit(&shadow, &record_relative) {
+                    Ok(()) => error,
+                    Err(rollback) => {
+                        let failure = format!(
+                            "the shadow commit {} remains on {branch} in .zdev ({rollback}); remove it with `git -C .zdev reset --soft HEAD~1`",
+                            short(commit)
+                        );
+                        ZdevError::with_details(
+                            format!("{error}; {failure}"),
+                            json!({ SHADOW_ROLLBACK_DETAIL: failure }),
+                        )
+                    }
+                },
+            });
         }
         let main_commit = git_output(root, &["rev-parse", "HEAD"])?;
         if shadow_commit.is_some() {
-            let main_branch = current_branch(root)?.unwrap_or_else(|| "HEAD".to_owned());
-            let sourced = trailers(&change_id, Some((&main_commit, &main_branch)));
-            let _ = git(
-                &shadow,
-                &[
-                    "commit", "-q", "--amend", "--only", "-m", subject, "-m", &sourced,
-                ],
-            );
+            warning = add_source_trailers(&shadow, root, subject, &change_id, &main_commit)?;
         }
         revision = Some(main_commit);
     }
@@ -1102,6 +1285,7 @@ pub(super) fn commit_record_paths(
             commit: head(&shadow)?,
             branch: branch.clone(),
             push: push_after_commit(root, &shadow, &branch),
+            warning,
         }),
         None => None,
     };
@@ -1110,6 +1294,33 @@ pub(super) fn commit_record_paths(
         change_id,
         shadow,
     })
+}
+
+/// Amends the shadow commit just made so it names `main_commit`. Both commits
+/// stand either way; a failed amendment is returned as a warning that tells
+/// the user how to add the trailers by hand.
+fn add_source_trailers(
+    shadow: &Path,
+    root: &Path,
+    subject: &str,
+    change_id: &str,
+    main_commit: &str,
+) -> Result<Option<String>, ZdevError> {
+    let main_branch = current_branch(root)?.unwrap_or_else(|| "HEAD".to_owned());
+    let sourced = trailers(change_id, Some((main_commit, &main_branch)));
+    let output = git(
+        shadow,
+        &[
+            "commit", "-q", "--amend", "--only", "-m", subject, "-m", &sourced,
+        ],
+    )?;
+    Ok((!output.status.success()).then(|| {
+        format!(
+            "the shadow commit does not name main commit {} because amending it failed: {}. Add the trailers with `git -C .zdev commit --amend --trailer \"{SOURCE_COMMIT_TRAILER}: {main_commit}\" --trailer \"{SOURCE_BRANCH_TRAILER}: {main_branch}\"`",
+            short(main_commit),
+            stderr(&output)
+        )
+    }))
 }
 
 /// Unstages `paths` after a failed record commit. Shadow-side staging is
@@ -1137,7 +1348,7 @@ pub(super) fn rollback_record_paths(root: &Path, paths: &[PathBuf], error: ZdevE
     };
     let mut reset = vec!["reset", "-q", "HEAD", "--"];
     reset.extend(relative.iter().map(String::as_str));
-    match git(root, &reset) {
+    match main_git(root, &reset) {
         Ok(output) if output.status.success() => error,
         Ok(output) => ZdevError::new(format!(
             "{error}; cannot unstage imported task paths during rollback: {}",
@@ -1426,7 +1637,7 @@ pub(super) fn report(root: &Path) -> Option<Report> {
         ));
     }
     let upstream = branch.as_ref().and_then(|branch| {
-        let upstream = git_output(
+        let upstream = shadow_output(
             &shadow,
             &[
                 "rev-parse",
@@ -1436,7 +1647,7 @@ pub(super) fn report(root: &Path) -> Option<Report> {
             ],
         )
         .ok()?;
-        let counts = git_output(
+        let counts = shadow_output(
             &shadow,
             &[
                 "rev-list",
@@ -1543,7 +1754,7 @@ pub(super) fn lookup_change(root: &Path, change_id: &str) -> Vec<Value> {
         return Vec::new();
     }
     let format = format!("--format=%H%x00%s%x00%(trailers:key={CHANGE_ID_TRAILER},valueonly)");
-    let Ok(log) = git_output(&dir(root), &["log", "--all", "-z", &format]) else {
+    let Ok(log) = shadow_output(&dir(root), &["log", "--all", "-z", &format]) else {
         return Vec::new();
     };
     let mut matches = Vec::new();
@@ -1559,4 +1770,117 @@ pub(super) fn lookup_change(root: &Path, change_id: &str) -> Vec<Value> {
         }
     }
     matches
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+
+    use super::{commit_record_paths, initialize};
+    use crate::project::{RecordPolicy, initial_config};
+
+    fn run(directory: &Path, arguments: &[&str]) -> String {
+        let output = std::process::Command::new("git")
+            .args(arguments)
+            .current_dir(directory)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .output()
+            .expect("run git");
+        assert!(
+            output.status.success(),
+            "git {arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    fn hook(path: &Path, script: &str) {
+        fs::create_dir_all(path.parent().expect("hooks directory")).expect("hooks directory");
+        fs::write(path, format!("#!/bin/sh\n{script}\n")).expect("hook");
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("hook mode");
+    }
+
+    /// A main repository with a shadow record and one record file and one
+    /// main file ready to commit together, as derived task application does.
+    fn shadow_record() -> tempfile::TempDir {
+        let directory = tempfile::tempdir().expect("temporary repository");
+        let root = directory.path();
+        run(root, &["init", "-q", "--initial-branch", "main"]);
+        run(root, &["config", "user.name", "Zdev Test"]);
+        run(root, &["config", "user.email", "zdev@example.invalid"]);
+        fs::write(root.join("seed.txt"), "seed\n").expect("seed");
+        run(root, &["add", "seed.txt"]);
+        run(root, &["commit", "-q", "-m", "seed"]);
+        initialize(root, None, || initial_config(root, RecordPolicy::Shadow))
+            .expect("initialize shadow record");
+        fs::write(root.join(".zdev/work.md"), "record\n").expect("record file");
+        fs::write(root.join("main.txt"), "main\n").expect("main file");
+        directory
+    }
+
+    #[test]
+    fn failed_main_commit_keeps_unrelated_shadow_staging() {
+        let directory = shadow_record();
+        let root = directory.path();
+        let shadow = root.join(".zdev");
+        fs::write(shadow.join("_staged.md"), "staged\n").expect("staged record");
+        run(&shadow, &["add", "_staged.md"]);
+        let shadow_head = run(&shadow, &["rev-parse", "HEAD"]);
+        hook(&root.join(".git/hooks/pre-commit"), "exit 1");
+
+        let error = commit_record_paths(
+            root,
+            "Add tasks",
+            &[shadow.join("work.md"), root.join("main.txt")],
+        )
+        .err()
+        .expect("the main commit is rejected");
+
+        assert!(super::shadow_rollback_failure(&error).is_none());
+        assert_eq!(run(&shadow, &["rev-parse", "HEAD"]), shadow_head);
+        assert_eq!(
+            run(&shadow, &["diff", "--cached", "--name-only"]),
+            "_staged.md"
+        );
+        assert_eq!(
+            run(&shadow, &["status", "--porcelain", "--", "work.md"]),
+            "?? work.md"
+        );
+    }
+
+    #[test]
+    fn rejected_source_trailers_are_reported_as_a_partial_commit() {
+        let directory = shadow_record();
+        let root = directory.path();
+        let shadow = root.join(".zdev");
+        hook(
+            &shadow.join(".git/hooks/commit-msg"),
+            "if grep -q Zdev-Source-Commit \"$1\"; then exit 1; fi",
+        );
+
+        let committed = commit_record_paths(
+            root,
+            "Add tasks",
+            &[shadow.join("work.md"), root.join("main.txt")],
+        )
+        .expect("both commits are made");
+
+        let record = committed.shadow.expect("shadow commit");
+        assert_eq!(record.exit_code(), 1);
+        assert!(
+            record
+                .warning
+                .as_deref()
+                .is_some_and(|warning| warning.contains("--trailer"))
+        );
+        assert_eq!(record.value()["status"], "committed");
+        assert_eq!(run(root, &["rev-parse", "HEAD"]), committed.revision);
+        let message = run(&shadow, &["log", "-1", "--format=%B"]);
+        assert!(message.contains(&committed.change_id));
+        assert!(!message.contains("Zdev-Source-Commit"));
+    }
 }

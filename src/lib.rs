@@ -1319,7 +1319,9 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
 
 /// Makes a shadow record follow the checked-out branch before a command reads
 /// or writes it, and reports what changed on standard error. Read-only views
-/// still run when the shadow record cannot follow, and show the problem.
+/// still run when the shadow record cannot follow, and show the problem, as do
+/// `shadow commit` and `shadow push`, which act on the shadow record's current
+/// branch and are how the user clears a blocked switch.
 fn align_shadow(root: &Path, command: &Command) -> Result<(), ZdevError> {
     if matches!(
         command,
@@ -1348,6 +1350,8 @@ fn align_shadow(root: &Path, command: &Command) -> Result<(), ZdevError> {
                     | Command::Change { .. }
                     | Command::Shadow {
                         command: ShadowCommand::Status
+                            | ShadowCommand::Commit { .. }
+                            | ShadowCommand::Push
                     }
             ) =>
         {

@@ -199,7 +199,20 @@ docs need a `shadow` row wherever `personal | project | pull-request` appear.
 - Explicit `zdev shadow integrate` never rewrites trunk: on trunk it rebases
   the other branch onto trunk, elsewhere it rebases the current branch.
 - Init and clone copy the main repository's local `user.name` and
-  `user.email` into the shadow repository.
+  `user.email` into the shadow repository. A failed init removes the `.zdev`
+  it created.
+- Merge detection: a merged main branch must have moved on since its shadow
+  branch began, shown by a `Zdev-Source-Commit` trailer or by the main tip
+  differing from the fork point zdev records in the shadow repository's
+  `branch.<name>.zdevForkPoint` when it creates the branch. The fork point is
+  the main HEAD at the first zdev command after the switch, so commits made
+  before that command and merged without later commits are not detected.
+- When the main commit of a two-repository record commit fails, the shadow
+  commit is removed with a soft reset and only its paths are unstaged. A
+  failed source-trailer amendment leaves both commits and exits with status 1.
+- `shadow commit` and `shadow push` run despite a failed alignment, acting on
+  the current shadow branch, so they can clear a blocked switch.
+- Shadow Git commands drop `GIT_INDEX_FILE`; main-repository commands keep it.
 - Alignment recreates the empty `tasks` directory of areas without tasks,
   since Git does not track empty directories. Project records cloned fresh
   have the same gap, which is not addressed here.

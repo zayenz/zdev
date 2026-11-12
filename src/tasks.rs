@@ -1682,6 +1682,9 @@ pub(super) fn apply_derived(
             if let Err(rollback) = git_read_tree(root, &prior_index) {
                 rollback_errors.push(format!("cannot restore Git index: {rollback}"));
             }
+            if let Some(rollback) = super::shadow::shadow_rollback_failure(&error) {
+                rollback_errors.push(rollback.to_owned());
+            }
             for (path, bytes) in &retained {
                 if fs::read(root.join(path)).ok().as_deref() != Some(bytes.as_slice())
                     && let Err(rollback) = write_atomic(&root.join(path), bytes)
@@ -1727,8 +1730,12 @@ pub(super) fn apply_derived(
         "paths": relative_paths(root, &paths)?,
         "dependent_indexes": relative_paths(root, &dependent_index_paths)?,
     });
+    let mut text = String::new();
+    let mut exit_code = 0;
     if let Some(shadow) = &committed.shadow {
         value["shadow"] = shadow.value();
+        text = format!(" {}", shadow.text());
+        exit_code = shadow.exit_code();
     }
     let revision = committed.revision;
     if let Some(ownership) = &proposal.split_ownership {
@@ -1737,10 +1744,12 @@ pub(super) fn apply_derived(
             .expect("JSON object")
             .insert("split_ownership".to_owned(), json!(ownership));
     }
-    Ok(CommandOutput::new(
-        format!("Applied derived tasks to {area} ({revision})"),
+    let mut output = CommandOutput::new(
+        format!("Applied derived tasks to {area} ({revision}).{text}"),
         value,
-    ))
+    );
+    output.exit_code = exit_code;
+    Ok(output)
 }
 
 fn git_read_tree(root: &Path, tree: &str) -> Result<(), ZdevError> {
@@ -1988,12 +1997,16 @@ pub(super) fn import(
                     "Added and committed {} tasks to {area} ({revision})",
                     ids.len()
                 );
+                let mut exit_code = 0;
                 if let Some(shadow) = &committed.shadow {
                     value["repository"] = json!("shadow");
                     value["shadow"] = shadow.value();
                     text = format!("Added {} tasks to {area}. {}", ids.len(), shadow.text());
+                    exit_code = shadow.exit_code();
                 }
-                Ok(CommandOutput::new(text, value))
+                let mut output = CommandOutput::new(text, value);
+                output.exit_code = exit_code;
+                Ok(output)
             }
             Err(error) => Err(import_rollback_error(
                 rollback_task_import_index(root, &paths, error),
@@ -2062,14 +2075,14 @@ fn require_committable_task_import(root: &Path, area: &str) -> Result<Vec<PathBu
                 "Cannot add and commit tasks while a {operation} is in progress in the shadow record. Finish or abort it, then retry"
             )));
         }
-        git_output(directory, &["rev-parse", "--verify", "HEAD"]).map_err(|_| {
+        repository.output(&["rev-parse", "--verify", "HEAD"]).map_err(|_| {
             ZdevError::new(
                 "Cannot add and commit tasks before the shadow record has a commit. Commit it with `zdev shadow commit -m <subject>`, then retry",
             )
         })?;
     }
     let area_path = format!("{}{area}", repository.prefix);
-    let tracked = git_output(directory, &["ls-files", "--", &area_path])?;
+    let tracked = repository.output(&["ls-files", "--", &area_path])?;
     if tracked.is_empty() {
         return require_committable_initial_task_import(root, area, &repository);
     }
@@ -2085,32 +2098,23 @@ fn require_committable_task_import(root: &Path, area: &str) -> Result<Vec<PathBu
         )));
     }
     let brief_relative = format!("{area_path}/brief.md");
-    let unstaged = git_output(directory, &["diff", "--name-only", "--", &area_path])?;
-    let staged = git_output(
-        directory,
-        &["diff", "--cached", "--name-only", "--", &area_path],
-    )?;
-    let untracked = git_output(
-        directory,
-        &[
-            "ls-files",
-            "--others",
-            "--exclude-standard",
-            "--",
-            &area_path,
-        ],
-    )?;
-    let ignored = git_output(
-        directory,
-        &[
-            "ls-files",
-            "--others",
-            "--ignored",
-            "--exclude-standard",
-            "--",
-            &area_path,
-        ],
-    )?;
+    let unstaged = repository.output(&["diff", "--name-only", "--", &area_path])?;
+    let staged = repository.output(&["diff", "--cached", "--name-only", "--", &area_path])?;
+    let untracked = repository.output(&[
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "--",
+        &area_path,
+    ])?;
+    let ignored = repository.output(&[
+        "ls-files",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+        "--",
+        &area_path,
+    ])?;
     let brief_changed = unstaged == brief_relative;
     if !staged.is_empty()
         || !untracked.is_empty()
@@ -2133,16 +2137,14 @@ fn require_committable_task_import(root: &Path, area: &str) -> Result<Vec<PathBu
             brief.display()
         )));
     }
-    git_output(
-        directory,
-        &["ls-files", "--error-unmatch", "--", &brief_relative],
-    )
-    .map_err(|_| {
-        ZdevError::new(format!(
-            "Cannot add and commit tasks: {} must already be tracked",
-            brief.display()
-        ))
-    })?;
+    repository
+        .output(&["ls-files", "--error-unmatch", "--", &brief_relative])
+        .map_err(|_| {
+            ZdevError::new(format!(
+                "Cannot add and commit tasks: {} must already be tracked",
+                brief.display()
+            ))
+        })?;
     validate_brief(&brief)?;
     Ok(vec![brief])
 }
@@ -2166,9 +2168,7 @@ fn require_committable_initial_task_import(
     let (metadata, _) = load_area(root, area)?;
     if let Some(parent) = metadata.parent {
         let parent_metadata = format!("{prefix}{parent}/area.toml");
-        git_output(
-            directory,
-            &["ls-files", "--error-unmatch", "--", &parent_metadata],
+        repository.output(&["ls-files", "--error-unmatch", "--", &parent_metadata],
         )
         .map_err(|_| {
             ZdevError::new(format!(
@@ -2177,7 +2177,10 @@ fn require_committable_initial_task_import(
         })?;
     }
 
-    if !git_output(directory, &["ls-files", "--", &config_relative])?.is_empty() {
+    if !repository
+        .output(&["ls-files", "--", &config_relative])?
+        .is_empty()
+    {
         paths.remove(0);
     }
     validate_brief(&area_dir.join("brief.md"))?;

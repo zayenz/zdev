@@ -21613,3 +21613,96 @@ fn shadow_task_import_commits_only_in_the_shadow_repository() {
     assert!(changed.lines().all(|path| path.starts_with("work/")));
     assert_eq!(git(&shadow(root), &["status", "--porcelain"]), "");
 }
+
+#[test]
+fn shadow_records_of_a_merged_branch_integrate_without_linked_commits() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "shadow"]);
+
+    git(root, &["switch", "-q", "-c", "feature"]);
+    fs::write(shadow(root).join("_feature.md"), "feature\n").expect("record note");
+    json_output(root, &["shadow", "commit", "-m", "Feature notes"]);
+    commit_file(root, "feature.txt", "feature\n", "plain feature commit");
+
+    git(root, &["switch", "-q", "-c", "unstarted", "main"]);
+    fs::write(shadow(root).join("_unstarted.md"), "unstarted\n").expect("record note");
+    json_output(root, &["shadow", "commit", "-m", "Unstarted notes"]);
+
+    git(root, &["switch", "-q", "main"]);
+    let status = json_output(root, &["shadow", "status"]);
+    assert_eq!(status["pending"], json!([]));
+    git(root, &["merge", "-q", "--ff-only", "feature"]);
+    let output = run_zdev(root, &["status"]);
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Integrated shadow branch feature"));
+    assert!(shadow(root).join("_feature.md").is_file());
+    assert!(
+        !shadow(root).join("_unstarted.md").exists(),
+        "a branch with no new main commits is not merged"
+    );
+    assert_eq!(
+        json_output(root, &["shadow", "status"])["pending"],
+        json!([])
+    );
+}
+
+#[test]
+fn failed_shadow_initialization_can_be_retried() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    let failed = run_zdev_with_env(
+        root,
+        &["init", "--record", "shadow"],
+        &[("GIT_AUTHOR_NAME", Path::new(""))],
+    );
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("removed .zdev"));
+    assert!(!root.join(".zdev").exists());
+
+    json_output(root, &["init", "--record", "shadow"]);
+    assert_eq!(git(&shadow(root), &["rev-list", "--count", "HEAD"]), "1");
+}
+
+#[test]
+fn shadow_commit_clears_a_blocked_branch_switch() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "shadow"]);
+    git(root, &["switch", "-q", "-c", "other"]);
+    fs::write(shadow(root).join("_notes.md"), "other\n").expect("record note");
+    json_output(root, &["shadow", "commit", "-m", "Other notes"]);
+    git(root, &["switch", "-q", "main"]);
+    json_output(root, &["shadow", "status"]);
+
+    fs::write(shadow(root).join("_notes.md"), "main\n").expect("record note");
+    git(root, &["switch", "-q", "other"]);
+    let blocked = run_zdev(root, &["tasks", "list"]);
+    assert!(!blocked.status.success());
+    assert!(String::from_utf8_lossy(&blocked.stderr).contains("zdev shadow commit"));
+
+    let committed = json_output(root, &["shadow", "commit", "-m", "Main notes"]);
+    assert_eq!(committed["shadow"]["branch"], "main");
+    let status = json_output(root, &["shadow", "status"]);
+    assert_eq!(status["branch"], "other");
+    assert_eq!(status["aligned"], true);
+    assert_eq!(
+        fs::read_to_string(shadow(root).join("_notes.md")).expect("note"),
+        "other\n"
+    );
+}
+
+#[test]
+fn shadow_commands_ignore_an_alternate_main_index() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "shadow"]);
+    fs::write(shadow(root).join("_notes.md"), "notes\n").expect("record note");
+    let main_index = git_path(root, "index");
+    let environment = [("GIT_INDEX_FILE", main_index.as_path())];
+
+    let status = json_output_with_env(root, &["shadow", "status"], &environment);
+    assert_eq!(status["uncommitted_changes"], 1);
+    json_output_with_env(root, &["shadow", "commit", "-m", "Notes"], &environment);
+    assert_eq!(git(&shadow(root), &["status", "--porcelain"]), "");
+}

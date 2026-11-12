@@ -272,7 +272,7 @@ pub(super) fn initialize(
     ))
 }
 
-fn initial_config(root: &Path, record: RecordPolicy) -> Result<Config, ZdevError> {
+pub(super) fn initial_config(root: &Path, record: RecordPolicy) -> Result<Config, ZdevError> {
     let name = root
         .file_name()
         .and_then(OsStr::to_str)

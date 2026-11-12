@@ -63,12 +63,17 @@ On the trunk branch, choose how to store the zdev planning record:
 - Choose **pull-request** when `.zdev` should be tracked and reviewed on the
   feature branch but omitted from the final squash-merged tree. Leave it
   visible to Git, commit it during review, and clean it before squash merge.
+- Choose **shadow** when `.zdev` should have Git history but stay out of this
+  repository. Zdev versions it in its own repository at `.zdev/.git`, excludes
+  it here, and makes its branches follow this repository's branches. Add
+  `--shadow-remote <url>` to push it somewhere, or to clone it into a fresh
+  clone. See [zdev shadow](cli/shadow.md).
 
 Integration scope is separate from record policy. After making the record
 choice, run:
 
 ```sh
-zdev init --record personal # or: project, pull-request
+zdev init --record personal # or: project, pull-request, shadow
 ```
 
 Zdev records the current branch as trunk. If you need to correct it, run
@@ -108,8 +113,8 @@ merge. A normal merge or rebase that retains the feature commits also retains
 
 ## 4. Create an area
 
-An area groups one objective and its tasks. With a personal or project
-record, an area created on the checked-out trunk follows that trunk, which
+An area groups one objective and its tasks. With a personal, project, or
+shadow record, an area created on the checked-out trunk follows that trunk, which
 other trunk areas may also use:
 
 ```sh
@@ -225,7 +230,7 @@ Creating the area alone does not create tasks or start implementation.
 ### Keep one-off work in a general area
 
 If you often have small, unrelated improvements, keep them in an ordinary area
-with the conventional tag `general`. With a personal or project record, run
+with the conventional tag `general`. With a personal, project, or shadow record, run
 this on the checked-out trunk to create a trunk area:
 
 ```sh
@@ -383,7 +388,7 @@ scheduling --from -` and press Ctrl-D. `--from path/to/tasks.json` also works
 and leaves the source file in place. Zdev writes one Markdown file per task and
 regenerates `TASKS.md`. Edit task files, not the generated index.
 
-For project and pull-request records, the harness adds `--commit --format json`
+For project, pull-request, and shadow records, the harness adds `--commit --format json`
 to its stored-review import, including for the initial task split. Personal
 records keep using ordinary import. A manual direct import can use `zdev tasks
 import scheduling --from - --commit --format json`. Use ordinary import under
@@ -492,6 +497,14 @@ index. Use the actual task path returned by zdev:
 ```sh
 git add .zdev/scheduling/tasks/001-add-the-scheduling-model.md \
   .zdev/scheduling/TASKS.md
+```
+
+For a `shadow` record, stage the same record paths in the shadow repository,
+without the `.zdev/` prefix. `zdev commit` commits both repositories:
+
+```sh
+git -C .zdev add scheduling/tasks/001-add-the-scheduling-model.md \
+  scheduling/TASKS.md
 ```
 
 For a `personal` record, leave `.zdev` excluded. Then commit the staged changes:

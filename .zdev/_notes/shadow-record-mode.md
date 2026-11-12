@@ -1,6 +1,8 @@
 # Shadow record mode
 
-Status: design agreed (2026-11-12), not yet an area.
+Status: implemented (2026-11-12). The user reference is `docs/cli/shadow.md`;
+see "Implementation notes" below for where the implementation differs from
+this design.
 
 ## Goal
 
@@ -89,7 +91,9 @@ operation in the same command, under the same lock:
   shadow branch onto the parent's shadow branch. Its `--continue` and
   `--abort` paths do the same on the shadow side. A shadow conflict leaves the
   shadow rebase in progress and reports both repositories.
-- `zdev area bind <tag> <branch>`: rename or create the matching shadow branch.
+- `zdev area bind <tag> <branch>`: no shadow operation. Bind only records a
+  branch name; the shadow branch appears when the main repository switches to
+  it.
 - Any future zdev command that switches, merges, or deletes main branches
   must do the same to the shadow repo. Treat this as a rule in the
   record-repository abstraction, not a per-command afterthought.
@@ -181,3 +185,23 @@ docs need a `shadow` row wherever `personal | project | pull-request` appear.
    fast-forward when the user drives it, otherwise reported.
 2. Branch creation follows switches lazily.
 3. `shadow adopt` is in v1.
+
+## Implementation notes
+
+- `zdev commit` commits only the staged shadow index when it has staged
+  changes; otherwise it stages every record change with `add -A`. With nothing
+  staged in the main repository and pending record changes, it makes a
+  records-only shadow commit.
+- `zdev area rebase` rebases the shadow branch best effort after the main
+  rebase completes. A dirty shadow record or a shadow conflict leaves the
+  shadow branch unchanged (the shadow rebase is aborted) and prints the manual
+  command; the main rebase stands.
+- Explicit `zdev shadow integrate` never rewrites trunk: on trunk it rebases
+  the other branch onto trunk, elsewhere it rebases the current branch.
+- Init and clone copy the main repository's local `user.name` and
+  `user.email` into the shadow repository.
+- Alignment recreates the empty `tasks` directory of areas without tasks,
+  since Git does not track empty directories. Project records cloned fresh
+  have the same gap, which is not addressed here.
+- Status, check, change, and shadow status downgrade an alignment failure to a
+  warning; every other command stops on it.

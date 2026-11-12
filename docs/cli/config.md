@@ -23,16 +23,19 @@ zdev config set project.default-area greeting
 
 Project keys include `project.trunk`, `project.default-area`, and
 `project.guidance`. Project name and record policy are set at initialization
-and are read-only afterward. Worker keys have the form
+and are read-only afterward, except that `zdev shadow adopt` turns a personal
+record into a shadow record. Worker keys have the form
 `worker.HARNESS.ROLE`; their value is either `inherit` or a model and effort
 provided together. `t3.verifier-harness` chooses the harness for T3 verifier
 workers: `codex` (the default), `claude`, or `inherit`. `workspace.branching`
 chooses when agents create branches and worktrees: `on-request` (the default)
 keeps work on the current checkout and project trunk, and `isolated` gives new
-areas and implementation their own branch or worktree.
+areas and implementation their own branch or worktree. `shadow.push` chooses
+whether zdev pushes a [shadow record](shadow.md) after committing it: `never`
+(the default) or `after-commit`.
 
 Project settings are repository-only. Worker settings, `t3.verifier-harness`,
-and `workspace.branching` can be local or global; use an explicit scope when
+`workspace.branching`, and `shadow.push` can be local or global; use an explicit scope when
 changing them. `--allow-divergent` on `set` or
 `trunk` permits a project-trunk ancestry discontinuity. The
 [configuration reference](../config-command.md) defines all keys, default

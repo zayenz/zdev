@@ -177,6 +177,17 @@ git diff --cached
 zdev commit -m <message>
 ```
 
+With a shadow record, stage the source paths in this repository and the record
+paths in `.zdev`, without the `.zdev/` prefix:
+
+```text
+git add <explicit-task-source-path>...
+git -C .zdev add <area>/tasks/<exact-task-file> <area>/TASKS.md <dependent-index>...
+git diff --cached
+git -C .zdev diff --cached
+zdev commit -m <message>
+```
+
 Each `<dependent-index>` is a `TASKS.md` path that `zdev task done` reports in
 `dependent_indexes`, or after `Updated dependent indexes:` in text. It
 regenerates those indexes for other areas whose tasks this task blocks.

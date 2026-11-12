@@ -149,7 +149,7 @@ Before dispatch, admit the exact task in the destination with `work-context
 <area> --task <task-id> --store --format json`. Record the absolute destination
 root, brief, task, repository-instruction, and stored-snapshot paths. Create an
 ordinary Git source branch and linked worktree from the admitted HEAD, then
-record its absolute root, branch, and baseline commit. A personal record may be
+record its absolute root, branch, and baseline commit. A personal or shadow record may be
 absent from that linked checkout; workers always read the authoritative record
 paths in the destination. Give every source worker the source root as its cwd
 and instruct it to edit and validate only there. It must not use source `.zdev`,

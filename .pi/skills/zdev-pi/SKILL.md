@@ -140,7 +140,7 @@ boundaries. File count alone is never scope expansion.
 
 Use `general` as the conventional tag for recurring one-off work when the user
 wants one standing area instead of a new area for each small improvement. With
-personal or project records under the default `workspace.branching` value
+personal, project, or shadow records under the default `workspace.branching` value
 `on-request`, it is a trunk area on configured trunk. It uses an isolated persistent branch when the user asks for
 one, when the setting is `isolated`, or under pull-request records. Keep a minimal brief with shared
 boundaries, testing, and validation. Unsliced tasks are normal; use slice briefs
@@ -168,6 +168,17 @@ for trunk mode; read-only interactions never rebase.
 For ordinary task work, use `branch_status.task_work.safe` as the branch gate.
 Mode does not grant ownership of other areas or unrelated trunk changes: retain
 the exact Git baseline and stage only the selected area/task paths.
+
+A shadow record keeps `.zdev` out of this repository: `.zdev` is its own Git
+repository and never enters this repository's index. Stage record paths there,
+relative to `.zdev`, for example `git -C .zdev add <area>/TASKS.md`, and inspect
+`git -C .zdev diff --cached` beside the main cached diff. `zdev commit` commits
+the main index, then the shadow index with the same change ID and a link to the
+main commit; when nothing is staged in `.zdev`, it commits every record change.
+zdev makes the shadow repository follow this repository's branch and reports
+what it changed on standard error with a `zdev:` prefix; relay those notices.
+Do not switch, merge, or rebase branches inside `.zdev` yourself, except to
+finish a shadow rebase that zdev reported.
 Report a stale-but-safe rebase advisory once and continue without requesting a
 rebase. Unsafe branch, anchor, ancestry, history, or Git-operation state still
 stops implementation, verification, completion, and commit preparation.

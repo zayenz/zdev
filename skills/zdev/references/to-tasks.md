@@ -209,7 +209,7 @@ review with the retained identity without another user step:
 zdev tasks import <area> --reviewed <review-id> --format json
 ```
 
-For project and pull-request records, add `--commit --format json` to publish
+For project, pull-request, and shadow records, add `--commit --format json` to publish
 the approved bundle, including the initial task split. Personal records keep
 using ordinary import. Use ordinary import under any policy when the user wants
 uncommitted additions. If the approved work also modified the owning

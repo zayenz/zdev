@@ -11,7 +11,7 @@ share a branch, including areas with different modes. Never infer mode from a
 branch name.
 
 Use the default create form or `--branch` for isolated work. Use `--trunk` only
-when the user explicitly wants a personal/project area on configured trunk;
+when the user explicitly wants a personal, project, or shadow area on configured trunk;
 pull-request records remain isolated. Trunk work requires the resolved trunk
 checked out and safe, but never requires freshness or rebase ceremony.
 
@@ -642,7 +642,7 @@ commands; run authorization itself does not launch a harness.
 ## General area convention
 
 `general` is the conventional tag for recurring one-off work. It is an ordinary
-area, not an area kind. With personal or project records under the default
+area, not an area kind. With personal, project, or shadow records under the default
 `workspace.branching` value `on-request`, run this on the checked-out project
 trunk to create a trunk area:
 
@@ -877,7 +877,7 @@ states stop; a stored review cannot waive those gates. Derived work never uses
 ordinary task import.
 
 A path is accepted for manual use and remains in place after review or import.
-For project and pull-request records, add `--commit --format json` to publish
+For project, pull-request, and shadow records, add `--commit --format json` to publish
 the approved bundle, including the initial split. Personal records keep using
 ordinary import. Use ordinary import under any policy when the user wants
 uncommitted additions. A later committed import contains only the new task

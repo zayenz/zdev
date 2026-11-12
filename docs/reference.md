@@ -33,6 +33,7 @@ belong to the installed harness workflow.
 | `zdev change` | Inspect or find a logical change by its stable ID. |
 | `zdev research` | Manage local research runs and experiments. |
 | `zdev cleanup squash` | Remove a pull-request planning record before squash merge. |
+| `zdev shadow` | Inspect, commit, push, integrate, or adopt a shadow record. |
 
 For exact options in your installed version, run:
 

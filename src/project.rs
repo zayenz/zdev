@@ -23,6 +23,7 @@ pub(super) enum RecordPolicy {
     Personal,
     Project,
     PullRequest,
+    Shadow,
 }
 
 impl RecordPolicy {
@@ -31,6 +32,7 @@ impl RecordPolicy {
             Self::Personal => "personal",
             Self::Project => "project",
             Self::PullRequest => "pull-request",
+            Self::Shadow => "shadow",
         }
     }
 }
@@ -156,36 +158,60 @@ pub(super) struct GoalSliceRead {
     pub path: PathBuf,
 }
 
-pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOutput, ZdevError> {
+pub(super) fn initialize(
+    root: &Path,
+    record: RecordPolicy,
+    shadow_remote: Option<&str>,
+) -> Result<CommandOutput, ZdevError> {
+    if shadow_remote.is_some() && record != RecordPolicy::Shadow {
+        return Err(ZdevError::new(
+            "--shadow-remote is available only with --record shadow",
+        ));
+    }
     let state_dir = root.join(".zdev");
     if state_dir.exists() {
         let config = read_config(root)?;
+        if record == RecordPolicy::Shadow && config.project.record == RecordPolicy::Personal {
+            return Err(ZdevError::new(
+                "zdev is already initialized with a personal record. Convert it with `zdev shadow adopt`",
+            ));
+        }
+        if record == RecordPolicy::Shadow && config.project.record != RecordPolicy::Shadow {
+            return Err(ZdevError::new(format!(
+                "zdev is already initialized with a {} record; only a personal record can become a shadow record",
+                config.project.record.as_str()
+            )));
+        }
         return Ok(CommandOutput::new(
             format!("zdev is already initialized for {}", config.project.name),
             json!({"schema_version": SCHEMA_VERSION, "status": "unchanged", "root": root}),
         ));
     }
-    fs::create_dir(&state_dir)
-        .map_err(|error| ZdevError::io(format!("Cannot create {}", state_dir.display()), error))?;
-    let name = root
-        .file_name()
-        .and_then(OsStr::to_str)
-        .filter(|name| !name.trim().is_empty())
-        .ok_or_else(|| ZdevError::new("Repository has no usable directory name"))?;
-    let config = Config {
-        schema_version: SCHEMA_VERSION,
-        project: ProjectConfig {
-            name: name.to_owned(),
-            record,
-            default_area: None,
-            trunk: current_branch(root)?,
-            guidance: None,
-        },
+    let mut shadow_setup = None;
+    let config = if record == RecordPolicy::Shadow {
+        let _lock = ZdevStateLock::acquire(root)?;
+        let setup =
+            super::shadow::initialize(root, shadow_remote, || initial_config(root, record))?;
+        let config = read_config(root)?;
+        shadow_setup = Some(setup);
+        config
+    } else {
+        let config = initial_config(root, record)?;
+        fs::create_dir(&state_dir).map_err(|error| {
+            ZdevError::io(format!("Cannot create {}", state_dir.display()), error)
+        })?;
+        write_atomic(
+            &state_dir.join("config.toml"),
+            toml::to_string_pretty(&config).unwrap().as_bytes(),
+        )?;
+        config
     };
-    write_atomic(
-        &state_dir.join("config.toml"),
-        toml::to_string_pretty(&config).unwrap().as_bytes(),
-    )?;
+    let name = config.project.name.as_str();
+    let created = if shadow_setup.as_ref().is_some_and(|setup| setup.cloned) {
+        "Cloned the shadow record into .zdev."
+    } else {
+        "Created .zdev/config.toml."
+    };
     let trunk = match config.project.trunk.as_deref() {
         Some(branch) => format!("Recorded {branch} as the project trunk."),
         None => "HEAD is detached, so no project trunk was recorded. Set one with:\n  zdev config trunk <branch>".to_owned(),
@@ -196,8 +222,15 @@ pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOut
         }
         RecordPolicy::Personal => "\nRecord policy: personal. Keep .zdev local to this clone.\n",
         RecordPolicy::Project => "\nRecord policy: project. Track .zdev as shared project state.\n",
+        RecordPolicy::Shadow => "",
     };
-    let record_json = if record == RecordPolicy::PullRequest {
+    let record_text = match &shadow_setup {
+        Some(setup) => format!("\nRecord policy: shadow. {}\n", setup.text),
+        None => record_text.to_owned(),
+    };
+    let record_json = if let Some(setup) = &shadow_setup {
+        json!({"policy": record.as_str(), "shadow": setup.value})
+    } else if record == RecordPolicy::PullRequest {
         json!({
             "policy": record.as_str(),
             "tracked_for": "pull-request-review",
@@ -210,7 +243,7 @@ pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOut
     };
     Ok(CommandOutput::new(
         format!(
-            "Initialized zdev for {name}.\nCreated .zdev/config.toml. {trunk}{record_text}\nCheck the integration you use:\n  zdev skill check <codex|claude|opencode|pi|omp|agy> --scope user\n\nThen create or switch to a feature branch and run:\n  zdev area create <tag> --title <title> --objective <objective>"
+            "Initialized zdev for {name}.\n{created} {trunk}{record_text}\nCheck the integration you use:\n  zdev skill check <codex|claude|opencode|pi|omp|agy> --scope user\n\nThen create or switch to a feature branch and run:\n  zdev area create <tag> --title <title> --objective <objective>"
         ),
         json!({
             "schema_version": SCHEMA_VERSION,
@@ -237,6 +270,24 @@ pub(super) fn initialize(root: &Path, record: RecordPolicy) -> Result<CommandOut
             }
         }),
     ))
+}
+
+fn initial_config(root: &Path, record: RecordPolicy) -> Result<Config, ZdevError> {
+    let name = root
+        .file_name()
+        .and_then(OsStr::to_str)
+        .filter(|name| !name.trim().is_empty())
+        .ok_or_else(|| ZdevError::new("Repository has no usable directory name"))?;
+    Ok(Config {
+        schema_version: SCHEMA_VERSION,
+        project: ProjectConfig {
+            name: name.to_owned(),
+            record,
+            default_area: None,
+            trunk: current_branch(root)?,
+            guidance: None,
+        },
+    })
 }
 
 pub(super) fn cleanup_squash(root: &Path) -> Result<CommandOutput, ZdevError> {
@@ -1495,7 +1546,7 @@ fn effective_base(root: &Path, config: &Config, area: &AreaMetadata) -> Result<S
     })
 }
 
-fn branch_tip(root: &Path, branch: &str) -> Result<Option<String>, ZdevError> {
+pub(super) fn branch_tip(root: &Path, branch: &str) -> Result<Option<String>, ZdevError> {
     if !local_branch_exists(root, branch) {
         return Ok(None);
     }
@@ -1756,12 +1807,19 @@ fn finalize_managed_rebase(
         )));
     }
     require_linear_child_history(root, new_base_commit, &branch)?;
+    let shadow = super::shadow::rebase_area_branch(root, &branch, effective_base);
     area.base_commit = Some(new_base_commit.to_owned());
     write_area_metadata(root, &area)?;
-    Ok(CommandOutput::new(
-        format!("Rebased area {tag} onto {effective_base}"),
-        json!({"schema_version": SCHEMA_VERSION, "status": "rebased", "area": tag, "branch": branch, "effective_base": effective_base, "base_commit": new_base_commit, "fresh": true}),
-    ))
+    let mut text = format!("Rebased area {tag} onto {effective_base}");
+    if let Some(shadow) = &shadow {
+        text.push('\n');
+        text.push_str(shadow);
+    }
+    let mut value = json!({"schema_version": SCHEMA_VERSION, "status": "rebased", "area": tag, "branch": branch, "effective_base": effective_base, "base_commit": new_base_commit, "fresh": true});
+    if let Some(shadow) = shadow {
+        value["shadow"] = json!(shadow);
+    }
+    Ok(CommandOutput::new(text, value))
 }
 
 fn continue_managed_rebase(root: &Path, tag: &str) -> Result<CommandOutput, ZdevError> {
@@ -1947,7 +2005,7 @@ pub(super) fn rebase_area(
     finalize_managed_rebase(root, tag, &base, &new_base_commit)
 }
 
-fn local_branch_exists(root: &Path, branch: &str) -> bool {
+pub(super) fn local_branch_exists(root: &Path, branch: &str) -> bool {
     ProcessCommand::new("git")
         .args([
             "show-ref",
@@ -1970,7 +2028,7 @@ fn base_is_ancestor(root: &Path, base: &str, branch: &str) -> Option<bool> {
     )
 }
 
-fn commit_is_ancestor(root: &Path, ancestor: &str, descendant: &str) -> Option<bool> {
+pub(super) fn commit_is_ancestor(root: &Path, ancestor: &str, descendant: &str) -> Option<bool> {
     let status = ProcessCommand::new("git")
         .args(["merge-base", "--is-ancestor", ancestor, descendant])
         .current_dir(root)

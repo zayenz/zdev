@@ -42,6 +42,7 @@ agent. To start execution, ask it to implement a task or loop through the area.
 | [instructions](instructions.md) | Print the short workflow instructions for an agent. |
 | [init](init.md) | Initialize a repository and choose how to store its records. |
 | [cleanup](cleanup.md) | Remove pull-request records before a squash merge. |
+| [shadow](shadow.md) | Manage a record versioned in its own Git repository. |
 | [config](config.md) | Read or change project settings and worker profiles. |
 | [area](area.md) | Create an objective and manage its branch and lifecycle. |
 | [research](research.md) | Run measured experiments and track research limits. |

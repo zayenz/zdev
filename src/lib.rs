@@ -5,6 +5,7 @@ mod goal;
 mod integrations;
 mod project;
 mod research;
+mod shadow;
 mod tasks;
 
 use std::collections::BTreeMap;
@@ -71,7 +72,7 @@ pub enum OutputFormat {
     version,
     about = "Keep development plans and tasks in the repository",
     long_about = "Keep development plans and tasks in plain files under .zdev.\n\nZdev creates and checks those files, selects ready tasks, checks area branches, installs coding-harness integrations, and adds stable IDs to Git commits.",
-    after_help = "Start a repository:\n  1. Check your integration:       zdev skill check <HARNESS> --scope user\n  2. Choose personal, project, or pull-request record storage:\n     zdev init --record <POLICY>\n  3. Create or switch branches, then:\n     zdev area create <TAG> --title <TITLE> --objective <OBJECTIVE>\n\nIf the integration check reports missing or conflict, run `zdev skill install <HARNESS>`. Run `zdev <COMMAND> --help` for command-specific details."
+    after_help = "Start a repository:\n  1. Check your integration:       zdev skill check <HARNESS> --scope user\n  2. Choose personal, project, pull-request, or shadow record storage:\n     zdev init --record <POLICY>\n  3. Create or switch branches, then:\n     zdev area create <TAG> --title <TITLE> --objective <OBJECTIVE>\n\nIf the integration check reports missing or conflict, run `zdev skill install <HARNESS>`. Run `zdev <COMMAND> --help` for command-specific details."
 )]
 pub struct Cli {
     /// Use PATH as the repository root instead of discovering it from the current directory
@@ -95,12 +96,28 @@ enum Command {
     /// run `zdev config trunk <BRANCH>`. This command does not install a
     /// coding-harness integration or create an area.
     /// Use --record personal to keep .zdev clone-local, project to keep it as
-    /// lasting shared state, or pull-request to track it for review and remove
-    /// it with `zdev cleanup squash` before squash merge.
+    /// lasting shared state, pull-request to track it for review and remove
+    /// it with `zdev cleanup squash` before squash merge, or shadow to keep it
+    /// out of this repository and version it in its own Git repository at
+    /// .zdev/.git, whose branches follow this repository's branches.
     Init {
         /// How the .zdev planning record is stored and shared
         #[arg(long, value_enum, value_name = "POLICY")]
         record: project::RecordPolicy,
+        /// Shadow repository remote: clone it when it holds a shadow record, otherwise add it as origin
+        #[arg(long, value_name = "URL")]
+        shadow_remote: Option<String>,
+    },
+    /// Inspect and manage the shadow record's own Git repository
+    ///
+    /// A shadow record keeps .zdev out of this repository and versions it in
+    /// .zdev/.git. Every zdev command makes the shadow repository follow this
+    /// repository's checked-out branch and integrates merged shadow branches
+    /// that fast-forward cleanly; `zdev commit` also commits record changes
+    /// there.
+    Shadow {
+        #[command(subcommand)]
+        command: ShadowCommand,
     },
     /// Remove pull-request-only zdev development records
     Cleanup {
@@ -431,6 +448,41 @@ struct CodexDispatchSpecInput<'a> {
     run_profile: Option<&'a str>,
     role_profiles: &'a [String],
     retained_plan: RetainedPlan,
+}
+
+#[derive(Debug, Subcommand)]
+enum ShadowCommand {
+    /// Show the shadow branch, uncommitted changes, upstream, and branches awaiting integration
+    Status,
+    /// Commit every shadow record change without a main-repository commit
+    Commit {
+        /// Commit subject
+        #[arg(short = 'm', long)]
+        message: String,
+        /// Commit-body paragraph; repeat for multiple paragraphs
+        #[arg(long = "body")]
+        body: Vec<String>,
+    },
+    /// Push the current shadow branch to its upstream, or to origin
+    Push,
+    /// Bring another shadow branch's records into the current shadow branch
+    ///
+    /// Fast-forwards when possible. Otherwise the configured trunk is never
+    /// rewritten: on trunk the named branch is rebased onto it first, and on
+    /// any other branch the current branch is rebased onto the named branch.
+    Integrate {
+        /// Shadow branch to integrate
+        branch: String,
+    },
+    /// Convert a personal record into a shadow record
+    ///
+    /// Creates .zdev/.git, commits the existing record, and adds /.zdev/ to
+    /// this repository's info/exclude when .zdev is not already ignored.
+    Adopt {
+        /// Empty remote to add as origin
+        #[arg(long, value_name = "URL")]
+        shadow_remote: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -792,6 +844,7 @@ impl Cli {
             Command::Instructions => "instructions",
             Command::Init { .. } => "init",
             Command::Cleanup { .. } => "cleanup",
+            Command::Shadow { .. } => "shadow",
             Command::Config { .. } => "config",
             Command::Area { .. } => "area",
             Command::Slice { .. } => "slice",
@@ -947,6 +1000,7 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
         }
     }
     let root = resolve_root(cli.root.as_deref())?;
+    align_shadow(&root, &cli.command)?;
     match &cli.command {
         Command::Instructions => unreachable!(),
         Command::Research { command } => match command {
@@ -964,7 +1018,19 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
                 research::compare_observation(&root, area, source)
             }
         },
-        Command::Init { record } => project::initialize(&root, *record),
+        Command::Init {
+            record,
+            shadow_remote,
+        } => project::initialize(&root, *record, shadow_remote.as_deref()),
+        Command::Shadow { command } => match command {
+            ShadowCommand::Status => shadow::status_command(&root),
+            ShadowCommand::Commit { message, body } => shadow::commit_command(&root, message, body),
+            ShadowCommand::Push => shadow::push_command(&root),
+            ShadowCommand::Integrate { branch } => shadow::integrate(&root, branch),
+            ShadowCommand::Adopt { shadow_remote } => {
+                shadow::adopt(&root, shadow_remote.as_deref())
+            }
+        },
         Command::Cleanup { command } => match command {
             CleanupCommand::Squash => project::cleanup_squash(&root),
         },
@@ -1248,6 +1314,47 @@ pub fn run(cli: &Cli) -> Result<CommandOutput, ZdevError> {
             ChangeCommand::Inspect { revision } => inspect_change(&root, revision),
             ChangeCommand::Lookup { change_id } => lookup_change(&root, change_id),
         },
+    }
+}
+
+/// Makes a shadow record follow the checked-out branch before a command reads
+/// or writes it, and reports what changed on standard error. Read-only views
+/// still run when the shadow record cannot follow, and show the problem.
+fn align_shadow(root: &Path, command: &Command) -> Result<(), ZdevError> {
+    if matches!(
+        command,
+        Command::Init { .. }
+            | Command::Instructions
+            | Command::Skill { .. }
+            | Command::ChangeId
+            | Command::Shadow {
+                command: ShadowCommand::Adopt { .. }
+            }
+    ) {
+        return Ok(());
+    }
+    match shadow::align(root) {
+        Ok(notices) => {
+            for notice in notices {
+                eprintln!("zdev: {notice}");
+            }
+            Ok(())
+        }
+        Err(error)
+            if matches!(
+                command,
+                Command::Status { .. }
+                    | Command::Check { .. }
+                    | Command::Change { .. }
+                    | Command::Shadow {
+                        command: ShadowCommand::Status
+                    }
+            ) =>
+        {
+            eprintln!("zdev: warning: {error}");
+            Ok(())
+        }
+        Err(error) => Err(error),
     }
 }
 
@@ -2469,6 +2576,11 @@ fn status_output_selected(
         }
         let mut value = json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "area": area_view, "lifecycle": lifecycle, "queue": queue, "branch_status": branch_status, "counts": {"total": tasks.total, "ready": tasks.ready, "blocked": tasks.blocked, "done": tasks.done}, "slices": tasks.slices, "next": tasks.next, "next_complexity": tasks.next_complexity, "advisory": advisory});
         tasks::insert_cross_area_waits(&mut value, &tasks.cross_area_waits);
+        if let Some(report) = shadow::report(root) {
+            text.push('\n');
+            text.push_str(&report.lines.join("\n"));
+            value["shadow"] = report.value;
+        }
         return Ok(CommandOutput::new(text, value));
     }
     let mut summaries = Vec::new();
@@ -2522,10 +2634,13 @@ fn status_output_selected(
         text.push('\n');
         text.push_str(&branch_lines.join("\n"));
     }
-    Ok(CommandOutput::new(
-        text,
-        json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "checked_out_branch": checked_out, "areas": summaries}),
-    ))
+    let mut value = json!({"schema_version": SCHEMA_VERSION, "project": config.project.name, "trunk": config.project.trunk, "checked_out_branch": checked_out, "areas": summaries});
+    if let Some(report) = shadow::report(root) {
+        text.push('\n');
+        text.push_str(&report.lines.join("\n"));
+        value["shadow"] = report.value;
+    }
+    Ok(CommandOutput::new(text, value))
 }
 
 fn check_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, ZdevError> {
@@ -2545,10 +2660,20 @@ fn check_output(root: &Path, requested: Option<&str>) -> Result<CommandOutput, Z
         tasks::validate_area_lifecycle(&area, &summary)?;
         checked.push(area.tag);
     }
-    Ok(CommandOutput::new(
-        format!("Checked {} areas", checked.len()),
-        json!({"schema_version": SCHEMA_VERSION, "status": "ok", "areas": checked}),
-    ))
+    let mut text = format!("Checked {} areas", checked.len());
+    let mut value = json!({"schema_version": SCHEMA_VERSION, "status": "ok", "areas": checked});
+    if let Some(report) = shadow::report(root) {
+        if !report.problems.is_empty() {
+            return Err(ZdevError::with_details(
+                format!("Shadow record problems: {}", report.problems.join("; ")),
+                json!({"shadow": report.value}),
+            ));
+        }
+        text.push('\n');
+        text.push_str(&report.lines.join("\n"));
+        value["shadow"] = report.value;
+    }
+    Ok(CommandOutput::new(text, value))
 }
 
 pub(crate) fn validate_brief(path: &Path) -> Result<(), ZdevError> {
@@ -2633,6 +2758,21 @@ fn commit(root: &Path, message: &str, body: &[String]) -> Result<CommandOutput, 
     }
     let _lock = ZdevStateLock::acquire(root)?;
     let change_id = generate_change_id()?;
+    let shadow_record = shadow::is_shadow(root);
+    if shadow_record && !main_index_has_staged_changes(root)? && shadow::has_pending_changes(root)?
+    {
+        project::current_branch(root)?.ok_or_else(|| {
+            ZdevError::new(
+                "Cannot commit the shadow record while HEAD is detached; check out a branch, then retry",
+            )
+        })?;
+        let committed = shadow::commit_all(root, message, body, &change_id, None)?
+            .expect("pending shadow changes were checked");
+        return Ok(CommandOutput::new(
+            format!("{} ({change_id}): {message}", committed.text()),
+            json!({"schema_version": SCHEMA_VERSION, "status": "committed", "repository": "shadow", "commit": committed.commit, "change_id": change_id, "shadow": committed.value()}),
+        ));
+    }
     let mut command = ProcessCommand::new("git");
     command.arg("commit").arg("-m").arg(message);
     for paragraph in body {
@@ -2654,10 +2794,55 @@ fn commit(root: &Path, message: &str, body: &[String]) -> Result<CommandOutput, 
         )));
     }
     let revision = git_output(root, &["rev-parse", "HEAD"])?;
-    Ok(CommandOutput::new(
-        format!("Committed {revision} ({change_id}): {message}"),
-        json!({"schema_version": SCHEMA_VERSION, "status": "committed", "commit": revision, "change_id": change_id}),
-    ))
+    let text = format!("Committed {revision} ({change_id}): {message}");
+    let mut value = json!({"schema_version": SCHEMA_VERSION, "status": "committed", "commit": revision, "change_id": change_id});
+    if !shadow_record {
+        return Ok(CommandOutput::new(text, value));
+    }
+    let (shadow_text, shadow_value, exit_code) = match project::current_branch(root)? {
+        None => (
+            Some("Warning: HEAD is detached, so the shadow record was not committed. Check out a branch and run `zdev shadow commit -m <subject>`".to_owned()),
+            json!({"status": "skipped", "reason": "detached-head"}),
+            0,
+        ),
+        Some(branch) => match shadow::commit_all(root, message, body, &change_id, Some((&revision, &branch))) {
+            Ok(Some(committed)) => (Some(committed.text()), committed.value(), 0),
+            Ok(None) => (None, json!({"status": "unchanged"}), 0),
+            Err(error) => (
+                Some(format!("Warning: the main commit succeeded, but the shadow record was not committed: {error}. Fix the problem and run `zdev shadow commit -m <subject>`")),
+                json!({"status": "failed", "error": error.to_string()}),
+                1,
+            ),
+        },
+    };
+    value["shadow"] = shadow_value;
+    let mut output = CommandOutput::new(
+        match shadow_text {
+            Some(shadow_text) => format!("{text}\n{shadow_text}"),
+            None => text,
+        },
+        value,
+    );
+    output.exit_code = exit_code;
+    Ok(output)
+}
+
+fn main_index_has_staged_changes(root: &Path) -> Result<bool, ZdevError> {
+    let output = ProcessCommand::new("git")
+        .args(["diff", "--cached", "--quiet"])
+        .current_dir(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .map_err(|error| ZdevError::io("Cannot inspect the Git index", error))?;
+    match output.status.code() {
+        Some(0) => Ok(false),
+        Some(1) => Ok(true),
+        _ => {
+            // An unborn HEAD cannot be diffed; any index entry is staged.
+            Ok(!git_output(root, &["ls-files"])?.is_empty())
+        }
+    }
 }
 
 fn generate_change_id() -> Result<String, ZdevError> {
@@ -2746,14 +2931,20 @@ fn lookup_change(root: &Path, change_id: &str) -> Result<CommandOutput, ZdevErro
             }));
         }
     }
+    matches.extend(shadow::lookup_change(root, change_id));
     let text = if matches.is_empty() {
         format!("No reachable commit has {change_id}. Check the ID or fetch the missing history")
     } else {
         matches
             .iter()
             .map(|value| {
+                let repository = if value["repository"] == "shadow" {
+                    "  (shadow record)"
+                } else {
+                    ""
+                };
                 format!(
-                    "{}  {}",
+                    "{}  {}{repository}",
                     value["commit"].as_str().unwrap(),
                     value["subject"].as_str().unwrap()
                 )

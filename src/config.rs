@@ -238,6 +238,48 @@ impl WorkspacePreferences {
     }
 }
 
+/// Whether zdev pushes the shadow record after it commits there.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum ShadowPush {
+    /// Commit only; push manually or with `zdev shadow push`.
+    Never,
+    /// Push the shadow branch after every shadow commit zdev makes.
+    AfterCommit,
+}
+
+impl ShadowPush {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::Never => "never",
+            Self::AfterCommit => "after-commit",
+        }
+    }
+
+    fn parse(value: &str) -> Result<Self, ZdevError> {
+        match value {
+            "never" => Ok(Self::Never),
+            "after-commit" => Ok(Self::AfterCommit),
+            _ => Err(ZdevError::new(format!(
+                "Unknown shadow push policy {value}; expected never or after-commit"
+            ))),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ShadowPreferences {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    push: Option<ShadowPush>,
+}
+
+impl ShadowPreferences {
+    fn is_empty(&self) -> bool {
+        self.push.is_none()
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct HarnessProfiles {
@@ -301,6 +343,8 @@ struct WorkerFile {
     t3: T3Preferences,
     #[serde(default, skip_serializing_if = "WorkspacePreferences::is_empty")]
     workspace: WorkspacePreferences,
+    #[serde(default, skip_serializing_if = "ShadowPreferences::is_empty")]
+    shadow: ShadowPreferences,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
     codex: HarnessProfiles,
     #[serde(default, skip_serializing_if = "HarnessProfiles::is_empty")]
@@ -372,6 +416,7 @@ impl Default for WorkerFile {
             default_profile: None,
             t3: T3Preferences::default(),
             workspace: WorkspacePreferences::default(),
+            shadow: ShadowPreferences::default(),
             codex: HarnessProfiles::default(),
             claude: HarnessProfiles::default(),
             opencode: HarnessProfiles::default(),
@@ -414,6 +459,7 @@ impl WorkerFile {
 struct WorkerLayer {
     t3: T3Preferences,
     workspace: WorkspacePreferences,
+    shadow: ShadowPreferences,
     codex: RoleProfiles,
     claude: RoleProfiles,
     opencode: RoleProfiles,
@@ -830,11 +876,13 @@ enum ConfigKey {
 enum PreferenceKey {
     T3VerifierHarness,
     WorkspaceBranching,
+    ShadowPush,
 }
 
-const PREFERENCE_KEYS: [PreferenceKey; 2] = [
+const PREFERENCE_KEYS: [PreferenceKey; 3] = [
     PreferenceKey::T3VerifierHarness,
     PreferenceKey::WorkspaceBranching,
+    PreferenceKey::ShadowPush,
 ];
 
 impl PreferenceKey {
@@ -842,6 +890,7 @@ impl PreferenceKey {
         match self {
             Self::T3VerifierHarness => "t3.verifier-harness",
             Self::WorkspaceBranching => "workspace.branching",
+            Self::ShadowPush => "shadow.push",
         }
     }
 
@@ -849,6 +898,7 @@ impl PreferenceKey {
         match self {
             Self::T3VerifierHarness => VerifierHarness::Codex.as_str(),
             Self::WorkspaceBranching => WorkspaceBranching::OnRequest.as_str(),
+            Self::ShadowPush => ShadowPush::Never.as_str(),
         }
     }
 
@@ -856,6 +906,7 @@ impl PreferenceKey {
         match self {
             Self::T3VerifierHarness => layer.t3.verifier_harness.map(VerifierHarness::as_str),
             Self::WorkspaceBranching => layer.workspace.branching.map(WorkspaceBranching::as_str),
+            Self::ShadowPush => layer.shadow.push.map(ShadowPush::as_str),
         }
     }
 
@@ -864,6 +915,7 @@ impl PreferenceKey {
         match self {
             Self::T3VerifierHarness => file.t3.verifier_harness.take().is_some(),
             Self::WorkspaceBranching => file.workspace.branching.take().is_some(),
+            Self::ShadowPush => file.shadow.push.take().is_some(),
         }
     }
 }
@@ -950,7 +1002,7 @@ fn writable_key(scope: ConfigWriteScope, key: &str) -> Result<ConfigKey, ZdevErr
         ConfigKey::Project(ProjectKey::Name | ProjectKey::Record)
     ) {
         return Err(ZdevError::new(format!(
-            "Configuration key {key} is read-only; choose project identity and record policy with `zdev init --record <personal|project|pull-request>` (see docs/user-guide.md)"
+            "Configuration key {key} is read-only; choose project identity and record policy with `zdev init --record <personal|project|pull-request|shadow>` or `zdev shadow adopt` (see docs/user-guide.md)"
         )));
     }
     if scope == ConfigWriteScope::Global && matches!(kind, ConfigKey::Project(_)) {
@@ -1122,6 +1174,13 @@ fn set_preference(
                 Ok(())
             })?
         }
+        PreferenceKey::ShadowPush => {
+            let push = ShadowPush::parse(requested)?;
+            mutate_worker_file(root, scope, |file| {
+                file.shadow.push = Some(push);
+                Ok(())
+            })?
+        }
     };
     Ok(set_output(
         key.name(),
@@ -1217,6 +1276,18 @@ pub(super) fn workspace_branching(root: &Path) -> Result<WorkspaceBranching, Zde
         }
     };
     Ok(stored.unwrap_or(WorkspaceBranching::OnRequest))
+}
+
+/// Returns the effective `shadow.push`: the repository value, then the global
+/// value, then `never`.
+pub(super) fn shadow_push(root: &Path) -> Result<ShadowPush, ZdevError> {
+    let local =
+        read_worker_file(&root.join(".zdev/workers.toml"))?.and_then(|layer| layer.shadow.push);
+    let stored = match local {
+        Some(push) => Some(push),
+        None => read_worker_file(&global_worker_path()?)?.and_then(|layer| layer.shadow.push),
+    };
+    Ok(stored.unwrap_or(ShadowPush::Never))
 }
 
 pub(super) fn validate_local_workers(root: &Path) -> Result<(), ZdevError> {
@@ -1995,6 +2066,7 @@ fn validate_worker_file(path: &Path, file: &WorkerFile) -> Result<WorkerLayer, Z
     Ok(WorkerLayer {
         t3: file.t3.clone(),
         workspace: file.workspace.clone(),
+        shadow: file.shadow.clone(),
         codex: validate_roles(path, WorkerHarness::Codex, &file.codex)?,
         claude: validate_roles(path, WorkerHarness::Claude, &file.claude)?,
         opencode: validate_roles(path, WorkerHarness::Opencode, &file.opencode)?,

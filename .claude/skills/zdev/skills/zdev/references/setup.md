@@ -11,7 +11,7 @@ can run without durable state.
 
 When `.zdev` is absent, use a record policy already stated by the user. When it
 is still undecided, ask whether the record should be **personal**, **project**,
-or **pull-request**:
+**pull-request**, or **shadow**:
 
 - Recommend **personal** for work limited to this user and clone. Add the exact
   entry `/.zdev/` to this clone's `.git/info/exclude` before initialization.
@@ -20,6 +20,12 @@ or **pull-request**:
 - Recommend **pull-request** when `.zdev` should be reviewed on the branch but
   omitted from the squash-merged result. Leave `.zdev` visible to Git, commit it
   on the branch, and run `zdev cleanup squash` before squash merge.
+- Recommend **shadow** when the record should have Git history but stay out of
+  this repository. Zdev versions `.zdev` in its own repository at `.zdev/.git`,
+  adds `/.zdev/` to this clone's `.git/info/exclude`, and makes its branches
+  follow this repository's branches. Add `--shadow-remote <url>` to attach a
+  remote, or to clone an existing shadow record into a fresh clone. An existing
+  personal record becomes a shadow record with `zdev shadow adopt`.
 
 Apply the selected Git visibility rule, then check harness integrations before
 initialization.
@@ -44,7 +50,7 @@ or a repository-relative Markdown path. The user may skip installation.
 ## Initialize
 
 When `.zdev` is absent, run `zdev init --record
-<personal|project|pull-request>` with the selected policy. Then run `zdev skill
+<personal|project|pull-request|shadow>` with the selected policy. Then run `zdev skill
 install` for integrations that need installation or refresh.
 
 ## Finish
@@ -53,7 +59,7 @@ Confirm the selected record policy and installed integrations. Continue with
 the interaction that required durable state.
 
 When the user wants a standing home for one-off work, offer the conventional
-tag `general`. With personal or project records under the default
+tag `general`. With personal, project, or shadow records under the default
 `workspace.branching` value `on-request`, run this on the checked-out project
 trunk to create a trunk area:
 

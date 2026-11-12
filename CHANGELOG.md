@@ -4,6 +4,24 @@ This file records notable changes to zdev.
 
 ## [Unreleased]
 
+### Added
+
+- A `shadow` record policy keeps `.zdev` out of the repository and versions it
+  in its own Git repository at `.zdev/.git`, optionally with a remote. Start
+  one with `zdev init --record shadow [--shadow-remote <url>]`, or convert a
+  personal record with `zdev shadow adopt`. In a fresh clone, the same `init`
+  command clones the shadow record from its remote. The shadow repository's
+  branch follows the main repository's branch. `zdev commit` also commits the
+  shadow record, with the same change ID plus `Zdev-Source-Commit` and
+  `Zdev-Source-Branch` trailers. Committed task imports, derived-task
+  application, and `zdev area rebase` act on the shadow repository too. When a
+  merged shadow branch fast-forwards cleanly, zdev integrates it; otherwise
+  `zdev status` lists it as awaiting integration. `zdev shadow status`,
+  `commit`, `push`, and `integrate` manage the shadow repository directly. The
+  new `shadow.push` preference (`never` or `after-commit`) pushes after each
+  shadow commit. Refresh installed integrations with
+  `zdev skill install <harness> --force` for the shadow staging rules.
+
 ### Changed
 
 - A goal or loop that stops on a confirmed blocker or required decision now

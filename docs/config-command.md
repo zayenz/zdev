@@ -33,12 +33,12 @@ use the strict `.zdev/workers.toml` format described below.
 `global` means the current user's zdev preferences. `repo-only` keys can be
 read through the local or effective view, but `--global` cannot set them.
 Repository-local does not mean clone-private: the chosen `personal`, `project`,
-or `pull-request` record policy still determines whether `.zdev` is shared.
+`pull-request`, or `shadow` record policy still determines whether `.zdev` is shared.
 
 | CLI key | Value | Scope | Mutation |
 | --- | --- | --- | --- |
 | `project.name` | non-empty project name | repo-only | Set by `zdev init`; read-only afterward. |
-| `project.record` | `personal`, `project`, or `pull-request` | repo-only | Set by `zdev init`; read-only afterward. |
+| `project.record` | `personal`, `project`, `pull-request`, or `shadow` | repo-only | Set by `zdev init`, or changed from `personal` to `shadow` by `zdev shadow adopt`; read-only otherwise. |
 | `project.trunk` | Git branch name, or absent | repo-only | Set or unset locally. |
 | `project.default-area` | existing area tag, or absent | repo-only | Set or unset locally. |
 | `project.guidance` | `auto`, `agents`, `zdev`, or a safe repository-relative Markdown path; absent means `auto` | repo-only | Set or unset locally. Project integration install may continue recording the source it used. |
@@ -74,6 +74,7 @@ or `pull-request` record policy still determines whether `.zdev` is shared.
 | `worker.agy.planner` | worker profile | global and local | Set or unset. |
 | `t3.verifier-harness` | `codex`, `claude`, or `inherit`; absent means `codex` | global and local | Set or unset. |
 | `workspace.branching` | `on-request` or `isolated`; absent means `on-request` | global and local | Set or unset. |
+| `shadow.push` | `never` or `after-commit`; absent means `never` | global and local | Set or unset. Applies only to shadow records. |
 
 A worker profile is set as a whole. It is either `inherit`, or a non-empty
 model plus one effort from `inherit`, `low`, `medium`, `high`, `xhigh`, or

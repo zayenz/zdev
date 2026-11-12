@@ -7876,7 +7876,7 @@ fn every_help_page_explains_its_command_and_inputs() {
                 "instructions",
                 "Print concise instructions for a coding harness",
                 "Start a repository:",
-                "Choose personal, project, or pull-request record storage",
+                "Choose personal, project, pull-request, or shadow record storage",
                 "zdev init --record <POLICY>",
             ],
         ),
@@ -10603,7 +10603,7 @@ fn assigned_worktree_contract_is_rendered_once_and_routed_from_codex() {
             route.contains(branch_selection),
             "pull-request route lacks {branch_selection:?}"
         );
-        assert!(route.contains("With personal or project records under"));
+        assert!(route.contains("With personal, project, or shadow records under"));
     }
 }
 
@@ -12126,7 +12126,8 @@ worker.omp.verifier = {{ model = \"anthropic/claude-opus-5-5\", effort = \"low\"
 worker.omp.advanced-implementer = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 worker.omp.planner = {{ model = \"openai/gpt-6.1-sol\", effort = \"xhigh\" }}  [default]\n\
 t3.verifier-harness = \"codex\"  [default]\n\
-workspace.branching = \"on-request\"  [default]\n"
+workspace.branching = \"on-request\"  [default]\n\
+shadow.push = \"never\"  [default]\n"
     )
     .replace("\nshadows", "\n  shadows");
     let shown_text = String::from_utf8(shown.stdout).expect("human output");
@@ -12142,7 +12143,7 @@ workspace.branching = \"on-request\"  [default]\n"
     let effective = json_output_with_env(root, &["config", "show"], &environment);
     assert_eq!(effective["scope"], "effective");
     let values = effective["values"].as_array().expect("effective values");
-    assert_eq!(values.len(), 37);
+    assert_eq!(values.len(), 38);
     assert_eq!(
         values
             .iter()
@@ -12186,6 +12187,7 @@ workspace.branching = \"on-request\"  [default]\n"
             "worker.agy.planner",
             "t3.verifier-harness",
             "workspace.branching",
+            "shadow.push",
         ]
     );
     assert_eq!(values[2]["value"], Value::Null);
@@ -21213,4 +21215,401 @@ fn codex_rolling_integrated_rework_withdraws_owned_code_and_recovers_without_per
         json_output(root, &["task", "show", "work", "work-001"])["research_results"].clone();
     assert_eq!(results[0], historical[0]);
     assert_eq!(results.as_array().unwrap().len(), 3);
+}
+
+fn shadow(root: &Path) -> std::path::PathBuf {
+    root.join(".zdev")
+}
+
+fn shadow_repository() -> TempDir {
+    let repository = repository();
+    commit_file(repository.path(), "seed.txt", "seed\n", "seed");
+    repository
+}
+
+fn bare_remote() -> TempDir {
+    let directory = tempfile::tempdir().expect("temporary remote");
+    git(
+        directory.path(),
+        &["init", "-q", "--bare", "--initial-branch", "main"],
+    );
+    directory
+}
+
+fn trailer(message: &str, key: &str) -> Option<String> {
+    message
+        .lines()
+        .find_map(|line| line.strip_prefix(&format!("{key}: ")))
+        .map(str::to_owned)
+}
+
+#[test]
+fn shadow_init_keeps_the_record_out_of_the_main_repository() {
+    let repository = shadow_repository();
+    let root = repository.path();
+
+    let initialized = json_output(root, &["init", "--record", "shadow"]);
+    assert_eq!(initialized["record"]["policy"], "shadow");
+    assert_eq!(initialized["record"]["shadow"]["branch"], "main");
+    assert_eq!(initialized["record"]["shadow"]["exclude_added"], true);
+    assert!(shadow(root).join(".git").is_dir());
+    let exclude = fs::read_to_string(git_path(root, "info/exclude")).expect("exclude");
+    assert!(exclude.lines().any(|line| line == "/.zdev/"));
+    assert_eq!(git(root, &["status", "--porcelain"]), "");
+    assert_eq!(git(&shadow(root), &["rev-list", "--count", "HEAD"]), "1");
+    let config = fs::read_to_string(shadow(root).join("config.toml")).expect("config");
+    assert!(config.contains("record = \"shadow\""));
+    assert_eq!(
+        git(&shadow(root), &["config", "user.email"]),
+        "zdev@example.invalid"
+    );
+
+    let status = json_output(root, &["shadow", "status"]);
+    assert_eq!(status["branch"], "main");
+    assert_eq!(status["aligned"], true);
+    assert_eq!(status["uncommitted_changes"], 0);
+    assert_eq!(status["push"], "never");
+    assert_eq!(status["problems"], json!([]));
+    json_output(root, &["check"]);
+
+    let tracked = shadow_repository();
+    fs::create_dir_all(tracked.path().join(".zdev")).expect("tracked record");
+    commit_file(tracked.path(), ".zdev/notes.md", "notes\n", "track notes");
+    fs::remove_dir_all(tracked.path().join(".zdev")).expect("remove tracked record");
+    let refused = run_zdev(tracked.path(), &["init", "--record", "shadow"]);
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("tracks .zdev files"));
+    assert!(!tracked.path().join(".zdev/.git").exists());
+
+    let misplaced = run_zdev(
+        tracked.path(),
+        &["init", "--record", "personal", "--shadow-remote", "x"],
+    );
+    assert!(!misplaced.status.success());
+}
+
+#[test]
+fn shadow_commits_link_to_main_commits_by_change_id() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "shadow"]);
+    create_area(root, "work", "main");
+
+    fs::write(root.join("file.txt"), "one\n").expect("source file");
+    git(root, &["add", "file.txt"]);
+    let committed = json_output(root, &["commit", "-m", "feat: add one"]);
+    let change_id = committed["change_id"].as_str().expect("change ID");
+    let main_commit = committed["commit"].as_str().expect("main commit");
+    assert_eq!(committed["shadow"]["status"], "committed");
+    assert_eq!(committed["shadow"]["branch"], "main");
+    assert_eq!(committed["shadow"]["push"]["status"], "disabled");
+    assert_eq!(
+        git(root, &["show", "--name-only", "--format=", "HEAD"]),
+        "file.txt"
+    );
+
+    let message = git(&shadow(root), &["log", "-1", "--format=%B"]);
+    assert!(message.starts_with("feat: add one"));
+    assert_eq!(
+        trailer(&message, "Zdev-Change-Id").as_deref(),
+        Some(change_id)
+    );
+    assert_eq!(
+        trailer(&message, "Zdev-Source-Commit").as_deref(),
+        Some(main_commit)
+    );
+    assert_eq!(
+        trailer(&message, "Zdev-Source-Branch").as_deref(),
+        Some("main")
+    );
+    assert!(
+        git(&shadow(root), &["show", "--name-only", "--format=", "HEAD"])
+            .contains("work/area.toml")
+    );
+    assert_eq!(git(&shadow(root), &["status", "--porcelain"]), "");
+
+    let found = json_output(root, &["change", "lookup", change_id]);
+    let commits = found["commits"].as_array().expect("commits");
+    assert_eq!(commits.len(), 2);
+    assert!(
+        commits
+            .iter()
+            .any(|commit| commit["repository"] == "shadow")
+    );
+
+    fs::write(shadow(root).join("_notes.md"), "notes\n").expect("record note");
+    let main_head = git(root, &["rev-parse", "HEAD"]);
+    let records_only = json_output(root, &["commit", "-m", "Record notes"]);
+    assert_eq!(records_only["repository"], "shadow");
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), main_head);
+    let message = git(&shadow(root), &["log", "-1", "--format=%B"]);
+    assert_eq!(trailer(&message, "Zdev-Source-Commit"), None);
+    assert_eq!(
+        trailer(&message, "Zdev-Change-Id").as_deref(),
+        records_only["change_id"].as_str()
+    );
+
+    fs::write(shadow(root).join("_notes.md"), "more\n").expect("record note");
+    fs::write(shadow(root).join("_other.md"), "other\n").expect("record note");
+    git(&shadow(root), &["add", "_notes.md"]);
+    json_output(root, &["shadow", "commit", "-m", "Record staged notes"]);
+    assert_eq!(
+        git(&shadow(root), &["show", "--name-only", "--format=", "HEAD"]),
+        "_notes.md"
+    );
+    assert_eq!(
+        git(&shadow(root), &["status", "--porcelain"]),
+        "?? _other.md"
+    );
+    fs::remove_file(shadow(root).join("_other.md")).expect("remove note");
+
+    git(root, &["checkout", "-q", "--detach"]);
+    fs::write(root.join("file.txt"), "two\n").expect("source file");
+    fs::write(shadow(root).join("_notes.md"), "detached\n").expect("record note");
+    git(root, &["add", "file.txt"]);
+    let shadow_head = git(&shadow(root), &["rev-parse", "HEAD"]);
+    let detached = json_output(root, &["commit", "-m", "feat: detached"]);
+    assert_eq!(detached["shadow"]["status"], "skipped");
+    assert_eq!(git(&shadow(root), &["rev-parse", "HEAD"]), shadow_head);
+}
+
+#[test]
+fn shadow_branches_follow_switches_and_integrate_merges() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "shadow"]);
+
+    git(root, &["switch", "-q", "-c", "feature"]);
+    create_area(root, "feature", "feature");
+    assert_eq!(git(&shadow(root), &["branch", "--show-current"]), "feature");
+    fs::write(root.join("feature.txt"), "feature\n").expect("source file");
+    git(root, &["add", "feature.txt"]);
+    json_output(root, &["commit", "-m", "feat: start the feature"]);
+
+    git(root, &["switch", "-q", "main"]);
+    let status = json_output(root, &["shadow", "status"]);
+    assert_eq!(status["branch"], "main");
+    assert!(!shadow(root).join("feature/area.toml").exists());
+
+    git(root, &["merge", "-q", "--ff-only", "feature"]);
+    let output = run_zdev(root, &["status"]);
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("zdev:"));
+    assert_eq!(
+        git(&shadow(root), &["rev-parse", "main"]),
+        git(&shadow(root), &["rev-parse", "feature"])
+    );
+    assert!(shadow(root).join("feature/area.toml").is_file());
+
+    // A record change that a switch would overwrite stops record commands.
+    git(root, &["switch", "-q", "-c", "other"]);
+    fs::write(shadow(root).join("_notes.md"), "other\n").expect("record note");
+    json_output(root, &["shadow", "commit", "-m", "Other notes"]);
+    git(root, &["switch", "-q", "main"]);
+    run_zdev(root, &["status"]);
+    fs::write(shadow(root).join("_notes.md"), "main\n").expect("record note");
+    git(root, &["switch", "-q", "other"]);
+    let blocked = run_zdev(root, &["next", "feature"]);
+    assert!(!blocked.status.success());
+    assert_eq!(git(&shadow(root), &["branch", "--show-current"]), "main");
+    let status = json_output(root, &["shadow", "status"]);
+    assert_eq!(status["aligned"], false);
+    fs::remove_file(shadow(root).join("_notes.md")).expect("remove note");
+    json_output(root, &["shadow", "status"]);
+    assert_eq!(git(&shadow(root), &["branch", "--show-current"]), "other");
+
+    // Integration never rewrites trunk: it rebases the other branch first.
+    git(root, &["switch", "-q", "main"]);
+    fs::write(shadow(root).join("_main.md"), "main\n").expect("record note");
+    json_output(root, &["shadow", "commit", "-m", "Main notes"]);
+    let trunk = git(&shadow(root), &["rev-parse", "main"]);
+    let integrated = json_output(root, &["shadow", "integrate", "other"]);
+    assert_eq!(integrated["schema_version"], 1);
+    assert_eq!(
+        git(&shadow(root), &["rev-parse", "main~1"]),
+        trunk,
+        "trunk keeps its commits"
+    );
+    assert_eq!(
+        git(&shadow(root), &["rev-parse", "main"]),
+        git(&shadow(root), &["rev-parse", "other"])
+    );
+    assert!(shadow(root).join("_notes.md").is_file());
+    assert_eq!(
+        git(&shadow(root), &["rev-list", "--min-parents=2", "--all"]),
+        ""
+    );
+}
+
+#[test]
+fn shadow_remote_pushes_on_request_and_clones_into_fresh_checkouts() {
+    let remote = bare_remote();
+    let url = remote.path().to_str().expect("remote path");
+    let repository = shadow_repository();
+    let root = repository.path();
+    let home = root.join("home");
+    fs::create_dir_all(&home).expect("home");
+    let env = [("HOME", home.as_path())];
+
+    let initialized = json_output_with_env(
+        root,
+        &["init", "--record", "shadow", "--shadow-remote", url],
+        &env,
+    );
+    assert_eq!(initialized["record"]["shadow"]["remote"], url);
+    assert_eq!(
+        initialized["record"]["shadow"]["push"]["status"],
+        "disabled"
+    );
+    assert_eq!(git(remote.path(), &["branch", "--list"]), "");
+
+    json_output_with_env(
+        root,
+        &["config", "set", "--local", "shadow.push", "after-commit"],
+        &env,
+    );
+    create_area(root, "work", "main");
+    json_output_with_env(root, &["tasks", "list", "work"], &env);
+    let committed = json_output_with_env(root, &["commit", "-m", "Create the work area"], &env);
+    assert_eq!(committed["repository"], "shadow");
+    assert_eq!(committed["shadow"]["push"]["status"], "pushed");
+    assert_eq!(
+        git(remote.path(), &["rev-parse", "main"]),
+        git(&shadow(root), &["rev-parse", "HEAD"])
+    );
+    let status = json_output_with_env(root, &["shadow", "status"], &env);
+    assert_eq!(status["push"], "after-commit");
+    assert_eq!(status["upstream"]["ahead"], 0);
+
+    git(
+        &shadow(root),
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "/nonexistent/zdev-shadow.git",
+        ],
+    );
+    fs::write(shadow(root).join("_notes.md"), "notes\n").expect("record note");
+    let failed = json_output_with_env(root, &["commit", "-m", "Record notes"], &env);
+    assert_eq!(failed["shadow"]["push"]["status"], "failed");
+    let status = json_output_with_env(root, &["shadow", "status"], &env);
+    assert_eq!(status["upstream"]["ahead"], 1);
+    git(&shadow(root), &["remote", "set-url", "origin", url]);
+    json_output_with_env(root, &["shadow", "push"], &env);
+    assert_eq!(
+        git(remote.path(), &["rev-parse", "main"]),
+        git(&shadow(root), &["rev-parse", "HEAD"])
+    );
+
+    let fresh = tempfile::tempdir().expect("fresh checkout");
+    let checkout = fresh.path().join("checkout");
+    git(
+        fresh.path(),
+        &["clone", "-q", root.to_str().expect("root"), "checkout"],
+    );
+    git(&checkout, &["config", "user.name", "Zdev Test"]);
+    git(&checkout, &["config", "user.email", "zdev@example.invalid"]);
+    let cloned = json_output_with_env(
+        &checkout,
+        &["init", "--record", "shadow", "--shadow-remote", url],
+        &env,
+    );
+    assert_eq!(cloned["record"]["shadow"]["cloned_from"], url);
+    assert_eq!(
+        git(&shadow(&checkout), &["branch", "--show-current"]),
+        "main"
+    );
+    assert!(shadow(&checkout).join("work/area.toml").is_file());
+    assert!(shadow(&checkout).join("work/tasks").is_dir());
+    assert_eq!(git(&checkout, &["status", "--porcelain"]), "");
+    json_output_with_env(&checkout, &["tasks", "list", "work"], &env);
+}
+
+#[test]
+fn shadow_adopt_converts_a_personal_record() {
+    let remote = bare_remote();
+    let url = remote.path().to_str().expect("remote path");
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "personal"]);
+    create_area(root, "work", "main");
+
+    let adopted = json_output(root, &["shadow", "adopt", "--shadow-remote", url]);
+    assert_eq!(adopted["status"], "adopted");
+    assert_eq!(adopted["branch"], "main");
+    assert_eq!(adopted["remote"], url);
+    let config = fs::read_to_string(shadow(root).join("config.toml")).expect("config");
+    assert!(config.contains("record = \"shadow\""));
+    let files = git(&shadow(root), &["ls-files"]);
+    assert!(files.lines().any(|file| file == "work/area.toml"));
+    assert!(files.lines().any(|file| file == "config.toml"));
+    assert_eq!(git(&shadow(root), &["status", "--porcelain"]), "");
+    assert_eq!(git(root, &["status", "--porcelain"]), "");
+
+    let again = run_zdev(root, &["shadow", "adopt"]);
+    assert!(!again.status.success());
+
+    let occupied = shadow_repository();
+    json_output(occupied.path(), &["init", "--record", "personal"]);
+    json_output(root, &["shadow", "push"]);
+    let refused = run_zdev(
+        occupied.path(),
+        &["shadow", "adopt", "--shadow-remote", url],
+    );
+    assert!(!refused.status.success());
+    assert!(!occupied.path().join(".zdev/.git").exists());
+    let config = fs::read_to_string(occupied.path().join(".zdev/config.toml")).expect("config");
+    assert!(config.contains("record = \"personal\""));
+}
+
+#[test]
+fn shadow_task_import_commits_only_in_the_shadow_repository() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "shadow"]);
+    create_area(root, "work", "main");
+    json_output(root, &["shadow", "commit", "-m", "Create the work area"]);
+    let main_head = git(root, &["rev-parse", "HEAD"]);
+
+    let bundle = root.join("bundle.json");
+    fs::write(
+        &bundle,
+        serde_json::to_vec(&json!({
+            "schema_version": 1,
+            "area": "work",
+            "tasks": [{
+                "key": "one",
+                "title": "Complete one task",
+                "outcome": "The task completes.",
+                "done_when": ["The task is complete."],
+                "validation": ["Exercise the CLI."],
+                "blocked_by": []
+            }]
+        }))
+        .expect("task JSON"),
+    )
+    .expect("write task bundle");
+    let imported = json_output(
+        root,
+        &[
+            "tasks",
+            "import",
+            "work",
+            "--from",
+            bundle.to_str().expect("bundle path"),
+            "--commit",
+        ],
+    );
+    assert_eq!(imported["repository"], "shadow");
+    assert_eq!(git(root, &["rev-parse", "HEAD"]), main_head);
+    let message = git(&shadow(root), &["log", "-1", "--format=%B"]);
+    assert!(message.starts_with("Add tasks to work"));
+    assert_eq!(
+        trailer(&message, "Zdev-Change-Id").as_deref(),
+        imported["change_id"].as_str()
+    );
+    let changed = git(&shadow(root), &["show", "--name-only", "--format=", "HEAD"]);
+    assert!(changed.lines().all(|path| path.starts_with("work/")));
+    assert_eq!(git(&shadow(root), &["status", "--porcelain"]), "");
 }

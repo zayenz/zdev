@@ -18,7 +18,7 @@ material, then follows this workflow for the area brief.
    objective before choosing a Git workspace. For a new objective, initialize
    zdev on project trunk when needed. Reuse a branch or worktree choice already
    made for this work. Otherwise run `zdev config get workspace.branching
-   --format json`. With personal or project records under `on-request`, the
+   --format json`. With personal, project, or shadow records under `on-request`, the
    default, stay on the checked-out project trunk and run `zdev area create`
    without a mode flag to create a trunk area; create an area branch only when
    the user asks for one. Pull-request records need an area branch for review

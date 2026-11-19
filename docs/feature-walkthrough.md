@@ -153,7 +153,8 @@ and reports a result without committing it.
 ## Inspect the commit, then continue
 
 After verification passes, the coordinator records completion and commits the
-accepted changes with a `Zdev-Change-Id` trailer. Expect a report naming the
+accepted changes, with a `Zdev-Change-Id` trailer for project and pull-request
+records. Expect a report naming the
 task, validation, verification result, checkout, and commit.
 
 For example:

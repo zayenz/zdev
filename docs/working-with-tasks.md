@@ -89,9 +89,11 @@ both.
 ## Completion leaves a record
 
 Task inspection shows its outcome and validation. Accepted source changes
-have a commit with a stable `Zdev-Change-Id`, which can still identify the
-logical change after a rebase. The storage policy determines whether the task
-record itself is committed or remains local.
+have a commit. With a project or pull-request record, it carries a stable
+`Zdev-Change-Id`, which can still identify the logical change after a rebase;
+with a shadow record, the shadow commit carries the ID and names the source
+commit. The storage policy determines whether the task record itself is
+committed or remains local.
 
 A task can finish while the area still has unresolved questions. Before making
 the next task, use [discussion and research](discussion-and-research.md) to

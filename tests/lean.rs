@@ -21655,6 +21655,74 @@ fn shadow_records_of_a_merged_branch_integrate_without_linked_commits() {
 }
 
 #[test]
+fn shadow_records_of_a_branch_that_only_caught_up_with_trunk_stay_put() {
+    let repository = shadow_repository();
+    let root = repository.path();
+    json_output(root, &["init", "--record", "shadow"]);
+
+    // Planning only, kept fresh with `zdev area rebase`.
+    git(root, &["switch", "-q", "-c", "planned"]);
+    json_output(
+        root,
+        &[
+            "area",
+            "create",
+            "planned",
+            "--title",
+            "Planned",
+            "--objective",
+            "Plan",
+        ],
+    );
+    json_output(root, &["commit", "-m", "Plan the area"]);
+    git(root, &["switch", "-q", "main"]);
+    commit_file(root, "main-1.txt", "one\n", "main moves");
+    git(root, &["switch", "-q", "planned"]);
+    json_output(root, &["area", "rebase", "planned"]);
+
+    // Notes only, caught up with a manual fast-forward.
+    git(root, &["switch", "-q", "-c", "noted", "main"]);
+    fs::write(shadow(root).join("_noted.md"), "noted\n").expect("record note");
+    json_output(root, &["shadow", "commit", "-m", "Noted"]);
+    git(root, &["switch", "-q", "main"]);
+    commit_file(root, "main-2.txt", "two\n", "main moves again");
+    git(root, &["switch", "-q", "noted"]);
+    git(root, &["merge", "-q", "--ff-only", "main"]);
+    json_output(root, &["shadow", "status"]);
+
+    // Abandoned work: a linked commit, then reset onto trunk.
+    git(root, &["switch", "-q", "-c", "abandoned"]);
+    fs::write(shadow(root).join("_abandoned.md"), "abandoned\n").expect("record note");
+    fs::write(root.join("abandoned.txt"), "abandoned\n").expect("source file");
+    git(root, &["add", "abandoned.txt"]);
+    json_output(root, &["commit", "-m", "Abandoned work"]);
+    git(root, &["reset", "-q", "--hard", "main"]);
+    json_output(root, &["shadow", "status"]);
+
+    git(root, &["switch", "-q", "main"]);
+    let output = run_zdev(root, &["status"]);
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("Integrated shadow branch"), "{stderr}");
+    assert!(!shadow(root).join("planned/area.toml").exists());
+    assert!(!shadow(root).join("_noted.md").exists());
+    assert!(!shadow(root).join("_abandoned.md").exists());
+    assert_eq!(
+        json_output(root, &["shadow", "status"])["pending"],
+        json!([])
+    );
+
+    // Real work on the caught-up branch still integrates once merged.
+    git(root, &["switch", "-q", "noted"]);
+    commit_file(root, "noted.txt", "noted\n", "noted work");
+    git(root, &["switch", "-q", "main"]);
+    git(root, &["merge", "-q", "--ff-only", "noted"]);
+    let output = run_zdev(root, &["status"]);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Integrated shadow branch noted"));
+    assert!(shadow(root).join("_noted.md").is_file());
+}
+
+#[test]
 fn failed_shadow_initialization_can_be_retried() {
     let repository = shadow_repository();
     let root = repository.path();

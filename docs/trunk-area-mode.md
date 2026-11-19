@@ -418,7 +418,7 @@ not change. The mode affects only the branch facts used by existing gates:
 | Named selection and completion | Require trunk `task_work.safe`: configured trunk exists, is checked out, Git state is inspectable, and no operation is active. Completion still atomically writes only the task and `TASKS.md`. |
 | Task reopen | Keeps the branch-independent rule and atomic task/index write. A closed area and completed dependents still block it. |
 | Area close/reopen | Require `task_work.safe`, evaluated from trunk mode. |
-| Final commit | Unchanged `zdev commit`: commit exactly the caller-prepared index and add the stable change ID. Mode does not make every change on trunk belong to the selected area. |
+| Final commit | Unchanged `zdev commit`: commit exactly the caller-prepared index and add the stable change ID where the record policy uses one. Mode does not make every change on trunk belong to the selected area. |
 
 Non-overlapping unrelated staged, unstaged, and untracked trunk changes remain
 in place. They do not become owned merely because several areas use trunk. The

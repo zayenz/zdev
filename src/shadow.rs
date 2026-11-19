@@ -629,6 +629,12 @@ pub(super) fn align_locked(root: &Path) -> Result<Vec<String>, ZdevError> {
             &main_commit,
         )?);
     }
+    if let Some(trunk) = project::read_config(root)
+        .ok()
+        .and_then(|config| config.project.trunk)
+    {
+        refresh_fork_point(root, &shadow, &branch, &trunk);
+    }
     notices.extend(auto_integrate(root, &shadow, &branch)?);
     restore_task_directories(&shadow)?;
     Ok(notices)
@@ -686,6 +692,29 @@ fn fork_point_key(branch: &str) -> String {
 /// The main commit recorded when zdev created shadow branch `branch`.
 fn fork_point(shadow: &Path, branch: &str) -> Option<String> {
     shadow_output(shadow, &["config", "--get", &fork_point_key(branch)]).ok()
+}
+
+/// Moves `branch`'s fork point to its main tip when the main branch has no
+/// commits outside `base`. Catching up with a base, by `zdev area rebase`, a
+/// rebase or a fast-forward, is not work of its own, so it must not make the
+/// branch look merged once the base contains it. Best effort.
+fn refresh_fork_point(root: &Path, shadow: &Path, branch: &str, base: &str) {
+    if branch == base || !local_branch_exists(shadow, branch) || !local_branch_exists(root, base) {
+        return;
+    }
+    let Ok(Some(tip)) = branch_tip(root, branch) else {
+        return;
+    };
+    if fork_point(shadow, branch).as_deref() == Some(tip.as_str()) {
+        return;
+    }
+    let range = format!("refs/heads/{base}..refs/heads/{branch}");
+    let own = git_output(root, &["rev-list", "--count", &range])
+        .ok()
+        .and_then(|count| count.parse::<u64>().ok());
+    if own == Some(0) {
+        let _ = git(shadow, &["config", &fork_point_key(branch), &tip]);
+    }
 }
 
 /// Switches the shadow repository to `branch`, creating it when needed. A
@@ -759,10 +788,13 @@ impl Pending {
 ///
 /// A branch is merged when its main branch is contained in the main HEAD and
 /// has moved on since the shadow branch began: either a shadow commit names a
-/// main commit, or the main branch has left the fork point zdev recorded. A
-/// main branch that is still at its starting commit is contained in trunk
-/// without being merged, so its records stay put. For a deleted main branch,
-/// the newest named main commit decides.
+/// main commit the HEAD contains, or the main branch has left the fork point
+/// zdev recorded. A branch without a recorded fork point, such as one created
+/// from a remote, counts as moved on once a shadow commit names any main
+/// commit. A main branch that is still at its starting commit, or that only
+/// caught up with its base, is contained in trunk without being merged, so its
+/// records stay put. For a deleted main branch, the newest named main commit
+/// decides.
 fn pending_branches(
     root: &Path,
     shadow: &Path,
@@ -797,8 +829,13 @@ fn pending_branches(
         let main_tip = branch_tip(root, branch)?;
         let merged = match &main_tip {
             Some(tip) => {
-                let moved_on =
-                    latest.is_some() || fork_point(shadow, branch).is_some_and(|fork| fork != *tip);
+                let named_in_head = latest
+                    .is_some_and(|source| commit_is_ancestor(root, source, "HEAD") == Some(true));
+                let moved_on = named_in_head
+                    || match fork_point(shadow, branch) {
+                        Some(fork) => fork != *tip,
+                        None => latest.is_some(),
+                    };
                 moved_on && commit_is_ancestor(root, tip, "HEAD") == Some(true)
             }
             None => {
@@ -1582,6 +1619,7 @@ pub(super) fn rebase_area_branch(root: &Path, branch: &str, base: &str) -> Optio
         return None;
     }
     let shadow = dir(root);
+    refresh_fork_point(root, &shadow, branch, base);
     if !local_branch_exists(&shadow, base) {
         return None;
     }
@@ -1753,7 +1791,10 @@ pub(super) fn report(root: &Path) -> Option<Report> {
     }
     line.push_str(&format!("; push: {push}"));
     if !orphaned.is_empty() {
-        line.push_str(&format!("; orphaned branches: {}", orphaned.join(", ")));
+        line.push_str(&format!(
+            "; orphaned branches: {} (if one was merged, run `zdev shadow integrate <branch>`)",
+            orphaned.join(", ")
+        ));
     }
     line.push_str(&render_notes(&problems, &warnings));
     let value = json!({

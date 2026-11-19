@@ -71,7 +71,7 @@ pub enum OutputFormat {
     name = "zdev",
     version,
     about = "Keep development plans and tasks in the repository",
-    long_about = "Keep development plans and tasks in plain files under .zdev.\n\nZdev creates and checks those files, selects ready tasks, checks area branches, installs coding-harness integrations, and adds stable IDs to Git commits.",
+    long_about = "Keep development plans and tasks in plain files under .zdev.\n\nZdev creates and checks those files, selects ready tasks, checks area branches, installs coding-harness integrations, and gives commits stable change IDs.",
     after_help = "Start a repository:\n  1. Check your integration:       zdev skill check <HARNESS> --scope user\n  2. Choose personal, project, pull-request, or shadow record storage:\n     zdev init --record <POLICY>\n  3. Create or switch branches, then:\n     zdev area create <TAG> --title <TITLE> --objective <OBJECTIVE>\n\nIf the integration check reports missing or conflict, run `zdev skill install <HARNESS>`. Run `zdev <COMMAND> --help` for command-specific details."
 )]
 pub struct Cli {
@@ -230,7 +230,7 @@ enum Command {
         #[command(subcommand)]
         command: SkillCommand,
     },
-    /// Commit the staged Git changes and add a stable change ID
+    /// Commit the staged Git changes, with a stable change ID where the record policy uses one
     ///
     /// Runs `git commit` for the existing index and appends a
     /// Zdev-Change-Id trailer for project and pull-request records. Personal

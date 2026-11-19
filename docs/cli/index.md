@@ -55,7 +55,7 @@ agent. To start execution, ask it to implement a task or loop through the area.
 | [status](status.md) | Read task counts and branch health. |
 | [check](check.md) | Validate records and relationships. |
 | [skill](skill.md) | Install or check a coding-harness integration. |
-| [commit](commit.md) | Commit staged changes with a stable change ID. |
+| [commit](commit.md) | Commit staged changes, with a stable change ID where the record policy uses one. |
 | [change-id](change-id.md) | Generate a stable change ID. |
 | [change](change.md) | Inspect or find commits by their stable ID. |
 

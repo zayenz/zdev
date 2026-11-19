@@ -149,9 +149,10 @@ verifies the result against the task and repository rules. Required corrections
 get a correction pass and a focused recheck. Unresolved corrections or a missing prerequisite leave the task open.
 
 After a pass, the coordinating agent records completion and commits the accepted
-source changes. The commit has a `Zdev-Change-Id` trailer, which identifies the
-logical change across rebases. A single implementation request stops after
-that task and its commit.
+source changes. With a personal record, the commit has no zdev trailer, so zdev
+leaves no trace in the history. Project and pull-request records add a
+`Zdev-Change-Id` trailer, which identifies the logical change across rebases.
+A single implementation request stops after that task and its commit.
 
 Inspect the result in the checkout where the agent reports the commit:
 

@@ -28,8 +28,10 @@ branch. Before each command, zdev compares the two:
   awaiting integration. A main branch counts as merged only once it has
   commits of its own: a shadow commit names a main commit, or the main branch
   has moved past the commit it was at when zdev created the shadow branch. A
-  new branch that is still at its starting commit is therefore never merged
-  into trunk by accident.
+  new branch that is still at its starting commit, or one that only caught up
+  with trunk through `zdev area rebase`, a rebase, or a fast-forward seen by a
+  zdev command on that branch, is therefore never merged into trunk by
+  accident.
 
 zdev reports each switch or integration on standard error, prefixed with
 `zdev:`.
@@ -119,8 +121,11 @@ otherwise on the remote's default branch. An empty remote is added as
 `status` shows the shadow branch and whether it matches the main branch,
 uncommitted changes, ahead and behind counts against the upstream, the push
 setting, branches awaiting integration, and orphaned branches. An orphaned
-branch has records that are not merged and no main branch with its name. zdev
-never deletes shadow branches. `zdev status` and `zdev check` include the same
+branch has records that are not merged and no main branch with its name. A
+main branch that was rebased or squashed before it was merged and then deleted
+leaves its shadow branch orphaned, because its commits are not in trunk; bring
+the records in with `zdev shadow integrate BRANCH`. zdev never deletes shadow
+branches. `zdev status` and `zdev check` include the same
 report. `check` fails when the shadow repository is missing or the main
 repository tracks `.zdev` files.
 

@@ -13,13 +13,14 @@ const guides = [
   'worker-profiles', 'task-complexity-routing', 'harness-orchestration',
   'harness-goals', 't3-code', 'workflow-round-trips', 'area-reports',
   'adapted-methods', 'releasing', 'upgrading-to-2.0', 'upgrading-to-2.1',
-  'upgrading-to-2.2', 'research', 'reference',
+  'upgrading-to-2.2', 'upgrading-to-2.3', 'research', 'reference',
 ];
 // Version guides keep dot-free slugs; 2.0 keeps its published URL.
 const guideSlugs = {
   'upgrading-to-2.0': 'upgrading-to-2',
   'upgrading-to-2.1': 'upgrading-to-2-1',
   'upgrading-to-2.2': 'upgrading-to-2-2',
+  'upgrading-to-2.3': 'upgrading-to-2-3',
 };
 const commands = [
   'notes', 'explore', 'discuss', 'improve', 'audit', 'investigate', 'tasks',
@@ -29,7 +30,7 @@ const commands = [
 const cli = [
   'instructions', 'init', 'cleanup', 'config', 'area', 'research', 'slice',
   'tasks', 'task', 'next', 'goal', 'work-context', 'status', 'check', 'skill',
-  'commit', 'change-id', 'change',
+  'commit', 'change-id', 'change', 'shadow',
 ];
 const pages = new Map([
   ['docs/cli/index.md', 'cli'],

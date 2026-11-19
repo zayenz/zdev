@@ -2,7 +2,7 @@
 
 This file records notable changes to zdev.
 
-## [Unreleased]
+## [2.3.0] - 2026-11-19
 
 ### Added
 
@@ -20,7 +20,8 @@ This file records notable changes to zdev.
   `commit`, `push`, and `integrate` manage the shadow repository directly. The
   new `shadow.push` preference (`never` or `after-commit`) pushes after each
   shadow commit. Refresh installed integrations with
-  `zdev skill install <harness> --force` for the shadow staging rules.
+  `zdev skill install <harness> --force` for the shadow staging rules; see
+  [Upgrade to 2.3](docs/upgrading-to-2.3.md).
 
 ### Changed
 
@@ -669,6 +670,7 @@ This file records notable changes to zdev.
 - Human-readable output and versioned JSON output for scripting.
 - Release archives for macOS and Linux on x86-64 and Arm64.
 
+[2.3.0]: https://github.com/zayenz/zdev/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/zayenz/zdev/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/zayenz/zdev/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/zayenz/zdev/compare/v1.6.0...v2.0.0

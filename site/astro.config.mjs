@@ -25,6 +25,7 @@ export default defineConfig({
       { label: 'Start here', items: [
         { label: 'What zdev does', slug: '' },
         { label: 'Your first task', slug: 'guides/getting-started' },
+        { label: 'Upgrade to 2.3', slug: 'guides/upgrading-to-2-3' },
         { label: 'Upgrade to 2.2', slug: 'guides/upgrading-to-2-2' },
         { label: 'Upgrade to 2.1', slug: 'guides/upgrading-to-2-1' },
         { label: 'Upgrade to 2.0', slug: 'guides/upgrading-to-2' },
@@ -48,7 +49,7 @@ export default defineConfig({
         { label: 'CLI overview', slug: 'cli' },
         ...['init', 'skill', 'instructions', 'area', 'slice', 'tasks', 'task',
           'next', 'status', 'check', 'config', 'goal', 'work-context', 'research',
-          'commit', 'change', 'change-id', 'cleanup'].map((name) => ({
+          'commit', 'change', 'change-id', 'shadow', 'cleanup'].map((name) => ({
             label: `zdev ${name}`, slug: `cli/${name}`,
           })),
       ], collapsed: true },
